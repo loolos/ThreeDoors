@@ -24,8 +24,6 @@ class Player:
         self.base_atk = atk
         self.atk = atk
         self.gold = gold
-        # 复活卷轴也放到道具栏中（被动使用，不显示在主动使用界面）
-        self.revive_scroll_count = 0
         self.statuses = {}  # 如 {"poison":3, "weak":2, ...}
         self.inventory = []  # 最多可存10个道具，每个道具为字典
 
@@ -39,10 +37,10 @@ class Player:
         self.gold += amt
 
     def try_revive(self):
-        # Check inventory for a revive scroll
+        # 检查库存中是否有复活卷轴
         for item in self.inventory:
             if item["type"] == "revive":
-                self.inventory.remove(item)  # Consume the revive scroll
+                self.inventory.remove(item)  # 消耗复活卷轴
                 self.hp = self.base_hp
                 return True
         return False
