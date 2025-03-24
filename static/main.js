@@ -78,7 +78,7 @@ function renderState(state) {
     }
   } else if (state.scene === "UseItemScene") {
     // 使用道具场景，显示库存中可主动使用的物品，若不足三个则显示“无”
-    if (state.active_items && state.active_items.length === 3) {
+    if (state.active_items && state.active_items.length > 0) {
       btn1.textContent = state.active_items[0] ? state.active_items[0].name : "无";
       btn2.textContent = state.active_items[1] ? state.active_items[1].name : "无";
       btn3.textContent = state.active_items[2] ? state.active_items[2].name : "无";
