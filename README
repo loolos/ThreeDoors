@@ -1,0 +1,85 @@
+ThreeDoors Adventure Game
+概述
+ThreeDoors 是一个基于 Flask 框架的冒险游戏。玩家在游戏中扮演一名勇士，通过选择不同的门来遭遇怪物、陷阱、宝藏、商店等事件，并进行战斗或交易。玩家可以使用道具来增强自身能力或恢复健康。
+
+安装与运行
+先决条件
+Python 3.x
+Flask
+Flask-Session
+安装步骤
+克隆此仓库：
+
+bash
+git clone https://github.com/loolos/ThreeDoors.git
+cd ThreeDoors
+创建并激活虚拟环境（可选）：
+
+bash
+python -m venv venv
+source venv/bin/activate  # 对于 Windows 系统，使用 venv\Scripts\activate
+安装依赖项：
+
+bash
+pip install -r requirements.txt
+运行应用程序：
+
+bash
+python server.py
+应用程序将在 http://127.0.0.1:5000 运行。打开浏览器并访问此 URL 以开始游戏。
+
+游戏玩法
+玩家在游戏开始时拥有一定的生命值、攻击力和金币。
+每个回合，玩家可以选择不同的门进入不同的场景，如战斗、商店、宝藏等。
+在战斗场景中，玩家可以选择攻击、使用道具或逃跑。
+在商店场景中，玩家可以购买各种道具来增强自身能力。
+玩家可以使用道具来恢复健康或增强攻击力等。
+文件结构
+server.py：主程序文件，包含游戏逻辑和 Flask 路由。
+templates/：HTML 模板文件夹。
+static/：静态文件夹，包含 CSS 和 JavaScript 文件。
+贡献
+欢迎提交问题和贡献代码。如果您有任何问题或建议，请随时在 GitHub 上提交问题。
+
+ThreeDoors Adventure Game
+Overview
+ThreeDoors is an adventure game based on the Flask framework. Players take on the role of a warrior, encountering monsters, traps, treasures, shops, and other events by choosing different doors. Players can use items to enhance their abilities or restore health.
+
+Installation and Running
+Prerequisites
+Python 3.x
+Flask
+Flask-Session
+Installation Steps
+Clone this repository:
+
+bash
+git clone https://github.com/loolos/ThreeDoors.git
+cd ThreeDoors
+Create and activate a virtual environment (optional):
+
+bash
+python -m venv venv
+source venv/bin/activate  # On Windows, use venv\Scripts\activate
+Install dependencies:
+
+bash
+pip install -r requirements.txt
+Run the application:
+
+bash
+python server.py
+The application will run at http://127.0.0.1:5000. Open your browser and visit this URL to start the game.
+
+Gameplay
+Players start the game with a certain amount of health, attack power, and gold.
+Each turn, players can choose different doors to enter different scenes, such as battles, shops, treasures, etc.
+In the battle scene, players can choose to attack, use items, or escape.
+In the shop scene, players can purchase various items to enhance their abilities.
+Players can use items to restore health or enhance attack power, etc.
+File Structure
+server.py: The main program file, containing game logic and Flask routes.
+templates/: The folder for HTML templates.
+static/: The folder for static files, including CSS and JavaScript files.
+Contributing
+Issues and pull requests are welcome. If you have any questions or suggestions, feel free to open an issue on GitHub.
