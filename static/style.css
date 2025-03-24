@@ -1,0 +1,46 @@
+/* static/style.css */
+.container {
+  max-width: 600px;
+  margin: 0 auto;
+  text-align: center;
+  padding: 10px;
+}
+
+h1 {
+  margin-bottom: 20px;
+}
+
+#buttons {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin: 20px 0;
+}
+
+.main-btn {
+  flex: 1;
+  max-width: 150px;
+  min-height: 80px;
+  font-size: 1.2rem;
+  border: 2px solid #666;
+  border-radius: 5px;
+  background: #eee;
+}
+
+.main-btn:active {
+  background: #ddd;
+}
+
+#log-area {
+  margin-top: 20px;
+  padding: 10px;
+  height: 200px;
+  overflow-y: auto;
+  background: #f9f9f9;
+  border: 1px solid #ccc;
+}
+
+#status-area {
+  font-size: 1rem;
+  margin-bottom: 10px;
+}
