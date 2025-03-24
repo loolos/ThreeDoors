@@ -3,17 +3,21 @@ from flask import Flask, render_template, session, request, jsonify
 from flask_session import Session
 import random, string, os
 
+# -------------------------------
+# 1) Flask 应用初始化
+# -------------------------------
+
 app = Flask(__name__)
 app.secret_key = "SOME_SECRET"  # 用于加密 session
 app.config["SESSION_TYPE"] = "filesystem"  # 存储 session 到文件系统
 Session(app)
 
 # -------------------------------
-# 1) 核心逻辑：玩家、怪物、各场景、控制器等
+# 2) 核心逻辑：玩家、怪物、场景等
 # -------------------------------
 
 class Player:
-    def __init__(self, name="勇士", hp=20, atk=5, gold=50):
+    def __init__(self, name="勇士", hp=20, atk=5, gold=0):
         self.name = name
         self.base_hp = hp
         self.hp = hp
@@ -35,10 +39,12 @@ class Player:
         self.gold += amt
 
     def try_revive(self):
-        if self.hp <= 0 and self.revive_scroll_count > 0:
-            self.revive_scroll_count -= 1
-            self.hp = self.base_hp
-            return True
+        # Check inventory for a revive scroll
+        for item in self.inventory:
+            if item["type"] == "revive":
+                self.inventory.remove(item)  # Consume the revive scroll
+                self.hp = self.base_hp
+                return True
         return False
 
     def apply_turn_effects(self):
@@ -119,7 +125,6 @@ def get_random_monster(max_tier=None):
             monster_pool = filtered
     return random.choice(monster_pool)
 
-# DoorScene：三扇门场景
 class DoorScene:
     def __init__(self, controller):
         self.controller = controller
@@ -200,8 +205,13 @@ class DoorScene:
             self._generate_doors()
             return f"第{c.round_count}回合：{msg}"
         elif ev == "shop":
-            c.go_to_scene("shop_scene")
-            return f"第{c.round_count}回合：你发现了商店，进去逛逛吧!"
+            if p.gold == 0:
+                # 玩家金币为 0，显示被踢出消息并进入下一回合
+                self._generate_doors()
+                return f"第{c.round_count}回合：你没有钱，于是被商人踢了出来，进入下一回合的三扇门。"
+            else:
+                c.go_to_scene("shop_scene")
+                return f"第{c.round_count}回合：你发现了商店，进去逛逛吧!"
         else:
             return f"第{c.round_count}回合：未知的门事件"
 
@@ -281,10 +291,9 @@ class BattleScene:
         else:
             return "未知战斗指令"
 
-
     def do_attack(self, p):
         p.apply_turn_effects()
-        # 如果有atk_multiplier状态则计算翻倍效果
+        # 如果有 atk_multiplier 状态则计算翻倍效果
         multiplier = p.statuses.get("atk_multiplier", 1)
         dmg = max(1, p.atk * multiplier - random.randint(0, 1))
         self.monster.hp -= dmg
@@ -295,13 +304,20 @@ class BattleScene:
             msg.append(loot)
             self.controller.go_to_scene("door_scene")
             return "\n".join(msg)
-        mdmg = max(1, self.monster.atk - random.randint(0, 1))
-        if self.defending:
-            mdmg = mdmg // 2
-        if "damage_reduction" in p.statuses:
-            mdmg = int(mdmg * 0.7)
-        p.take_damage(mdmg)
-        msg.append(f"{self.monster.name} 反击造成 {mdmg} 点伤害.")
+
+        # 检查怪物是否晕眩
+        if self.monster.stunned_rounds > 0:
+            self.monster.stunned_rounds -= 1
+            msg.append(f"{self.monster.name} 被晕眩，无法反击!")
+        else:
+            mdmg = max(1, self.monster.atk - random.randint(0, 1))
+            if self.defending:
+                mdmg = mdmg // 2
+            if "damage_reduction" in p.statuses:
+                mdmg = int(mdmg * 0.7)
+            p.take_damage(mdmg)
+            msg.append(f"{self.monster.name} 反击造成 {mdmg} 点伤害.")
+
         if p.hp <= 0:
             revived = p.try_revive()
             if revived:
@@ -309,6 +325,7 @@ class BattleScene:
             else:
                 msg.append("你被怪物击倒, 英勇牺牲!")
         p.apply_turn_effects()
+
         # 较强怪物可能附带负面效果
         if self.monster.tier >= 3 and random.random() < 0.3:
             effect = random.choice(["weak", "poison", "stun"])
@@ -321,6 +338,11 @@ class BattleScene:
     def do_escape(self, p):
         fail_chance = min(1.0, self.monster.tier * 0.2)
         if random.random() < fail_chance:
+            # 检查怪物是否晕眩
+            if self.monster.stunned_rounds > 0:
+                self.monster.stunned_rounds -= 1
+                return "你试图逃跑, 怪物被晕眩，未能反击!"
+
             mdmg = max(1, self.monster.atk - random.randint(0, 1))
             if self.defending:
                 mdmg = mdmg // 2
@@ -358,10 +380,10 @@ class ShopScene:
     def handle_purchase(self, idx):
         logic = self.controller.shop_logic
         msg = logic.purchase_item(idx, self.controller.player)
+        self.controller.door_scene._generate_doors()  # Ensure doors regenerate
         self.controller.go_to_scene("door_scene")
         return msg + "\n离开商店, 回到门场景"
 
-# 新增： UseItemScene，用于主动使用道具
 class UseItemScene:
     def __init__(self, controller):
         self.controller = controller
@@ -411,7 +433,6 @@ class UseItemScene:
         self.controller.go_to_scene("battle_scene")
         return effect_msg
 
-# ShopLogic：增加主动使用标识，并生成物品时加入 active 字段
 class ShopLogic:
     def __init__(self):
         self.shop_items = []
@@ -530,10 +551,8 @@ class ShopLogic:
                 effect = "无效果"
             return f"你花费 {cost} 金币, 购买了 {n}, {effect}!"
 
-
-
 # -------------------------------
-# 2) 控制器及辅助类
+# 3) 控制器及辅助类
 # -------------------------------
 
 class SceneManager:
@@ -609,7 +628,7 @@ class GameController:
         extra_drops = [
             ("healing_potion", lambda: f"治疗药剂, 恢复 {random.randint(5,10)} HP!"),
             ("weapon", lambda: f"武器, 攻击力提升 {random.randint(2,4)+tier}!"),
-            ("revive_scroll", lambda: f"复活卷轴 +1 (现有 {p.revive_scroll_count + 1} 张)"),
+            ("revive_scroll", lambda: f"复活卷轴 +1 (现有 {p.revive_scroll_count} 张)"),
             ("armor_piece", lambda: f"护甲碎片, HP增加 {random.randint(5,10)}!")
         ]
         if random.random() < 0.3:
@@ -644,6 +663,7 @@ class GameController:
         self.scene_manager.add_scene("battle_scene", self.battle_scene)
         self.scene_manager.add_scene("shop_scene", self.shop_scene)
         self.scene_manager.add_scene("use_item_scene", self.use_item_scene)
+        self.door_scene._generate_doors()  # Ensure doors regenerate
         self.go_to_scene("door_scene")
     def resume_scene(self):
         # 如果上一个场景存在且类型为 BattleScene，则恢复它
@@ -652,6 +672,7 @@ class GameController:
         # 否则，默认切换到 battle_scene（但一般UseItemScene只在战斗中使用）
         else:
             self.scene_manager.current_scene = self.battle_scene
+
 # -------------------------------
 # 3) 新增： 使用道具场景
 # -------------------------------
@@ -701,8 +722,6 @@ class UseItemScene:
         # 使用完道具后，恢复上一个战斗场景
         self.controller.resume_scene()
         return effect_msg
-
-
 # -------------------------------
 # 4) Flask 路由及 Session 存储
 # -------------------------------
@@ -713,6 +732,7 @@ def get_game():
     gid = session["game_id"]
     if gid not in games_store:
         games_store[gid] = GameController()
+        games_store[gid].reset_game()  # 初始化游戏，设置初始物品
     return games_store[gid]
 
 games_store = {}
@@ -769,7 +789,7 @@ def get_state():
         state["active_items"] = scn.active_items
     if hasattr(g, "last_shop_message") and g.last_shop_message:
         state["last_message"] = g.last_shop_message
-        g.last_shop_message = ""
+        g.last_shop_message = ""  # 清空消息，避免重复显示
     if hasattr(g, "last_monster_message") and g.last_monster_message:
         state["last_message"] = g.last_monster_message
         g.last_monster_message = ""
@@ -835,7 +855,7 @@ def button_action():
     return jsonify({"log": log_msg})
 
 # -------------------------------
-# 4) 启动 Flask 应用
+# 5) 启动 Flask 应用
 # -------------------------------
 
 if __name__ == "__main__":
