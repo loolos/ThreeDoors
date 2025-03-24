@@ -5,12 +5,12 @@ import random, string, os
 
 app = Flask(__name__)
 app.secret_key = "SOME_SECRET"  # 用于加密 session
-app.config["SESSION_TYPE"] = "filesystem"  # 使用文件系统存储 session
+app.config["SESSION_TYPE"] = "filesystem"  # 存储 session 到文件系统
 Session(app)
 
-# ----------------------------------------------------------------
-# 1) 定义玩家/怪物/场景/逻辑 (合并在此文件，实际项目中可拆分)
-# ----------------------------------------------------------------
+# -------------------------------
+# 1) 核心逻辑：玩家、怪物、各场景、控制器等
+# -------------------------------
 
 class Player:
     def __init__(self, name="勇士", hp=20, atk=5, gold=0):
@@ -21,7 +21,7 @@ class Player:
         self.atk = atk
         self.gold = gold
         self.revive_scroll_count = 0
-        self.statuses = {}
+        self.statuses = {}  # 例如 {"poison":3, "weak":2, "atk_up":4, "immune":5, "stun":1, ...}
 
     def take_damage(self, dmg):
         self.hp -= dmg
@@ -35,7 +35,7 @@ class Player:
     def try_revive(self):
         if self.hp <= 0 and self.revive_scroll_count > 0:
             self.revive_scroll_count -= 1
-            self.hp = 1
+            self.hp = self.base_hp
             return True
         return False
 
@@ -69,6 +69,14 @@ class Player:
                 desc.append(f"攻击力+2({v}回合)")
             elif k == "immune":
                 desc.append(f"免疫({v}回合)")
+            elif k == "stun":
+                desc.append(f"眩晕({v}回合)")
+            elif k == "dodge":
+                desc.append(f"闪避({v}回合)")
+            elif k == "damage_reduction":
+                desc.append(f"伤害减免({v}回合)")
+            elif k == "trap_resist":
+                desc.append(f"陷阱减伤({v}回合)")
             else:
                 desc.append(f"{k}({v}回合)")
         return ", ".join(desc)
@@ -83,7 +91,8 @@ class Monster:
     def take_damage(self, dmg):
         self.hp -= dmg
 
-def get_random_monster():
+# 修改后的 get_random_monster：如果传入 max_tier，则只返回符合条件的怪物
+def get_random_monster(max_tier=None):
     monster_pool = [
         Monster("史莱姆", 15, 4, 1),
         Monster("哥布林", 20, 5, 1),
@@ -94,6 +103,10 @@ def get_random_monster():
         Monster("暗黑骑士", 50, 12, 3),
         Monster("末日领主", 70, 15, 4),
     ]
+    if max_tier is not None:
+        filtered = [m for m in monster_pool if m.tier <= max_tier]
+        if filtered:
+            monster_pool = filtered
     return random.choice(monster_pool)
 
 # DoorScene：三扇门场景
@@ -115,7 +128,6 @@ class DoorScene:
         }
 
     def on_enter(self):
-        # 如果还没有生成过门，则生成；否则保持原有门
         if not self.has_initialized:
             self._generate_doors()
             self.has_initialized = True
@@ -125,7 +137,6 @@ class DoorScene:
         p = c.player
         if index < 0 or index >= len(self.door_events):
             return "无效的门选择"
-        # 在门场景点击门，回合数增加（只有陷阱/宝藏/装备会刷新门）
         c.round_count += 1
         ev, hint = self.door_events[index]
         p.apply_turn_effects()
@@ -137,14 +148,16 @@ class DoorScene:
             return f"第{c.round_count}回合：你发现了商店，进去逛逛吧!"
         elif ev == "trap":
             dmg = random.randint(5, 10)
+            if "trap_resist" in p.statuses:
+                dmg = max(1, int(dmg * 0.5))
             p.take_damage(dmg)
             if p.hp <= 0:
                 revived = p.try_revive()
                 if revived:
-                    msg = f"你踩了陷阱({dmg}伤害)，但复活卷轴救了你(HP=1)!"
+                    msg = f"你踩了陷阱({dmg}伤害)，但复活卷轴救了你(HP={p.hp})!"
                 else:
                     msg = f"你踩到陷阱({dmg}伤害)，不幸身亡..."
-                self._generate_doors()  # 刷新门
+                self._generate_doors()
                 return f"第{c.round_count}回合：{msg}"
             else:
                 msg = f"你踩到陷阱，损失{dmg}HP!"
@@ -191,13 +204,19 @@ class BattleScene:
         self.defending = False
 
     def on_enter(self):
-        self.monster = get_random_monster()
+        # 前20回合只允许生成 tier<=2 的怪物
+        if self.controller.round_count < 20:
+            self.monster = get_random_monster(max_tier=2)
+        else:
+            self.monster = get_random_monster()
         self.defending = False
+        # 记录遇到的怪物信息，用于日志显示
+        self.controller.last_monster_message = f"你遇到了 {self.monster.name} (HP: {self.monster.hp}, ATK: {self.monster.atk}, Tier: {self.monster.tier})"
 
     def handle_action(self, action):
         p = self.controller.player
-        if not self.monster:
-            return "没有怪物？"
+        if "stun" in p.statuses and p.statuses["stun"] > 0:
+            return "你处于眩晕状态, 无法行动!"
         if action == "attack":
             return self.do_attack(p)
         elif action == "defend":
@@ -221,6 +240,8 @@ class BattleScene:
         mdmg = max(1, self.monster.atk - random.randint(0, 1))
         if self.defending:
             mdmg = mdmg // 2
+        if "damage_reduction" in p.statuses:
+            mdmg = int(mdmg * 0.7)
         p.take_damage(mdmg)
         msg.append(f"{self.monster.name} 反击造成 {mdmg} 点伤害.")
         if p.hp <= 0:
@@ -230,6 +251,12 @@ class BattleScene:
             else:
                 msg.append("你被怪物击倒, 英勇牺牲!")
         p.apply_turn_effects()
+        # 为较强怪物增加附带效果
+        if self.monster.tier >= 3 and random.random() < 0.3:
+            effect = random.choice(["weak", "poison", "stun"])
+            duration = random.randint(1, 2)
+            p.statuses[effect] = duration
+            msg.append(f"{self.monster.name} 附带 {effect} 效果 ({duration}回合)!")
         self.defending = False
         return "\n".join(msg)
 
@@ -243,7 +270,7 @@ class BattleScene:
         if p.hp <= 0:
             revived = p.try_revive()
             if revived:
-                msg.append("复活卷轴救了你(HP=1)!")
+                msg.append("复活卷轴救了你!")
             else:
                 msg.append("你被怪物击倒, 英勇牺牲!")
         p.apply_turn_effects()
@@ -278,7 +305,13 @@ class ShopScene:
     def on_enter(self):
         logic = self.controller.shop_logic
         logic.generate_items(self.controller.player)
-        self.shop_items = logic.shop_items
+        if self.controller.player.gold == 0 or len(logic.shop_items) == 0:
+            self.controller.last_shop_message = "你没有钱，于是被商人踢了出来"
+            self.controller.door_scene._generate_doors()  # 刷新门
+            self.controller.go_to_scene("door_scene")
+            self.shop_items = []
+        else:
+            self.shop_items = logic.shop_items
 
     def handle_purchase(self, idx):
         logic = self.controller.shop_logic
@@ -286,31 +319,37 @@ class ShopScene:
         self.controller.go_to_scene("door_scene")
         return msg + "\n离开商店, 回到门场景"
 
-# ShopLogic
+# ShopLogic：增加多种新物品
 class ShopLogic:
     def __init__(self):
         self.shop_items = []
 
     def generate_items(self, player):
         self.shop_items = []
+        if player.gold == 0:
+            return
         has_neg = False
         if "poison" in player.statuses and player.statuses["poison"] > 0:
             has_neg = True
         if "weak" in player.statuses and player.statuses["weak"] > 0:
             has_neg = True
         possible = [
-            ("小型治疗药水", "heal", 5, 10),
-            ("大型治疗药水", "heal", 10, 20),
+            ("普通治疗药水", "heal", 5, 10),
+            ("高级治疗药水", "heal", 10, 20),
+            ("超高级治疗药水", "heal", 15, 30),
             ("普通装备", "weapon", 2, 15),
             ("稀有装备", "weapon", 5, 30),
             ("复活卷轴", "revive", 1, 25),
+            ("闪避卷轴", "dodge", 2, 15),
+            ("减伤卷轴", "damage_reduction", 2, 15),
+            ("陷阱减伤药剂", "trap_resist", 2, 10),
             ("解毒药水", "cure_poison", 0, 10),
             ("解除虚弱卷轴", "cure_weak", 0, 10),
             ("攻击力增益卷轴", "atk_up", 5, 20),
             ("免疫卷轴", "immune", 5, 25),
         ]
-        if not has_neg:
-            possible = [x for x in possible if x[1] not in ("cure_poison", "cure_weak")]
+        if player.gold < 10:
+            possible = [item for item in possible if item[3] <= 10 or item[1] in ("atk_up", "immune", "dodge", "damage_reduction", "trap_resist")]
         gold = player.gold
         for _ in range(3):
             name, itype, val, basep = random.choice(possible)
@@ -359,6 +398,15 @@ class ShopLogic:
         elif t == "immune":
             player.statuses["immune"] = v
             return f"你花费 {c} 金币, 购买了 {n}, 未来 {v} 回合免疫负面!"
+        elif t == "dodge":
+            player.statuses["dodge"] = v
+            return f"你花费 {c} 金币, 购买了 {n}, 未来 {v} 回合闪避提升!"
+        elif t == "damage_reduction":
+            player.statuses["damage_reduction"] = v
+            return f"你花费 {c} 金币, 购买了 {n}, 未来 {v} 回合伤害减免!"
+        elif t == "trap_resist":
+            player.statuses["trap_resist"] = v
+            return f"你花费 {c} 金币, 购买了 {n}, 未来 {v} 回合陷阱伤害减半!"
         else:
             return f"你花费 {c} 金币, 买下 {n}, 不知有何效果..."
 
@@ -402,6 +450,8 @@ class GameController:
                              self.game_config.START_PLAYER_GOLD)
         self.round_count = 0
         self.last_scene = None  # 用于记录上一个场景
+        self.last_shop_message = ""
+        self.last_monster_message = ""
         self.scene_manager = SceneManager()
         self.shop_logic = ShopLogic()
 
@@ -415,7 +465,6 @@ class GameController:
         self.go_to_scene("door_scene")
 
     def go_to_scene(self, name):
-        # 记录当前场景作为上一个场景
         if self.scene_manager.current_scene is not None:
             self.last_scene = self.scene_manager.current_scene
         self.scene_manager.go_to(name)
@@ -466,6 +515,8 @@ class GameController:
                              self.game_config.START_PLAYER_GOLD)
         self.round_count = 0
         self.last_scene = None
+        self.last_shop_message = ""
+        self.last_monster_message = ""
         self.door_scene = DoorScene(self)
         self.battle_scene = BattleScene(self)
         self.shop_scene = ShopScene(self)
@@ -475,9 +526,9 @@ class GameController:
         self.scene_manager.add_scene("shop_scene", self.shop_scene)
         self.go_to_scene("door_scene")
 
-# ----------------------------------------------------------------
-# 2) Flask 应用, 用 session 存储 GameController
-# ----------------------------------------------------------------
+# -------------------------------
+# 2) Flask 路由及 Session 存储
+# -------------------------------
 
 def get_game():
     if "game_id" not in session:
@@ -536,7 +587,13 @@ def get_state():
       "monster": monster_data,
       "shop_items": shop_data
     }
-    # 如果玩家死亡，则把场景设为 GameOver
+    # 如果有上次商店或战斗的提示，加入返回（例如被商人踢出的提示或遇怪提示）
+    if hasattr(g, "last_shop_message") and g.last_shop_message:
+        state["last_message"] = g.last_shop_message
+        g.last_shop_message = ""
+    if hasattr(g, "last_monster_message") and g.last_monster_message:
+        state["last_message"] = g.last_monster_message
+        g.last_monster_message = ""
     if p.hp <= 0:
         state["scene"] = "GameOver"
     return jsonify(state)
@@ -547,7 +604,6 @@ def button_action():
     scn = g.scene_manager.current_scene
     data = request.json
     index = data.get("index", 0)
-    # 如果玩家死亡，则将场景视为 GameOver
     if g.player.hp <= 0:
         scn_name = "GameOver"
     else:
@@ -567,19 +623,25 @@ def button_action():
     elif scn_name == "ShopScene":
         log_msg = scn.handle_purchase(index)
     elif scn_name == "GameOver":
-        # 游戏结束状态下: 0->重启, 1->满血复活, 2->退出游戏
+        # GameOver状态下：
+        # 0 -> 重启游戏
+        # 1 -> 使用复活卷轴（如果有则消费一个，恢复到上一个场景，不刷新门，不增加回合）
+        # 2 -> 退出游戏（关闭 Python 进程）
         if index == 0:
             g.reset_game()
             log_msg = "游戏已重启"
         elif index == 1:
             p = g.player
-            p.hp = p.base_hp
-            # 恢复后回到上一个场景，如果有记录则切换，否则仍在 GameOver 状态
-            if g.last_scene is not None:
-                g.scene_manager.current_scene = g.last_scene
-                log_msg = f"你满血复活, 回到上一个场景: {g.last_scene.__class__.__name__}!"
+            if p.revive_scroll_count > 0:
+                p.revive_scroll_count -= 1
+                p.hp = p.base_hp
+                if g.last_scene is not None:
+                    g.scene_manager.current_scene = g.last_scene
+                    log_msg = f"使用复活卷轴成功, 回到上一个场景: {g.last_scene.__class__.__name__}!"
+                else:
+                    log_msg = "使用复活卷轴成功, 但未记录上一个场景."
             else:
-                log_msg = f"你满血复活, 但未记录上一个场景, 保持在当前状态."
+                log_msg = "你没有复活卷轴, 无法复活!"
         elif index == 2:
             log_msg = "退出游戏"
             os._exit(0)
@@ -589,9 +651,9 @@ def button_action():
         log_msg = "当前场景无操作"
     return jsonify({"log": log_msg})
 
-# ----------------------------------------------------------------
-# 启动 Flask 应用
-# ----------------------------------------------------------------
+# -------------------------------
+# 3) 启动 Flask 应用
+# -------------------------------
 
 if __name__ == "__main__":
     app.run(debug=True)
