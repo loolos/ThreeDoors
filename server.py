@@ -148,18 +148,23 @@ class DoorScene:
         if index < 0 or index >= len(self.door_events):
             return "无效的门选择"
         c.round_count += 1
-        ev, hint = self.door_events[index]
         p.apply_turn_effects()
+        event_details = self.door_events[index]
+        ev = event_details["event"]
         if ev == "monster":
-            monster = get_random_monster()
-            monster_info = f"你遇到了 {monster.name} (HP: {monster.hp}, ATK: {monster.atk}, Tier: {monster.tier})"
+            monster_info = event_details["monster"]
+            monster = Monster(
+                monster_info["name"],
+                monster_info["hp"],
+                monster_info["atk"],
+                monster_info["tier"]
+            )
+            c.current_monster = monster
+            monster_desc = f"你遇到了 {monster.name} (HP: {monster.hp}, ATK: {monster.atk}, Tier: {monster.tier})"
             c.go_to_scene("battle_scene")
-            return f"第{c.round_count}回合：你选择了怪物之门，进入战斗场景! {monster_info}"
-        elif ev == "shop":
-            c.go_to_scene("shop_scene")
-            return f"第{c.round_count}回合：你发现了商店，进去逛逛吧!"
+            return f"第{c.round_count}回合：你选择了怪物之门，进入战斗场景! {monster_desc}"
         elif ev == "trap":
-            dmg = random.randint(5, 10)
+            dmg = event_details["trap"]["damage"]
             if "trap_resist" in p.statuses:
                 dmg = max(1, int(dmg * 0.5))
             p.take_damage(dmg)
@@ -181,19 +186,22 @@ class DoorScene:
                 self._generate_doors()
                 return f"第{c.round_count}回合：{msg}"
         elif ev == "treasure":
-            g = random.randint(5, 15)
+            g = event_details["treasure"]["gold"]
             p.add_gold(g)
             msg = f"你发现宝藏，获得{g}金币!"
             self._generate_doors()
             return f"第{c.round_count}回合：{msg}"
         elif ev == "equip":
-            boost = random.randint(1, 3)
+            boost = event_details["equip"]["boost"]
             oldatk = p.atk
             p.atk += boost
             p.base_atk += boost
             msg = f"你捡到武器，攻击力从{oldatk}提升到{p.atk}!"
             self._generate_doors()
             return f"第{c.round_count}回合：{msg}"
+        elif ev == "shop":
+            c.go_to_scene("shop_scene")
+            return f"第{c.round_count}回合：你发现了商店，进去逛逛吧!"
         else:
             return f"第{c.round_count}回合：未知的门事件"
 
@@ -216,11 +224,34 @@ class DoorScene:
             ev = random.choice(combo)
             hint_candidates = self.combo_hints.get(combo, ["神秘而未知"])
             hint = random.choice(hint_candidates)
+            event_details = {"event": ev, "hint": hint}
             if ev == "monster":
-                # 提前生成怪物并存储到控制器
+                # 提前生成怪物并存储到事件详情
                 monster = get_random_monster()
-                self.controller.current_monster = monster
-            result.append((ev, hint))
+                event_details["monster"] = {
+                    "name": monster.name,
+                    "hp": monster.hp,
+                    "atk": monster.atk,
+                    "tier": monster.tier
+                }
+            elif ev == "trap":
+                # 提前生成陷阱伤害
+                dmg = random.randint(5, 10)
+                event_details["trap"] = {"damage": dmg}
+            elif ev == "treasure":
+                # 提前生成宝藏金币
+                g = random.randint(5, 15)
+                event_details["treasure"] = {"gold": g}
+            elif ev == "equip":
+                # 提前生成装备提升
+                boost = random.randint(1, 3)
+                event_details["equip"] = {"boost": boost}
+            elif ev == "shop":
+                # 提前生成商店物品
+                logic = self.controller.shop_logic
+                logic.generate_items(self.controller.player)
+                event_details["shop_items"] = logic.shop_items
+            result.append(event_details)
         self.door_events = result
 
 class BattleScene:
@@ -316,11 +347,12 @@ class ShopScene:
         logic = self.controller.shop_logic
         logic.generate_items(self.controller.player)
         if self.controller.player.gold == 0 or len(logic.shop_items) == 0:
-            self.controller.last_shop_message = "你没有钱，于是被商人踢了出来"
+            # 设置被踢出的日志消息
+            self.controller.last_shop_message = "你没有钱，于是被商人踢了出来。"
             self.controller.door_scene._generate_doors()  # 刷新门
             self.controller.go_to_scene("door_scene")
             self.shop_items = []
-            return  # Ensure no further processing
+            return  # 确保不再继续处理
         self.shop_items = logic.shop_items
 
     def handle_purchase(self, idx):
@@ -703,11 +735,11 @@ def get_state():
     scn_name = scn.__class__.__name__ if scn else "None"
     door_data = []
     if scn_name == "DoorScene":
-        for ev, hint in scn.door_events:
-            door_data.append({"event": ev, "hint": hint})
+        for event_details in scn.door_events:
+            door_data.append({"event": event_details["event"], "hint": event_details["hint"]})
     elif p.hp <= 0 and hasattr(g, "door_scene"):
-        for ev, hint in g.door_scene.door_events:
-            door_data.append({"event": ev, "hint": hint})
+        for event_details in g.door_scene.door_events:
+            door_data.append({"event": event_details["event"], "hint": event_details["hint"]})
         scn_name = "GameOver"
 
     monster_data = None
