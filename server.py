@@ -332,10 +332,13 @@ class UseItemScene:
 
     def on_enter(self):
         p = self.controller.player
-        # 筛选库存中主动使用的道具，排除复活卷轴
+        # 只筛选主动使用的道具
         self.active_items = [item for item in p.inventory if item.get("active", False)]
-        while len(self.active_items) < 3:
-            self.active_items.append(None)
+        # 如果没有可用道具，则记录提示并返回战斗界面
+        if not self.active_items:
+            self.controller.last_use_item_message = "你没有可使用的道具"
+            self.controller.go_to_scene("battle_scene")
+
 
     def handle_use(self, index):
         p = self.controller.player
