@@ -40,9 +40,15 @@ function renderState(state) {
   const statusArea = document.getElementById("status-area");
   statusArea.textContent = `回合: ${state.round} | HP: ${state.player.hp}, ATK: ${state.player.atk}, Gold: ${state.player.gold}, 卷轴: ${state.player.revive_scroll_count}, 状态: ${state.player.status_desc}`;
 
-  // 如果有 last_message，则显示在日志中
-  if(state.last_message) {
-    addLog(state.last_message);
+  // 新增：显示库存内容
+  const inventoryArea = document.getElementById("inventory-area");
+  if (state.player.inventory && state.player.inventory.length > 0) {
+    let invText = "库存：";
+    // 列表显示所有道具名称（你也可以显示数量、效果等信息）
+    invText += state.player.inventory.map(item => item.name).join(", ");
+    inventoryArea.textContent = invText;
+  } else {
+    inventoryArea.textContent = "库存：暂无道具";
   }
 
   const btn1 = document.getElementById("btn1");
@@ -60,8 +66,9 @@ function renderState(state) {
       btn3.textContent = "门3";
     }
   } else if (state.scene === "BattleScene") {
+    // 战斗场景：第一个按钮显示攻击，第二显示“使用道具”，第三显示逃跑
     btn1.textContent = "攻击";
-    btn2.textContent = "防御";
+    btn2.textContent = "使用道具";
     btn3.textContent = "逃跑";
   } else if (state.scene === "ShopScene") {
     if (state.shop_items && state.shop_items.length === 3) {
@@ -69,13 +76,23 @@ function renderState(state) {
       btn2.textContent = `${state.shop_items[1].name} (${state.shop_items[1].cost}G)`;
       btn3.textContent = `${state.shop_items[2].name} (${state.shop_items[2].cost}G)`;
     }
+  } else if (state.scene === "UseItemScene") {
+    // 使用道具场景，显示库存中可主动使用的物品，若不足三个则显示“无”
+    if (state.active_items && state.active_items.length === 3) {
+      btn1.textContent = state.active_items[0] ? state.active_items[0].name : "无";
+      btn2.textContent = state.active_items[1] ? state.active_items[1].name : "无";
+      btn3.textContent = state.active_items[2] ? state.active_items[2].name : "无";
+    } else {
+      btn1.textContent = "无";
+      btn2.textContent = "无";
+      btn3.textContent = "无";
+    }
   } else if (state.scene === "GameOver") {
     btn1.textContent = "重启游戏";
     btn2.textContent = "使用复活卷轴";
     btn3.textContent = "退出游戏";
   }
 }
-
 
 function addLog(msg) {
   const logArea = document.getElementById("log-area");
