@@ -605,7 +605,13 @@ class GameController:
         self.scene_manager.add_scene("shop_scene", self.shop_scene)
         self.scene_manager.add_scene("use_item_scene", self.use_item_scene)
         self.go_to_scene("door_scene")
-
+    def resume_scene(self):
+        # 如果上一个场景存在且类型为 BattleScene，则恢复它
+        if self.last_scene is not None and self.last_scene.__class__.__name__ == "BattleScene":
+            self.scene_manager.current_scene = self.last_scene
+        # 否则，默认切换到 battle_scene（但一般UseItemScene只在战斗中使用）
+        else:
+            self.scene_manager.current_scene = self.battle_scene
 # -------------------------------
 # 3) 新增： 使用道具场景
 # -------------------------------
@@ -629,7 +635,7 @@ class UseItemScene:
             return "无效的道具选择"
         item = self.active_items[index]
         if not item:
-            return "无效的道具选择"
+            return "你没有选择任何道具"
         t = item["type"]
         if t == "飞锤":
             current_scene = self.controller.scene_manager.current_scene
@@ -653,7 +659,8 @@ class UseItemScene:
             effect_msg = f"道具 {item['name']} 未定义效果。"
         if item in p.inventory:
             p.inventory.remove(item)
-        self.controller.go_to_scene("battle_scene")
+        # 使用完道具后，恢复上一个战斗场景，不重新生成怪物
+        self.controller.resume_scene()
         return effect_msg
 
 
