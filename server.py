@@ -151,8 +151,10 @@ class DoorScene:
         ev, hint = self.door_events[index]
         p.apply_turn_effects()
         if ev == "monster":
+            monster = get_random_monster()
+            monster_info = f"你遇到了 {monster.name} (HP: {monster.hp}, ATK: {monster.atk}, Tier: {monster.tier})"
             c.go_to_scene("battle_scene")
-            return f"第{c.round_count}回合：你选择了怪物之门，进入战斗场景!"
+            return f"第{c.round_count}回合：你选择了怪物之门，进入战斗场景! {monster_info}"
         elif ev == "shop":
             c.go_to_scene("shop_scene")
             return f"第{c.round_count}回合：你发现了商店，进去逛逛吧!"
@@ -214,6 +216,10 @@ class DoorScene:
             ev = random.choice(combo)
             hint_candidates = self.combo_hints.get(combo, ["神秘而未知"])
             hint = random.choice(hint_candidates)
+            if ev == "monster":
+                # 提前生成怪物并存储到控制器
+                monster = get_random_monster()
+                self.controller.current_monster = monster
             result.append((ev, hint))
         self.door_events = result
 
@@ -224,13 +230,12 @@ class BattleScene:
         self.defending = False
 
     def on_enter(self):
-        if self.controller.round_count < 20:
-            self.monster = get_random_monster(max_tier=2)
-        else:
-            self.monster = get_random_monster()
+        # 使用 DoorScene 中提前生成的怪物
+        self.monster = self.controller.current_monster
         self.defending = False
-        self.controller.last_monster_message = f"你遇到了 {self.monster.name} (HP: {self.monster.hp}, ATK: {self.monster.atk}, Tier: {self.monster.tier})"
-
+        if self.monster:
+            self.controller.last_monster_message = f"你遇到了 {self.monster.name} (HP: {self.monster.hp}, ATK: {self.monster.atk}, Tier: {self.monster.tier})"
+        
     def handle_action(self, action):
         p = self.controller.player
         if "stun" in p.statuses and p.statuses["stun"] > 0:
@@ -315,8 +320,8 @@ class ShopScene:
             self.controller.door_scene._generate_doors()  # 刷新门
             self.controller.go_to_scene("door_scene")
             self.shop_items = []
-        else:
-            self.shop_items = logic.shop_items
+            return  # Ensure no further processing
+        self.shop_items = logic.shop_items
 
     def handle_purchase(self, idx):
         logic = self.controller.shop_logic
@@ -468,31 +473,27 @@ class ShopLogic:
                     player.statuses["weak"] = 0
                 effect = "解除了虚弱"
             elif t == "atk_up":
-                # 保证至少持续5回合
-                if v < 5:
-                    v = 5
-                player.statuses["atk_up"] = v
-                effect = f"未来 {v} 回合攻击+2"
+                duration = random.randint(5, 10)
+                atk_boost = random.randint(10, 20)
+                player.statuses["atk_up"] = duration
+                player.atk += atk_boost
+                effect = f"未来 {duration} 回合攻击力增加 {atk_boost}"
             elif t == "immune":
-                if v < 5:
-                    v = 5
-                player.statuses["immune"] = v
-                effect = f"未来 {v} 回合免疫负面"
+                duration = random.randint(5, 10)
+                player.statuses["immune"] = duration
+                effect = f"未来 {duration} 回合免疫负面"
             elif t == "dodge":
-                if v < 5:
-                    v = 5
-                player.statuses["dodge"] = v
-                effect = f"未来 {v} 回合闪避提升"
+                duration = random.randint(5, 10)
+                player.statuses["dodge"] = duration
+                effect = f"未来 {duration} 回合闪避提升"
             elif t == "damage_reduction":
-                if v < 5:
-                    v = 5
-                player.statuses["damage_reduction"] = v
-                effect = f"未来 {v} 回合伤害减免"
+                duration = random.randint(5, 10)
+                player.statuses["damage_reduction"] = duration
+                effect = f"未来 {duration} 回合伤害减免"
             elif t == "trap_resist":
-                if v < 5:
-                    v = 5
-                player.statuses["trap_resist"] = v
-                effect = f"未来 {v} 回合陷阱伤害减半"
+                duration = random.randint(5, 10)
+                player.statuses["trap_resist"] = duration
+                effect = f"未来 {duration} 回合陷阱伤害减半"
             else:
                 effect = "无效果"
             return f"你花费 {cost} 金币, 购买了 {n}, {effect}!"
@@ -545,6 +546,7 @@ class GameController:
         self.last_scene = None  # 记录上一个场景
         self.last_shop_message = ""
         self.last_monster_message = ""
+        self.current_monster = None  # 当前回合的怪物
         self.scene_manager = SceneManager()
         self.shop_logic = ShopLogic()
 
@@ -590,7 +592,13 @@ class GameController:
         self.player = Player("勇士", self.game_config.START_PLAYER_HP,
                              self.game_config.START_PLAYER_ATK,
                              self.game_config.START_PLAYER_GOLD)
-        self.player.inventory = []
+        # 初始化道具栏，添加默认物品
+        self.player.inventory = [
+            {"name": "复活卷轴", "type": "revive", "value": 1, "cost": 0, "active": False},
+            {"name": "飞锤", "type": "飞锤", "value": 0, "cost": 0, "active": True},
+            {"name": "巨大卷轴", "type": "巨大卷轴", "value": 0, "cost": 0, "active": True},
+            {"name": "结界", "type": "结界", "value": 0, "cost": 0, "active": True}
+        ]
         self.round_count = 0
         self.last_scene = None
         self.last_shop_message = ""
@@ -628,7 +636,6 @@ class UseItemScene:
             # 如果没有可用道具，则返回战斗界面，并记录提示
             self.controller.last_use_item_message = "你没有可使用的道具"
             self.controller.go_to_scene("battle_scene")
-
     def handle_use(self, index):
         p = self.controller.player
         if index < 0 or index >= len(self.active_items):
@@ -638,12 +645,12 @@ class UseItemScene:
             return "你没有选择任何道具"
         t = item["type"]
         if t == "飞锤":
-            current_scene = self.controller.scene_manager.current_scene
-            if current_scene.__class__.__name__ == "BattleScene" and current_scene.monster:
-                current_scene.monster.stunned_rounds = 3
+            # 对当前怪物施加晕眩效果
+            if self.controller.current_monster:
+                self.controller.current_monster.stunned_rounds = 3
                 effect_msg = "飞锤飞出，怪物被晕眩3回合！"
             else:
-                effect_msg = "飞锤只能在战斗中使用。"
+                effect_msg = "当前没有怪物，飞锤未产生效果。"
         elif t == "结界":
             p.statuses["barrier"] = 3
             effect_msg = "结界形成，接下来3回合你免受怪物伤害！"
@@ -659,7 +666,7 @@ class UseItemScene:
             effect_msg = f"道具 {item['name']} 未定义效果。"
         if item in p.inventory:
             p.inventory.remove(item)
-        # 使用完道具后，恢复上一个战斗场景，不重新生成怪物
+        # 使用完道具后，恢复上一个战斗场景
         self.controller.resume_scene()
         return effect_msg
 
