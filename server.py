@@ -16,6 +16,128 @@ Session(app)
 # 2) 核心逻辑：玩家、怪物、场景等
 # -------------------------------
 
+class StatusEffect:
+    """状态效果定义类"""
+    # 战斗状态：只在战斗回合中生效
+    BATTLE_STATUSES = {
+        "barrier": {
+            "name": "结界",
+            "description": "免受怪物伤害",
+            "duration": 3,
+            "is_battle_only": True
+        },
+        "atk_multiplier": {
+            "name": "攻击翻倍",
+            "description": "攻击力翻倍",
+            "duration": 3,
+            "is_battle_only": True,
+            "value": 2
+        },
+        # 怪物造成的负面效果
+        "poison": {
+            "name": "中毒",
+            "description": "每回合损失1点生命",
+            "duration": 3,
+            "is_battle_only": True,
+            "value": -1,
+            "is_monster_effect": True
+        },
+        "weak": {
+            "name": "虚弱",
+            "description": "攻击力降低2点",
+            "duration": 3,
+            "is_battle_only": True,
+            "value": -2,
+            "is_monster_effect": True
+        },
+        "stun": {
+            "name": "眩晕",
+            "description": "无法行动",
+            "duration": 2,
+            "is_battle_only": True,
+            "is_monster_effect": True
+        }
+    }
+    
+    # 冒险状态：在冒险回合中生效
+    ADVENTURE_STATUSES = {
+        "atk_up": {
+            "name": "攻击力提升",
+            "description": "攻击力增加",
+            "duration": 5,
+            "is_battle_only": False,
+            "value": 2
+        },
+        "immune": {
+            "name": "免疫",
+            "description": "免疫负面效果",
+            "duration": 5,
+            "is_battle_only": False
+        },
+        "dodge": {
+            "name": "闪避",
+            "description": "闪避提升",
+            "duration": 5,
+            "is_battle_only": False
+        },
+        "damage_reduction": {
+            "name": "伤害减免",
+            "description": "受到伤害减少30%",
+            "duration": 5,
+            "is_battle_only": False,
+            "value": 0.7
+        },
+        "trap_resist": {
+            "name": "陷阱减伤",
+            "description": "陷阱伤害减半",
+            "duration": 5,
+            "is_battle_only": False,
+            "value": 0.5
+        },
+        "healing_scroll": {
+            "name": "恢复卷轴",
+            "description": "每回合恢复生命",
+            "duration": 10,
+            "is_battle_only": False,
+            "value": 5  # 默认恢复值，实际值在购买时随机生成
+        }
+    }
+    
+    @classmethod
+    def get_status_info(cls, status_name):
+        """获取状态效果的详细信息"""
+        if status_name in cls.BATTLE_STATUSES:
+            return cls.BATTLE_STATUSES[status_name]
+        elif status_name in cls.ADVENTURE_STATUSES:
+            return cls.ADVENTURE_STATUSES[status_name]
+        return None
+    
+    @classmethod
+    def is_battle_status(cls, status_name):
+        """判断是否为战斗状态"""
+        return status_name in cls.BATTLE_STATUSES
+    
+    @classmethod
+    def is_adventure_status(cls, status_name):
+        """判断是否为冒险状态"""
+        return status_name in cls.ADVENTURE_STATUSES
+    
+    @classmethod
+    def is_monster_effect(cls, status_name):
+        """判断是否为怪物造成的效果"""
+        status_info = cls.get_status_info(status_name)
+        return status_info and status_info.get("is_monster_effect", False)
+    
+    @classmethod
+    def clear_battle_statuses(cls, player):
+        """清除所有战斗状态"""
+        expired = []
+        for st in player.statuses:
+            if cls.is_battle_status(st):
+                expired.append(st)
+        for r in expired:
+            del player.statuses[r]
+
 class Player:
     def __init__(self, name="勇士", hp=20, atk=5, gold=0):
         self.name = name
@@ -46,9 +168,39 @@ class Player:
         return False
 
     def apply_turn_effects(self, is_battle_turn=False):
+        # 根据回合类型调用对应的函数
+        if is_battle_turn:
+            self._apply_battle_turn_effects()
+        else:
+            self._apply_adventure_turn_effects()
+
+    def _apply_battle_turn_effects(self):
+        """处理战斗回合的效果"""
+        # 处理中毒效果
         immune = ("immune" in self.statuses and self.statuses["immune"] > 0)
         if "poison" in self.statuses and self.statuses["poison"] > 0 and not immune:
             self.hp -= 1
+            
+        # 处理攻击力相关效果
+        self.atk = self.base_atk
+        if "atk_multiplier" in self.statuses and self.statuses.get("atk_multiplier_duration", 0) > 0:
+            self.atk *= self.statuses["atk_multiplier"]
+        if "weak" in self.statuses and self.statuses["weak"] > 0 and not immune:
+            self.atk = max(1, self.atk - 2)
+        if "atk_up" in self.statuses and self.statuses["atk_up"] > 0:
+            self.atk += 2
+            
+        # 更新战斗回合的状态持续时间
+        self._update_battle_status_durations()
+
+    def _apply_adventure_turn_effects(self):
+        """处理冒险回合的效果"""
+        # 处理中毒效果
+        immune = ("immune" in self.statuses and self.statuses["immune"] > 0)
+        if "poison" in self.statuses and self.statuses["poison"] > 0 and not immune:
+            self.hp -= 1
+            
+        # 处理攻击力相关效果
         self.atk = self.base_atk
         if "atk_multiplier" in self.statuses and self.statuses.get("atk_multiplier_duration", 0) > 0:
             self.atk *= self.statuses["atk_multiplier"]
@@ -62,16 +214,32 @@ class Player:
             heal_amount = self.statuses.get("healing_scroll_amount", 0)
             if heal_amount > 0:
                 self.heal(heal_amount)
+                print(f"恢复卷轴生效，恢复 {heal_amount} 点生命！")
+                
+        # 更新冒险回合的状态持续时间
+        self._update_adventure_status_durations()
 
+    def _update_battle_status_durations(self):
+        """更新战斗回合的状态持续时间"""
         expired = []
         for st in self.statuses:
-            # Reduce duration based on turn type
-            if st == "barrier" and is_battle_turn:
+            # 战斗回合只处理战斗状态
+            if StatusEffect.is_battle_status(st):
                 self.statuses[st] -= 1
-            elif st != "barrier":
+                if self.statuses[st] <= 0:
+                    expired.append(st)
+        for r in expired:
+            del self.statuses[r]
+
+    def _update_adventure_status_durations(self):
+        """更新冒险回合的状态持续时间"""
+        expired = []
+        for st in self.statuses:
+            # 冒险回合处理所有状态
+            if StatusEffect.is_adventure_status(st):
                 self.statuses[st] -= 1
-            if self.statuses[st] <= 0:
-                expired.append(st)
+                if self.statuses[st] <= 0:
+                    expired.append(st)
         for r in expired:
             del self.statuses[r]
 
@@ -80,33 +248,76 @@ class Player:
             return "无"
         desc = []
         for k, v in self.statuses.items():
-            if k == "poison":
-                desc.append(f"中毒({v}回合)")
-            elif k == "weak":
-                desc.append(f"虚弱({v}回合)")
-            elif k == "atk_up":
-                desc.append(f"攻击力+2({v}回合)")
-            elif k == "immune":
-                desc.append(f"免疫({v}回合)")
-            elif k == "stun":
-                desc.append(f"眩晕({v}回合)")
-            elif k == "barrier":
-                desc.append(f"结界({v}回合)")
-            elif k == "dodge":
-                desc.append(f"闪避({v}回合)")
-            elif k == "damage_reduction":
-                desc.append(f"伤害减免({v}回合)")
-            elif k == "trap_resist":
-                desc.append(f"陷阱减伤({v}回合)")
-            elif k == "atk_multiplier":
-                # 此状态持续时间另有 atk_multiplier_duration
-                desc.append(f"攻击翻倍({self.statuses.get('atk_multiplier_duration', '?')}回合)")
-            elif k == "healing_scroll":
-                # 此状态效果值另有 healing_scroll_amount
-                desc.append(f"每回合恢复{self.statuses.get('healing_scroll_amount', '?')}HP({v}回合)")
+            status_info = StatusEffect.get_status_info(k)
+            if status_info:
+                if k == "healing_scroll":
+                    heal_amount = self.statuses.get("healing_scroll_amount", 0)
+                    desc.append(f"每回合恢复{heal_amount}HP({v}回合)")
+                elif k == "atk_multiplier":
+                    desc.append(f"攻击翻倍({self.statuses.get('atk_multiplier_duration', '?')}回合)")
+                else:
+                    desc.append(f"{status_info['name']}({v}回合)")
             else:
                 desc.append(f"{k}({v}回合)")
         return ", ".join(desc)
+
+    def apply_item_effect(self, item_type, value):
+        """统一处理物品效果"""
+        effect_msg = ""
+        if item_type == "heal":
+            self.heal(value)
+            effect_msg = f"恢复 {value} HP"
+        elif item_type == "weapon":
+            oldatk = self.atk
+            self.atk += value
+            self.base_atk += value
+            effect_msg = f"攻击力从 {oldatk} 升到 {self.atk}"
+        elif item_type == "armor":
+            old_hp = self.base_hp
+            self.base_hp += value
+            self.hp += value
+            effect_msg = f"生命值从 {old_hp} 升到 {self.base_hp}"
+        elif item_type == "revive":
+            # 复活卷轴只添加到物品栏，不立即使用
+            self.inventory.append({"name": "复活卷轴", "type": "revive", "value": 1, "cost": 0, "active": False})
+            effect_msg = "获得复活卷轴"
+        elif item_type == "cure_poison":
+            if "poison" in self.statuses:
+                self.statuses["poison"] = 0
+            effect_msg = "解除了中毒"
+        elif item_type == "cure_weak":
+            if "weak" in self.statuses:
+                self.statuses["weak"] = 0
+            effect_msg = "解除了虚弱"
+        elif item_type == "atk_up":
+            duration = random.randint(5, 10)
+            atk_boost = random.randint(10, 20)
+            self.statuses["atk_up"] = duration
+            self.atk += atk_boost
+            effect_msg = f"未来 {duration} 回合攻击力增加 {atk_boost}"
+        elif item_type == "immune":
+            duration = random.randint(5, 10)
+            self.statuses["immune"] = duration
+            effect_msg = f"未来 {duration} 回合免疫负面"
+        elif item_type == "dodge":
+            duration = random.randint(5, 10)
+            self.statuses["dodge"] = duration
+            effect_msg = f"未来 {duration} 回合闪避提升"
+        elif item_type == "damage_reduction":
+            duration = random.randint(5, 10)
+            self.statuses["damage_reduction"] = duration
+            effect_msg = f"未来 {duration} 回合伤害减免"
+        elif item_type == "trap_resist":
+            duration = random.randint(5, 10)
+            self.statuses["trap_resist"] = duration
+            effect_msg = f"未来 {duration} 回合陷阱伤害减半"
+        elif item_type == "healing_scroll":
+            duration = random.randint(10, 20)
+            heal_per_turn = random.randint(1, 10)
+            self.statuses["healing_scroll"] = duration
+            self.statuses["healing_scroll_amount"] = heal_per_turn
+            effect_msg = f"未来 {duration} 回合每回合恢复 {heal_per_turn} 点生命"
+        return effect_msg
 
 class Monster:
     def __init__(self, name, hp, atk, tier=1):
@@ -264,9 +475,12 @@ class DoorScene:
         if index < 0 or index >= len(self.door_events):
             return "无效的门选择"
         c.round_count += 1
-        p.apply_turn_effects(is_battle_turn=False)  # Adventure turn effects
+        # 如果选择了非怪物门，清除所有战斗状态
         event_details = self.door_events[index]
         ev = event_details["event"]
+        if ev != "monster":
+            StatusEffect.clear_battle_statuses(p)
+        p.apply_turn_effects(is_battle_turn=False)  # Adventure turn effects
         if ev == "monster":
             monster_info = event_details["monster"]
             monster = Monster(
@@ -395,6 +609,8 @@ class BattleScene:
     def handle_action(self, action):
         p = self.controller.player
         if "stun" in p.statuses and p.statuses["stun"] > 0:
+            # 先应用战斗状态效果
+            p.apply_turn_effects(is_battle_turn=True)
             # 玩家晕眩时，怪物进行攻击
             msg = ["你处于眩晕状态, 无法行动!"]
             if "barrier" in p.statuses and p.statuses["barrier"] > 0:
@@ -446,6 +662,8 @@ class BattleScene:
             msg.append(f"你击败了 {self.monster.name}!")
             loot = self.controller.monster_loot(self.monster)
             msg.append(loot)
+            # 清除所有战斗状态
+            StatusEffect.clear_battle_statuses(p)
             self.controller.door_scene._generate_doors()  # 添加这行，确保战斗胜利后重新生成门
             self.controller.go_to_scene("door_scene")
             return "\n".join(msg)
@@ -538,30 +756,27 @@ class UseItemScene:
 
     def on_enter(self):
         p = self.controller.player
-        # 只筛选主动使用的道具
+        # 筛选库存中主动使用的道具，排除复活卷轴（active=False）
         self.active_items = [item for item in p.inventory if item.get("active", False)]
-        # 如果没有可用道具，则记录提示并返回战斗界面
         if not self.active_items:
+            # 如果没有可用道具，则返回战斗界面，并记录提示
             self.controller.last_use_item_message = "你没有可使用的道具"
             self.controller.go_to_scene("battle_scene")
-
-
     def handle_use(self, index):
         p = self.controller.player
         if index < 0 or index >= len(self.active_items):
             return "无效的道具选择"
         item = self.active_items[index]
-        if item is None:
+        if not item:
             return "你没有选择任何道具"
         t = item["type"]
         if t == "飞锤":
-            # 使怪物晕眩3回合
-            current_scene = self.controller.scene_manager.current_scene
-            if current_scene.__class__.__name__ == "BattleScene" and current_scene.monster:
-                current_scene.monster.stunned_rounds = 3
+            # 对当前怪物施加晕眩效果
+            if self.controller.current_monster:
+                self.controller.current_monster.stunned_rounds = 3
                 effect_msg = "飞锤飞出，怪物被晕眩3回合！"
             else:
-                effect_msg = "飞锤只能在战斗中使用。"
+                effect_msg = "当前没有怪物，飞锤未产生效果。"
         elif t == "结界":
             p.statuses["barrier"] = 3
             effect_msg = "结界形成，接下来3回合你免受怪物伤害！"
@@ -577,7 +792,8 @@ class UseItemScene:
             effect_msg = f"道具 {item['name']} 未定义效果。"
         if item in p.inventory:
             p.inventory.remove(item)
-        self.controller.go_to_scene("battle_scene")
+        # 使用完道具后，恢复上一个战斗场景
+        self.controller.resume_scene()
         return effect_msg
 
 class ShopLogic:
@@ -646,70 +862,19 @@ class ShopLogic:
         # 如果物品为主动使用类型，检查库存是否已满（最多10个）
         if item["active"] and len(player.inventory) >= 10:
             return "你的道具栏已满, 无法购买!"
+            
         player.gold -= item["cost"]
         n, t, v, cost, active = item["name"], item["type"], item["value"], item["cost"], item["active"]
+        
         if active:
             # 主动使用物品加入库存
             player.inventory.append(item.copy())
-            # 修改复活卷轴的提示信息
-            if t == "revive":
-                effect = "已购买复活卷轴"
-            else:
-                effect = f"{n} +1, 已存入道具栏"
-            return f"你花费 {cost} 金币, {effect}!"
+            effect = f"{n} +1, 已存入道具栏"
         else:
             # 非主动使用物品立即生效
-            if t == "heal":
-                player.heal(v)
-                effect = f"恢复 {v} HP"
-            elif t == "weapon":
-                oldatk = player.atk
-                player.atk += v
-                player.base_atk += v
-                effect = f"攻击力从 {oldatk} 升到 {player.atk}"
-            elif t == "revive":
-                # 复活卷轴加入库存，但不显示+1
-                player.inventory.append({"name": n, "type": t, "value": v, "cost": cost, "active": False})
-                effect = "已获得复活卷轴"
-            elif t == "cure_poison":
-                if "poison" in player.statuses:
-                    player.statuses["poison"] = 0
-                effect = "解除了中毒"
-            elif t == "cure_weak":
-                if "weak" in player.statuses:
-                    player.statuses["weak"] = 0
-                effect = "解除了虚弱"
-            elif t == "atk_up":
-                duration = random.randint(5, 10)
-                atk_boost = random.randint(10, 20)
-                player.statuses["atk_up"] = duration
-                player.atk += atk_boost
-                effect = f"未来 {duration} 回合攻击力增加 {atk_boost}"
-            elif t == "immune":
-                duration = random.randint(5, 10)
-                player.statuses["immune"] = duration
-                effect = f"未来 {duration} 回合免疫负面"
-            elif t == "dodge":
-                duration = random.randint(5, 10)
-                player.statuses["dodge"] = duration
-                effect = f"未来 {duration} 回合闪避提升"
-            elif t == "damage_reduction":
-                duration = random.randint(5, 10)
-                player.statuses["damage_reduction"] = duration
-                effect = f"未来 {duration} 回合伤害减免"
-            elif t == "trap_resist":
-                duration = random.randint(5, 10)
-                player.statuses["trap_resist"] = duration
-                effect = f"未来 {duration} 回合陷阱伤害减半"
-            elif t == "healing_scroll":  # 新增恢复卷轴处理
-                duration = random.randint(10, 20)
-                heal_per_turn = random.randint(3, 7)
-                player.statuses["healing_scroll"] = duration
-                player.statuses["healing_scroll_amount"] = heal_per_turn
-                effect = f"未来 {duration} 回合每回合恢复 {heal_per_turn} 点生命"
-            else:
-                effect = "无效果"
-            return f"你花费 {cost} 金币, 购买了 {n}, {effect}!"
+            effect = player.apply_item_effect(t, v)
+            
+        return f"你花费 {cost} 金币, 购买了 {n}, {effect}!"
 
 # -------------------------------
 # 3) 控制器及辅助类
@@ -784,19 +949,22 @@ class GameController:
         gold_amt = random.randint(8, 20) + 5 * tier
         p.add_gold(gold_amt)
         msg = f"怪物掉落金币, 你获得 {gold_amt} 金币!"
+        
         # 额外掉落（30% 概率）
-        extra_drops = [
-            ("healing_potion", lambda: f"治疗药剂, 恢复 {random.randint(5,10)} HP!"),
-            ("weapon", lambda: f"武器, 攻击力提升 {random.randint(2,4)+tier}!"),
-            ("revive_scroll", lambda: f"复活卷轴 +1 (现有 {p.revive_scroll_count} 张)"),
-            ("armor_piece", lambda: f"护甲碎片, HP增加 {random.randint(5,10)}!")
-        ]
         if random.random() < 0.3:
-            drop = random.choice(extra_drops)
-            if drop[0] == "revive_scroll":
-                p.revive_scroll_count += 1
-            extra_msg = drop[1]()
-            msg += " " + extra_msg
+            drop_type = random.choice(["healing_potion", "weapon", "armor"])
+            if drop_type == "healing_potion":
+                heal_amt = random.randint(5, 10)
+                effect_msg = p.apply_item_effect("heal", heal_amt)
+                msg += f" 治疗药剂, {effect_msg}!"
+            elif drop_type == "weapon":
+                atk_boost = random.randint(2, 4) + tier
+                effect_msg = p.apply_item_effect("weapon", atk_boost)
+                msg += f" 武器, {effect_msg}!"
+            elif drop_type == "armor":
+                hp_boost = random.randint(5, 10)
+                effect_msg = p.apply_item_effect("armor", hp_boost)
+                msg += f" 护甲碎片, {effect_msg}!"
         return msg
 
     def reset_game(self):
@@ -832,56 +1000,6 @@ class GameController:
         # 否则，默认切换到 battle_scene（但一般UseItemScene只在战斗中使用）
         else:
             self.scene_manager.current_scene = self.battle_scene
-
-# -------------------------------
-# 3) 新增： 使用道具场景
-# -------------------------------
-class UseItemScene:
-    def __init__(self, controller):
-        self.controller = controller
-        self.active_items = []
-
-    def on_enter(self):
-        p = self.controller.player
-        # 筛选库存中主动使用的道具，排除复活卷轴（active=False）
-        self.active_items = [item for item in p.inventory if item.get("active", False)]
-        if not self.active_items:
-            # 如果没有可用道具，则返回战斗界面，并记录提示
-            self.controller.last_use_item_message = "你没有可使用的道具"
-            self.controller.go_to_scene("battle_scene")
-    def handle_use(self, index):
-        p = self.controller.player
-        if index < 0 or index >= len(self.active_items):
-            return "无效的道具选择"
-        item = self.active_items[index]
-        if not item:
-            return "你没有选择任何道具"
-        t = item["type"]
-        if t == "飞锤":
-            # 对当前怪物施加晕眩效果
-            if self.controller.current_monster:
-                self.controller.current_monster.stunned_rounds = 3
-                effect_msg = "飞锤飞出，怪物被晕眩3回合！"
-            else:
-                effect_msg = "当前没有怪物，飞锤未产生效果。"
-        elif t == "结界":
-            p.statuses["barrier"] = 3
-            effect_msg = "结界形成，接下来3回合你免受怪物伤害！"
-        elif t == "巨大卷轴":
-            p.statuses["atk_multiplier"] = 2
-            p.statuses["atk_multiplier_duration"] = 3
-            effect_msg = "巨大卷轴激活，当前战斗中你的攻击力翻倍！"
-        elif t == "heal":
-            heal_amt = item["value"]
-            p.heal(heal_amt)
-            effect_msg = f"治疗药水生效，恢复 {heal_amt} HP！"
-        else:
-            effect_msg = f"道具 {item['name']} 未定义效果。"
-        if item in p.inventory:
-            p.inventory.remove(item)
-        # 使用完道具后，恢复上一个战斗场景
-        self.controller.resume_scene()
-        return effect_msg
 
 # -------------------------------
 # 4) Flask 路由及 Session 存储
