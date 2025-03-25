@@ -775,7 +775,6 @@ def get_state():
         "hp": p.hp,
         "atk": p.atk,
         "gold": p.gold,
-        "revive_scroll_count": p.revive_scroll_count,
         "status_desc": p.get_status_desc(),
         "inventory": p.inventory
       },
@@ -833,8 +832,8 @@ def button_action():
             log_msg = "游戏已重启"
         elif index == 1:
             p = g.player
-            if p.revive_scroll_count > 0:
-                p.revive_scroll_count -= 1
+            revived = p.try_revive()
+            if revived:
                 p.hp = p.base_hp
                 if g.last_scene is not None:
                     g.scene_manager.current_scene = g.last_scene

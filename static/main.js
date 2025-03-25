@@ -38,7 +38,7 @@ async function getStateAndRender() {
 
 function renderState(state) {
   const statusArea = document.getElementById("status-area");
-  statusArea.textContent = `回合: ${state.round} | HP: ${state.player.hp}, ATK: ${state.player.atk}, Gold: ${state.player.gold}, 卷轴: ${state.player.revive_scroll_count}, 状态: ${state.player.status_desc}`;
+  statusArea.textContent = `回合: ${state.round} | HP: ${state.player.hp}, ATK: ${state.player.atk}, Gold: ${state.player.gold}, 状态: ${state.player.status_desc}`;
 
   // 新增：显示库存内容
   const inventoryArea = document.getElementById("inventory-area");
