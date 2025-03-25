@@ -56,6 +56,12 @@ class Player:
             self.atk = max(1, self.atk - 2)
         if "atk_up" in self.statuses and self.statuses["atk_up"] > 0:
             self.atk += 2
+            
+        # 处理恢复卷轴效果
+        if "healing_scroll" in self.statuses and self.statuses["healing_scroll"] > 0:
+            heal_amount = self.statuses.get("healing_scroll_amount", 0)
+            if heal_amount > 0:
+                self.heal(heal_amount)
 
         expired = []
         for st in self.statuses:
@@ -95,6 +101,9 @@ class Player:
             elif k == "atk_multiplier":
                 # 此状态持续时间另有 atk_multiplier_duration
                 desc.append(f"攻击翻倍({self.statuses.get('atk_multiplier_duration', '?')}回合)")
+            elif k == "healing_scroll":
+                # 此状态效果值另有 healing_scroll_amount
+                desc.append(f"每回合恢复{self.statuses.get('healing_scroll_amount', '?')}HP({v}回合)")
             else:
                 desc.append(f"{k}({v}回合)")
         return ", ".join(desc)
@@ -113,19 +122,57 @@ class Monster:
 # 如果传入 max_tier，则只生成符合条件的怪物
 def get_random_monster(max_tier=None):
     monster_pool = [
+        # Tier 1 - 新手怪物
         Monster("史莱姆", 15, 4, 1),
         Monster("哥布林", 20, 5, 1),
         Monster("狼", 18, 6, 1),
+        Monster("蜘蛛", 16, 5, 1),
+        Monster("蝙蝠", 14, 4, 1),
+        Monster("小骷髅", 17, 5, 1),
+        
+        # Tier 2 - 中级怪物
         Monster("小恶魔", 25, 7, 2),
         Monster("牛头人", 35, 9, 2),
+        Monster("食人花", 30, 8, 2),
+        Monster("蜥蜴人", 28, 7, 2),
+        Monster("石像鬼", 32, 8, 2),
+        Monster("半人马", 38, 10, 2),
+        
+        # Tier 3 - 高级怪物
         Monster("巨龙", 40, 10, 3),
         Monster("暗黑骑士", 50, 12, 3),
+        Monster("九头蛇", 45, 11, 3),
+        Monster("独眼巨人", 48, 13, 3),
+        Monster("地狱犬", 42, 12, 3),
+        Monster("巫妖", 55, 14, 3),
+        
+        # Tier 4 - 精英怪物
         Monster("末日领主", 70, 15, 4),
+        Monster("深渊魔王", 75, 18, 4),
+        Monster("混沌使者", 65, 16, 4),
+        Monster("虚空领主", 80, 20, 4),
+        Monster("死亡骑士", 72, 17, 4),
+        Monster("远古巨龙", 85, 22, 4),
     ]
-    if max_tier is not None:
-        filtered = [m for m in monster_pool if m.tier <= max_tier]
-        if filtered:
-            monster_pool = filtered
+    
+    # 根据回合数限制怪物等级
+    if max_tier is None:
+        # 获取当前回合数
+        current_round = get_game().round_count
+        if current_round <= 5:
+            max_tier = 1  # 前5回合只出现Tier 1怪物
+        elif current_round <= 10:
+            max_tier = 2  # 6-10回合可能出现Tier 2怪物
+        elif current_round <= 15:
+            max_tier = 3  # 11-15回合可能出现Tier 3怪物
+        else:
+            max_tier = 4  # 15回合后可能出现所有怪物
+    
+    # 过滤出符合条件的怪物
+    filtered = [m for m in monster_pool if m.tier <= max_tier]
+    if filtered:
+        monster_pool = filtered
+    
     return random.choice(monster_pool)
 
 class DoorScene:
@@ -134,6 +181,7 @@ class DoorScene:
         self.door_events = []
         self.has_initialized = False
         self.combo_hints = {
+            # 基础组合提示
             ("monster", "treasure"): ["有些骚动也许是野兽，也许是财宝", "血腥气中又闪着金光"],
             ("monster", "equip"): ["危机中或许暗藏利器", "低沉咆哮与金属碰撞声交织"],
             ("monster", "shop"): ["猛兽怒吼夹杂着商贩吆喝", "似有咆哮也有人在此做买卖"],
@@ -143,6 +191,66 @@ class DoorScene:
             ("trap", "shop"): ["也许是陷阱伪装也许是商店", "商贩在此亦有危机气息"],
             ("shop", "treasure"): ["有金光也有吆喝声，或宝藏或商店", "闻到钱币味，也许能大赚一笔"],
             ("shop", "equip"): ["有人吆喝好物便宜卖，也许能捡武器", "商店与装备，也许能武装自己"],
+        }
+        
+        # 怪物等级相关提示
+        self.monster_tier_hints = {
+            1: [
+                "似乎有轻微的骚动...",
+                "隐约听到细小的声响...",
+                "有什么东西在暗处蠢蠢欲动...",
+                "空气中飘来一丝危险的气息...",
+                "好像有什么小东西在活动..."
+            ],
+            2: [
+                "明显感觉到一股威胁...",
+                "有生物的气息在靠近...",
+                "危险的气息越来越浓...",
+                "似乎有什么强大的存在...",
+                "空气中弥漫着紧张的气氛..."
+            ],
+            3: [
+                "一股强大的气息扑面而来...",
+                "危险的气息令人窒息...",
+                "有什么可怕的东西在等待...",
+                "空气中充满了压迫感...",
+                "似乎遇到了不得了的对手..."
+            ],
+            4: [
+                "恐怖的气息笼罩着这里...",
+                "空气中弥漫着死亡的气息...",
+                "有什么可怕的存在在等待...",
+                "危险的气息令人战栗...",
+                "似乎遇到了传说中的存在..."
+            ]
+        }
+        
+        # 怪物种类相关提示
+        self.monster_type_hints = {
+            "史莱姆": ["黏糊糊的声音...", "有什么东西在蠕动...", "滑溜溜的声响..."],
+            "哥布林": ["粗重的喘息声...", "矮小的身影闪过...", "野蛮的嚎叫..."],
+            "狼": ["狼嚎声传来...", "野兽的脚步声...", "凶猛的咆哮..."],
+            "蜘蛛": ["窸窸窣窣的声音...", "蛛网在颤动...", "八条腿的声响..."],
+            "蝙蝠": ["翅膀拍打声...", "尖锐的叫声...", "黑暗中有什么在飞..."],
+            "小骷髅": ["骨头摩擦声...", "阴森的笑声...", "亡灵的气息..."],
+            "小恶魔": ["邪恶的笑声...", "地狱的气息...", "恶魔的低语..."],
+            "牛头人": ["沉重的脚步声...", "愤怒的咆哮...", "牛角碰撞声..."],
+            "食人花": ["植物摩擦声...", "花瓣的沙沙声...", "饥饿的嘶嘶声..."],
+            "蜥蜴人": ["鳞片摩擦声...", "嘶嘶的吐信声...", "爬行动物的声响..."],
+            "石像鬼": ["石头摩擦声...", "雕像的移动声...", "石头的碎裂声..."],
+            "半人马": ["马蹄声...", "弓箭的弦声...", "半人半兽的嘶鸣..."],
+            "巨龙": ["龙吟声...", "火焰的咆哮...", "龙翼的拍打声..."],
+            "暗黑骑士": ["铠甲碰撞声...", "黑暗的气息...", "骑士的马蹄声..."],
+            "九头蛇": ["多个头的嘶鸣...", "毒液的滴落声...", "蛇鳞的摩擦声..."],
+            "独眼巨人": ["沉重的脚步声...", "愤怒的咆哮...", "大地的震动..."],
+            "地狱犬": ["地狱的咆哮...", "火焰的嘶鸣...", "三头犬的吠叫..."],
+            "巫妖": ["魔法的波动...", "死亡的气息...", "巫妖的咒语声..."],
+            "末日领主": ["末日的低语...", "毁灭的气息...", "领主的咆哮..."],
+            "深渊魔王": ["深渊的呼唤...", "魔王的威压...", "黑暗的咆哮..."],
+            "混沌使者": ["混沌的波动...", "使者的低语...", "混乱的气息..."],
+            "虚空领主": ["虚空的回响...", "空间扭曲声...", "领主的低语..."],
+            "死亡骑士": ["死亡的气息...", "骑士的咆哮...", "亡灵的嘶鸣..."],
+            "远古巨龙": ["远古的龙吟...", "时间的波动...", "巨龙的咆哮..."]
         }
 
     def on_enter(self):
@@ -247,6 +355,10 @@ class DoorScene:
                     "atk": monster.atk,
                     "tier": monster.tier
                 }
+                # 根据怪物等级和种类生成更详细的提示
+                tier_hint = random.choice(self.monster_tier_hints.get(monster.tier, ["危险的气息..."]))
+                type_hint = random.choice(self.monster_type_hints.get(monster.name, ["未知生物的声响..."]))
+                event_details["hint"] = f"{hint} {tier_hint} {type_hint}"
             elif ev == "trap":
                 # 提前生成陷阱伤害
                 dmg = random.randint(5, 10)
@@ -283,7 +395,36 @@ class BattleScene:
     def handle_action(self, action):
         p = self.controller.player
         if "stun" in p.statuses and p.statuses["stun"] > 0:
-            return "你处于眩晕状态, 无法行动!"
+            # 玩家晕眩时，怪物进行攻击
+            msg = ["你处于眩晕状态, 无法行动!"]
+            if "barrier" in p.statuses and p.statuses["barrier"] > 0:
+                msg.append(f"{self.monster.name} 攻击被结界阻挡，未造成伤害!")
+            else:
+                mdmg = max(1, self.monster.atk - random.randint(0, 1))
+                if self.defending:
+                    mdmg = mdmg // 2
+                if "damage_reduction" in p.statuses:
+                    mdmg = int(mdmg * 0.7)
+                p.take_damage(mdmg)
+                msg.append(f"{self.monster.name} 攻击造成 {mdmg} 点伤害.")
+
+            if p.hp <= 0:
+                revived = p.try_revive()
+                if revived:
+                    msg.append("复活卷轴救了你(HP=1)!")
+                else:
+                    msg.append("你被怪物击倒, 英勇牺牲!")
+
+            # 较强怪物可能附带负面效果
+            if self.monster.tier >= 3 and random.random() < 0.3:
+                effect = random.choice(["weak", "poison", "stun"])
+                duration = random.randint(1, 2)
+                p.statuses[effect] = duration
+                msg.append(f"{self.monster.name} 附带 {effect} 效果 ({duration}回合)!")
+            
+            self.defending = False
+            return "\n".join(msg)
+
         if action == "attack":
             return self.do_attack(p)
         elif action == "use_item":
@@ -305,6 +446,7 @@ class BattleScene:
             msg.append(f"你击败了 {self.monster.name}!")
             loot = self.controller.monster_loot(self.monster)
             msg.append(loot)
+            self.controller.door_scene._generate_doors()  # 添加这行，确保战斗胜利后重新生成门
             self.controller.go_to_scene("door_scene")
             return "\n".join(msg)
 
@@ -466,6 +608,7 @@ class ShopLogic:
             ("解除虚弱卷轴", "cure_weak", 0, 10, False),
             ("攻击力增益卷轴", "atk_up", 5, 20, False),
             ("免疫卷轴", "immune", 5, 25, False),
+            ("恢复卷轴", "healing_scroll", 0, 30, False),
             ("飞锤", "飞锤", 0, 20, True),
             ("结界", "结界", 0, 20, True),
             ("巨大卷轴", "巨大卷轴", 0, 20, True),
@@ -508,7 +651,12 @@ class ShopLogic:
         if active:
             # 主动使用物品加入库存
             player.inventory.append(item.copy())
-            return f"你花费 {cost} 金币, 购买了 {n}（已存入道具栏）!"
+            # 修改复活卷轴的提示信息
+            if t == "revive":
+                effect = "已购买复活卷轴"
+            else:
+                effect = f"{n} +1, 已存入道具栏"
+            return f"你花费 {cost} 金币, {effect}!"
         else:
             # 非主动使用物品立即生效
             if t == "heal":
@@ -520,9 +668,9 @@ class ShopLogic:
                 player.base_atk += v
                 effect = f"攻击力从 {oldatk} 升到 {player.atk}"
             elif t == "revive":
-                # Ensure revive scroll is added to inventory
+                # 复活卷轴加入库存，但不显示+1
                 player.inventory.append({"name": n, "type": t, "value": v, "cost": cost, "active": False})
-                effect = f"复活卷轴 +1, 已存入道具栏"
+                effect = "已获得复活卷轴"
             elif t == "cure_poison":
                 if "poison" in player.statuses:
                     player.statuses["poison"] = 0
@@ -553,6 +701,12 @@ class ShopLogic:
                 duration = random.randint(5, 10)
                 player.statuses["trap_resist"] = duration
                 effect = f"未来 {duration} 回合陷阱伤害减半"
+            elif t == "healing_scroll":  # 新增恢复卷轴处理
+                duration = random.randint(10, 20)
+                heal_per_turn = random.randint(3, 7)
+                player.statuses["healing_scroll"] = duration
+                player.statuses["healing_scroll_amount"] = heal_per_turn
+                effect = f"未来 {duration} 回合每回合恢复 {heal_per_turn} 点生命"
             else:
                 effect = "无效果"
             return f"你花费 {cost} 金币, 购买了 {n}, {effect}!"
@@ -728,6 +882,7 @@ class UseItemScene:
         # 使用完道具后，恢复上一个战斗场景
         self.controller.resume_scene()
         return effect_msg
+
 # -------------------------------
 # 4) Flask 路由及 Session 存储
 # -------------------------------
