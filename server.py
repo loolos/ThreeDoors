@@ -45,20 +45,25 @@ class Player:
                 return True
         return False
 
-    def apply_turn_effects(self):
+    def apply_turn_effects(self, is_battle_turn=False):
         immune = ("immune" in self.statuses and self.statuses["immune"] > 0)
         if "poison" in self.statuses and self.statuses["poison"] > 0 and not immune:
             self.hp -= 1
         self.atk = self.base_atk
-        if "atk_multiplier" in self.statuses and self.statuses.get("atk_multiplier_duration",0) > 0:
+        if "atk_multiplier" in self.statuses and self.statuses.get("atk_multiplier_duration", 0) > 0:
             self.atk *= self.statuses["atk_multiplier"]
         if "weak" in self.statuses and self.statuses["weak"] > 0 and not immune:
             self.atk = max(1, self.atk - 2)
         if "atk_up" in self.statuses and self.statuses["atk_up"] > 0:
             self.atk += 2
+
         expired = []
         for st in self.statuses:
-            self.statuses[st] -= 1
+            # Reduce duration based on turn type
+            if st == "barrier" and is_battle_turn:
+                self.statuses[st] -= 1
+            elif st != "barrier":
+                self.statuses[st] -= 1
             if self.statuses[st] <= 0:
                 expired.append(st)
         for r in expired:
@@ -151,7 +156,7 @@ class DoorScene:
         if index < 0 or index >= len(self.door_events):
             return "无效的门选择"
         c.round_count += 1
-        p.apply_turn_effects()
+        p.apply_turn_effects(is_battle_turn=False)  # Adventure turn effects
         event_details = self.door_events[index]
         ev = event_details["event"]
         if ev == "monster":
@@ -290,7 +295,7 @@ class BattleScene:
             return "未知战斗指令"
 
     def do_attack(self, p):
-        p.apply_turn_effects()
+        p.apply_turn_effects(is_battle_turn=True)
         # 如果有 atk_multiplier 状态则计算翻倍效果
         multiplier = p.statuses.get("atk_multiplier", 1)
         dmg = max(1, p.atk * multiplier - random.randint(0, 1))
@@ -308,13 +313,16 @@ class BattleScene:
             self.monster.stunned_rounds -= 1
             msg.append(f"{self.monster.name} 被晕眩，无法反击!")
         else:
-            mdmg = max(1, self.monster.atk - random.randint(0, 1))
-            if self.defending:
-                mdmg = mdmg // 2
-            if "damage_reduction" in p.statuses:
-                mdmg = int(mdmg * 0.7)
-            p.take_damage(mdmg)
-            msg.append(f"{self.monster.name} 反击造成 {mdmg} 点伤害.")
+            if "barrier" in p.statuses and p.statuses["barrier"] > 0:
+                msg.append(f"{self.monster.name} 攻击被结界阻挡，未造成伤害!")
+            else:
+                mdmg = max(1, self.monster.atk - random.randint(0, 1))
+                if self.defending:
+                    mdmg = mdmg // 2
+                if "damage_reduction" in p.statuses:
+                    mdmg = int(mdmg * 0.7)
+                p.take_damage(mdmg)
+                msg.append(f"{self.monster.name} 反击造成 {mdmg} 点伤害.")
 
         if p.hp <= 0:
             revived = p.try_revive()
@@ -322,7 +330,6 @@ class BattleScene:
                 msg.append("复活卷轴救了你(HP=1)!")
             else:
                 msg.append("你被怪物击倒, 英勇牺牲!")
-        p.apply_turn_effects()
 
         # 较强怪物可能附带负面效果
         if self.monster.tier >= 3 and random.random() < 0.3:
@@ -513,8 +520,9 @@ class ShopLogic:
                 player.base_atk += v
                 effect = f"攻击力从 {oldatk} 升到 {player.atk}"
             elif t == "revive":
-                player.revive_scroll_count += 1
-                effect = f"复活卷轴 +1, 现有 {player.revive_scroll_count} 张"
+                # Ensure revive scroll is added to inventory
+                player.inventory.append({"name": n, "type": t, "value": v, "cost": cost, "active": False})
+                effect = f"复活卷轴 +1, 已存入道具栏"
             elif t == "cure_poison":
                 if "poison" in player.statuses:
                     player.statuses["poison"] = 0
