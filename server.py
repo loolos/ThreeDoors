@@ -211,7 +211,7 @@ class Player:
             # 计算怪物伤害
             mdmg = max(1, monster.atk - random.randint(0, 1))
             if "damage_reduction" in self.statuses:
-                mdmg = int(mdmg * 0.7)
+                mdmg = int(mdmg * 0.25)  # 减少75%伤害
             
             # 受到伤害
             self.take_damage(mdmg)
@@ -278,7 +278,7 @@ class Player:
             heal_amount = random.randint(1, 10)  # 每次随机恢复1-10点生命
             self.heal(heal_amount)
             print(f"恢复卷轴生效，恢复 {heal_amount} 点生命！")
-                
+
         # 更新冒险回合的状态持续时间
         self._update_adventure_status_durations()
 
@@ -366,7 +366,7 @@ class Player:
             self.statuses["dodge"] = {"duration": duration}
             effect_msg = f"未来 {duration} 回合闪避提升"
         elif item_type == "damage_reduction":
-            duration = random.randint(5, 10)
+            duration = random.randint(10, 20)
             self.statuses["damage_reduction"] = {"duration": duration}
             effect_msg = f"未来 {duration} 回合伤害减免"
         elif item_type == "trap_resist":
@@ -424,7 +424,7 @@ class Monster:
         if is_defending:
             mdmg = mdmg // 2
         if "damage_reduction" in target.statuses:
-            mdmg = int(mdmg * 0.7)
+            mdmg = int(mdmg * 0.25)  # 减少75%伤害
 
         # 造成伤害
         target.take_damage(mdmg)
@@ -508,7 +508,7 @@ def get_random_monster(max_tier=None):
     return random.choice(monster_pool)
 
 class Door:
-    # 基础组合提示
+            # 基础组合提示
     combo_hints = {
         ("monster", "treasure"): [
             "有些骚动也许是野兽，也许是财宝",
@@ -573,53 +573,99 @@ class Door:
             "金属声与叫卖声交织",
             "商店中似乎有武器"
         ],
+        ("treasure", "equip"): [
+            "金光与金属声交织，是宝藏还是武器",
+            "宝物与装备并存，难以分辨",
+            "金属声与金光闪烁",
+            "似乎有宝藏，似乎也有武器",
+            "财富与装备并存"
+        ]
+        }
+        
+        # 缺省提示语
+    default_hints = {
+        "monster": [
+            "黑暗中似乎有什么在移动...",
+            "危险的气息扑面而来...",
+            "有什么东西在等待着你...",
+            "空气中弥漫着紧张的气氛...",
+            "似乎有什么可怕的存在..."
+        ],
+        "trap": [
+            "这里的气氛有些诡异...",
+            "空气中弥漫着危险的气息...",
+            "似乎有什么机关在等待...",
+            "这里的一切都显得那么可疑...",
+            "黑暗中似乎藏着什么..."
+        ],
+        "treasure": [
+            "金光闪闪，似乎有什么宝物...",
+            "空气中飘来一丝财富的气息...",
+            "这里似乎藏着什么好东西...",
+            "金光若隐若现，引人遐想...",
+            "似乎有什么宝物在等待..."
+        ],
+        "equip": [
+            "金属声传来，似乎有什么武器...",
+            "空气中飘来金属的气息...",
+            "这里似乎有什么装备...",
+            "金属的碰撞声若隐若现...",
+            "似乎有什么武器在等待..."
+        ],
+        "shop": [
+            "商人的吆喝声传来...",
+            "空气中飘来交易的气息...",
+            "这里似乎有商人在此...",
+            "商人的声音若隐若现...",
+            "似乎有什么人在做买卖..."
+        ]
     }
-    
-    # 怪物等级相关提示
+        
+        # 怪物等级相关提示
     monster_tier_hints = {
-        1: [
-            "似乎有轻微的骚动...",
-            "隐约听到细小的声响...",
-            "有什么东西在暗处蠢蠢欲动...",
-            "空气中飘来一丝危险的气息...",
+            1: [
+                "似乎有轻微的骚动...",
+                "隐约听到细小的声响...",
+                "有什么东西在暗处蠢蠢欲动...",
+                "空气中飘来一丝危险的气息...",
             "好像有什么小东西在活动...",
             "轻微的脚步声传来...",
             "有什么东西在移动...",
             "危险的气息若隐若现..."
-        ],
-        2: [
-            "明显感觉到一股威胁...",
-            "有生物的气息在靠近...",
-            "危险的气息越来越浓...",
-            "似乎有什么强大的存在...",
+            ],
+            2: [
+                "明显感觉到一股威胁...",
+                "有生物的气息在靠近...",
+                "危险的气息越来越浓...",
+                "似乎有什么强大的存在...",
             "空气中弥漫着紧张的气氛...",
             "沉重的脚步声传来...",
             "有什么东西在靠近...",
             "危险的气息越来越强..."
-        ],
-        3: [
-            "一股强大的气息扑面而来...",
-            "危险的气息令人窒息...",
-            "有什么可怕的东西在等待...",
-            "空气中充满了压迫感...",
+            ],
+            3: [
+                "一股强大的气息扑面而来...",
+                "危险的气息令人窒息...",
+                "有什么可怕的东西在等待...",
+                "空气中充满了压迫感...",
             "似乎遇到了不得了的对手...",
             "强大的气息令人战栗...",
             "有什么可怕的存在在等待...",
             "危险的气息令人不安..."
-        ],
-        4: [
-            "恐怖的气息笼罩着这里...",
-            "空气中弥漫着死亡的气息...",
-            "有什么可怕的存在在等待...",
-            "危险的气息令人战栗...",
+            ],
+            4: [
+                "恐怖的气息笼罩着这里...",
+                "空气中弥漫着死亡的气息...",
+                "有什么可怕的存在在等待...",
+                "危险的气息令人战栗...",
             "似乎遇到了传说中的存在...",
             "死亡的气息扑面而来...",
             "有什么可怕的东西在等待...",
             "恐怖的气息令人窒息..."
-        ]
-    }
-    
-    # 怪物种类相关提示
+            ]
+        }
+        
+        # 怪物种类相关提示
     monster_type_hints = {
         "史莱姆": [
             "黏糊糊的声音...",
@@ -821,71 +867,50 @@ class Door:
             self.hint = self.generate_mixed_hints(event)
 
     @classmethod
-    def generate_door_hint(cls, door_type, monster=None):
-        """生成门的提示
-        Args:
-            door_type: 门的类型 ("monster", "trap", "treasure", "equip", "shop")
-            monster: 如果是怪物门，需要传入怪物对象
-        """
-        # 获取该门的基础提示
-        if door_type == "monster":
-            base_hint = "门后传来怪物的咆哮声"
+    def generate_mixed_hints(cls, real_event, monster=None):
+        """生成混淆的提示，基于真实门和虚假门的类型"""
+        # 获取所有可能的门类型
+        all_events = ["monster", "trap", "treasure", "equip", "shop"]
+        
+        # 生成一个虚假的门类型（与真实门不同）
+        fake_event = random.choice([e for e in all_events if e != real_event])
+        
+        # 根据真实门和虚假门的类型生成提示
+        if real_event == "monster":
+            # 如果真实门是怪物门
+            combo = cls.combo_hints.get(("monster", fake_event))
+            if not combo:
+                combo = cls.default_hints["monster"]
+            combo = random.choice(combo)
+            
             if monster:
                 # 使用怪物的真实等级和类型
                 tier_hint = cls.monster_tier_hints.get(monster.tier, ["危险的气息..."])[0]
                 type_hint = cls.monster_type_hints.get(monster.name, ["未知生物的声响..."])[0]
-                return f"{base_hint} {tier_hint} {type_hint}"
+                return f"{combo} {tier_hint} {type_hint}"
             else:
                 # 使用随机的等级和类型
                 tier_hint = cls.monster_tier_hints[1][0]
                 type_hint = list(cls.monster_type_hints.values())[0][0]
-                return f"{base_hint} {tier_hint} {type_hint}"
-        elif door_type == "trap":
-            base_hint = "门后传来机关转动的声音"
-            return base_hint
-        elif door_type == "treasure":
-            base_hint = "门后传来金币碰撞的声音"
-            return base_hint
-        elif door_type == "equip":
-            base_hint = "门后传来金属碰撞的声音"
-            return base_hint
-        elif door_type == "shop":
-            base_hint = "门后传来商人的吆喝声"
-            return base_hint
+                return f"{combo} {tier_hint} {type_hint}"
+        elif fake_event == "monster":
+            # 如果虚假门是怪物门
+            combo = cls.combo_hints.get((real_event, "monster"))
+            if not combo:
+                combo = cls.default_hints[real_event]
+            combo = random.choice(combo)
+            
+            # 生成一个随机的怪物提示
+            fake_monster = get_random_monster()
+            tier_hint = cls.monster_tier_hints.get(fake_monster.tier, ["危险的气息..."])[0]
+            type_hint = cls.monster_type_hints.get(fake_monster.name, ["未知生物的声响..."])[0]
+            return f"{combo} {tier_hint} {type_hint}"
         else:
-            base_hint = "门后传来奇怪的声音"
-            return base_hint
-
-    @classmethod
-    def generate_mixed_hints(cls, real_event, monster=None):
-        """生成混淆的提示，包含真实提示和虚假提示"""
-        # 生成真实提示
-        real_hint = cls.generate_door_hint(real_event, monster)
-        
-        # 生成2-3个虚假提示
-        fake_hints = []
-        num_fake = random.randint(2, 3)
-        
-        # 获取所有可能的门类型
-        all_events = ["monster", "trap", "treasure", "equip", "shop"]
-        
-        for _ in range(num_fake):
-            # 随机选择一个不同于真实事件的门类型
-            fake_event = random.choice([e for e in all_events if e != real_event])
-            # 如果是怪物门，生成一个随机的怪物提示
-            if fake_event == "monster":
-                fake_monster = get_random_monster()
-                fake_hint = cls.generate_door_hint(fake_event, fake_monster)
-            else:
-                fake_hint = cls.generate_door_hint(fake_event)
-            fake_hints.append(fake_hint)
-        
-        # 将所有提示打乱，但确保真实提示一定在其中
-        all_hints = [real_hint] + fake_hints
-        random.shuffle(all_hints)
-        
-        # 将所有提示组合成一个字符串，用换行符分隔
-        return "\n".join(all_hints)
+            # 如果都不是怪物门，使用对应的组合提示
+            combo = cls.combo_hints.get((real_event, fake_event))
+            if not combo:
+                combo = cls.default_hints[real_event]
+            return random.choice(combo)
 
     @classmethod
     def generate_trap_door(cls):
@@ -1100,7 +1125,7 @@ class BattleScene:
         msg, success = p.try_escape(self.monster)
         if success:
             self.controller.go_to_scene("door_scene")
-        return msg
+            return msg
 
 class ShopScene:
     def __init__(self, controller):
@@ -1195,13 +1220,9 @@ class ShopLogic:
             ("普通装备", "weapon", 2, 15, False),
             ("稀有装备", "weapon", 5, 30, False),
             ("复活卷轴", "revive", 1, 25, False),
-            ("闪避卷轴", "dodge", 2, 15, False),
             ("减伤卷轴", "damage_reduction", 2, 15, False),
             ("陷阱减伤药剂", "trap_resist", 2, 10, False),
-            ("解毒药水", "cure_poison", 0, 10, False),
-            ("解除虚弱卷轴", "cure_weak", 0, 10, False),
             ("攻击力增益卷轴", "atk_up", 5, 20, False),
-            ("免疫卷轴", "immune", 5, 25, False),
             ("恢复卷轴", "healing_scroll", 0, 30, False),
             ("飞锤", "飞锤", 0, 20, True),
             ("结界", "结界", 0, 20, True),
@@ -1252,7 +1273,7 @@ class ShopLogic:
             # 非主动使用物品立即生效
             effect = player.apply_item_effect(t, v)
             
-        return f"你花费 {cost} 金币, 购买了 {n}, {effect}!"
+            return f"你花费 {cost} 金币, 购买了 {n}, {effect}!"
 
 # -------------------------------
 # 3) 控制器及辅助类
