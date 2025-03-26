@@ -16,128 +16,6 @@ Session(app)
 # 2) 核心逻辑：玩家、怪物、场景等
 # -------------------------------
 
-class StatusEffect:
-    """状态效果定义类"""
-    # 战斗状态：只在战斗回合中生效
-    BATTLE_STATUSES = {
-        "barrier": {
-            "name": "结界",
-            "description": "免受怪物伤害",
-            "duration": 3,
-            "is_battle_only": True
-        },
-        "atk_multiplier": {
-            "name": "攻击翻倍",
-            "description": "攻击力翻倍",
-            "duration": 999,  # 使用足够大的数值确保在当前战斗中持续有效
-            "is_battle_only": True,
-            "value": 2
-        },
-        # 怪物造成的负面效果
-        "poison": {
-            "name": "中毒",
-            "description": "每回合损失1点生命",
-            "duration": 3,
-            "is_battle_only": True,
-            "value": -1,
-            "is_monster_effect": True
-        },
-        "weak": {
-            "name": "虚弱",
-            "description": "攻击力降低2点",
-            "duration": 3,
-            "is_battle_only": True,
-            "value": -2,
-            "is_monster_effect": True
-        },
-        "stun": {
-            "name": "眩晕",
-            "description": "无法行动",
-            "duration": 2,
-            "is_battle_only": True,
-            "is_monster_effect": True
-        }
-    }
-    
-    # 冒险状态：在冒险回合中生效
-    ADVENTURE_STATUSES = {
-        "atk_up": {
-            "name": "攻击力提升",
-            "description": "攻击力增加",
-            "duration": 5,
-            "is_battle_only": False,
-            "value": 2
-        },
-        "immune": {
-            "name": "免疫",
-            "description": "免疫负面效果",
-            "duration": 5,
-            "is_battle_only": False
-        },
-        "dodge": {
-            "name": "闪避",
-            "description": "闪避提升",
-            "duration": 5,
-            "is_battle_only": False
-        },
-        "damage_reduction": {
-            "name": "伤害减免",
-            "description": "受到伤害减少30%",
-            "duration": 5,
-            "is_battle_only": False,
-            "value": 0.7
-        },
-        "trap_resist": {
-            "name": "陷阱减伤",
-            "description": "陷阱伤害减半",
-            "duration": 5,
-            "is_battle_only": False,
-            "value": 0.5
-        },
-        "healing_scroll": {
-            "name": "恢复卷轴",
-            "description": "每回合恢复生命",
-            "duration": 10,
-            "is_battle_only": False,
-            "value": 5  # 默认恢复值，实际值在购买时随机生成
-        }
-    }
-    
-    @classmethod
-    def get_status_info(cls, status_name):
-        """获取状态效果的详细信息"""
-        if status_name in cls.BATTLE_STATUSES:
-            return cls.BATTLE_STATUSES[status_name]
-        elif status_name in cls.ADVENTURE_STATUSES:
-            return cls.ADVENTURE_STATUSES[status_name]
-        return None
-    
-    @classmethod
-    def is_battle_status(cls, status_name):
-        """判断是否为战斗状态"""
-        return status_name in cls.BATTLE_STATUSES
-    
-    @classmethod
-    def is_adventure_status(cls, status_name):
-        """判断是否为冒险状态"""
-        return status_name in cls.ADVENTURE_STATUSES
-    
-    @classmethod
-    def is_monster_effect(cls, status_name):
-        """判断是否为怪物造成的效果"""
-        status_info = cls.get_status_info(status_name)
-        return status_info and status_info.get("is_monster_effect", False)
-    
-    @classmethod
-    def clear_battle_statuses(cls, player):
-        """清除所有战斗状态"""
-        expired = []
-        for st in player.statuses:
-            if cls.is_battle_status(st):
-                expired.append(st)
-        for r in expired:
-            del player.statuses[r]
-
 class Player:
     def __init__(self, name="勇士", hp=20, atk=5, gold=0):
         self.name = name
@@ -146,7 +24,7 @@ class Player:
         self.base_atk = atk
         self.atk = atk
         self.gold = gold
-        self.statuses = {}  # 如 {"poison": {"duration": 3}, "weak": {"duration": 2}, ...}
+        self.statuses = {}  # 如 {"poison":3, "weak":2, ...}
         self.inventory = []  # 最多可存10个道具，每个道具为字典
 
     def take_damage(self, dmg):
@@ -211,7 +89,7 @@ class Player:
             # 计算怪物伤害
             mdmg = max(1, monster.atk - random.randint(0, 1))
             if "damage_reduction" in self.statuses:
-                mdmg = int(mdmg * 0.25)  # 减少75%伤害
+                mdmg = int(mdmg * 0.7)
             
             # 受到伤害
             self.take_damage(mdmg)
@@ -232,26 +110,15 @@ class Player:
             return "你成功逃跑!", True
 
     def apply_turn_effects(self, is_battle_turn=False):
-        # 根据回合类型调用对应的函数
-        if is_battle_turn:
-            self._apply_battle_turn_effects()
-        else:
-            self._apply_adventure_turn_effects()
-
-    def _apply_battle_turn_effects(self):
-        """处理战斗回合的效果"""
-        # 处理中毒效果
-        immune = ("immune" in self.statuses and self.statuses["immune"]["duration"] > 0)
-        if "poison" in self.statuses and self.statuses["poison"]["duration"] > 0 and not immune:
+        immune = ("immune" in self.statuses and self.statuses["immune"] > 0)
+        if "poison" in self.statuses and self.statuses["poison"] > 0 and not immune:
             self.hp -= 1
-            
-        # 处理攻击力相关效果
         self.atk = self.base_atk
-        if "atk_multiplier" in self.statuses and self.statuses["atk_multiplier"]["duration"] > 0:
-            self.atk *= self.statuses["atk_multiplier"]["value"]
-        if "weak" in self.statuses and self.statuses["weak"]["duration"] > 0 and not immune:
+        if "atk_multiplier" in self.statuses and self.statuses.get("atk_multiplier_duration", 0) > 0:
+            self.atk *= self.statuses["atk_multiplier"]
+        if "weak" in self.statuses and self.statuses["weak"] > 0 and not immune:
             self.atk = max(1, self.atk - 2)
-        if "atk_up" in self.statuses and self.statuses["atk_up"]["duration"] > 0:
+        if "atk_up" in self.statuses and self.statuses["atk_up"] > 0:
             self.atk += 2
             
         # 更新战斗回合的状态持续时间
@@ -278,7 +145,7 @@ class Player:
             heal_amount = random.randint(1, 10)  # 每次随机恢复1-10点生命
             self.heal(heal_amount)
             print(f"恢复卷轴生效，恢复 {heal_amount} 点生命！")
-
+                
         # 更新冒险回合的状态持续时间
         self._update_adventure_status_durations()
 
@@ -286,23 +153,13 @@ class Player:
         """更新战斗回合的状态持续时间"""
         expired = []
         for st in self.statuses:
-            # 战斗回合只处理战斗状态
-            if StatusEffect.is_battle_status(st):
-                self.statuses[st]["duration"] -= 1
-                if self.statuses[st]["duration"] <= 0:
-                    expired.append(st)
-        for r in expired:
-            del self.statuses[r]
-
-    def _update_adventure_status_durations(self):
-        """更新冒险回合的状态持续时间"""
-        expired = []
-        for st in self.statuses:
-            # 冒险回合处理所有状态
-            if StatusEffect.is_adventure_status(st):
-                self.statuses[st]["duration"] -= 1
-                if self.statuses[st]["duration"] <= 0:
-                    expired.append(st)
+            # Reduce duration based on turn type
+            if st == "barrier" and is_battle_turn:
+                self.statuses[st] -= 1
+            elif st != "barrier":
+                self.statuses[st] -= 1
+            if self.statuses[st] <= 0:
+                expired.append(st)
         for r in expired:
             del self.statuses[r]
 
@@ -311,16 +168,29 @@ class Player:
             return "无"
         desc = []
         for k, v in self.statuses.items():
-            status_info = StatusEffect.get_status_info(k)
-            if status_info:
-                if k == "healing_scroll":
-                    desc.append(f"每回合随机恢复1-10HP({v['duration']}回合)")
-                elif k == "atk_multiplier":
-                    desc.append(f"攻击翻倍")
-                else:
-                    desc.append(f"{status_info['name']}({v['duration']}回合)")
+            if k == "poison":
+                desc.append(f"中毒({v}回合)")
+            elif k == "weak":
+                desc.append(f"虚弱({v}回合)")
+            elif k == "atk_up":
+                desc.append(f"攻击力+2({v}回合)")
+            elif k == "immune":
+                desc.append(f"免疫({v}回合)")
+            elif k == "stun":
+                desc.append(f"眩晕({v}回合)")
+            elif k == "barrier":
+                desc.append(f"结界({v}回合)")
+            elif k == "dodge":
+                desc.append(f"闪避({v}回合)")
+            elif k == "damage_reduction":
+                desc.append(f"伤害减免({v}回合)")
+            elif k == "trap_resist":
+                desc.append(f"陷阱减伤({v}回合)")
+            elif k == "atk_multiplier":
+                # 此状态持续时间另有 atk_multiplier_duration
+                desc.append(f"攻击翻倍({self.statuses.get('atk_multiplier_duration', '?')}回合)")
             else:
-                desc.append(f"{k}({v['duration']}回合)")
+                desc.append(f"{k}({v}回合)")
         return ", ".join(desc)
 
     def apply_item_effect(self, item_type, value):
@@ -366,7 +236,7 @@ class Player:
             self.statuses["dodge"] = {"duration": duration}
             effect_msg = f"未来 {duration} 回合闪避提升"
         elif item_type == "damage_reduction":
-            duration = random.randint(10, 20)
+            duration = random.randint(5, 10)
             self.statuses["damage_reduction"] = {"duration": duration}
             effect_msg = f"未来 {duration} 回合伤害减免"
         elif item_type == "trap_resist":
@@ -385,7 +255,7 @@ class Monster:
         self.hp = hp
         self.atk = atk
         self.tier = tier
-        self.statuses = {}  # 使用状态系统来管理怪物的状态效果
+        self.stunned_rounds = 0  # 新增：怪物晕眩回合
 
     def take_damage(self, dmg):
         self.hp -= dmg
@@ -424,7 +294,7 @@ class Monster:
         if is_defending:
             mdmg = mdmg // 2
         if "damage_reduction" in target.statuses:
-            mdmg = int(mdmg * 0.25)  # 减少75%伤害
+            mdmg = int(mdmg * 0.7)
 
         # 造成伤害
         target.take_damage(mdmg)
@@ -450,65 +320,23 @@ class Monster:
 # 如果传入 max_tier，则只生成符合条件的怪物
 def get_random_monster(max_tier=None):
     monster_pool = [
-        # Tier 1 - 新手怪物
         Monster("史莱姆", 15, 4, 1),
         Monster("哥布林", 20, 5, 1),
         Monster("狼", 18, 6, 1),
-        Monster("蜘蛛", 16, 5, 1),
-        Monster("蝙蝠", 14, 4, 1),
-        Monster("小骷髅", 17, 5, 1),
-        
-        # Tier 2 - 中级怪物
         Monster("小恶魔", 25, 7, 2),
         Monster("牛头人", 35, 9, 2),
-        Monster("食人花", 30, 8, 2),
-        Monster("蜥蜴人", 28, 7, 2),
-        Monster("石像鬼", 32, 8, 2),
-        Monster("半人马", 38, 10, 2),
-        
-        # Tier 3 - 高级怪物
         Monster("巨龙", 40, 10, 3),
         Monster("暗黑骑士", 50, 12, 3),
-        Monster("九头蛇", 45, 11, 3),
-        Monster("独眼巨人", 48, 13, 3),
-        Monster("地狱犬", 42, 12, 3),
-        Monster("巫妖", 55, 14, 3),
-        
-        # Tier 4 - 精英怪物
         Monster("末日领主", 70, 15, 4),
-        Monster("深渊魔王", 75, 18, 4),
-        Monster("混沌使者", 65, 16, 4),
-        Monster("虚空领主", 80, 20, 4),
-        Monster("死亡骑士", 72, 17, 4),
-        Monster("远古巨龙", 85, 22, 4),
     ]
-    
-    # 根据回合数限制怪物等级
-    if max_tier is None:
-        # 获取当前回合数
-        try:
-            current_round = get_game().round_count
-            if current_round <= 5:
-                max_tier = 1  # 前5回合只出现Tier 1怪物
-            elif current_round <= 10:
-                max_tier = 2  # 6-10回合可能出现Tier 2怪物
-            elif current_round <= 15:
-                max_tier = 3  # 11-15回合可能出现Tier 3怪物
-            else:
-                max_tier = 4  # 15回合后可能出现所有怪物
-        except:
-            # 如果无法获取回合数，默认使用Tier 1
-            max_tier = 1
-    
-    # 过滤出符合条件的怪物
-    filtered = [m for m in monster_pool if m.tier <= max_tier]
-    if filtered:
-        monster_pool = filtered
-    
+    if max_tier is not None:
+        filtered = [m for m in monster_pool if m.tier <= max_tier]
+        if filtered:
+            monster_pool = filtered
     return random.choice(monster_pool)
 
 class Door:
-            # 基础组合提示
+    # 基础组合提示
     combo_hints = {
         ("monster", "treasure"): [
             "有些骚动也许是野兽，也许是财宝",
@@ -573,99 +401,53 @@ class Door:
             "金属声与叫卖声交织",
             "商店中似乎有武器"
         ],
-        ("treasure", "equip"): [
-            "金光与金属声交织，是宝藏还是武器",
-            "宝物与装备并存，难以分辨",
-            "金属声与金光闪烁",
-            "似乎有宝藏，似乎也有武器",
-            "财富与装备并存"
-        ]
-        }
-        
-        # 缺省提示语
-    default_hints = {
-        "monster": [
-            "黑暗中似乎有什么在移动...",
-            "危险的气息扑面而来...",
-            "有什么东西在等待着你...",
-            "空气中弥漫着紧张的气氛...",
-            "似乎有什么可怕的存在..."
-        ],
-        "trap": [
-            "这里的气氛有些诡异...",
-            "空气中弥漫着危险的气息...",
-            "似乎有什么机关在等待...",
-            "这里的一切都显得那么可疑...",
-            "黑暗中似乎藏着什么..."
-        ],
-        "treasure": [
-            "金光闪闪，似乎有什么宝物...",
-            "空气中飘来一丝财富的气息...",
-            "这里似乎藏着什么好东西...",
-            "金光若隐若现，引人遐想...",
-            "似乎有什么宝物在等待..."
-        ],
-        "equip": [
-            "金属声传来，似乎有什么武器...",
-            "空气中飘来金属的气息...",
-            "这里似乎有什么装备...",
-            "金属的碰撞声若隐若现...",
-            "似乎有什么武器在等待..."
-        ],
-        "shop": [
-            "商人的吆喝声传来...",
-            "空气中飘来交易的气息...",
-            "这里似乎有商人在此...",
-            "商人的声音若隐若现...",
-            "似乎有什么人在做买卖..."
-        ]
     }
-        
-        # 怪物等级相关提示
+    
+    # 怪物等级相关提示
     monster_tier_hints = {
-            1: [
-                "似乎有轻微的骚动...",
-                "隐约听到细小的声响...",
-                "有什么东西在暗处蠢蠢欲动...",
-                "空气中飘来一丝危险的气息...",
+        1: [
+            "似乎有轻微的骚动...",
+            "隐约听到细小的声响...",
+            "有什么东西在暗处蠢蠢欲动...",
+            "空气中飘来一丝危险的气息...",
             "好像有什么小东西在活动...",
             "轻微的脚步声传来...",
             "有什么东西在移动...",
             "危险的气息若隐若现..."
-            ],
-            2: [
-                "明显感觉到一股威胁...",
-                "有生物的气息在靠近...",
-                "危险的气息越来越浓...",
-                "似乎有什么强大的存在...",
+        ],
+        2: [
+            "明显感觉到一股威胁...",
+            "有生物的气息在靠近...",
+            "危险的气息越来越浓...",
+            "似乎有什么强大的存在...",
             "空气中弥漫着紧张的气氛...",
             "沉重的脚步声传来...",
             "有什么东西在靠近...",
             "危险的气息越来越强..."
-            ],
-            3: [
-                "一股强大的气息扑面而来...",
-                "危险的气息令人窒息...",
-                "有什么可怕的东西在等待...",
-                "空气中充满了压迫感...",
+        ],
+        3: [
+            "一股强大的气息扑面而来...",
+            "危险的气息令人窒息...",
+            "有什么可怕的东西在等待...",
+            "空气中充满了压迫感...",
             "似乎遇到了不得了的对手...",
             "强大的气息令人战栗...",
             "有什么可怕的存在在等待...",
             "危险的气息令人不安..."
-            ],
-            4: [
-                "恐怖的气息笼罩着这里...",
-                "空气中弥漫着死亡的气息...",
-                "有什么可怕的存在在等待...",
-                "危险的气息令人战栗...",
+        ],
+        4: [
+            "恐怖的气息笼罩着这里...",
+            "空气中弥漫着死亡的气息...",
+            "有什么可怕的存在在等待...",
+            "危险的气息令人战栗...",
             "似乎遇到了传说中的存在...",
             "死亡的气息扑面而来...",
             "有什么可怕的东西在等待...",
             "恐怖的气息令人窒息..."
-            ]
-        }
-        
-        # 怪物种类相关提示
+        ]
+    }
+    
+    # 怪物种类相关提示
     monster_type_hints = {
         "史莱姆": [
             "黏糊糊的声音...",
@@ -867,50 +649,71 @@ class Door:
             self.hint = self.generate_mixed_hints(event)
 
     @classmethod
-    def generate_mixed_hints(cls, real_event, monster=None):
-        """生成混淆的提示，基于真实门和虚假门的类型"""
-        # 获取所有可能的门类型
-        all_events = ["monster", "trap", "treasure", "equip", "shop"]
-        
-        # 生成一个虚假的门类型（与真实门不同）
-        fake_event = random.choice([e for e in all_events if e != real_event])
-        
-        # 根据真实门和虚假门的类型生成提示
-        if real_event == "monster":
-            # 如果真实门是怪物门
-            combo = cls.combo_hints.get(("monster", fake_event))
-            if not combo:
-                combo = cls.default_hints["monster"]
-            combo = random.choice(combo)
-            
+    def generate_door_hint(cls, door_type, monster=None):
+        """生成门的提示
+        Args:
+            door_type: 门的类型 ("monster", "trap", "treasure", "equip", "shop")
+            monster: 如果是怪物门，需要传入怪物对象
+        """
+        # 获取该门的基础提示
+        if door_type == "monster":
+            base_hint = "门后传来怪物的咆哮声"
             if monster:
                 # 使用怪物的真实等级和类型
                 tier_hint = cls.monster_tier_hints.get(monster.tier, ["危险的气息..."])[0]
                 type_hint = cls.monster_type_hints.get(monster.name, ["未知生物的声响..."])[0]
-                return f"{combo} {tier_hint} {type_hint}"
+                return f"{base_hint} {tier_hint} {type_hint}"
             else:
                 # 使用随机的等级和类型
                 tier_hint = cls.monster_tier_hints[1][0]
                 type_hint = list(cls.monster_type_hints.values())[0][0]
-                return f"{combo} {tier_hint} {type_hint}"
-        elif fake_event == "monster":
-            # 如果虚假门是怪物门
-            combo = cls.combo_hints.get((real_event, "monster"))
-            if not combo:
-                combo = cls.default_hints[real_event]
-            combo = random.choice(combo)
-            
-            # 生成一个随机的怪物提示
-            fake_monster = get_random_monster()
-            tier_hint = cls.monster_tier_hints.get(fake_monster.tier, ["危险的气息..."])[0]
-            type_hint = cls.monster_type_hints.get(fake_monster.name, ["未知生物的声响..."])[0]
-            return f"{combo} {tier_hint} {type_hint}"
+                return f"{base_hint} {tier_hint} {type_hint}"
+        elif door_type == "trap":
+            base_hint = "门后传来机关转动的声音"
+            return base_hint
+        elif door_type == "treasure":
+            base_hint = "门后传来金币碰撞的声音"
+            return base_hint
+        elif door_type == "equip":
+            base_hint = "门后传来金属碰撞的声音"
+            return base_hint
+        elif door_type == "shop":
+            base_hint = "门后传来商人的吆喝声"
+            return base_hint
         else:
-            # 如果都不是怪物门，使用对应的组合提示
-            combo = cls.combo_hints.get((real_event, fake_event))
-            if not combo:
-                combo = cls.default_hints[real_event]
-            return random.choice(combo)
+            base_hint = "门后传来奇怪的声音"
+            return base_hint
+
+    @classmethod
+    def generate_mixed_hints(cls, real_event, monster=None):
+        """生成混淆的提示，包含真实提示和虚假提示"""
+        # 生成真实提示
+        real_hint = cls.generate_door_hint(real_event, monster)
+        
+        # 生成2-3个虚假提示
+        fake_hints = []
+        num_fake = random.randint(2, 3)
+        
+        # 获取所有可能的门类型
+        all_events = ["monster", "trap", "treasure", "equip", "shop"]
+        
+        for _ in range(num_fake):
+            # 随机选择一个不同于真实事件的门类型
+            fake_event = random.choice([e for e in all_events if e != real_event])
+            # 如果是怪物门，生成一个随机的怪物提示
+            if fake_event == "monster":
+                fake_monster = get_random_monster()
+                fake_hint = cls.generate_door_hint(fake_event, fake_monster)
+            else:
+                fake_hint = cls.generate_door_hint(fake_event)
+            fake_hints.append(fake_hint)
+        
+        # 将所有提示打乱，但确保真实提示一定在其中
+        all_hints = [real_hint] + fake_hints
+        random.shuffle(all_hints)
+        
+        # 将所有提示组合成一个字符串，用换行符分隔
+        return "\n".join(all_hints)
 
     @classmethod
     def generate_trap_door(cls):
@@ -954,113 +757,105 @@ class Door:
                 monster_info["atk"],
                 monster_info["tier"]
             )
-            controller.current_monster = monster
+            c.current_monster = monster
             monster_desc = f"你遇到了 {monster.name} (HP: {monster.hp}, ATK: {monster.atk}, Tier: {monster.tier})"
-            controller.go_to_scene("battle_scene")
-            return f"你选择了怪物之门，进入战斗场景! {monster_desc}"
-            
-        elif self.event == "trap":
-            dmg = self.event_details["trap"]["damage"]
-            if "trap_resist" in player.statuses:
+            c.go_to_scene("battle_scene")
+            return f"第{c.round_count}回合：你选择了怪物之门，进入战斗场景! {monster_desc}"
+        elif ev == "trap":
+            dmg = event_details["trap"]["damage"]
+            if "trap_resist" in p.statuses:
                 dmg = max(1, int(dmg * 0.5))
-            player.take_damage(dmg)
+            p.take_damage(dmg)
             extra_msg = ""
             if random.random() < 0.3:
                 extra = random.randint(1, 5)
-                player.add_gold(extra)
+                p.add_gold(extra)
                 extra_msg = f" 你意外发现了 {extra} 金币！"
-            if player.hp <= 0:
-                revived = player.try_revive()
+            if p.hp <= 0:
+                revived = p.try_revive()
                 if revived:
-                    msg = f"你踩了陷阱({dmg}伤害){extra_msg}，但复活卷轴救了你(HP={player.hp})!"
+                    msg = f"你踩了陷阱({dmg}伤害){extra_msg}，但复活卷轴救了你(HP={p.hp})!"
                 else:
                     msg = f"你踩到陷阱({dmg}伤害){extra_msg}，不幸身亡..."
-                return msg
+                self._generate_doors()
+                return f"第{c.round_count}回合：{msg}"
             else:
-                return f"你踩到陷阱，损失{dmg}HP!{extra_msg}"
-                
-        elif self.event == "treasure":
-            g = self.event_details["treasure"]["gold"]
-            player.add_gold(g)
-            return f"你发现宝藏，获得{g}金币!"
-            
-        elif self.event == "equip":
-            boost = self.event_details["equip"]["boost"]
-            oldatk = player.atk
-            player.atk += boost
-            player.base_atk += boost
-            return f"你捡到武器，攻击力从{oldatk}提升到{player.atk}!"
-            
-        elif self.event == "shop":
-            if player.gold == 0:
-                return "你没有钱，于是被商人踢了出来。"
+                msg = f"你踩到陷阱，损失{dmg}HP!{extra_msg}"
+                self._generate_doors()
+                return f"第{c.round_count}回合：{msg}"
+        elif ev == "treasure":
+            g = event_details["treasure"]["gold"]
+            p.add_gold(g)
+            msg = f"你发现宝藏，获得{g}金币!"
+            self._generate_doors()
+            return f"第{c.round_count}回合：{msg}"
+        elif ev == "equip":
+            boost = event_details["equip"]["boost"]
+            oldatk = p.atk
+            p.atk += boost
+            p.base_atk += boost
+            msg = f"你捡到武器，攻击力从{oldatk}提升到{p.atk}!"
+            self._generate_doors()
+            return f"第{c.round_count}回合：{msg}"
+        elif ev == "shop":
+            if p.gold == 0:
+                # 玩家金币为 0，显示被踢出消息并进入下一回合
+                self._generate_doors()
+                return f"第{c.round_count}回合：你没有钱，于是被商人踢了出来，进入下一回合的三扇门。"
             else:
-                controller.go_to_scene("shop_scene")
-                return "你发现了商店，进去逛逛吧!"
-                
-        return "未知的门事件"
-
-class DoorScene:
-    def __init__(self, controller):
-        self.controller = controller
-        self.doors = []
-        self.has_initialized = False
-
-    def on_enter(self):
-        if not self.has_initialized:
-            self._generate_doors()
-            self.has_initialized = True
-
-    def handle_choice(self, index):
-        c = self.controller
-        p = c.player
-        if index < 0 or index >= len(self.doors):
-            return "无效的门选择"
-        c.round_count += 1
-        
-        # 如果选择了非怪物门，清除所有战斗状态
-        door = self.doors[index]
-        if door.event != "monster":
-            StatusEffect.clear_battle_statuses(p)
-        p.apply_turn_effects(is_battle_turn=False)  # Adventure turn effects
-        
-        # 进入门并处理事件
-        msg = door.enter(p, c)
-        
-        # 如果不是怪物门，重新生成门
-        if door.event != "monster":
-            self._generate_doors()
-            
-        return f"第{c.round_count}回合：{msg}"
+                c.go_to_scene("shop_scene")
+                return f"第{c.round_count}回合：你发现了商店，进去逛逛吧!"
+        else:
+            return f"第{c.round_count}回合：未知的门事件"
 
     def _generate_doors(self):
-        """生成三扇门，确保至少一扇是怪物门"""
-        # 获取可用的门类型
-        available_doors = ["trap", "treasure", "equip"]
-        if self.controller.player.gold > 0:
-            available_doors.append("shop")
-            
-        # 生成一扇怪物门
-        monster = get_random_monster()
-        monster_door = Door.generate_monster_door(monster)
-        
-        # 生成其他两扇门
-        other_doors = []
-        for _ in range(2):
-            door_type = random.choice(available_doors)
-            if door_type == "trap":
-                door = Door.generate_trap_door()
-            elif door_type == "treasure":
-                door = Door.generate_treasure_door()
-            elif door_type == "equip":
-                door = Door.generate_equip_door()
-            elif door_type == "shop":
-                door = Door.generate_shop_door()
-            other_doors.append(door)
-            
-        # 随机打乱三扇门的顺序
-        self.doors = [monster_door] + other_doors
-        random.shuffle(self.doors)
+        config = self.controller.game_config
+        combo_list = config.DOOR_COMBOS
+        # 如果玩家金币为0，则过滤掉含"shop"的组合
+        if self.controller.player.gold == 0:
+            filtered = [combo for combo in combo_list if "shop" not in combo]
+            if filtered:
+                combo_list = filtered
+        monster_combos = [x for x in combo_list if "monster" in x]
+        forced_combo = random.choice(monster_combos)
+        comboA = random.choice(combo_list)
+        comboB = random.choice(combo_list)
+        arr = [forced_combo, comboA, comboB]
+        random.shuffle(arr)
+        result = []
+        for combo in arr:
+            ev = random.choice(combo)
+            hint_candidates = self.combo_hints.get(combo, ["神秘而未知"])
+            hint = random.choice(hint_candidates)
+            event_details = {"event": ev, "hint": hint}
+            if ev == "monster":
+                # 提前生成怪物并存储到事件详情
+                monster = get_random_monster()
+                event_details["monster"] = {
+                    "name": monster.name,
+                    "hp": monster.hp,
+                    "atk": monster.atk,
+                    "tier": monster.tier
+                }
+            elif ev == "trap":
+                # 提前生成陷阱伤害
+                dmg = random.randint(5, 10)
+                event_details["trap"] = {"damage": dmg}
+            elif ev == "treasure":
+                # 提前生成宝藏金币
+                g = random.randint(5, 15)
+                event_details["treasure"] = {"gold": g}
+            elif ev == "equip":
+                # 提前生成装备提升
+                boost = random.randint(1, 3)
+                event_details["equip"] = {"boost": boost}
+            elif ev == "shop":
+                # 提前生成商店物品
+                logic = self.controller.shop_logic
+                logic.generate_items(self.controller.player)
+                event_details["shop_items"] = logic.shop_items
+            result.append(event_details)
+        self.door_events = result
 
 class BattleScene:
     def __init__(self, controller):
@@ -1073,23 +868,12 @@ class BattleScene:
         self.monster = self.controller.current_monster
         self.defending = False
         if self.monster:
-            monster_desc = f"你遇到了 {self.monster.name} (HP: {self.monster.hp}, ATK: {self.monster.atk}, Tier: {self.monster.tier})"
-            if self.monster.has_status("stun"):
-                monster_desc += f" [晕眩{self.monster.statuses['stun']['duration']}回合]"
-            self.controller.last_monster_message = monster_desc
+            self.controller.last_monster_message = f"你遇到了 {self.monster.name} (HP: {self.monster.hp}, ATK: {self.monster.atk}, Tier: {self.monster.tier})"
         
     def handle_action(self, action):
         p = self.controller.player
-        if p.is_stunned():
-            # 先应用战斗状态效果
-            p.apply_turn_effects(is_battle_turn=True)
-            # 玩家晕眩时，怪物进行攻击
-            msg = ["你处于眩晕状态, 无法行动!"]
-            monster_msg, _ = self.monster.attack(p, self.defending)
-            msg.extend(monster_msg)
-            self.defending = False
-            return "\n".join(msg)
-
+        if "stun" in p.statuses and p.statuses["stun"] > 0:
+            return "你处于眩晕状态, 无法行动!"
         if action == "attack":
             return self.do_attack(p)
         elif action == "use_item":
@@ -1101,29 +885,73 @@ class BattleScene:
             return "未知战斗指令"
 
     def do_attack(self, p):
-        # 玩家攻击
-        msg, monster_dead = p.attack(self.monster, self.defending)
-        
-        # 如果怪物未死亡，怪物反击
-        if not monster_dead:
-            monster_msg, _ = self.monster.attack(p, self.defending)
-            msg.extend(monster_msg)
-        
-        # 如果怪物死亡，处理战利品
-        if monster_dead:
+        p.apply_turn_effects(is_battle_turn=True)
+        # 如果有 atk_multiplier 状态则计算翻倍效果
+        multiplier = p.statuses.get("atk_multiplier", 1)
+        dmg = max(1, p.atk * multiplier - random.randint(0, 1))
+        self.monster.hp -= dmg
+        msg = [f"你攻击 {self.monster.name} 造成 {dmg} 点伤害."]
+        if self.monster.hp <= 0:
+            msg.append(f"你击败了 {self.monster.name}!")
             loot = self.controller.monster_loot(self.monster)
             msg.append(loot)
-            # 清除所有战斗状态
-            StatusEffect.clear_battle_statuses(p)
-            self.controller.door_scene._generate_doors()  # 添加这行，确保战斗胜利后重新生成门
             self.controller.go_to_scene("door_scene")
-        
+            return "\n".join(msg)
+
+        # 检查怪物是否晕眩
+        if self.monster.stunned_rounds > 0:
+            self.monster.stunned_rounds -= 1
+            msg.append(f"{self.monster.name} 被晕眩，无法反击!")
+        else:
+            if "barrier" in p.statuses and p.statuses["barrier"] > 0:
+                msg.append(f"{self.monster.name} 攻击被结界阻挡，未造成伤害!")
+            else:
+                mdmg = max(1, self.monster.atk - random.randint(0, 1))
+                if self.defending:
+                    mdmg = mdmg // 2
+                if "damage_reduction" in p.statuses:
+                    mdmg = int(mdmg * 0.7)
+                p.take_damage(mdmg)
+                msg.append(f"{self.monster.name} 反击造成 {mdmg} 点伤害.")
+
+        if p.hp <= 0:
+            revived = p.try_revive()
+            if revived:
+                msg.append("复活卷轴救了你(HP=1)!")
+            else:
+                msg.append("你被怪物击倒, 英勇牺牲!")
+
+        # 较强怪物可能附带负面效果
+        if self.monster.tier >= 3 and random.random() < 0.3:
+            effect = random.choice(["weak", "poison", "stun"])
+            duration = random.randint(1, 2)
+            p.statuses[effect] = duration
+            msg.append(f"{self.monster.name} 附带 {effect} 效果 ({duration}回合)!")
         self.defending = False
         return "\n".join(msg)
 
     def do_escape(self, p):
-        msg, success = p.try_escape(self.monster)
-        if success:
+        fail_chance = min(1.0, self.monster.tier * 0.2)
+        if random.random() < fail_chance:
+            # 检查怪物是否晕眩
+            if self.monster.stunned_rounds > 0:
+                self.monster.stunned_rounds -= 1
+                return "你试图逃跑, 怪物被晕眩，未能反击!"
+
+            mdmg = max(1, self.monster.atk - random.randint(0, 1))
+            if self.defending:
+                mdmg = mdmg // 2
+            p.take_damage(mdmg)
+            msg = [f"你试图逃跑, 但失败了！{self.monster.name} 反击造成 {mdmg} 点伤害."]
+            if p.hp <= 0:
+                revived = p.try_revive()
+                if revived:
+                    msg.append("复活卷轴救了你(HP=1)!")
+                else:
+                    msg.append("你被怪物击倒, 英勇牺牲!")
+            return "\n".join(msg)
+        else:
+            msg = "你成功逃跑, 回到门场景!"
             self.controller.go_to_scene("door_scene")
             return msg
 
@@ -1158,34 +986,36 @@ class UseItemScene:
 
     def on_enter(self):
         p = self.controller.player
-        # 筛选库存中主动使用的道具，排除复活卷轴（active=False）
+        # 只筛选主动使用的道具
         self.active_items = [item for item in p.inventory if item.get("active", False)]
+        # 如果没有可用道具，则记录提示并返回战斗界面
         if not self.active_items:
-            # 如果没有可用道具，则返回战斗界面，并记录提示
             self.controller.last_use_item_message = "你没有可使用的道具"
             self.controller.go_to_scene("battle_scene")
+
 
     def handle_use(self, index):
         p = self.controller.player
         if index < 0 or index >= len(self.active_items):
             return "无效的道具选择"
         item = self.active_items[index]
-        if not item:
+        if item is None:
             return "你没有选择任何道具"
         t = item["type"]
         if t == "飞锤":
-            # 对当前怪物施加晕眩效果
-            if self.controller.current_monster:
-                self.controller.current_monster.apply_status("stun", 3)
+            # 使怪物晕眩3回合
+            current_scene = self.controller.scene_manager.current_scene
+            if current_scene.__class__.__name__ == "BattleScene" and current_scene.monster:
+                current_scene.monster.stunned_rounds = 3
                 effect_msg = "飞锤飞出，怪物被晕眩3回合！"
             else:
-                effect_msg = "当前没有怪物，飞锤未产生效果。"
+                effect_msg = "飞锤只能在战斗中使用。"
         elif t == "结界":
-            p.statuses["barrier"] = {"duration": 3}
+            p.statuses["barrier"] = 3
             effect_msg = "结界形成，接下来3回合你免受怪物伤害！"
         elif t == "巨大卷轴":
-            # 设置一个足够大的持续时间，确保在当前战斗中持续有效
-            p.statuses["atk_multiplier"] = {"duration": 999, "value": 2}
+            p.statuses["atk_multiplier"] = 2
+            p.statuses["atk_multiplier_duration"] = 3
             effect_msg = "巨大卷轴激活，当前战斗中你的攻击力翻倍！"
         elif t == "heal":
             heal_amt = item["value"]
@@ -1195,8 +1025,7 @@ class UseItemScene:
             effect_msg = f"道具 {item['name']} 未定义效果。"
         if item in p.inventory:
             p.inventory.remove(item)
-        # 使用完道具后，恢复上一个战斗场景
-        self.controller.resume_scene()
+        self.controller.go_to_scene("battle_scene")
         return effect_msg
 
 class ShopLogic:
@@ -1208,9 +1037,9 @@ class ShopLogic:
         if player.gold == 0:
             return
         has_neg = False
-        if "poison" in player.statuses and player.statuses["poison"]["duration"] > 0:
+        if "poison" in player.statuses and player.statuses["poison"] > 0:
             has_neg = True
-        if "weak" in player.statuses and player.statuses["weak"]["duration"] > 0:
+        if "weak" in player.statuses and player.statuses["weak"] > 0:
             has_neg = True
         # 每个元组：名称, 类型, 效果值, 基准价格, 是否主动使用
         possible = [
@@ -1223,6 +1052,7 @@ class ShopLogic:
             ("减伤卷轴", "damage_reduction", 2, 15, False),
             ("陷阱减伤药剂", "trap_resist", 2, 10, False),
             ("攻击力增益卷轴", "atk_up", 5, 20, False),
+            ("免疫卷轴", "immune", 5, 25, False),
             ("恢复卷轴", "healing_scroll", 0, 30, False),
             ("飞锤", "飞锤", 0, 20, True),
             ("结界", "结界", 0, 20, True),
@@ -1261,19 +1091,17 @@ class ShopLogic:
         # 如果物品为主动使用类型，检查库存是否已满（最多10个）
         if item["active"] and len(player.inventory) >= 10:
             return "你的道具栏已满, 无法购买!"
-            
         player.gold -= item["cost"]
         n, t, v, cost, active = item["name"], item["type"], item["value"], item["cost"], item["active"]
-        
         if active:
             # 主动使用物品加入库存
             player.inventory.append(item.copy())
-            effect = f"{n}已存入道具栏"
+            return f"你花费 {cost} 金币, 购买了 {n}（已存入道具栏）!"
         else:
             # 非主动使用物品立即生效
             effect = player.apply_item_effect(t, v)
             
-            return f"你花费 {cost} 金币, 购买了 {n}, {effect}!"
+        return f"你花费 {cost} 金币, 购买了 {n}, {effect}!"
 
 # -------------------------------
 # 3) 控制器及辅助类
@@ -1325,21 +1153,16 @@ class GameController:
         self.scene_manager = SceneManager()
         self.shop_logic = ShopLogic()
 
-        # 创建场景
         self.door_scene = DoorScene(self)
         self.battle_scene = BattleScene(self)
         self.shop_scene = ShopScene(self)
-        self.use_item_scene = UseItemScene(self)
+        self.use_item_scene = UseItemScene(self)  # 新增使用道具场景
 
-        # 注册场景
         self.scene_manager.add_scene("door_scene", self.door_scene)
         self.scene_manager.add_scene("battle_scene", self.battle_scene)
         self.scene_manager.add_scene("shop_scene", self.shop_scene)
         self.scene_manager.add_scene("use_item_scene", self.use_item_scene)
-
-        # 设置初始场景并生成门
-        self.scene_manager.current_scene = self.door_scene
-        self.door_scene._generate_doors()
+        self.go_to_scene("door_scene")
 
     def go_to_scene(self, name):
         if self.scene_manager.current_scene is not None:
@@ -1353,22 +1176,19 @@ class GameController:
         gold_amt = random.randint(8, 20) + 5 * tier
         p.add_gold(gold_amt)
         msg = f"怪物掉落金币, 你获得 {gold_amt} 金币!"
-        
         # 额外掉落（30% 概率）
+        extra_drops = [
+            ("healing_potion", lambda: f"治疗药剂, 恢复 {random.randint(5,10)} HP!"),
+            ("weapon", lambda: f"武器, 攻击力提升 {random.randint(2,4)+tier}!"),
+            ("revive_scroll", lambda: f"复活卷轴 +1 (现有 {p.revive_scroll_count} 张)"),
+            ("armor_piece", lambda: f"护甲碎片, HP增加 {random.randint(5,10)}!")
+        ]
         if random.random() < 0.3:
-            drop_type = random.choice(["healing_potion", "weapon", "armor"])
-            if drop_type == "healing_potion":
-                heal_amt = random.randint(5, 10)
-                effect_msg = p.apply_item_effect("heal", heal_amt)
-                msg += f" 治疗药剂, {effect_msg}!"
-            elif drop_type == "weapon":
-                atk_boost = random.randint(2, 4) + tier
-                effect_msg = p.apply_item_effect("weapon", atk_boost)
-                msg += f" 武器, {effect_msg}!"
-            elif drop_type == "armor":
-                hp_boost = random.randint(5, 10)
-                effect_msg = p.apply_item_effect("armor", hp_boost)
-                msg += f" 护甲碎片, {effect_msg}!"
+            drop = random.choice(extra_drops)
+            if drop[0] == "revive_scroll":
+                p.revive_scroll_count += 1
+            extra_msg = drop[1]()
+            msg += " " + extra_msg
         return msg
 
     def reset_game(self):
@@ -1406,6 +1226,55 @@ class GameController:
             self.scene_manager.current_scene = self.battle_scene
 
 # -------------------------------
+# 3) 新增： 使用道具场景
+# -------------------------------
+class UseItemScene:
+    def __init__(self, controller):
+        self.controller = controller
+        self.active_items = []
+
+    def on_enter(self):
+        p = self.controller.player
+        # 筛选库存中主动使用的道具，排除复活卷轴（active=False）
+        self.active_items = [item for item in p.inventory if item.get("active", False)]
+        if not self.active_items:
+            # 如果没有可用道具，则返回战斗界面，并记录提示
+            self.controller.last_use_item_message = "你没有可使用的道具"
+            self.controller.go_to_scene("battle_scene")
+    def handle_use(self, index):
+        p = self.controller.player
+        if index < 0 or index >= len(self.active_items):
+            return "无效的道具选择"
+        item = self.active_items[index]
+        if not item:
+            return "你没有选择任何道具"
+        t = item["type"]
+        if t == "飞锤":
+            # 对当前怪物施加晕眩效果
+            if self.controller.current_monster:
+                self.controller.current_monster.stunned_rounds = 3
+                effect_msg = "飞锤飞出，怪物被晕眩3回合！"
+            else:
+                effect_msg = "当前没有怪物，飞锤未产生效果。"
+        elif t == "结界":
+            p.statuses["barrier"] = 3
+            effect_msg = "结界形成，接下来3回合你免受怪物伤害！"
+        elif t == "巨大卷轴":
+            p.statuses["atk_multiplier"] = 2
+            p.statuses["atk_multiplier_duration"] = 3
+            effect_msg = "巨大卷轴激活，当前战斗中你的攻击力翻倍！"
+        elif t == "heal":
+            heal_amt = item["value"]
+            p.heal(heal_amt)
+            effect_msg = f"治疗药水生效，恢复 {heal_amt} HP！"
+        else:
+            effect_msg = f"道具 {item['name']} 未定义效果。"
+        if item in p.inventory:
+            p.inventory.remove(item)
+        # 使用完道具后，恢复上一个战斗场景
+        self.controller.resume_scene()
+        return effect_msg
+# -------------------------------
 # 4) Flask 路由及 Session 存储
 # -------------------------------
 
@@ -1438,19 +1307,11 @@ def get_state():
     scn_name = scn.__class__.__name__ if scn else "None"
     door_data = []
     if scn_name == "DoorScene":
-        for door in scn.doors:
-            # 显示所有提示
-            door_data.append({
-                "event": door.event,
-                "hint": door.hint
-            })
+        for event_details in scn.door_events:
+            door_data.append({"event": event_details["event"], "hint": event_details["hint"]})
     elif p.hp <= 0 and hasattr(g, "door_scene"):
-        for door in g.door_scene.doors:
-            # 显示所有提示
-            door_data.append({
-                "event": door.event,
-                "hint": door.hint
-            })
+        for event_details in g.door_scene.door_events:
+            door_data.append({"event": event_details["event"], "hint": event_details["hint"]})
         scn_name = "GameOver"
 
     monster_data = None
