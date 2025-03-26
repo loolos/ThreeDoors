@@ -68,18 +68,6 @@ class StatusEffect:
             "is_battle_only": False,
             "value": 2
         },
-        "immune": {
-            "name": "免疫",
-            "description": "免疫负面效果",
-            "duration": 5,
-            "is_battle_only": False
-        },
-        "dodge": {
-            "name": "闪避",
-            "description": "闪避提升",
-            "duration": 5,
-            "is_battle_only": False
-        },
         "damage_reduction": {
             "name": "伤害减免",
             "description": "受到伤害减少30%",
@@ -87,19 +75,18 @@ class StatusEffect:
             "is_battle_only": False,
             "value": 0.7
         },
-        "trap_resist": {
-            "name": "陷阱减伤",
-            "description": "陷阱伤害减半",
-            "duration": 5,
-            "is_battle_only": False,
-            "value": 0.5
-        },
         "healing_scroll": {
             "name": "恢复卷轴",
             "description": "每回合恢复生命",
             "duration": 10,
             "is_battle_only": False,
             "value": 5  # 默认恢复值，实际值在购买时随机生成
+        },
+        "immune": {
+            "name": "免疫",
+            "description": "免疫所有负面效果",
+            "duration": 5,
+            "is_battle_only": False
         }
     }
     
@@ -359,26 +346,18 @@ class Player:
             self.statuses["atk_up"] = {"duration": duration, "value": atk_boost}
             self.atk += atk_boost
             effect_msg = f"未来 {duration} 回合攻击力增加 {atk_boost}"
-        elif item_type == "immune":
-            duration = random.randint(5, 10)
-            self.statuses["immune"] = {"duration": duration}
-            effect_msg = f"未来 {duration} 回合免疫负面"
-        elif item_type == "dodge":
-            duration = random.randint(5, 10)
-            self.statuses["dodge"] = {"duration": duration}
-            effect_msg = f"未来 {duration} 回合闪避提升"
         elif item_type == "damage_reduction":
             duration = random.randint(10, 20)
             self.statuses["damage_reduction"] = {"duration": duration}
             effect_msg = f"未来 {duration} 回合伤害减免"
-        elif item_type == "trap_resist":
-            duration = random.randint(5, 10)
-            self.statuses["trap_resist"] = {"duration": duration}
-            effect_msg = f"未来 {duration} 回合陷阱伤害减半"
         elif item_type == "healing_scroll":
             duration = random.randint(10, 20)
             self.statuses["healing_scroll"] = {"duration": duration}
             effect_msg = f"未来 {duration} 回合每回合随机恢复1-10点生命"
+        elif item_type == "immune":
+            duration = random.randint(10, 20)
+            self.statuses["immune"] = {"duration": duration}
+            effect_msg = f"未来 {duration} 回合免疫所有负面效果"
         return effect_msg
 
     def revive(self):
@@ -519,21 +498,14 @@ def get_random_monster(max_tier=None):
     return random.choice(monster_pool)
 
 class Door:
-            # 基础组合提示
+    # 基础组合提示
     combo_hints = {
-        frozenset({"monster", "treasure"}): [
+        frozenset({"monster", "reward"}): [
             "有些骚动也许是野兽，也许是财宝",
             "血腥气中又闪着金光",
             "危险与机遇并存",
             "咆哮声中夹杂着金币的叮当声",
             "黑暗中似乎有宝藏，但似乎也有危险"
-        ],
-        frozenset({"monster", "equip"}): [
-            "危机中或许暗藏利器",
-            "低沉咆哮与金属碰撞声交织",
-            "危险中藏着武器",
-            "野兽的咆哮与武器的寒光",
-            "似乎有武器，但似乎也有危险"
         ],
         frozenset({"monster", "shop"}): [
             "猛兽怒吼夹杂着商贩吆喝",
@@ -549,51 +521,30 @@ class Door:
             "似乎有陷阱，似乎也有野兽",
             "黑暗中藏着双重危险"
         ],
-        frozenset({"trap", "treasure"}): [
+        frozenset({"trap", "reward"}): [
             "危险气息中似乎闪现宝物光芒",
             "既像埋伏又像财宝，难料",
             "陷阱与宝藏并存",
             "金光闪闪，但似乎有机关",
             "宝藏近在眼前，但似乎有危险"
         ],
-        frozenset({"trap", "equip"}): [
+        frozenset({"trap", "shop"}): [
             "陷阱暗示与金属声交织",
             "武器或机关，需要谨慎",
             "危险中藏着武器",
             "金属声与机关声交织",
             "似乎有武器，但似乎有陷阱"
         ],
-        frozenset({"trap", "shop"}): [
-            "也许是陷阱伪装也许是商店",
-            "商贩在此亦有危机气息",
-            "商店中似乎有机关",
-            "商人的声音中似乎有机关声",
-            "交易与陷阱并存"
-        ],
-        frozenset({"shop", "treasure"}): [
+        frozenset({"shop", "reward"}): [
             "有金光也有吆喝声，或宝藏或商店",
             "闻到钱币味，也许能大赚一笔",
             "商店与宝藏并存",
             "金光闪闪，似乎有商人在此",
             "财富与交易并存"
-        ],
-        frozenset({"shop", "equip"}): [
-            "有人吆喝好物便宜卖，也许能捡武器",
-            "商店与装备，也许能武装自己",
-            "商人在此贩卖武器",
-            "金属声与叫卖声交织",
-            "商店中似乎有武器"
-        ],
-        frozenset({"treasure", "equip"}): [
-            "金光与金属声交织，是宝藏还是武器",
-            "宝物与装备并存，难以分辨",
-            "金属声与金光闪烁",
-            "似乎有宝藏，似乎也有武器",
-            "财富与装备并存"
         ]
     }
         
-        # 缺省提示语
+    # 缺省提示语
     default_hints = {
         "monster": [
             "黑暗中似乎有什么在移动...",
@@ -609,19 +560,12 @@ class Door:
             "这里的一切都显得那么可疑...",
             "黑暗中似乎藏着什么..."
         ],
-        "treasure": [
+        "reward": [
             "金光闪闪，似乎有什么宝物...",
             "空气中飘来一丝财富的气息...",
             "这里似乎藏着什么好东西...",
             "金光若隐若现，引人遐想...",
             "似乎有什么宝物在等待..."
-        ],
-        "equip": [
-            "金属声传来，似乎有什么武器...",
-            "空气中飘来金属的气息...",
-            "这里似乎有什么装备...",
-            "金属的碰撞声若隐若现...",
-            "似乎有什么武器在等待..."
         ],
         "shop": [
             "商人的吆喝声传来...",
@@ -632,7 +576,7 @@ class Door:
         ]
     }
         
-        # 怪物等级相关提示
+    # 怪物等级相关提示
     monster_tier_hints = {
             1: [
                 "似乎有轻微的骚动...",
@@ -676,7 +620,7 @@ class Door:
             ]
         }
         
-        # 怪物种类相关提示
+    # 怪物种类相关提示
     monster_type_hints = {
         "史莱姆": [
             "黏糊糊的声音...",
@@ -868,6 +812,32 @@ class Door:
         }
         return cls("monster", event_details, monster_obj)
 
+    @classmethod
+    def generate_reward_door(cls):
+        """生成奖励门"""
+        # 随机决定奖励类型
+        reward_type = random.random()
+        if reward_type < 0.4:  # 40%概率获得金币
+            g = random.randint(5, 15)
+            event_details = {
+                "reward": {"type": "gold", "value": g}
+            }
+        elif reward_type < 0.7:  # 30%概率获得装备
+            boost = random.randint(1, 10)
+            event_details = {
+                "reward": {"type": "equip", "value": boost}
+            }
+        else:  # 30%概率获得状态卷轴
+            scroll_type = random.choice([
+                ("healing_scroll", "恢复卷轴", 10),
+                ("damage_reduction", "减伤卷轴", 15),
+                ("atk_up", "攻击力增益卷轴", 10),
+            ])
+            event_details = {
+                "reward": {"type": "scroll", "scroll_type": scroll_type[0], "duration": scroll_type[2]}
+            }
+        return cls("reward", event_details)
+
     def __init__(self, event, event_details=None, monster=None):
         self.event = event
         self.event_details = event_details or {}
@@ -881,7 +851,7 @@ class Door:
     def generate_mixed_hints(cls, real_event, monster=None):
         """生成混淆的提示，基于真实门和虚假门的类型"""
         # 获取所有可能的门类型
-        all_events = ["monster", "trap", "treasure", "equip", "shop"]
+        all_events = ["monster", "trap", "reward", "shop"]
         
         # 生成一个虚假的门类型（与真实门不同）
         fake_event = random.choice([e for e in all_events if e != real_event])
@@ -932,29 +902,6 @@ class Door:
         }
         return cls("trap", event_details)
 
-    @classmethod
-    def generate_treasure_door(cls):
-        """生成宝藏门"""
-        g = random.randint(5, 15)
-        event_details = {
-            "treasure": {"gold": g}
-        }
-        return cls("treasure", event_details)
-
-    @classmethod
-    def generate_equip_door(cls):
-        """生成装备门"""
-        boost = random.randint(1, 3)
-        event_details = {
-            "equip": {"boost": boost}
-        }
-        return cls("equip", event_details)
-
-    @classmethod
-    def generate_shop_door(cls):
-        """生成商店门"""
-        return cls("shop")
-
     def enter(self, player, controller):
         """进入门并处理事件"""
         if self.event == "monster":
@@ -993,17 +940,28 @@ class Door:
                 msg.append(f"你踩到陷阱，损失{dmg}HP!")
                 return " ".join(msg)
                 
-        elif self.event == "treasure":
-            g = self.event_details["treasure"]["gold"]
-            player.add_gold(g)
-            return f"你发现宝藏，获得{g}金币!"
-            
-        elif self.event == "equip":
-            boost = self.event_details["equip"]["boost"]
-            oldatk = player.atk
-            player.atk += boost
-            player.base_atk += boost
-            return f"你捡到武器，攻击力从{oldatk}提升到{player.atk}!"
+        elif self.event == "reward":
+            reward_info = self.event_details["reward"]
+            if reward_info["type"] == "gold":
+                g = reward_info["value"]
+                player.add_gold(g)
+                return f"你发现宝藏，获得{g}金币!"
+            elif reward_info["type"] == "equip":
+                boost = reward_info["value"]
+                oldatk = player.atk
+                player.atk += boost
+                player.base_atk += boost
+                return f"你捡到武器，攻击力从{oldatk}提升到{player.atk}!"
+            else:  # scroll type
+                scroll_type = reward_info["scroll_type"]
+                duration = reward_info["duration"]
+                player.statuses[scroll_type] = {"duration": duration}
+                scroll_names = {
+                    "healing_scroll": "恢复卷轴",
+                    "damage_reduction": "减伤卷轴",
+                    "atk_up": "攻击力增益卷轴",
+                }
+                return f"你获得了{scroll_names[scroll_type]}，持续{duration}回合!"
             
         elif self.event == "shop":
             if player.gold == 0:
@@ -1050,7 +1008,7 @@ class DoorScene:
     def _generate_doors(self):
         """生成三扇门，确保至少一扇是怪物门"""
         # 获取可用的门类型
-        available_doors = ["trap", "treasure", "equip"]
+        available_doors = ["trap", "reward", "shop"]
         if self.controller.player.gold > 0:
             available_doors.append("shop")
             
@@ -1064,10 +1022,8 @@ class DoorScene:
             door_type = random.choice(available_doors)
             if door_type == "trap":
                 door = Door.generate_trap_door()
-            elif door_type == "treasure":
-                door = Door.generate_treasure_door()
-            elif door_type == "equip":
-                door = Door.generate_equip_door()
+            elif door_type == "reward":
+                door = Door.generate_reward_door()
             elif door_type == "shop":
                 door = Door.generate_shop_door()
             other_doors.append(door)
@@ -1224,22 +1180,23 @@ class ShopLogic:
             has_neg = True
         # 每个元组：名称, 类型, 效果值, 基准价格, 是否主动使用
         possible = [
-            ("普通治疗药水", "heal", 5, 10, False),
-            ("高级治疗药水", "heal", 10, 20, False),
-            ("超高级治疗药水", "heal", 15, 30, False),
+            ("普通治疗药水", "heal", 10, 10, False),
+            ("高级治疗药水", "heal", 20, 20, False),
+            ("超高级治疗药水", "heal", 30, 30, False),
             ("普通装备", "weapon", 2, 15, False),
             ("稀有装备", "weapon", 5, 30, False),
             ("复活卷轴", "revive", 1, 25, False),
             ("减伤卷轴", "damage_reduction", 2, 15, False),
             ("攻击力增益卷轴", "atk_up", 5, 20, False),
             ("恢复卷轴", "healing_scroll", 0, 30, False),
+            ("免疫卷轴", "immune", 0, 25, False),
             ("飞锤", "飞锤", 0, 20, True),
             ("结界", "结界", 0, 20, True),
             ("巨大卷轴", "巨大卷轴", 0, 20, True),
         ]
         # 如果金币不足10，则只显示低价物品或增益类（注意：主动使用的物品仍保留）
         if player.gold < 10:
-            possible = [item for item in possible if item[3] <= 10 or item[1] in ("atk_up", "immune", "dodge", "damage_reduction", "trap_resist")]
+            possible = [item for item in possible if item[3] <= 10 or item[1] in ("atk_up", "damage_reduction", "immune")]
         # 使用 random.sample 生成不重复的三件商品
         if len(possible) >= 3:
             items = random.sample(possible, 3)
