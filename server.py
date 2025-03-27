@@ -344,49 +344,32 @@ class Player:
             if "weak" in self.statuses:
                 self.statuses["weak"]["duration"] = 0
             effect_msg = "解除了虚弱"
-        elif item_type == "atk_up":
-            duration = random.randint(5, 10)
-            atk_boost = random.randint(10, 20)  # 降低攻击力提升的范围，使游戏更平衡
-            if "atk_up" in self.statuses:
-                # 如果已有atk_up状态，累加效果
-                old_duration = self.statuses["atk_up"]["duration"]
-                old_value = self.statuses["atk_up"]["value"]
-                self.statuses["atk_up"]["duration"] = old_duration + duration  # 取累计回合数
-                self.statuses["atk_up"]["value"] = old_value + atk_boost  # 累加攻击力提升
-                effect_msg = f"攻击力增益效果叠加，总提升 {self.statuses['atk_up']['value']}，持续 {self.statuses['atk_up']['duration']} 回合"
-            else:
-                self.statuses["atk_up"] = {"duration": duration, "value": atk_boost}
-                effect_msg = f"未来 {duration} 回合攻击力增加 {atk_boost}"
-        elif item_type == "damage_reduction":
-            duration = random.randint(10, 20)
-            if "damage_reduction" in self.statuses:
-                # 如果已有减伤状态，累加效果
-                old_duration = self.statuses["damage_reduction"]["duration"]
-                self.statuses["damage_reduction"]["duration"] = old_duration + duration  # 取累计回合数
-                effect_msg = f"减伤效果叠加，持续 {self.statuses['damage_reduction']['duration']} 回合"
-            else:
-                self.statuses["damage_reduction"] = {"duration": duration}
-                effect_msg = f"未来 {duration} 回合伤害减免"
-        elif item_type == "healing_scroll":
-            duration = random.randint(10, 20)
-            if "healing_scroll" in self.statuses:
-                # 如果已有恢复卷轴状态，累加效果
-                old_duration = self.statuses["healing_scroll"]["duration"]
-                self.statuses["healing_scroll"]["duration"] = old_duration + duration  # 取累计回合数
-                effect_msg = f"恢复效果叠加，持续 {self.statuses['healing_scroll']['duration']} 回合"
-            else:
-                self.statuses["healing_scroll"] = {"duration": duration}
-                effect_msg = f"未来 {duration} 回合每回合随机恢复1-10点生命"
-        elif item_type == "immune":
-            duration = random.randint(10, 20)
-            if "immune" in self.statuses:
-                # 如果已有免疫状态，累加效果
-                old_duration = self.statuses["immune"]["duration"]
-                self.statuses["immune"]["duration"] = old_duration + duration  # 取累计回合数
-                effect_msg = f"免疫效果叠加，持续 {self.statuses['immune']['duration']} 回合"
-            else:
-                self.statuses["immune"] = {"duration": duration}
-                effect_msg = f"未来 {duration} 回合免疫所有负面效果"
+        else:
+            # 处理状态效果卷轴
+            duration = random.randint(10, 20)  # 统一使用10-20回合的持续时间
+            if item_type == "atk_up":
+                atk_boost = random.randint(10, 20)  # 攻击力提升10-20
+                if "atk_up" in self.statuses:
+                    # 如果已有atk_up状态，累加效果
+                    self.statuses["atk_up"]["duration"] += duration
+                    self.statuses["atk_up"]["value"] += atk_boost
+                    effect_msg = f"攻击力增益效果叠加，总提升 {self.statuses['atk_up']['value']}，持续 {self.statuses['atk_up']['duration']} 回合"
+                else:
+                    self.statuses["atk_up"] = {"duration": duration, "value": atk_boost}
+                    effect_msg = f"未来 {duration} 回合攻击力增加 {atk_boost}"
+            elif item_type in ["damage_reduction", "healing_scroll", "immune"]:
+                if item_type in self.statuses:
+                    # 如果已有状态，累加持续时间
+                    self.statuses[item_type]["duration"] += duration
+                    effect_msg = f"{item_type}效果叠加，持续 {self.statuses[item_type]['duration']} 回合"
+                else:
+                    self.statuses[item_type] = {"duration": duration}
+                    scroll_names = {
+                        "healing_scroll": "恢复卷轴",
+                        "damage_reduction": "减伤卷轴",
+                        "immune": "免疫卷轴",
+                    }
+                    effect_msg = f"未来 {duration} 回合{scroll_names[item_type]}效果"
         return effect_msg
 
     def revive(self):
@@ -1225,11 +1208,7 @@ class ShopLogic:
         self.shop_items = []
         if player.gold == 0:
             return
-        has_neg = False
-        if "poison" in player.statuses and player.statuses["poison"]["duration"] > 0:
-            has_neg = True
-        if "weak" in player.statuses and player.statuses["weak"]["duration"] > 0:
-            has_neg = True
+        # 移除未使用的has_neg变量
         # 每个元组：名称, 类型, 效果值, 基准价格, 是否主动使用
         possible = [
             ("普通治疗药水", "heal", 10, 10, False),
