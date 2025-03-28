@@ -8,23 +8,28 @@
 
 h1 {
   margin-bottom: 20px;
+  font-size: 1.8rem;
 }
 
 #buttons {
   display: flex;
   justify-content: center;
-  gap: 10px;
-  margin: 20px 0;
+  gap: 8px;
+  margin: 15px 0;
+  flex-wrap: wrap;
 }
 
 .main-btn {
   flex: 1;
   max-width: 150px;
-  min-height: 80px;
-  font-size: 1.2rem;
+  min-height: 60px;
+  font-size: 1rem;
   border: 2px solid #666;
   border-radius: 5px;
   background: #eee;
+  padding: 8px;
+  line-height: 1.2;
+  word-wrap: break-word;
 }
 
 .main-btn:active {
@@ -32,15 +37,68 @@ h1 {
 }
 
 #log-area {
-  margin-top: 20px;
+  margin-top: 15px;
   padding: 10px;
   height: 200px;
   overflow-y: auto;
   background: #f9f9f9;
   border: 1px solid #ccc;
+  font-size: 0.9rem;
 }
 
 #status-area {
-  font-size: 1rem;
+  font-size: 0.9rem;
   margin-bottom: 10px;
+}
+
+#inventory-area {
+  font-size: 0.9rem;
+  margin-bottom: 10px;
+}
+
+#startOverBtn {
+  font-size: 0.9rem;
+  padding: 8px 16px;
+  margin-top: 10px;
+  border: 1px solid #666;
+  border-radius: 4px;
+  background: #f0f0f0;
+}
+
+/* 响应式设计 */
+@media screen and (max-width: 480px) {
+  .container {
+    padding: 5px;
+  }
+
+  h1 {
+    font-size: 1.5rem;
+    margin-bottom: 15px;
+  }
+
+  #buttons {
+    gap: 5px;
+    margin: 10px 0;
+  }
+
+  .main-btn {
+    max-width: 120px;
+    min-height: 50px;
+    font-size: 0.9rem;
+    padding: 5px;
+  }
+
+  #log-area {
+    height: 150px;
+    font-size: 0.85rem;
+  }
+
+  #status-area, #inventory-area {
+    font-size: 0.85rem;
+  }
+
+  #startOverBtn {
+    font-size: 0.85rem;
+    padding: 6px 12px;
+  }
 }

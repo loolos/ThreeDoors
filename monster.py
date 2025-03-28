@@ -7,6 +7,71 @@ class Monster:
         self.atk = atk
         self.tier = tier
         self.statuses = {}  # 使用状态系统来管理怪物的状态效果
+        self.loot = self.generate_loot()  # 生成掉落物品
+
+    def generate_loot(self):
+        """生成怪物的掉落物品"""
+        loot = []
+        # 基础金币掉落，随怪物等级提升
+        base_gold = random.randint(5, 15) * self.tier
+        loot.append(("gold", base_gold))
+        
+        # 根据怪物等级决定额外掉落
+        if self.tier >= 2:
+            # Tier 2怪物有40%概率获得装备，装备加成随等级提升
+            if random.random() < 0.4:
+                equip_boost = random.randint(2, 5) * self.tier
+                loot.append(("equip", equip_boost))
+            
+            # Tier 2怪物有20%概率获得卷轴
+            if random.random() < 0.2:
+                scroll_type = random.choice([
+                    ("healing_scroll", "恢复卷轴", 10),
+                    ("damage_reduction", "减伤卷轴", random.randint(10, 20)),
+                    ("atk_up", "攻击力增益卷轴", 10),
+                ])
+                loot.append(("scroll", scroll_type))
+        
+        if self.tier >= 3:
+            # Tier 3怪物有60%概率获得装备，装备加成更高
+            if random.random() < 0.6:
+                equip_boost = random.randint(3, 7) * self.tier
+                loot.append(("equip", equip_boost))
+            
+            # Tier 3怪物有40%概率获得卷轴，卷轴效果更好
+            if random.random() < 0.4:
+                scroll_type = random.choice([
+                    ("healing_scroll", "恢复卷轴", 15),
+                    ("damage_reduction", "减伤卷轴", random.randint(15, 25)),
+                    ("atk_up", "攻击力增益卷轴", 15),
+                ])
+                loot.append(("scroll", scroll_type))
+        
+        if self.tier >= 4:
+            # Tier 4怪物有80%概率获得装备，装备加成最高
+            if random.random() < 0.8:
+                equip_boost = random.randint(5, 10) * self.tier
+                loot.append(("equip", equip_boost))
+            
+            # Tier 4怪物有60%概率获得卷轴，卷轴效果最好
+            if random.random() < 0.6:
+                scroll_type = random.choice([
+                    ("healing_scroll", "恢复卷轴", 20),
+                    ("damage_reduction", "减伤卷轴", random.randint(20, 30)),
+                    ("atk_up", "攻击力增益卷轴", 20),
+                ])
+                loot.append(("scroll", scroll_type))
+            
+            # Tier 4怪物有30%概率获得额外金币
+            if random.random() < 0.3:
+                extra_gold = random.randint(20, 40) * self.tier
+                loot.append(("gold", extra_gold))
+            
+        return loot
+
+    def get_loot(self):
+        """获取怪物的掉落物品"""
+        return self.loot
 
     def take_damage(self, dmg):
         self.hp -= dmg

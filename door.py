@@ -5,46 +5,46 @@ class Door:
     # 基础组合提示
     combo_hints = {
         frozenset({"monster", "reward"}): [
-            "有些骚动也许是野兽，也许是财宝",
-            "血腥气中又闪着金光",
-            "危险与机遇并存",
-            "咆哮声中夹杂着金币的叮当声",
-            "黑暗中似乎有宝藏，但似乎也有危险"
+            "野兽的咆哮中夹杂着金币的叮当声",
+            "危险的气息中闪烁着宝物的光芒",
+            "黑暗中似乎有宝藏，但似乎也有危险",
+            "猛兽的嘶吼与财宝的诱惑交织",
+            "危机与机遇并存"
         ],
         frozenset({"monster", "shop"}): [
-            "猛兽怒吼夹杂着商贩吆喝",
-            "似有咆哮也有人在此做买卖",
-            "商人的叫卖声中似乎有野兽的咆哮",
-            "危险与交易并存",
-            "商人的声音中似乎藏着危险"
+            "商人的吆喝声中藏着野兽的咆哮",
+            "交易与危险并存",
+            "商人的声音中似乎藏着威胁",
+            "猛兽的怒吼与商人的叫卖交织",
+            "买卖与战斗并存"
         ],
         frozenset({"monster", "trap"}): [
-            "血腥气与阴森诡异混合",
-            "猛兽或陷阱？都危险重重",
             "危险的气息扑面而来",
-            "似乎有陷阱，似乎也有野兽",
-            "黑暗中藏着双重危险"
+            "猛兽与陷阱的双重威胁",
+            "黑暗中藏着双重危险",
+            "野兽的咆哮与机关的咔嗒声交织",
+            "危机四伏"
         ],
         frozenset({"trap", "reward"}): [
-            "危险气息中似乎闪现宝物光芒",
-            "既像埋伏又像财宝，难料",
-            "陷阱与宝藏并存",
-            "金光闪闪，但似乎有机关",
-            "宝藏近在眼前，但似乎有危险"
+            "机关与宝藏并存",
+            "陷阱中似乎藏着宝物",
+            "危险与机遇并存",
+            "机关的咔嗒声中夹杂着金币的叮当声",
+            "危机与财富并存"
         ],
         frozenset({"trap", "shop"}): [
-            "陷阱暗示与金属声交织",
-            "武器或机关，需要谨慎",
-            "危险中藏着武器",
-            "金属声与机关声交织",
-            "似乎有武器，但似乎有陷阱"
+            "商人的声音中似乎藏着机关",
+            "交易与陷阱并存",
+            "买卖声中似乎有机关的咔嗒声",
+            "商人的吆喝与机关的咔嗒声交织",
+            "买卖与危险并存"
         ],
         frozenset({"shop", "reward"}): [
-            "有金光也有吆喝声，或宝藏或商店",
-            "闻到钱币味，也许能大赚一笔",
-            "商店与宝藏并存",
-            "金光闪闪，似乎有商人在此",
-            "财富与交易并存"
+            "商人的吆喝声中夹杂着金币的叮当声",
+            "交易与财富并存",
+            "买卖声中似乎有宝物的光芒",
+            "商人的声音与财宝的诱惑交织",
+            "买卖与机遇并存"
         ]
     }
         
@@ -350,6 +350,7 @@ class Door:
     def __init__(self, event, event_details=None, monster=None):
         self.event = event
         self.event_details = event_details or {}
+        self.monster = monster  # 保存monster对象
         # 根据事件类型生成提示
         if event == "monster":
             self.hint = self.generate_mixed_hints(event, monster)
@@ -414,77 +415,75 @@ class Door:
     def enter(self, player, controller):
         """进入门并处理事件"""
         if self.event == "monster":
-            monster_info = self.event_details["monster"]
-            monster = monster_info  # 直接使用传入的monster对象
-            controller.current_monster = monster
+            # 使用传入的monster对象
+            monster = self.monster
             monster_desc = f"你遇到了 {monster.name} (HP: {monster.hp}, ATK: {monster.atk}, Tier: {monster.tier})"
+            if monster.has_status("stun"):
+                monster_desc += f" [晕眩{monster.statuses['stun']['duration']}回合]"
+            controller.last_monster_message = monster_desc
+            controller.current_monster = monster
             controller.go_to_scene("battle_scene")
-            return f"你选择了怪物之门，进入战斗场景! {monster_desc}"
-            
+            return monster_desc
         elif self.event == "trap":
-            dmg = self.event_details["trap"]["damage"]
-            msg = []
+            # 根据回合数和玩家状态决定陷阱效果
+            current_round = controller.current_round
+            
+            # 计算基础伤害，回合数越高伤害越高
+            base_damage = random.randint(5, 15)
+            damage = base_damage + (current_round // 5) * 2
+            
+            # 如果玩家有减伤状态，减少伤害
             if "damage_reduction" in player.statuses:
-                original_dmg = dmg
-                dmg = max(1, int(dmg * 0.25))  # 减少75%伤害
-                msg.append(f"一部分伤害被减伤卷轴挡掉了！")
-            player.take_damage(dmg)
+                original_dmg = damage
+                damage = max(1, int(damage * 0.25))  # 减少75%伤害
+                msg = [f"你触发了陷阱，受到 {damage} 点伤害（原伤害 {original_dmg}，被减伤卷轴挡掉了75%）!"]
+            else:
+                msg = [f"你触发了陷阱，受到 {damage} 点伤害!"]
+            
+            # 造成伤害
+            player.take_damage(damage)
+            
+            # 30%概率损失金币
             if random.random() < 0.3:
-                extra = random.randint(1, 5)
-                player.add_gold(extra)
-                msg.append(f"你意外发现了 {extra} 金币！")
+                # 计算金币损失，回合数越高损失越多
+                base_loss = random.randint(10, 30)
+                loss = base_loss + (current_round // 5) * 2
+                player.gold = max(0, player.gold - loss)
+                msg.append(f"你损失了 {loss} 金币!")
+            
+            # 检查是否死亡
             if player.hp <= 0:
                 revived = player.try_revive()
                 if revived:
-                    msg.append(f"你踩了陷阱({dmg}伤害)，但复活卷轴救了你(HP={player.hp})!")
+                    msg.append("复活卷轴救了你(HP=1)!")
                 else:
-                    msg.append(f"你踩到陷阱({dmg}伤害)，不幸身亡...")
-                return " ".join(msg)
-            else:
-                msg.append(f"你踩到陷阱，损失{dmg}HP!")
-                return " ".join(msg)
-                
-        elif self.event == "reward":
-            reward_info = self.event_details["reward"]
-            if reward_info["type"] == "gold":
-                g = reward_info["value"]
-                player.add_gold(g)
-                return f"你发现宝藏，获得{g}金币!"
-            elif reward_info["type"] == "equip":
-                boost = reward_info["value"]
-                oldatk = player.atk
-                player.atk += boost
-                player.base_atk += boost
-                return f"你捡到武器，攻击力从{oldatk}提升到{player.atk}!"
-            else:  # scroll type
-                scroll_type = reward_info["scroll_type"]
-                duration = reward_info["duration"]
-                value = reward_info.get("value")  # 获取value字段，如果不存在则为None
-                if scroll_type == "atk_up" and value is not None:
-                    # 如果已有atk_up状态，累加效果
-                    if "atk_up" in player.statuses:
-                        old_duration = player.statuses["atk_up"]["duration"]
-                        old_value = player.statuses["atk_up"]["value"]
-                        player.statuses["atk_up"]["duration"] = old_duration + duration
-                        player.statuses["atk_up"]["value"] = old_value + value
-                        return f"攻击力增益效果叠加，总提升 {player.statuses['atk_up']['value']}，持续 {player.statuses['atk_up']['duration']} 回合!"
-                    else:
-                        player.statuses[scroll_type] = {"duration": duration, "value": value}
-                        return f"未来 {duration} 回合攻击力增加 {value}"
-                else:
-                    player.statuses[scroll_type] = {"duration": duration}
-                    scroll_names = {
-                        "healing_scroll": "恢复卷轴",
-                        "damage_reduction": "减伤卷轴",
-                        "atk_up": "攻击力增益卷轴",
-                    }
-                    return f"你获得了{scroll_names[scroll_type]}，持续{duration}回合!"
+                    msg.append("你踩到陷阱，不幸身亡...")
             
+            return " ".join(msg)
+        elif self.event == "reward":
+            # 奖励事件
+            reward_type = random.choice(["gold", "equip", "scroll"])
+            if reward_type == "gold":
+                gold = random.randint(20, 50)
+                player.add_gold(gold)
+                return f"你获得了 {gold} 金币!"
+            elif reward_type == "equip":
+                atk_boost = random.randint(2, 5)
+                old_atk = player.atk
+                player.atk += atk_boost
+                player.base_atk += atk_boost
+                return f"你获得了装备，攻击力从 {old_atk} 提升到 {player.atk}!"
+            else:  # scroll
+                scroll_type = random.choice([
+                    ("healing_scroll", "恢复卷轴", 10),
+                    ("damage_reduction", "减伤卷轴", random.randint(10, 20)),
+                    ("atk_up", "攻击力增益卷轴", 10),
+                ])
+                scroll_name, scroll_desc, duration = scroll_type
+                player.statuses[scroll_name] = {"duration": duration}
+                return f"你获得了{scroll_desc}，持续{duration}回合!"
         elif self.event == "shop":
-            if player.gold == 0:
-                return "你没有钱，于是被商人踢了出来。"
-            else:
-                controller.go_to_scene("shop_scene")
-                return "你发现了商店，进去逛逛吧!"
-                
-        return "未知的门事件" 
+            controller.go_to_scene("shop_scene")
+            return "你遇到了商人，可以购买物品。"
+        else:
+            return "未知事件类型" 
