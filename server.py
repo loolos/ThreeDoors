@@ -2,8 +2,8 @@
 from flask import Flask, render_template, session, request, jsonify, redirect, url_for
 from flask_session import Session
 import random, string, os
-from door import Door
-from monster import Monster, get_random_monster
+from models.door import Door
+from models.monster import Monster, get_random_monster
 
 # -------------------------------
 # 1) Flask 应用初始化
