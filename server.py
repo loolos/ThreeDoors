@@ -187,27 +187,28 @@ class Player:
 
     def try_escape(self, monster):
         """尝试逃跑"""
-        # 检查是否晕眩
-        if self.is_stunned():
-            return "你处于眩晕状态, 无法行动!", False
+        msg = []  # 初始化msg列表
+        # 计算逃跑概率
+        escape_chance = 0.3  # 基础30%概率
+        if "weak" in self.statuses:
+            escape_chance -= 0.1  # 虚弱状态降低10%概率
+        if "poison" in self.statuses:
+            escape_chance -= 0.1  # 中毒状态降低10%概率
+        if "stun" in self.statuses:
+            escape_chance -= 0.2  # 晕眩状态降低20%概率
             
-        fail_chance = min(1.0, monster.tier * 0.2)
-        if random.random() < fail_chance:
-            # 检查怪物是否晕眩
-            if monster.has_status("stun"):
-                monster.update_statuses()
-                return "你试图逃跑, 怪物被晕眩，未能反击!", True
-
-            # 计算怪物伤害
+        # 尝试逃跑
+        if random.random() < escape_chance:
+            return ["你成功逃脱了!"], True
+        else:
+            # 逃跑失败，受到伤害
             mdmg = max(1, monster.atk - random.randint(0, 1))
             if "damage_reduction" in self.statuses:
                 original_dmg = mdmg
                 mdmg = int(mdmg * 0.25)  # 减少75%伤害
                 msg.append(f"一部分伤害被减伤卷轴挡掉了！")
-            
-            # 受到伤害
             self.take_damage(mdmg)
-            msg = [f"你试图逃跑, 但失败了！{monster.name} 反击造成 {mdmg} 点伤害."]
+            msg.append(f"逃跑失败，受到 {mdmg} 点伤害!")
             
             # 检查是否死亡
             if self.hp <= 0:
@@ -217,11 +218,7 @@ class Player:
                 else:
                     msg.append("你被怪物击倒, 英勇牺牲!")
             
-            return "\n".join(msg), False
-        else:
-            # 逃跑成功时清除所有战斗状态
-            StatusEffect.clear_battle_statuses(self)
-            return "你成功逃跑!", True
+            return msg, False
 
     def apply_turn_effects(self, is_battle_turn=False):
         # 根据回合类型调用对应的函数
@@ -271,7 +268,7 @@ class Player:
             
         # 处理恢复卷轴效果
         if "healing_scroll" in self.statuses and self.statuses["healing_scroll"]["duration"] > 0:
-            heal_amount = random.randint(1, 10)  # 每次随机恢复1-10点生命
+            heal_amount = random.randint(1, 5)  # 每次随机恢复1-5点生命
             self.heal(heal_amount)
             print(f"恢复卷轴生效，恢复 {heal_amount} 点生命！")
 
@@ -310,7 +307,7 @@ class Player:
             status_info = StatusEffect.get_status_info(k)
             if status_info:
                 if k == "healing_scroll":
-                    desc.append(f"每回合随机恢复1-10HP({v['duration']}回合)")
+                    desc.append(f"每回合随机恢复1-5HP({v['duration']}回合)")
                 elif k == "atk_multiplier":
                     desc.append(f"攻击翻倍")
                 else:
@@ -352,10 +349,12 @@ class Player:
             if item_type == "atk_up":
                 atk_boost = random.randint(10, 20)  # 攻击力提升10-20
                 if "atk_up" in self.statuses:
-                    # 如果已有atk_up状态，累加效果
-                    self.statuses["atk_up"]["duration"] += duration
-                    self.statuses["atk_up"]["value"] += atk_boost
-                    effect_msg = f"攻击力增益效果叠加，总提升 {self.statuses['atk_up']['value']}，持续 {self.statuses['atk_up']['duration']} 回合"
+                    # 如果已有atk_up状态，累加持续时间，取较大的攻击力提升
+                    old_duration = self.statuses["atk_up"]["duration"]
+                    old_value = self.statuses["atk_up"].get("value", 0)
+                    self.statuses["atk_up"]["duration"] = old_duration + duration
+                    self.statuses["atk_up"]["value"] = max(old_value, atk_boost)
+                    effect_msg = f"攻击力增益效果叠加，提升 {self.statuses['atk_up']['value']}，持续 {self.statuses['atk_up']['duration']} 回合"
                 else:
                     self.statuses["atk_up"] = {"duration": duration, "value": atk_boost}
                     effect_msg = f"未来 {duration} 回合攻击力增加 {atk_boost}"

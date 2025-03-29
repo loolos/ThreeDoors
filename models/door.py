@@ -1,5 +1,5 @@
 import random
-from monster import get_random_monster
+from .monster import get_random_monster
 
 class Door:
     # 基础组合提示
@@ -426,7 +426,7 @@ class Door:
             return monster_desc
         elif self.event == "trap":
             # 根据回合数和玩家状态决定陷阱效果
-            current_round = controller.current_round
+            current_round = controller.round_count
             
             # 计算基础伤害，回合数越高伤害越高
             base_damage = random.randint(5, 15)
@@ -447,7 +447,7 @@ class Door:
             if random.random() < 0.3:
                 # 计算金币损失，回合数越高损失越多
                 base_loss = random.randint(10, 30)
-                loss = base_loss + (current_round // 5) * 2
+                loss = base_loss + (current_round // 5) * 5
                 player.gold = max(0, player.gold - loss)
                 msg.append(f"你损失了 {loss} 金币!")
             
