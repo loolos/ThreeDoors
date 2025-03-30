@@ -208,7 +208,7 @@ class Player:
                 mdmg = int(mdmg * 0.25)  # 减少75%伤害
                 msg.append(f"一部分伤害被减伤卷轴挡掉了！")
             self.take_damage(mdmg)
-            msg.append(f"逃跑失败，受到 {mdmg} 点伤害!")
+            msg.append(f"逃跑失败，{monster.name} 反击造成 {mdmg} 点伤害!")
             
             # 检查是否死亡
             if self.hp <= 0:
@@ -501,6 +501,8 @@ class BattleScene:
         msg, success = p.try_escape(self.monster)
         if success:
             self.controller.go_to_scene("door_scene")
+            return msg
+        else:
             return msg
 
 class ShopScene:
