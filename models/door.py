@@ -328,9 +328,9 @@ class Door:
             }
         else:  # 30%概率获得状态卷轴
             scroll_type = random.choice([
-                ("healing_scroll", "恢复卷轴", 10),
+                ("healing_scroll", "恢复卷轴", random.randint(10, 20)),
                 ("damage_reduction", "减伤卷轴", random.randint(10, 20)),  # 随机持续10-20回合
-                ("atk_up", "攻击力增益卷轴", 10),
+                ("atk_up", "攻击力增益卷轴", random.randint(10, 20)),
             ])
             event_details = {
                 "reward": {
@@ -462,26 +462,26 @@ class Door:
             return " ".join(msg)
         elif self.event == "reward":
             # 奖励事件
-            reward_type = random.choice(["gold", "equip", "scroll"])
+            reward = self.event_details.get("reward", {})
+            reward_type = reward.get("type")
+            
             if reward_type == "gold":
-                gold = random.randint(20, 50)
+                gold = reward["value"]
                 player.add_gold(gold)
                 return f"你获得了 {gold} 金币!"
             elif reward_type == "equip":
-                atk_boost = random.randint(2, 5)
+                atk_boost = reward["value"]
                 old_atk = player.atk
                 player.atk += atk_boost
                 player.base_atk += atk_boost
                 return f"你获得了装备，攻击力从 {old_atk} 提升到 {player.atk}!"
-            else:  # scroll
-                scroll_type = random.choice([
-                    ("healing_scroll", "恢复卷轴", 10),
-                    ("damage_reduction", "减伤卷轴", random.randint(10, 20)),
-                    ("atk_up", "攻击力增益卷轴", 10),
-                ])
-                scroll_name, scroll_desc, duration = scroll_type
-                player.statuses[scroll_name] = {"duration": duration}
-                return f"你获得了{scroll_desc}，持续{duration}回合!"
+            elif reward_type == "scroll":
+                # 使用apply_item_effect处理卷轴效果
+                scroll_type = reward["scroll_type"]
+                duration = reward["duration"]
+                value = reward.get("value")
+                msg = player.apply_item_effect(scroll_type, value)
+                return " ".join(msg)
         elif self.event == "shop":
             controller.go_to_scene("shop_scene")
             return "你遇到了商人，可以购买物品。"
