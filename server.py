@@ -692,8 +692,7 @@ class GameController:
         self.player.inventory = []  # 初始化道具栏
         self.round_count = 0
         self.last_scene = None  # 记录上一个场景
-        self.last_shop_message = ""
-        self.last_monster_message = ""
+        self.messages = []  # 存储所有消息
         self.current_monster = None  # 当前回合的怪物
         self.scene_manager = SceneManager()
         self.shop_logic = ShopLogic()
@@ -713,6 +712,43 @@ class GameController:
         # 设置初始场景并生成门
         self.scene_manager.current_scene = self.door_scene
         self.door_scene._generate_doors()
+
+    def add_message(self, msg):
+        """添加消息到消息列表"""
+        if isinstance(msg, str):
+            self.messages.append(msg)
+        elif isinstance(msg, list):
+            self.messages.extend(msg)
+
+    def clear_messages(self):
+        """清空消息列表"""
+        self.messages.clear()
+
+    def reset_game(self):
+        self.player = Player("勇士", self.game_config.START_PLAYER_HP,
+                             self.game_config.START_PLAYER_ATK,
+                             self.game_config.START_PLAYER_GOLD)
+        # 初始化道具栏，添加默认物品
+        self.player.inventory = [
+            {"name": "复活卷轴", "type": "revive", "value": 1, "cost": 0, "active": False},
+            {"name": "飞锤", "type": "飞锤", "value": 0, "cost": 0, "active": True},
+            {"name": "巨大卷轴", "type": "巨大卷轴", "value": 0, "cost": 0, "active": True},
+            {"name": "结界", "type": "结界", "value": 0, "cost": 0, "active": True}
+        ]
+        self.round_count = 0
+        self.last_scene = None
+        self.messages = []
+        self.door_scene = DoorScene(self)
+        self.battle_scene = BattleScene(self)
+        self.shop_scene = ShopScene(self)
+        self.use_item_scene = UseItemScene(self)
+        self.scene_manager = SceneManager()
+        self.scene_manager.add_scene("door_scene", self.door_scene)
+        self.scene_manager.add_scene("battle_scene", self.battle_scene)
+        self.scene_manager.add_scene("shop_scene", self.shop_scene)
+        self.scene_manager.add_scene("use_item_scene", self.use_item_scene)
+        self.door_scene._generate_doors()  # Ensure doors regenerate
+        self.go_to_scene("door_scene")
 
     def go_to_scene(self, name):
         if self.scene_manager.current_scene is not None:
@@ -744,32 +780,6 @@ class GameController:
                 msg += f" 护甲碎片, {effect_msg}!"
         return msg
 
-    def reset_game(self):
-        self.player = Player("勇士", self.game_config.START_PLAYER_HP,
-                             self.game_config.START_PLAYER_ATK,
-                             self.game_config.START_PLAYER_GOLD)
-        # 初始化道具栏，添加默认物品
-        self.player.inventory = [
-            {"name": "复活卷轴", "type": "revive", "value": 1, "cost": 0, "active": False},
-            {"name": "飞锤", "type": "飞锤", "value": 0, "cost": 0, "active": True},
-            {"name": "巨大卷轴", "type": "巨大卷轴", "value": 0, "cost": 0, "active": True},
-            {"name": "结界", "type": "结界", "value": 0, "cost": 0, "active": True}
-        ]
-        self.round_count = 0
-        self.last_scene = None
-        self.last_shop_message = ""
-        self.last_monster_message = ""
-        self.door_scene = DoorScene(self)
-        self.battle_scene = BattleScene(self)
-        self.shop_scene = ShopScene(self)
-        self.use_item_scene = UseItemScene(self)
-        self.scene_manager = SceneManager()
-        self.scene_manager.add_scene("door_scene", self.door_scene)
-        self.scene_manager.add_scene("battle_scene", self.battle_scene)
-        self.scene_manager.add_scene("shop_scene", self.shop_scene)
-        self.scene_manager.add_scene("use_item_scene", self.use_item_scene)
-        self.door_scene._generate_doors()  # Ensure doors regenerate
-        self.go_to_scene("door_scene")
     def resume_scene(self):
         # 如果上一个场景存在且类型为 BattleScene，则恢复它
         if self.last_scene is not None and self.last_scene.__class__.__name__ == "BattleScene":
@@ -850,15 +860,14 @@ def get_state():
     }
     if scn_name == "UseItemScene":
         state["active_items"] = scn.active_items
-    if hasattr(g, "last_shop_message") and g.last_shop_message:
-        state["last_message"] = g.last_shop_message
-        g.last_shop_message = ""  # 清空消息，避免重复显示
-    if hasattr(g, "last_monster_message") and g.last_monster_message:
-        state["last_message"] = g.last_monster_message
-        g.last_monster_message = ""
-    if hasattr(g, "last_use_item_message") and g.last_use_item_message:
-        state["last_message"] = g.last_use_item_message
-        g.last_use_item_message = ""
+    
+    # 修改消息处理逻辑
+    if g.messages:
+        state["last_message"] = "\n".join(g.messages)
+        # 只有在消息成功发送到前端后才清空
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            g.clear_messages()
+    
     if p.hp <= 0:
         state["scene"] = "GameOver"
     return jsonify(state)
@@ -875,46 +884,55 @@ def button_action():
         scn_name = scn.__class__.__name__ if scn else "None"
 
     if scn_name == "DoorScene":
-        log_msg = scn.handle_choice(index)
+        result = scn.handle_choice(index)
+        if isinstance(result, str):
+            g.add_message(result)
+        elif isinstance(result, list):
+            g.add_message(result)
     elif scn_name == "BattleScene":
         # 按钮：0->攻击，1->进入使用道具场景，2->逃跑
         if index == 0:
-            log_msg = scn.handle_action("attack")
+            result = scn.handle_action("attack")
+            g.add_message(result)
         elif index == 1:
             g.go_to_scene("use_item_scene")
-            log_msg = "进入使用道具界面"
+            g.add_message("进入使用道具界面")
         elif index == 2:
-            log_msg = scn.handle_action("escape")
+            result = scn.handle_action("escape")
+            g.add_message(result)
         else:
-            log_msg = "无效操作"
+            g.add_message("无效操作")
     elif scn_name == "ShopScene":
-        log_msg = scn.handle_purchase(index)
+        result = scn.handle_purchase(index)
+
+        g.add_message(result)
     elif scn_name == "UseItemScene":
-        log_msg = scn.handle_use(index)
+        result = scn.handle_use(index)
+        g.add_message(result)
     elif scn_name == "GameOver":
         # GameOver状态下：0->重启, 1->使用复活卷轴, 2->退出游戏
         if index == 0:
             g.reset_game()
-            log_msg = "游戏已重启"
+            g.add_message("游戏已重置")
         elif index == 1:
-            p = g.player
-            revived = p.try_revive()
-            if revived:
-                if g.last_scene is not None:
-                    g.scene_manager.current_scene = g.last_scene
-                    log_msg = f"使用复活卷轴成功, 回到上一个场景: {g.last_scene.__class__.__name__}!"
-                else:
-                    log_msg = "使用复活卷轴成功, 但未记录上一个场景."
+            result = g.player.try_revive()
+            if result:
+                g.add_message(f"使用复活卷轴成功, 回到上一个场景: {g.last_scene.__class__.__name__}!")
+                g.scene_manager.current_scene = g.last_scene
             else:
-                log_msg = "你没有复活卷轴, 无法复活!"
+                g.add_message("你没有复活卷轴!")
         elif index == 2:
-            log_msg = "退出游戏"
             os._exit(0)
-        else:
-            log_msg = "无效操作"
-    else:
-        log_msg = "当前场景无操作"
-    return jsonify({"log": log_msg})
+            g.add_message("游戏结束")
+    
+    # 获取当前消息并清空
+    current_messages = g.messages.copy()
+    g.clear_messages()
+    
+    return jsonify({
+        "status": "success",
+        "log": "\n".join(current_messages) if current_messages else ""
+    })
 
 @app.route('/battle_scene')
 def battle_scene():
