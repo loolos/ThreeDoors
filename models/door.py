@@ -446,8 +446,8 @@ class Door:
             # 30%概率损失金币
             if random.random() < 0.3:
                 # 计算金币损失，回合数越高损失越多
-                base_loss = random.randint(10, 30)
-                loss = base_loss + (current_round // 5) * 5
+                base_loss = random.randint(5, 15)  # 降低基础损失范围
+                loss = base_loss + (current_round // 5) * 3  # 降低每5回合的额外损失
                 player.gold = max(0, player.gold - loss)
                 msg.append(f"你损失了 {loss} 金币!")
             
