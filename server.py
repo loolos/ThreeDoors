@@ -404,7 +404,8 @@ class DoorScene(Scene):
         super().__init__(controller)
         self.doors = []
         self.has_initialized = False
-        self._generate_doors()
+        # Initialize default button texts
+        self.button_texts = ["门1", "门2", "门3"]
 
     def on_enter(self):
         if not self.has_initialized:
@@ -752,34 +753,58 @@ class GameConfig:
 class GameController:
     def __init__(self):
         self.game_config = GameConfig()
-        self.player = Player("勇士", self.game_config.START_PLAYER_HP,
-                             self.game_config.START_PLAYER_ATK,
-                             self.game_config.START_PLAYER_GOLD)
-        self.player.inventory = []  # 初始化道具栏
-        self.round_count = 0
-        self.last_scene = None  # 记录上一个场景
-        self.messages = []  # 存储所有消息
-        self.current_monster = None  # 当前回合的怪物
         self.scene_manager = SceneManager()
         self.shop_logic = ShopLogic()
-
-        # 创建场景
+        
+        # Reset game state first (this creates the player)
+        self.reset_game()
+        
+        # Create scene instances after player is created
         self.door_scene = DoorScene(self)
         self.battle_scene = BattleScene(self)
         self.shop_scene = ShopScene(self)
         self.use_item_scene = UseItemScene(self)
         self.game_over_scene = GameOverScene(self)
-
-        # 注册场景
+        
+        # Register scenes
         self.scene_manager.add_scene("door_scene", self.door_scene)
         self.scene_manager.add_scene("battle_scene", self.battle_scene)
         self.scene_manager.add_scene("shop_scene", self.shop_scene)
         self.scene_manager.add_scene("use_item_scene", self.use_item_scene)
         self.scene_manager.add_scene("game_over_scene", self.game_over_scene)
-
-        # 设置初始场景并生成门
-        self.scene_manager.current_scene = self.door_scene
+        
+        # Initialize the door scene
         self.door_scene._generate_doors()
+        self.scene_manager.current_scene = self.door_scene
+        self.door_scene.on_enter()
+
+    def reset_game(self):
+        """Reset game state"""
+        # Reset player
+        self.player = Player("勇士", self.game_config.START_PLAYER_HP,
+                           self.game_config.START_PLAYER_ATK,
+                           self.game_config.START_PLAYER_GOLD)
+        
+        # Initialize inventory
+        self.player.inventory = [
+            {"name": "复活卷轴", "type": "revive", "value": 1, "cost": 0, "active": False},
+            {"name": "飞锤", "type": "飞锤", "value": 0, "cost": 0, "active": True},
+            {"name": "巨大卷轴", "type": "巨大卷轴", "value": 0, "cost": 0, "active": True},
+            {"name": "结界", "type": "结界", "value": 0, "cost": 0, "active": True}
+        ]
+        
+        # Reset game state
+        self.round_count = 0
+        self.last_scene = None
+        self.messages = []
+        self.current_monster = None
+        
+        # Reset door scene if it exists
+        if hasattr(self, 'door_scene'):
+            self.door_scene.has_initialized = False
+            self.door_scene._generate_doors()
+            self.scene_manager.current_scene = self.door_scene
+            self.door_scene.on_enter()
 
     def add_message(self, msg):
         """添加消息到消息列表"""
@@ -791,37 +816,6 @@ class GameController:
     def clear_messages(self):
         """清空消息列表"""
         self.messages.clear()
-
-    def reset_game(self):
-        self.player = Player("勇士", self.game_config.START_PLAYER_HP,
-                             self.game_config.START_PLAYER_ATK,
-                             self.game_config.START_PLAYER_GOLD)
-        # 初始化道具栏，添加默认物品
-        self.player.inventory = [
-            {"name": "复活卷轴", "type": "revive", "value": 1, "cost": 0, "active": False},
-            {"name": "飞锤", "type": "飞锤", "value": 0, "cost": 0, "active": True},
-            {"name": "巨大卷轴", "type": "巨大卷轴", "value": 0, "cost": 0, "active": True},
-            {"name": "结界", "type": "结界", "value": 0, "cost": 0, "active": True}
-        ]
-        self.round_count = 0
-        self.last_scene = None
-        self.messages = []
-        self.door_scene = DoorScene(self)
-        self.battle_scene = BattleScene(self)
-        self.shop_scene = ShopScene(self)
-        self.use_item_scene = UseItemScene(self)
-        self.game_over_scene = GameOverScene(self)
-        self.scene_manager = SceneManager()
-        
-        # 注册所有场景
-        self.scene_manager.add_scene("door_scene", self.door_scene)
-        self.scene_manager.add_scene("battle_scene", self.battle_scene)
-        self.scene_manager.add_scene("shop_scene", self.shop_scene)
-        self.scene_manager.add_scene("use_item_scene", self.use_item_scene)
-        self.scene_manager.add_scene("game_over_scene", self.game_over_scene)
-        
-        self.door_scene._generate_doors()  # Ensure doors regenerate
-        self.go_to_scene("door_scene")
 
     def go_to_scene(self, name):
         if self.scene_manager.current_scene is not None:
