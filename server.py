@@ -380,10 +380,28 @@ class Player:
             return True
         return False
 
-class DoorScene:
-    """选择门的场景"""
+class Scene:
+    """场景基类"""
     def __init__(self, controller):
         self.controller = controller
+        self.button_texts = ["", "", ""]  # 默认三个空按钮
+
+    def on_enter(self):
+        """进入场景时的处理"""
+        pass
+
+    def handle_choice(self, index):
+        """处理按钮选择"""
+        pass
+
+    def get_button_texts(self):
+        """获取按钮文本"""
+        return self.button_texts
+
+class DoorScene(Scene):
+    """选择门的场景"""
+    def __init__(self, controller):
+        super().__init__(controller)
         self.doors = []
         self.has_initialized = False
         self._generate_doors()
@@ -392,6 +410,15 @@ class DoorScene:
         if not self.has_initialized:
             self._generate_doors()
             self.has_initialized = True
+        # 更新按钮文本
+        if self.doors:
+            self.button_texts = [
+                f"门1 - {self.doors[0].hint}",
+                f"门2 - {self.doors[1].hint}",
+                f"门3 - {self.doors[2].hint}"
+            ]
+        else:
+            self.button_texts = ["门1", "门2", "门3"]
 
     def handle_choice(self, index):
         c = self.controller
@@ -411,6 +438,10 @@ class DoorScene:
         # 进入门并处理事件
         msg = door.enter(p, c)
         c.add_message(f"第{c.round_count}回合：{msg}")
+            
+        # 检查玩家生命值
+        if p.hp <= 0:
+            self.controller.go_to_scene("game_over_scene")
         
         # 如果不是怪物门，重新生成门
         if door.event != "monster":
@@ -443,10 +474,11 @@ class DoorScene:
         self.doors = [monster_door] + other_doors
         random.shuffle(self.doors)
 
-class BattleScene:
+class BattleScene(Scene):
     def __init__(self, controller):
-        self.controller = controller
+        super().__init__(controller)
         self.monster = None
+        self.button_texts = ["攻击", "使用道具", "逃跑"]
 
     def on_enter(self):
         # 使用 DoorScene 中提前生成的怪物
@@ -457,7 +489,7 @@ class BattleScene:
                 monster_desc += f" [晕眩{self.monster.statuses['stun']['duration']}回合]"
             self.controller.add_message(monster_desc)
         
-    def handle_action(self, action):
+    def handle_choice(self, index):
         p = self.controller.player
         if p.is_stunned():
             # 先应用战斗状态效果
@@ -469,12 +501,12 @@ class BattleScene:
             self.controller.add_message("\n".join(msg))
             return
 
-        if action == "attack":
+        if index == 0:
             self.do_attack(p)
-        elif action == "use_item":
+        elif index == 1:
             self.controller.go_to_scene("use_item_scene")
             self.controller.add_message("进入使用道具界面")
-        elif action == "escape":
+        elif index == 2:
             self.do_escape(p)
         else:
             self.controller.add_message("无效操作")
@@ -487,6 +519,9 @@ class BattleScene:
         if not monster_dead:
             monster_msg, _ = self.monster.attack(p)
             msg.extend(monster_msg)
+            # 检查玩家生命值
+            if p.hp <= 0:
+                self.controller.go_to_scene("game_over_scene")
         
         # 如果怪物死亡，处理战利品
         if monster_dead:
@@ -504,10 +539,13 @@ class BattleScene:
         if success:
             self.controller.go_to_scene("door_scene")
         self.controller.add_message("\n".join(msg))
+        # 检查玩家生命值
+        if p.hp <= 0:
+            self.controller.go_to_scene("game_over_scene")
 
-class ShopScene:
+class ShopScene(Scene):
     def __init__(self, controller):
-        self.controller = controller
+        super().__init__(controller)
         self.shop_items = []
 
     def on_enter(self):
@@ -520,17 +558,24 @@ class ShopScene:
             self.shop_items = []
             return  # 确保不再继续处理
         self.shop_items = logic.shop_items
+        # 更新按钮文本
+        if self.shop_items:
+            self.button_texts = [
+                f"{self.shop_items[0]['name']} ({self.shop_items[0]['cost']}G)",
+                f"{self.shop_items[1]['name']} ({self.shop_items[1]['cost']}G)",
+                f"{self.shop_items[2]['name']} ({self.shop_items[2]['cost']}G)"
+            ]
 
-    def handle_purchase(self, idx):
+    def handle_choice(self, index):
         logic = self.controller.shop_logic
-        msg = logic.purchase_item(idx, self.controller.player)
+        msg = logic.purchase_item(index, self.controller.player)
         self.controller.door_scene._generate_doors()  # Ensure doors regenerate
         self.controller.go_to_scene("door_scene")
         self.controller.add_message(msg + "\n离开商店, 回到门场景")
 
-class UseItemScene:
+class UseItemScene(Scene):
     def __init__(self, controller):
-        self.controller = controller
+        super().__init__(controller)
         self.active_items = []
 
     def on_enter(self):
@@ -540,8 +585,15 @@ class UseItemScene:
         if not self.active_items:
             self.controller.add_message("你没有可使用的道具")
             self.controller.go_to_scene("battle_scene")
+            return
+        # 更新按钮文本
+        self.button_texts = [
+            self.active_items[0]['name'] if len(self.active_items) > 0 else "无",
+            self.active_items[1]['name'] if len(self.active_items) > 1 else "无",
+            self.active_items[2]['name'] if len(self.active_items) > 2 else "无"
+        ]
 
-    def handle_use(self, index):
+    def handle_choice(self, index):
         p = self.controller.player
         if index < 0 or index >= len(self.active_items):
             self.controller.add_message("无效的道具选择")
@@ -576,6 +628,31 @@ class UseItemScene:
         # 使用完道具后，恢复上一个战斗场景
         self.controller.resume_scene()
         self.controller.add_message(effect_msg)
+
+class GameOverScene(Scene):
+    def __init__(self, controller):
+        super().__init__(controller)
+        self.button_texts = ["重启游戏", "使用复活卷轴", "退出游戏"]
+
+    def on_enter(self):
+        """进入游戏结束场景时的处理"""
+        pass
+
+    def handle_choice(self, index):
+        """处理游戏结束状态下的按钮选择"""
+        if index == 0:
+            self.controller.reset_game()
+            self.controller.add_message("游戏已重置")
+        elif index == 1:
+            result = self.controller.player.try_revive()
+            if result:
+                self.controller.add_message(f"使用复活卷轴成功, 回到上一个场景: {self.controller.last_scene.__class__.__name__}!")
+                self.controller.scene_manager.current_scene = self.controller.last_scene
+            else:
+                self.controller.add_message("你没有复活卷轴!")
+        elif index == 2:
+            os._exit(0)
+            self.controller.add_message("游戏结束")
 
 class ShopLogic:
     def __init__(self):
@@ -671,17 +748,6 @@ class GameConfig:
     START_PLAYER_HP = 20
     START_PLAYER_ATK = 5
     START_PLAYER_GOLD = 50
-    DOOR_COMBOS = [
-        ("monster", "treasure"),
-        ("monster", "equip"),
-        ("monster", "shop"),
-        ("monster", "trap"),
-        ("trap", "treasure"),
-        ("trap", "equip"),
-        ("trap", "shop"),
-        ("shop", "treasure"),
-        ("shop", "equip"),
-    ]
 
 class GameController:
     def __init__(self):
@@ -702,12 +768,14 @@ class GameController:
         self.battle_scene = BattleScene(self)
         self.shop_scene = ShopScene(self)
         self.use_item_scene = UseItemScene(self)
+        self.game_over_scene = GameOverScene(self)
 
         # 注册场景
         self.scene_manager.add_scene("door_scene", self.door_scene)
         self.scene_manager.add_scene("battle_scene", self.battle_scene)
         self.scene_manager.add_scene("shop_scene", self.shop_scene)
         self.scene_manager.add_scene("use_item_scene", self.use_item_scene)
+        self.scene_manager.add_scene("game_over_scene", self.game_over_scene)
 
         # 设置初始场景并生成门
         self.scene_manager.current_scene = self.door_scene
@@ -742,11 +810,16 @@ class GameController:
         self.battle_scene = BattleScene(self)
         self.shop_scene = ShopScene(self)
         self.use_item_scene = UseItemScene(self)
+        self.game_over_scene = GameOverScene(self)
         self.scene_manager = SceneManager()
+        
+        # 注册所有场景
         self.scene_manager.add_scene("door_scene", self.door_scene)
         self.scene_manager.add_scene("battle_scene", self.battle_scene)
         self.scene_manager.add_scene("shop_scene", self.shop_scene)
         self.scene_manager.add_scene("use_item_scene", self.use_item_scene)
+        self.scene_manager.add_scene("game_over_scene", self.game_over_scene)
+        
         self.door_scene._generate_doors()  # Ensure doors regenerate
         self.go_to_scene("door_scene")
 
@@ -820,6 +893,7 @@ def get_state():
     scn = g.scene_manager.current_scene
     scn_name = scn.__class__.__name__ if scn else "None"
     door_data = []
+    
     if scn_name == "DoorScene":
         for door in scn.doors:
             # 显示所有提示
@@ -827,14 +901,6 @@ def get_state():
                 "event": door.event,
                 "hint": door.hint
             })
-    elif p.hp <= 0 and hasattr(g, "door_scene"):
-        for door in g.door_scene.doors:
-            # 显示所有提示
-            door_data.append({
-                "event": door.event,
-                "hint": door.hint
-            })
-        scn_name = "GameOver"
 
     monster_data = None
     if scn_name == "BattleScene" and scn.monster:
@@ -856,7 +922,8 @@ def get_state():
       },
       "door_events": door_data,
       "monster": monster_data,
-      "shop_items": shop_data
+      "shop_items": shop_data,
+      "button_texts": scn.get_button_texts() if scn else ["", "", ""]
     }
     if scn_name == "UseItemScene":
         state["active_items"] = scn.active_items
@@ -868,8 +935,6 @@ def get_state():
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
             g.clear_messages()
     
-    if p.hp <= 0:
-        state["scene"] = "GameOver"
     return jsonify(state)
 
 @app.route("/buttonAction", methods=["POST"])
@@ -878,42 +943,13 @@ def button_action():
     scn = g.scene_manager.current_scene
     data = request.json
     index = data.get("index", 0)
-    if g.player.hp <= 0:
-        scn_name = "GameOver"
-    else:
-        scn_name = scn.__class__.__name__ if scn else "None"
-
-    if scn_name == "DoorScene":
+    
+    # 获取当前场景名称
+    scn_name = scn.__class__.__name__ if scn else "None"
+    
+    # 处理按钮选择
+    if scn_name in ["DoorScene", "BattleScene", "ShopScene", "UseItemScene", "GameOverScene"]:
         scn.handle_choice(index)
-    elif scn_name == "BattleScene":
-        # 按钮：0->攻击，1->进入使用道具场景，2->逃跑
-        if index == 0:
-            scn.handle_action("attack")
-        elif index == 1:
-            scn.handle_action("use_item")
-        elif index == 2:
-            scn.handle_action("escape")
-        else:
-            scn.handle_action("invalid")
-    elif scn_name == "ShopScene":
-        scn.handle_purchase(index)
-    elif scn_name == "UseItemScene":
-        scn.handle_use(index)
-    elif scn_name == "GameOver":
-        # GameOver状态下：0->重启, 1->使用复活卷轴, 2->退出游戏
-        if index == 0:
-            g.reset_game()
-            g.add_message("游戏已重置")
-        elif index == 1:
-            result = g.player.try_revive()
-            if result:
-                g.add_message(f"使用复活卷轴成功, 回到上一个场景: {g.last_scene.__class__.__name__}!")
-                g.scene_manager.current_scene = g.last_scene
-            else:
-                g.add_message("你没有复活卷轴!")
-        elif index == 2:
-            os._exit(0)
-            g.add_message("游戏结束")
     
     # 获取当前消息并清空
     current_messages = g.messages.copy()
@@ -923,51 +959,6 @@ def button_action():
         "status": "success",
         "log": "\n".join(current_messages) if current_messages else ""
     })
-
-@app.route('/battle_scene')
-def battle_scene():
-    """战斗场景"""
-    if 'player' not in session or 'current_monster' not in session:
-        return redirect(url_for('index'))
-    
-    player = session['player']
-    monster = session['current_monster']
-    
-    # 如果怪物已经死亡，处理掉落并返回
-    if monster.hp <= 0:
-        loot = monster.get_loot()
-        g = get_game()
-        
-        # 添加战斗胜利消息
-        g.add_message("战斗胜利!")
-        
-        # 处理掉落物品
-        for item_type, value in loot:
-            if item_type == "gold":
-                player.add_gold(value)
-                g.add_message(f"获得 {value} 金币!")
-            elif item_type == "equip":
-                oldatk = player.atk
-                player.atk += value
-                player.base_atk += value
-                g.add_message(f"获得装备，攻击力从{oldatk}提升到{player.atk}!")
-            elif item_type == "scroll":
-                scroll_type, scroll_name, duration = value
-                player.statuses[scroll_type] = {"duration": duration}
-                g.add_message(f"获得{scroll_name}，持续{duration}回合!")
-        
-        session['player'] = player
-        return render_template('battle_scene.html', 
-                             player=player, 
-                             monster=monster,
-                             battle_log=[],
-                             game_over=player.hp <= 0)
-    
-    return render_template('battle_scene.html', 
-                         player=player, 
-                         monster=monster,
-                         battle_log=[],
-                         game_over=player.hp <= 0)
 
 # -------------------------------
 # 5) 启动 Flask 应用

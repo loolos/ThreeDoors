@@ -420,7 +420,6 @@ class Door:
             monster_desc = f"你遇到了 {monster.name} (HP: {monster.hp}, ATK: {monster.atk}, Tier: {monster.tier})"
             if monster.has_status("stun"):
                 monster_desc += f" [晕眩{monster.statuses['stun']['duration']}回合]"
-            controller.last_monster_message = monster_desc
             controller.current_monster = monster
             controller.go_to_scene("battle_scene")
             return monster_desc
