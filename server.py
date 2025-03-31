@@ -411,15 +411,6 @@ class DoorScene(Scene):
         if not self.has_initialized:
             self._generate_doors()
             self.has_initialized = True
-        # 更新按钮文本
-        if self.doors:
-            self.button_texts = [
-                f"门1 - {self.doors[0].hint}",
-                f"门2 - {self.doors[1].hint}",
-                f"门3 - {self.doors[2].hint}"
-            ]
-        else:
-            self.button_texts = ["门1", "门2", "门3"]
 
     def handle_choice(self, index):
         c = self.controller
@@ -474,6 +465,16 @@ class DoorScene(Scene):
         # 随机打乱三扇门的顺序
         self.doors = [monster_door] + other_doors
         random.shuffle(self.doors)
+        
+        # 更新按钮文本
+        if self.doors:
+            self.button_texts = [
+                f"门1 - {self.doors[0].hint}",
+                f"门2 - {self.doors[1].hint}",
+                f"门3 - {self.doors[2].hint}"
+            ]
+        else:
+            self.button_texts = ["门1", "门2", "门3"]
 
 class BattleScene(Scene):
     def __init__(self, controller):
