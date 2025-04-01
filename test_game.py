@@ -242,5 +242,19 @@ class TestButtonTransitions(unittest.TestCase):
         if "revive" in [item["type"] for item in self.controller.player.inventory]:
             self.assertIsNotNone(self.controller.last_scene)
 
+    def test_shop_no_gold(self):
+        """测试玩家没有金币时进入商店的情况"""
+        # 确保玩家没有金币
+        self.controller.player.gold = 0
+        
+        # 进入商店场景
+        self.controller.go_to_scene("shop_scene")
+        
+        # 验证是否回到了门场景
+        self.assertIsInstance(self.controller.scene_manager.current_scene, DoorScene)
+        
+        # 检查消息是否包含"被踢出来"的提示
+        self.assertTrue(any("被商人踢了出来" in msg for msg in self.controller.messages))
+
 if __name__ == '__main__':
     unittest.main() 
