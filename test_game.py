@@ -1,6 +1,6 @@
 import unittest
 from server import GameController, Player, DoorScene, BattleScene, ShopScene, UseItemScene, GameOverScene, GameConfig
-from models.monster import get_random_monster
+from models.monster import get_random_monster, Monster
 
 class TestGameInitialization(unittest.TestCase):
     def setUp(self):
@@ -80,6 +80,46 @@ class TestPlayerActions(unittest.TestCase):
         # 测试状态效果描述
         status_desc = self.player.get_status_desc()
         self.assertIn("中毒", status_desc)
+
+    def test_poison_damage(self):
+        """测试中毒效果造成的伤害"""
+        # 设置玩家生命值为100
+        self.player.hp = 100
+        # 添加中毒状态
+        self.player.statuses["poison"] = {"duration": 3}
+        
+        # 应用回合效果
+        self.player._apply_base_effects()
+        
+        # 验证生命值减少了10%（10点）
+        self.assertEqual(self.player.hp, 90)
+        
+        # 验证消息是否被添加到控制器
+        self.assertIn("中毒效果造成 10 点伤害！", self.controller.messages)
+
+    def test_stun_effect(self):
+        """测试晕眩效果"""
+        # 添加晕眩状态
+        self.player.statuses["stun"] = {"duration": 2}
+        
+        # 创建一个测试怪物
+        test_monster = Monster("测试怪物", 20, 5)
+        
+        # 测试玩家在晕眩状态下无法攻击
+        msg, monster_dead = self.player.attack(test_monster)
+        self.assertIn("你处于眩晕状态, 无法行动!", msg)
+        
+        # 测试玩家在晕眩状态下无法使用道具
+        self.player.inventory.append({"name": "测试道具", "type": "heal", "value": 10, "active": True})
+        self.assertTrue(self.player.is_stunned())
+        
+        # 测试晕眩状态持续时间减少
+        self.player._update_status_durations(is_battle_turn=True)
+        self.assertEqual(self.player.statuses["stun"]["duration"], 1)
+        
+        # 测试晕眩状态结束后可以正常行动
+        self.player._update_status_durations(is_battle_turn=True)
+        self.assertFalse(self.player.is_stunned())
 
 class TestDoorGeneration(unittest.TestCase):
     def setUp(self):

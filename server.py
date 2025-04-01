@@ -128,7 +128,7 @@ class StatusEffect:
             del player.statuses[r]
 
 class Player:
-    def __init__(self, name="勇士", hp=20, atk=5, gold=0):
+    def __init__(self, name="勇士", hp=20, atk=5, gold=0, controller=None):
         self.name = name
         self.hp = hp
         self.base_atk = atk
@@ -136,6 +136,7 @@ class Player:
         self.gold = gold
         self.statuses = {}  # 如 {"poison": {"duration": 3}, "weak": {"duration": 2}, ...}
         self.inventory = []  # 最多可存10个道具，每个道具为字典
+        self.controller = controller  # 添加controller引用
 
     def take_damage(self, dmg):
         """受到伤害，如果有减伤状态则减少75%伤害，返回实际受到的伤害和提示消息"""
@@ -227,83 +228,64 @@ class Player:
             return msg, False
 
     def apply_turn_effects(self, is_battle_turn=False):
-        # 根据回合类型调用对应的函数
-        if is_battle_turn:
-            self._apply_battle_turn_effects()
-        else:
-            self._apply_adventure_turn_effects()
-
-    def _apply_battle_turn_effects(self):
-        """处理战斗回合的效果"""
-        # 处理中毒效果
+        """处理回合效果，统一处理战斗和冒险回合"""
+        # 处理基础效果（对战斗和冒险回合都生效）
+        self._apply_base_effects()
+        
+        # 处理特殊效果
+        if not is_battle_turn:
+            self._apply_special_adventure_effects()
+            
+        # 更新状态持续时间
+        self._update_status_durations(is_battle_turn)
+    
+    def _apply_base_effects(self):
+        """处理基础效果（对战斗和冒险回合通用）"""
+        # 检查免疫状态
         immune = ("immune" in self.statuses and self.statuses["immune"]["duration"] > 0)
-        if "poison" in self.statuses and self.statuses["poison"]["duration"] > 0 and not immune:
-            self.hp -= 1
-            
-        # 处理攻击力相关效果
-        self.atk = self.base_atk
-        if "atk_multiplier" in self.statuses and self.statuses["atk_multiplier"]["duration"] > 0:
-            self.atk = self.base_atk * self.statuses["atk_multiplier"]["value"]
-        if "weak" in self.statuses and self.statuses["weak"]["duration"] > 0 and not immune:
-            self.atk = max(1, self.atk - 2)
-        if "atk_up" in self.statuses and self.statuses["atk_up"]["duration"] > 0:
-            # 确保atk_up状态有value字段
-            if "value" in self.statuses["atk_up"]:
-                self.atk += self.statuses["atk_up"]["value"]
-            
-        # 更新战斗回合的状态持续时间
-        self._update_battle_status_durations()
-
-    def _apply_adventure_turn_effects(self):
-        """处理冒险回合的效果"""
+        
         # 处理中毒效果
-        immune = ("immune" in self.statuses and self.statuses["immune"]["duration"] > 0)
         if "poison" in self.statuses and self.statuses["poison"]["duration"] > 0 and not immune:
-            self.hp -= 1
+            poison_damage = max(1, int(self.hp * 0.1))  # 计算10%生命值的伤害，最小为1
+            self.hp -= poison_damage
+            if self.controller:
+                self.controller.add_message(f"中毒效果造成 {poison_damage} 点伤害！")
             
-        # 处理攻击力相关效果
+        # 重置并计算攻击力
         self.atk = self.base_atk
+        
+        # 处理攻击力相关效果
         if "atk_multiplier" in self.statuses and self.statuses["atk_multiplier"]["duration"] > 0:
             self.atk *= self.statuses["atk_multiplier"]["value"]
+        
         if "weak" in self.statuses and self.statuses["weak"]["duration"] > 0 and not immune:
             self.atk = max(1, self.atk - 2)
+            
         if "atk_up" in self.statuses and self.statuses["atk_up"]["duration"] > 0:
-            # 确保atk_up状态有value字段
             if "value" in self.statuses["atk_up"]:
                 self.atk += self.statuses["atk_up"]["value"]
-            
-        # 处理恢复卷轴效果
+    
+    def _apply_special_adventure_effects(self):
+        """处理冒险回合特有的效果"""
         if "healing_scroll" in self.statuses and self.statuses["healing_scroll"]["duration"] > 0:
-            heal_amount = random.randint(1, 5)  # 每次随机恢复1-5点生命
+            heal_amount = random.randint(1, 5)
             self.heal(heal_amount)
             print(f"恢复卷轴生效，恢复 {heal_amount} 点生命！")
-
-        # 更新冒险回合的状态持续时间
-        self._update_adventure_status_durations()
-
-    def _update_battle_status_durations(self):
-        """更新战斗回合的状态持续时间"""
+    
+    def _update_status_durations(self, is_battle_turn):
+        """更新状态持续时间"""
         expired = []
         for st in self.statuses:
-            # 战斗回合只处理战斗状态
-            if StatusEffect.is_battle_status(st):
+            # 根据回合类型决定要处理的状态
+            if (is_battle_turn and StatusEffect.is_battle_status(st)) or \
+               (not is_battle_turn and StatusEffect.is_adventure_status(st)):
                 self.statuses[st]["duration"] -= 1
                 if self.statuses[st]["duration"] <= 0:
                     expired.append(st)
-        for r in expired:
-            del self.statuses[r]
-
-    def _update_adventure_status_durations(self):
-        """更新冒险回合的状态持续时间"""
-        expired = []
-        for st in self.statuses:
-            # 冒险回合处理所有状态
-            if StatusEffect.is_adventure_status(st):
-                self.statuses[st]["duration"] -= 1
-                if self.statuses[st]["duration"] <= 0:
-                    expired.append(st)
-        for r in expired:
-            del self.statuses[r]
+        
+        # 移除过期状态
+        for st in expired:
+            del self.statuses[st]
 
     def get_status_desc(self):
         if not self.statuses:
@@ -790,7 +772,7 @@ class GameController:
         # Reset player
         self.player = Player("勇士", self.game_config.START_PLAYER_HP,
                            self.game_config.START_PLAYER_ATK,
-                           self.game_config.START_PLAYER_GOLD)
+                           self.game_config.START_PLAYER_GOLD, self)
         
         # Initialize inventory
         self.player.inventory = [
