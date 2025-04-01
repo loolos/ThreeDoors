@@ -107,16 +107,13 @@ class Monster:
 
         # 计算伤害
         mdmg = max(1, self.atk - random.randint(0, 1))
-        if "damage_reduction" in target.statuses:
-            original_dmg = mdmg
-            mdmg = int(mdmg * 0.25)  # 减少75%伤害
-            msg = [f"一部分伤害被减伤卷轴挡掉了！"]
-        else:
-            msg = []
+        msg = []
             
         # 造成伤害
-        target.take_damage(mdmg)
-        msg.append(f"{self.name} 反击造成 {mdmg} 点伤害.")
+        actual_dmg, dmg_msg = target.take_damage(mdmg)
+        if dmg_msg:
+            msg.append(dmg_msg)
+        msg.append(f"{self.name} 反击造成 {actual_dmg} 点伤害.")
 
         # 检查目标是否死亡
         if target.hp <= 0:

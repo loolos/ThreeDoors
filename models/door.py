@@ -431,16 +431,9 @@ class Door:
             base_damage = random.randint(5, 15)
             damage = base_damage + (current_round // 5) * 2
             
-            # 如果玩家有减伤状态，减少伤害
-            if "damage_reduction" in player.statuses:
-                original_dmg = damage
-                damage = max(1, int(damage * 0.25))  # 减少75%伤害
-                msg = [f"你触发了陷阱，受到 {damage} 点伤害（原伤害 {original_dmg}，被减伤卷轴挡掉了75%）!"]
-            else:
-                msg = [f"你触发了陷阱，受到 {damage} 点伤害!"]
-            
             # 造成伤害
-            player.take_damage(damage)
+            actual_dmg, dmg_msg = player.take_damage(damage)
+            msg = [dmg_msg] if dmg_msg else [f"你触发了陷阱，受到 {actual_dmg} 点伤害!"]
             
             # 30%概率损失金币
             if random.random() < 0.3:

@@ -138,7 +138,15 @@ class Player:
         self.inventory = []  # 最多可存10个道具，每个道具为字典
 
     def take_damage(self, dmg):
+        """受到伤害，如果有减伤状态则减少75%伤害，返回实际受到的伤害和提示消息"""
+        # 如果有减伤状态，减少75%伤害
+        msg = None
+        if "damage_reduction" in self.statuses:
+            original_dmg = dmg
+            dmg = max(1, int(dmg * 0.25))  # 减少75%伤害
+            msg = f"一部分伤害被减伤卷轴挡掉了！（原伤害 {original_dmg}，实际伤害 {dmg}）"
         self.hp -= dmg
+        return dmg, msg
 
     def heal(self, amount):
         """恢复生命值"""
@@ -203,12 +211,10 @@ class Player:
         else:
             # 逃跑失败，受到伤害
             mdmg = max(1, monster.atk - random.randint(0, 1))
-            if "damage_reduction" in self.statuses:
-                original_dmg = mdmg
-                mdmg = int(mdmg * 0.25)  # 减少75%伤害
-                msg.append(f"一部分伤害被减伤卷轴挡掉了！")
-            self.take_damage(mdmg)
-            msg.append(f"逃跑失败，{monster.name} 反击造成 {mdmg} 点伤害!")
+            actual_dmg, dmg_msg = self.take_damage(mdmg)
+            if dmg_msg:
+                msg.append(dmg_msg)
+            msg.append(f"逃跑失败，{monster.name} 反击造成 {actual_dmg} 点伤害!")
             
             # 检查是否死亡
             if self.hp <= 0:
