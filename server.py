@@ -886,42 +886,18 @@ def get_state():
     g = get_game()
     p = g.player
     scn = g.scene_manager.current_scene
-    scn_name = scn.__class__.__name__ if scn else "None"
-    door_data = []
     
-    if scn_name == "DoorScene":
-        for door in scn.doors:
-            # 显示所有提示
-            door_data.append({
-                "event": door.event,
-                "hint": door.hint
-            })
-
-    monster_data = None
-    if scn_name == "BattleScene" and scn.monster:
-        monster_data = {"name": scn.monster.name, "hp": scn.monster.hp,
-                        "atk": scn.monster.atk, "tier": scn.monster.tier}
-    shop_data = None
-    if scn_name == "ShopScene":
-        shop_data = scn.shop_items
-
     state = {
-      "scene": scn_name,
-      "round": g.round_count,
-      "player": {
-        "hp": p.hp,
-        "atk": p.atk,
-        "gold": p.gold,
-        "status_desc": p.get_status_desc(),
-        "inventory": p.inventory
-      },
-      "door_events": door_data,
-      "monster": monster_data,
-      "shop_items": shop_data,
-      "button_texts": scn.get_button_texts() if scn else ["", "", ""]
+        "round": g.round_count,
+        "player": {
+            "hp": p.hp,
+            "atk": p.atk,
+            "gold": p.gold,
+            "status_desc": p.get_status_desc(),
+            "inventory": p.inventory
+        },
+        "button_texts": scn.get_button_texts() if scn else ["", "", ""]
     }
-    if scn_name == "UseItemScene":
-        state["active_items"] = scn.active_items
     
     # 修改消息处理逻辑
     if g.messages:
