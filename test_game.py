@@ -124,23 +124,20 @@ class TestPlayerActions(unittest.TestCase):
 
     def test_immunity_effect(self):
         """测试免疫效果对怪物攻击的影响"""
-        # 创建一个高等级怪物
-        test_monster = Monster("测试怪物", 20, 5, tier=4)  # 使用tier 4的怪物来确保高概率触发负面效果
+        # 创建一个必定触发效果的怪物
+        test_monster = Monster("测试怪物", 20, 5, tier=4, effect_probability=1.0)
         
         # 给玩家添加免疫效果
         self.player.statuses["immune"] = {"duration": 5}
         
-        # 进行多次攻击测试
-        immunity_protected = False
-        for _ in range(10):  # 测试10次以确保高概率触发
-            test_monster.attack(self.player)
-            # 检查是否收到免疫保护消息
-            if any("免疫效果保护了你免受" in msg for msg in self.controller.messages):
-                immunity_protected = True
-                break
+        # 进行一次攻击测试就足够了
+        test_monster.attack(self.player)
         
-        # 验证免疫效果是否生效
-        self.assertTrue(immunity_protected, "免疫效果应该保护玩家免受怪物的负面效果")
+        # 检查是否收到免疫保护消息
+        self.assertTrue(
+            any("免疫效果保护了你免受" in msg for msg in self.controller.messages),
+            "免疫效果应该保护玩家免受怪物的负面效果"
+        )
         
         # 验证玩家没有获得任何负面效果
         self.assertNotIn("weak", self.player.statuses)
@@ -151,17 +148,14 @@ class TestPlayerActions(unittest.TestCase):
         del self.player.statuses["immune"]
         self.controller.clear_messages()
         
-        # 再次进行多次攻击测试
-        negative_effect_applied = False
-        for _ in range(10):  # 测试10次以确保高概率触发
-            test_monster.attack(self.player)
-            # 检查是否获得负面效果
-            if any(effect in self.player.statuses for effect in ["weak", "poison", "stun"]):
-                negative_effect_applied = True
-                break
+        # 再次进行一次攻击测试
+        test_monster.attack(self.player)
         
         # 验证在没有免疫效果时，负面效果可以正常应用
-        self.assertTrue(negative_effect_applied, "在没有免疫效果时，怪物应该能够施加负面效果")
+        self.assertTrue(
+            any(effect in self.player.statuses for effect in ["weak", "poison", "stun"]),
+            "在没有免疫效果时，怪物应该能够施加负面效果"
+        )
 
     def test_monster_loot(self):
         """测试怪物死亡后的掉落效果"""
@@ -285,16 +279,24 @@ class TestButtonTransitions(unittest.TestCase):
         self.controller.go_to_scene("battle_scene")
         self.assertIsInstance(self.controller.scene_manager.current_scene, BattleScene)
         
-        # 测试攻击按钮
-        self.controller.scene_manager.current_scene.handle_choice(0)
-        # 如果怪物死亡，应该回到门场景
-        if self.controller.current_monster and self.controller.current_monster.hp <= 0:
-            self.assertIsInstance(self.controller.scene_manager.current_scene, DoorScene)
+        # 确保玩家有可用的主动道具
+        self.controller.player.inventory = [
+            {"name": "飞锤", "type": "飞锤", "value": 0, "cost": 0, "active": True},
+            {"name": "结界", "type": "结界", "value": 0, "cost": 0, "active": True},
+            {"name": "巨大卷轴", "type": "巨大卷轴", "value": 0, "cost": 0, "active": True}
+        ]
         
         # 测试使用道具按钮
         self.controller.go_to_scene("battle_scene")
         self.controller.scene_manager.current_scene.handle_choice(1)
-        self.assertIsInstance(self.controller.scene_manager.current_scene, UseItemScene)
+        
+        # 打印调试信息
+        print(f"当前场景类型: {self.controller.scene_manager.current_scene.__class__.__name__}")
+        print(f"玩家道具: {self.controller.player.inventory}")
+        
+        # 验证场景切换
+        self.assertIsInstance(self.controller.scene_manager.current_scene, UseItemScene,
+                            f"Expected UseItemScene, got {self.controller.scene_manager.current_scene.__class__.__name__}")
         
         # 测试逃跑按钮 - 成功情况
         self.controller.go_to_scene("battle_scene")

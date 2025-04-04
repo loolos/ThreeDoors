@@ -168,7 +168,7 @@ class Monster:
         "永恒守护者": ["时空在震动...", "感受到永恒的力量..."]
     }
 
-    def __init__(self, name=None, hp=None, atk=None, tier=1):
+    def __init__(self, name=None, hp=None, atk=None, tier=1, effect_probability=None):
         if name is None or hp is None or atk is None:
             # 随机选择对应等级的怪物类型
             monster_type = random.choice(self.MONSTER_TYPES[tier])
@@ -182,6 +182,18 @@ class Monster:
         self.tier = tier
         self.statuses = {}  # 使用状态系统来管理怪物的状态效果
         self.loot = self._generate_loot()  # 生成掉落物品
+        
+        # 设置效果概率
+        self.effect_probability = effect_probability
+        if self.effect_probability is None:
+            # 根据怪物等级设置默认概率
+            self.effect_probability = 0.1  # 基础概率10%
+            if self.tier >= 2:
+                self.effect_probability += 0.1  # Tier 2怪物增加10%概率
+            if self.tier >= 3:
+                self.effect_probability += 0.1  # Tier 3怪物再增加10%概率
+            if self.tier >= 4:
+                self.effect_probability += 0.1  # Tier 4怪物再增加10%概率
         
         # 生成怪物提示
         self.tier_hint = random.choice(self.MONSTER_TIER_HINTS[self.tier])  # 等级提示
@@ -276,31 +288,15 @@ class Monster:
         # 计算伤害
         mdmg = max(1, self.atk - random.randint(0, 1))
             
-        # 造成伤害
-        actual_dmg = target.take_damage(mdmg)
+        # 添加反击消息
         if hasattr(target, 'controller') and target.controller:
-            target.controller.add_message(f"{self.name} 反击造成 {actual_dmg} 点伤害.")
-
-        # 检查目标是否死亡
-        if target.hp <= 0:
-            revived = target.try_revive()
-            if hasattr(target, 'controller') and target.controller:
-                if revived:
-                    target.controller.add_message("复活卷轴救了你(HP=1)!")
-                else:
-                    target.controller.add_message("你被怪物击倒, 英勇牺牲!")
-
-        # 较强怪物可能附带负面效果
-        # 根据怪物等级调整负面效果概率
-        effect_probability = 0.1  # 基础概率10%
-        if self.tier >= 2:
-            effect_probability += 0.1  # Tier 2怪物增加10%概率
-        if self.tier >= 3:
-            effect_probability += 0.1  # Tier 3怪物再增加10%概率
-        if self.tier >= 4:
-            effect_probability += 0.1  # Tier 4怪物再增加10%概率
+            target.controller.add_message(f"{self.name} 对你进行了反击!")
             
-        if random.random() < effect_probability:
+        # 造成伤害
+        target.take_damage(mdmg)
+
+        # 使用设置的效果概率
+        if random.random() < self.effect_probability:
             effect = random.choice(["weak", "poison", "stun"])
             duration = random.randint(1, 2)
             
@@ -319,7 +315,7 @@ class Monster:
         """获取怪物的提示信息"""
         return [self.tier_hint, self.type_hint]
 
-def get_random_monster(max_tier=None, current_round=None):
+def get_random_monster(max_tier=None, current_round=None, effect_probability=None):
     """根据当前回合数生成随机怪物"""
     # 根据回合数限制怪物等级
     if max_tier is None and current_round is not None:
@@ -339,4 +335,4 @@ def get_random_monster(max_tier=None, current_round=None):
         max_tier = 1  # 默认使用Tier 1
     
     # 从对应等级的怪物池中随机选择
-    return Monster(tier=random.randint(1, max_tier)) 
+    return Monster(tier=random.randint(1, max_tier), effect_probability=effect_probability) 
