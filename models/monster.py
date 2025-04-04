@@ -99,38 +99,57 @@ class Monster:
         # 检查是否晕眩
         if self.has_status("stun"):
             self.update_statuses()
-            return [f"{self.name} 被晕眩，无法反击!"], False
+            if hasattr(target, 'controller') and target.controller:
+                target.controller.add_message(f"{self.name} 被晕眩，无法反击!")
+            return False
 
         # 检查目标是否有结界
         if "barrier" in target.statuses and target.statuses["barrier"]["duration"] > 0:
-            return [f"{self.name} 的攻击被结界挡住了!"], False
+            if hasattr(target, 'controller') and target.controller:
+                target.controller.add_message(f"{self.name} 的攻击被结界挡住了!")
+            return False
 
         # 计算伤害
         mdmg = max(1, self.atk - random.randint(0, 1))
-        msg = []
             
         # 造成伤害
-        actual_dmg, dmg_msg = target.take_damage(mdmg)
-        if dmg_msg:
-            msg.append(dmg_msg)
-        msg.append(f"{self.name} 反击造成 {actual_dmg} 点伤害.")
+        actual_dmg = target.take_damage(mdmg)
+        if hasattr(target, 'controller') and target.controller:
+            target.controller.add_message(f"{self.name} 反击造成 {actual_dmg} 点伤害.")
 
         # 检查目标是否死亡
         if target.hp <= 0:
             revived = target.try_revive()
-            if revived:
-                msg.append("复活卷轴救了你(HP=1)!")
-            else:
-                msg.append("你被怪物击倒, 英勇牺牲!")
+            if hasattr(target, 'controller') and target.controller:
+                if revived:
+                    target.controller.add_message("复活卷轴救了你(HP=1)!")
+                else:
+                    target.controller.add_message("你被怪物击倒, 英勇牺牲!")
 
         # 较强怪物可能附带负面效果
-        if self.tier >= 3 and random.random() < 0.3:
+        # 根据怪物等级调整负面效果概率
+        effect_probability = 0.1  # 基础概率10%
+        if self.tier >= 2:
+            effect_probability += 0.1  # Tier 2怪物增加10%概率
+        if self.tier >= 3:
+            effect_probability += 0.1  # Tier 3怪物再增加10%概率
+        if self.tier >= 4:
+            effect_probability += 0.1  # Tier 4怪物再增加10%概率
+            
+        if random.random() < effect_probability:
             effect = random.choice(["weak", "poison", "stun"])
             duration = random.randint(1, 2)
-            target.statuses[effect] = {"duration": duration}
-            msg.append(f"{self.name} 附带 {effect} 效果 ({duration}回合)!")
+            
+            # 检查目标是否有免疫效果
+            if hasattr(target, 'statuses') and "immune" in target.statuses and target.statuses["immune"]["duration"] > 0:
+                if hasattr(target, 'controller') and target.controller:
+                    target.controller.add_message(f"免疫效果保护了你免受 {effect} 效果!")
+            else:
+                target.statuses[effect] = {"duration": duration}
+                if hasattr(target, 'controller') and target.controller:
+                    target.controller.add_message(f"{self.name} 附带 {effect} 效果 ({duration}回合)!")
 
-        return msg, False
+        return False
 
 def get_random_monster(max_tier=None, current_round=None):
     monster_pool = [

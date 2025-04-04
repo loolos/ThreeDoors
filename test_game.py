@@ -106,8 +106,8 @@ class TestPlayerActions(unittest.TestCase):
         test_monster = Monster("测试怪物", 20, 5)
         
         # 测试玩家在晕眩状态下无法攻击
-        msg, monster_dead = self.player.attack(test_monster)
-        self.assertIn("你处于眩晕状态, 无法行动!", msg)
+        monster_dead = self.player.attack(test_monster)
+        self.assertFalse(monster_dead)  # 晕眩状态下攻击应该失败
         
         # 测试玩家在晕眩状态下无法使用道具
         self.player.inventory.append({"name": "测试道具", "type": "heal", "value": 10, "active": True})
@@ -120,6 +120,47 @@ class TestPlayerActions(unittest.TestCase):
         # 测试晕眩状态结束后可以正常行动
         self.player._update_status_durations(is_battle_turn=True)
         self.assertFalse(self.player.is_stunned())
+
+    def test_immunity_effect(self):
+        """测试免疫效果对怪物攻击的影响"""
+        # 创建一个高等级怪物
+        test_monster = Monster("测试怪物", 20, 5, tier=4)  # 使用tier 4的怪物来确保高概率触发负面效果
+        
+        # 给玩家添加免疫效果
+        self.player.statuses["immune"] = {"duration": 5}
+        
+        # 进行多次攻击测试
+        immunity_protected = False
+        for _ in range(10):  # 测试10次以确保高概率触发
+            test_monster.attack(self.player)
+            # 检查是否收到免疫保护消息
+            if any("免疫效果保护了你免受" in msg for msg in self.controller.messages):
+                immunity_protected = True
+                break
+        
+        # 验证免疫效果是否生效
+        self.assertTrue(immunity_protected, "免疫效果应该保护玩家免受怪物的负面效果")
+        
+        # 验证玩家没有获得任何负面效果
+        self.assertNotIn("weak", self.player.statuses)
+        self.assertNotIn("poison", self.player.statuses)
+        self.assertNotIn("stun", self.player.statuses)
+        
+        # 清除免疫效果并再次测试
+        del self.player.statuses["immune"]
+        self.controller.clear_messages()
+        
+        # 再次进行多次攻击测试
+        negative_effect_applied = False
+        for _ in range(10):  # 测试10次以确保高概率触发
+            test_monster.attack(self.player)
+            # 检查是否获得负面效果
+            if any(effect in self.player.statuses for effect in ["weak", "poison", "stun"]):
+                negative_effect_applied = True
+                break
+        
+        # 验证在没有免疫效果时，负面效果可以正常应用
+        self.assertTrue(negative_effect_applied, "在没有免疫效果时，怪物应该能够施加负面效果")
 
 class TestDoorGeneration(unittest.TestCase):
     def setUp(self):

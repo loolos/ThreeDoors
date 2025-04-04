@@ -139,15 +139,15 @@ class Player:
         self.controller = controller  # 添加controller引用
 
     def take_damage(self, dmg):
-        """受到伤害，如果有减伤状态则减少75%伤害，返回实际受到的伤害和提示消息"""
+        """受到伤害，如果有减伤状态则减少75%伤害，返回实际受到的伤害"""
         # 如果有减伤状态，减少75%伤害
-        msg = None
         if "damage_reduction" in self.statuses:
             original_dmg = dmg
             dmg = max(1, int(dmg * 0.25))  # 减少75%伤害
-            msg = f"一部分伤害被减伤卷轴挡掉了！（原伤害 {original_dmg}，实际伤害 {dmg}）"
+            if self.controller:
+                self.controller.add_message(f"一部分伤害被减伤卷轴挡掉了！（原伤害 {original_dmg}，实际伤害 {dmg}）")
         self.hp -= dmg
-        return dmg, msg
+        return dmg
 
     def heal(self, amount):
         """恢复生命值"""
@@ -175,7 +175,9 @@ class Player:
         """玩家攻击目标"""
         # 检查是否晕眩
         if self.is_stunned():
-            return ["你处于眩晕状态, 无法行动!"], False
+            if self.controller:
+                self.controller.add_message("你处于眩晕状态, 无法行动!")
+            return False
             
         # 应用战斗状态效果
         self.apply_turn_effects(is_battle_turn=True)
@@ -185,18 +187,19 @@ class Player:
         
         # 造成伤害
         target.take_damage(dmg)
-        msg = [f"你攻击 {target.name} 造成 {dmg} 点伤害."]
+        if self.controller:
+            self.controller.add_message(f"你攻击 {target.name} 造成 {dmg} 点伤害.")
         
         # 检查目标是否死亡
         if target.hp <= 0:
-            msg.append(f"你击败了 {target.name}!")
-            return msg, True
+            if self.controller:
+                self.controller.add_message(f"你击败了 {target.name}!")
+            return True
         
-        return msg, False
+        return False
 
     def try_escape(self, monster):
         """尝试逃跑"""
-        msg = []  # 初始化msg列表
         # 计算逃跑概率
         escape_chance = 0.3  # 基础30%概率
         if "weak" in self.statuses:
@@ -208,24 +211,26 @@ class Player:
             
         # 尝试逃跑
         if random.random() < escape_chance:
-            return ["你成功逃脱了!"], True
+            if self.controller:
+                self.controller.add_message("你成功逃脱了!")
+            return True
         else:
             # 逃跑失败，受到伤害
             mdmg = max(1, monster.atk - random.randint(0, 1))
-            actual_dmg, dmg_msg = self.take_damage(mdmg)
-            if dmg_msg:
-                msg.append(dmg_msg)
-            msg.append(f"逃跑失败，{monster.name} 反击造成 {actual_dmg} 点伤害!")
+            actual_dmg = self.take_damage(mdmg)
+            if self.controller:
+                self.controller.add_message(f"逃跑失败，{monster.name} 反击造成 {actual_dmg} 点伤害!")
             
             # 检查是否死亡
             if self.hp <= 0:
                 revived = self.try_revive()
-                if revived:
-                    msg.append("复活卷轴救了你(HP=1)!")
-                else:
-                    msg.append("你被怪物击倒, 英勇牺牲!")
+                if self.controller:
+                    if revived:
+                        self.controller.add_message("复活卷轴救了你(HP=1)!")
+                    else:
+                        self.controller.add_message("你被怪物击倒, 英勇牺牲!")
             
-            return msg, False
+            return False
 
     def apply_turn_effects(self, is_battle_turn=False):
         """处理回合效果，统一处理战斗和冒险回合"""
@@ -485,10 +490,8 @@ class BattleScene(Scene):
             # 先应用战斗状态效果
             p.apply_turn_effects(is_battle_turn=True)
             # 玩家晕眩时，怪物进行攻击
-            msg = ["你处于眩晕状态, 无法行动!"]
-            monster_msg, _ = self.monster.attack(p)
-            msg.extend(monster_msg)
-            self.controller.add_message("\n".join(msg))
+            self.controller.add_message("你处于眩晕状态, 无法行动!")
+            self.monster.attack(p)
             return
 
         if index == 0:
@@ -503,12 +506,11 @@ class BattleScene(Scene):
 
     def do_attack(self, p):
         # 玩家攻击
-        msg, monster_dead = p.attack(self.monster)
+        monster_dead = p.attack(self.monster)
         
         # 如果怪物未死亡，怪物反击
         if not monster_dead:
-            monster_msg, _ = self.monster.attack(p)
-            msg.extend(monster_msg)
+            self.monster.attack(p)
             # 检查玩家生命值
             if p.hp <= 0:
                 self.controller.go_to_scene("game_over_scene")
@@ -516,19 +518,16 @@ class BattleScene(Scene):
         # 如果怪物死亡，处理战利品
         if monster_dead:
             loot = self.controller.monster_loot(self.monster)
-            msg.append(loot)
+            self.controller.add_message(loot)
             # 清除所有战斗状态
             StatusEffect.clear_battle_statuses(p)
             self.controller.door_scene._generate_doors()  # 添加这行，确保战斗胜利后重新生成门
             self.controller.go_to_scene("door_scene")
-        
-        self.controller.add_message("\n".join(msg))
 
     def do_escape(self, p):
-        msg, success = p.try_escape(self.monster)
+        success = p.try_escape(self.monster)
         if success:
             self.controller.go_to_scene("door_scene")
-        self.controller.add_message("\n".join(msg))
         # 检查玩家生命值
         if p.hp <= 0:
             self.controller.go_to_scene("game_over_scene")
