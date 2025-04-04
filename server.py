@@ -147,6 +147,19 @@ class Player:
             if self.controller:
                 self.controller.add_message(f"一部分伤害被减伤卷轴挡掉了！（原伤害 {original_dmg}，实际伤害 {dmg}）")
         self.hp -= dmg
+        
+        # 检查是否死亡
+        if self.hp <= 0:
+            # 尝试使用复活卷轴
+            revived = self.try_revive()
+            if self.controller:
+                if revived:
+                    self.controller.add_message("复活卷轴救了你(HP=1)!")
+                else:
+                    self.controller.add_message("你被怪物击倒, 英勇牺牲!")
+                    # 立即切换到GameOverScene
+                    self.controller.go_to_scene("game_over_scene")
+        
         return dmg
 
     def heal(self, amount):
@@ -498,6 +511,9 @@ class BattleScene(Scene):
         if index == 0:
             self.do_attack(p)
         elif index == 1:
+            # 保存当前战斗场景作为上一个场景
+            self.controller.last_scene = self
+            # 跳转到道具使用场景
             self.controller.go_to_scene("use_item_scene")
             self.controller.add_message("进入使用道具界面")
         elif index == 2:
@@ -512,9 +528,6 @@ class BattleScene(Scene):
         # 如果怪物未死亡，怪物反击
         if not monster_dead:
             self.monster.attack(p)
-            # 检查玩家生命值
-            if p.hp <= 0:
-                self.controller.go_to_scene("game_over_scene")
         
         # 如果怪物死亡，处理战利品
         if monster_dead:
@@ -531,9 +544,6 @@ class BattleScene(Scene):
         success = p.try_escape(self.monster)
         if success:
             self.controller.go_to_scene("door_scene")
-        # 检查玩家生命值
-        if p.hp <= 0:
-            self.controller.go_to_scene("game_over_scene")
 
 class ShopScene(Scene):
     def __init__(self, controller):
@@ -575,7 +585,7 @@ class UseItemScene(Scene):
         # 筛选库存中主动使用的道具，排除复活卷轴（active=False）
         self.active_items = [item for item in p.inventory if item.get("active", False)]
         if not self.active_items:
-            self.controller.add_message("你没有可使用的道具")
+            self.controller.add_message("你没有可用的道具！返回战斗场景。")
             self.controller.go_to_scene("battle_scene")
             return
         # 更新按钮文本

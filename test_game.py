@@ -649,13 +649,7 @@ class TestGameStability(unittest.TestCase):
         self.controller = GameController()
         self.config = GameConfig()
         # Initialize tracking variables as instance variables
-        self.scene_visits = {
-            'door_scene': 0,
-            'battle_scene': 0,
-            'shop_scene': 0,
-            'game_over_scene': 0,
-            'use_item_scene': 0
-        }
+        self.scene_visits = {}  # 动态记录场景访问
         self.total_transitions = 0
         self.restart_count = 0
         
@@ -663,20 +657,21 @@ class TestGameStability(unittest.TestCase):
         self.original_go_to_scene = self.controller.go_to_scene
         
         def go_to_scene_with_tracking(scene_name):
-            # 记录当前场景
-            before_scene = self.controller.scene_manager.current_scene.__class__.__name__.lower()
-            before_scene = before_scene.replace('scene', '_scene')
+            # 获取当前场景名称
+            before_scene = self.controller.scene_manager.current_scene.__class__.__name__
             
             # 调用原始方法
             self.original_go_to_scene(scene_name)
             
-            # 记录新场景
-            after_scene = self.controller.scene_manager.current_scene.__class__.__name__.lower()
-            after_scene = after_scene.replace('scene', '_scene')
+            # 获取新场景名称
+            after_scene = self.controller.scene_manager.current_scene.__class__.__name__
             
             # 如果场景改变，更新统计
             if before_scene != after_scene:
-                self.scene_visits[after_scene] = self.scene_visits.get(after_scene, 0) + 1
+                # 动态记录场景访问
+                if after_scene not in self.scene_visits:
+                    self.scene_visits[after_scene] = 0
+                self.scene_visits[after_scene] += 1
                 self.total_transitions += 1
                 print(f"场景跳转: {before_scene} -> {after_scene}")
         
@@ -697,13 +692,15 @@ class TestGameStability(unittest.TestCase):
         initial_gold = self.controller.player.gold
         
         # 记录初始场景
-        current_scene = self.controller.scene_manager.current_scene.__class__.__name__.lower()
-        current_scene = current_scene.replace('scene', '_scene')
+        current_scene = self.controller.scene_manager.current_scene.__class__.__name__
         self.scene_visits[current_scene] = 1
         
         try:
             # 随机点击1000次
             for i in range(1000):
+                # 清空当前消息
+                self.controller.clear_messages()
+                
                 # 确保当前场景有按钮
                 if hasattr(self.controller.scene_manager.current_scene, 'button_texts'):
                     # 获取当前场景的按钮数量
@@ -716,13 +713,23 @@ class TestGameStability(unittest.TestCase):
                             random_choice = random.randint(0, button_count - 1)
                         
                         # 执行按钮点击
-                        print(f"点击按钮: {self.controller.scene_manager.current_scene.button_texts[random_choice]}")
+                        button_text = self.controller.scene_manager.current_scene.button_texts[random_choice]
+                        print(f"点击按钮: {button_text}")
                         self.controller.scene_manager.current_scene.handle_choice(random_choice)
+                        
+                        # 验证是否有新的日志生成
+                        current_messages = self.controller.messages
+                        self.assertTrue(len(current_messages) > 0, f"点击按钮 '{button_text}' 后没有生成新的日志消息")
+                        for msg in current_messages:
+                            print(msg)
                 
-                # 如果在游戏结束场景，重置游戏
+                # 如果在游戏结束场景，通过点击按钮重置游戏
                 if isinstance(self.controller.scene_manager.current_scene, GameOverScene):
-                    self.controller.reset_game()
-                    self.restart_count += 1
+                    # 确保有按钮可以点击
+                    if hasattr(self.controller.scene_manager.current_scene, 'button_texts'):
+                        # 点击"重新开始"按钮（通常是第一个按钮）
+                        self.controller.scene_manager.current_scene.handle_choice(0)
+                        self.restart_count += 1
                 else:
                     # 只有在非游戏结束场景才检查玩家状态
                     self.assertGreaterEqual(self.controller.player.hp, 0, "玩家生命值不应该小于0")
@@ -730,8 +737,7 @@ class TestGameStability(unittest.TestCase):
                 
                 # 每100次点击打印一次进度和场景统计
                 if (i + 1) % 100 == 0:
-                    current_scene = self.controller.scene_manager.current_scene.__class__.__name__.lower()
-                    current_scene = current_scene.replace('scene', '_scene')
+                    current_scene = self.controller.scene_manager.current_scene.__class__.__name__
                     print(f"\n已完成 {i + 1} 次随机点击测试")
                     print(f"当前场景：{current_scene}")
                     print(f"场景跳转次数：{self.total_transitions}")
@@ -741,8 +747,7 @@ class TestGameStability(unittest.TestCase):
                     print(f"重开次数：{self.restart_count}\n")
                 
         except Exception as e:
-            current_scene = self.controller.scene_manager.current_scene.__class__.__name__.lower()
-            current_scene = current_scene.replace('scene', '_scene')
+            current_scene = self.controller.scene_manager.current_scene.__class__.__name__
             print(f"错误发生时的场景：{current_scene}")
             print(f"错误发生时的按钮：{self.controller.scene_manager.current_scene.button_texts}")
             raise e
