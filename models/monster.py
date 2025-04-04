@@ -7,9 +7,9 @@ class Monster:
         self.atk = atk
         self.tier = tier
         self.statuses = {}  # 使用状态系统来管理怪物的状态效果
-        self.loot = self.generate_loot()  # 生成掉落物品
+        self.loot = self._generate_loot()  # 生成掉落物品
 
-    def generate_loot(self):
+    def _generate_loot(self):
         """生成怪物的掉落物品"""
         loot = []
         # 基础金币掉落，随怪物等级提升
@@ -18,60 +18,42 @@ class Monster:
         
         # 根据怪物等级决定额外掉落
         if self.tier >= 2:
-            # Tier 2怪物有40%概率获得装备，装备加成随等级提升
-            if random.random() < 0.4:
-                equip_boost = random.randint(2, 5) * self.tier
+            # Tier 2及以上怪物有50%概率获得装备
+            if random.random() < 0.5:
+                equip_boost = 2 * self.tier  # 装备加成固定为2倍等级
                 loot.append(("equip", equip_boost))
             
-            # Tier 2怪物有20%概率获得卷轴
-            if random.random() < 0.2:
-                scroll_type = random.choice([
-                    ("healing_scroll", "恢复卷轴", 10),
-                    ("damage_reduction", "减伤卷轴", random.randint(10, 20)),
-                    ("atk_up", "攻击力增益卷轴", 10),
-                ])
-                loot.append(("scroll", scroll_type))
-        
-        if self.tier >= 3:
-            # Tier 3怪物有60%概率获得装备，装备加成更高
-            if random.random() < 0.6:
-                equip_boost = random.randint(3, 7) * self.tier
-                loot.append(("equip", equip_boost))
-            
-            # Tier 3怪物有40%概率获得卷轴，卷轴效果更好
-            if random.random() < 0.4:
-                scroll_type = random.choice([
-                    ("healing_scroll", "恢复卷轴", 15),
-                    ("damage_reduction", "减伤卷轴", random.randint(15, 25)),
-                    ("atk_up", "攻击力增益卷轴", 15),
-                ])
-                loot.append(("scroll", scroll_type))
-        
-        if self.tier >= 4:
-            # Tier 4怪物有80%概率获得装备，装备加成最高
-            if random.random() < 0.8:
-                equip_boost = random.randint(5, 10) * self.tier
-                loot.append(("equip", equip_boost))
-            
-            # Tier 4怪物有60%概率获得卷轴，卷轴效果最好
-            if random.random() < 0.6:
-                scroll_type = random.choice([
-                    ("healing_scroll", "恢复卷轴", 20),
-                    ("damage_reduction", "减伤卷轴", random.randint(20, 30)),
-                    ("atk_up", "攻击力增益卷轴", 20),
-                ])
-                loot.append(("scroll", scroll_type))
-            
-            # Tier 4怪物有30%概率获得额外金币
+            # Tier 2及以上怪物有30%概率获得卷轴
             if random.random() < 0.3:
-                extra_gold = random.randint(20, 40) * self.tier
-                loot.append(("gold", extra_gold))
-            
+                scroll_type = random.choice([
+                    ("healing_scroll", "恢复卷轴", 5 * self.tier),  # 恢复值随等级提升
+                    ("damage_reduction", "减伤卷轴", 10 * self.tier),  # 减伤值随等级提升
+                    ("atk_up", "攻击力增益卷轴", 5 * self.tier),  # 攻击力加成随等级提升
+                ])
+                loot.append(("scroll", scroll_type))
+        
         return loot
 
     def get_loot(self):
         """获取怪物的掉落物品"""
         return self.loot
+
+    def process_loot(self, player):
+        """处理怪物的掉落物品，应用到玩家身上"""
+        for item_type, value in self.loot:
+            if item_type == "gold":
+                player.add_gold(value)
+                if hasattr(player, 'controller') and player.controller:
+                    player.controller.add_message(f"获得 {value} 金币")
+            elif item_type == "equip":
+                player.atk += value
+                if hasattr(player, 'controller') and player.controller:
+                    player.controller.add_message(f"获得装备，攻击力提升 {value} 点")
+            elif item_type == "scroll":
+                scroll_name, scroll_desc, scroll_value = value
+                effect_msg = player.apply_item_effect(scroll_name, scroll_value)
+                if hasattr(player, 'controller') and player.controller:
+                    player.controller.add_message(f"获得 {scroll_desc}，{effect_msg}")
 
     def take_damage(self, dmg):
         self.hp -= dmg

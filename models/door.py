@@ -375,14 +375,18 @@ class Door:
             combo = random.choice(combo)
             
             if monster:
-                # 使用怪物的真实等级和类型
-                tier_hint = cls.monster_tier_hints.get(monster.tier, ["危险的气息..."])[0]
-                type_hint = cls.monster_type_hints.get(monster.name, ["未知生物的声响..."])[0]
+                # 使用怪物的真实等级和类型，随机选择提示
+                tier_hints = cls.monster_tier_hints.get(monster.tier, ["危险的气息..."])
+                type_hints = cls.monster_type_hints.get(monster.name, ["未知生物的声响..."])
+                tier_hint = random.choice(tier_hints)
+                type_hint = random.choice(type_hints)
                 return f"{combo} {tier_hint} {type_hint}"
             else:
                 # 使用随机的等级和类型
-                tier_hint = cls.monster_tier_hints[1][0]
-                type_hint = list(cls.monster_type_hints.values())[0][0]
+                tier_hints = cls.monster_tier_hints[1]
+                type_hints = list(cls.monster_type_hints.values())[0]
+                tier_hint = random.choice(tier_hints)
+                type_hint = random.choice(type_hints)
                 return f"{combo} {tier_hint} {type_hint}"
         elif fake_event == "monster":
             # 如果虚假门是怪物门
@@ -393,8 +397,10 @@ class Door:
             
             # 生成一个随机的怪物提示
             fake_monster = get_random_monster(current_round=1)  # 使用默认回合数
-            tier_hint = cls.monster_tier_hints.get(fake_monster.tier, ["危险的气息..."])[0]
-            type_hint = cls.monster_type_hints.get(fake_monster.name, ["未知生物的声响..."])[0]
+            tier_hints = cls.monster_tier_hints.get(fake_monster.tier, ["危险的气息..."])
+            type_hints = cls.monster_type_hints.get(fake_monster.name, ["未知生物的声响..."])
+            tier_hint = random.choice(tier_hints)
+            type_hint = random.choice(type_hints)
             return f"{combo} {tier_hint} {type_hint}"
         else:
             # 如果都不是怪物门，使用对应的组合提示

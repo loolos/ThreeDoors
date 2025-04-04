@@ -162,6 +162,56 @@ class TestPlayerActions(unittest.TestCase):
         # 验证在没有免疫效果时，负面效果可以正常应用
         self.assertTrue(negative_effect_applied, "在没有免疫效果时，怪物应该能够施加负面效果")
 
+    def test_monster_loot(self):
+        """测试怪物死亡后的掉落效果"""
+        # 创建一个Tier 2的怪物
+        monster = Monster("测试怪物", 10, 5, tier=2)
+        initial_gold = self.player.gold
+        initial_atk = self.player.atk
+        
+        # 攻击怪物直到死亡
+        while monster.hp > 0:
+            self.player.attack(monster)
+        
+        # 处理掉落
+        monster.process_loot(self.player)
+        
+        # 验证金币增加
+        self.assertGreater(self.player.gold, initial_gold, "怪物死亡后应该获得金币")
+        
+        # 验证攻击力可能增加（因为可能有装备掉落）
+        self.assertGreaterEqual(self.player.atk, initial_atk, "怪物死亡后攻击力不应该降低")
+        
+        # 验证掉落物品数量
+        self.assertGreaterEqual(len(monster.loot), 1, "怪物至少应该掉落金币")
+        self.assertLessEqual(len(monster.loot), 3, "怪物最多掉落三种物品（金币、装备、卷轴）")
+        
+        # 验证掉落物品类型
+        has_gold = False
+        has_equip = False
+        has_scroll = False
+        
+        for item_type, value in monster.loot:
+            if item_type == "gold":
+                has_gold = True
+                self.assertGreaterEqual(value, 10, "Tier 2怪物的金币掉落应该至少为10")
+                self.assertLessEqual(value, 30, "Tier 2怪物的金币掉落应该最多为30")
+            elif item_type == "equip":
+                has_equip = True
+                self.assertEqual(value, 4, "Tier 2怪物的装备加成应该为4")
+            elif item_type == "scroll":
+                has_scroll = True
+                scroll_name, scroll_desc, scroll_value = value
+                self.assertIn(scroll_name, ["healing_scroll", "damage_reduction", "atk_up"])
+                if scroll_name == "healing_scroll":
+                    self.assertEqual(scroll_value, 10, "Tier 2怪物的恢复卷轴效果应该为10")
+                elif scroll_name == "damage_reduction":
+                    self.assertEqual(scroll_value, 20, "Tier 2怪物的减伤卷轴效果应该为20")
+                elif scroll_name == "atk_up":
+                    self.assertEqual(scroll_value, 6, "Tier 2怪物的攻击力增益卷轴效果应该为6")
+        
+        self.assertTrue(has_gold, "怪物应该掉落金币")
+
 class TestDoorGeneration(unittest.TestCase):
     def setUp(self):
         self.controller = GameController()
@@ -336,6 +386,260 @@ class TestButtonTransitions(unittest.TestCase):
         
         # 检查消息是否包含"被踢出来"的提示
         self.assertTrue(any("被商人踢了出来" in msg for msg in self.controller.messages))
+
+class TestButtonText(unittest.TestCase):
+    def setUp(self):
+        self.controller = GameController()
+        self.player = self.controller.player
+
+    def test_door_scene_button_text(self):
+        """测试门场景按钮文本"""
+        # 进入门场景
+        self.controller.go_to_scene("door_scene")
+        door_scene = self.controller.scene_manager.current_scene
+        
+        # 验证初始按钮文本
+        buttons = door_scene.get_button_texts()
+        self.assertEqual(len(buttons), 3, "门场景应该有3个按钮")
+        
+        # 验证每个按钮的文本格式
+        for button in buttons:
+            self.assertIn("门", button, "按钮文本应该包含'门'")
+            # 由于门的描述是动态生成的，我们只验证基本格式
+            self.assertRegex(button, r"门\d+ - .*", "按钮文本应该符合'门X - 描述'的格式")
+
+    def test_battle_scene_button_text(self):
+        """测试战斗场景按钮文本"""
+        # 设置一个怪物并进入战斗场景
+        self.controller.current_monster = get_random_monster()
+        self.controller.go_to_scene("battle_scene")
+        battle_scene = self.controller.scene_manager.current_scene
+        
+        # 验证初始按钮文本
+        buttons = battle_scene.get_button_texts()
+        self.assertEqual(len(buttons), 3, "战斗场景应该有3个按钮")
+        
+        # 验证按钮文本
+        self.assertEqual(buttons[0], "攻击")
+        self.assertEqual(buttons[1], "使用道具")
+        self.assertEqual(buttons[2], "逃跑")
+
+    def test_shop_scene_button_text(self):
+        """测试商店场景按钮文本"""
+        # 给玩家足够的金币
+        self.controller.player.gold = 100
+        self.controller.go_to_scene("shop_scene")
+        shop_scene = self.controller.scene_manager.current_scene
+        
+        # 验证初始按钮文本
+        buttons = shop_scene.get_button_texts()
+        self.assertGreaterEqual(len(buttons), 3, "商店场景应该至少有3个按钮")
+        
+        # 验证每个商品按钮的文本格式
+        for button in buttons:
+            self.assertRegex(button, r".+\s+\(\d+G\)", "商品按钮文本应该包含价格信息")
+
+    def test_use_item_scene_button_text(self):
+        """测试道具使用场景按钮文本"""
+        # 确保玩家有道具
+        self.controller.player.inventory = [
+            {"name": "飞锤", "type": "飞锤", "value": 0, "cost": 0, "active": True},
+            {"name": "结界", "type": "结界", "value": 0, "cost": 0, "active": True},
+            {"name": "巨大卷轴", "type": "巨大卷轴", "value": 0, "cost": 0, "active": True}
+        ]
+        
+        # 进入道具使用场景
+        self.controller.go_to_scene("use_item_scene")
+        use_item_scene = self.controller.scene_manager.current_scene
+        
+        # 验证初始按钮文本
+        buttons = use_item_scene.get_button_texts()
+        self.assertEqual(len(buttons), 3, "按钮数量应该与道具数量相同")
+        
+        # 验证每个道具按钮的文本
+        for i, button in enumerate(buttons):
+            self.assertEqual(button, self.controller.player.inventory[i]["name"], 
+                           "按钮文本应该与道具名称相同")
+
+    def test_game_over_scene_button_text(self):
+        """测试游戏结束场景按钮文本"""
+        # 进入游戏结束场景
+        self.controller.go_to_scene("game_over_scene")
+        game_over_scene = self.controller.scene_manager.current_scene
+        
+        # 验证初始按钮文本
+        buttons = game_over_scene.get_button_texts()
+        self.assertEqual(len(buttons), 3, "游戏结束场景应该有三个按钮")
+        
+        # 验证按钮文本
+        self.assertEqual(buttons[0], "重启游戏")
+        self.assertEqual(buttons[1], "使用复活卷轴")
+        self.assertEqual(buttons[2], "退出游戏")
+
+    def test_door_scene_button_text_update(self):
+        """测试门场景点击按钮后按钮文本更新"""
+        # 进入门场景
+        self.controller.go_to_scene("door_scene")
+        door_scene = self.controller.scene_manager.current_scene
+        
+        # 记录初始按钮文本
+        initial_buttons = door_scene.get_button_texts()
+        
+        # 找到一个非怪物门的索引
+        non_monster_door_index = None
+        for i, door in enumerate(door_scene.doors):
+            if door.event != "monster":
+                non_monster_door_index = i
+                break
+        
+        # 确保找到了非怪物门
+        self.assertIsNotNone(non_monster_door_index, "应该至少有一个非怪物门")
+        
+        # 点击非怪物门
+        door_scene.handle_choice(non_monster_door_index)
+        
+        # 获取更新后的按钮文本
+        updated_buttons = door_scene.get_button_texts()
+        
+        # 验证新按钮文本的格式
+        for button in updated_buttons:
+            self.assertIn("门", button, "按钮文本应该包含'门'")
+            self.assertRegex(button, r"门\d+ - .*", "按钮文本应该符合'门X - 描述'的格式")
+            
+        # 验证三个按钮的文本都不同
+        self.assertEqual(len(set(updated_buttons)), 3, "三个按钮的文本应该各不相同")
+        
+        # 验证按钮文本已更新
+        for i in range(3):
+            self.assertRegex(updated_buttons[i], r"门\d+ - .*", "更新后的按钮文本应该符合'门X - 描述'的格式")
+
+class TestScrollEffectStacking(unittest.TestCase):
+    def setUp(self):
+        self.controller = GameController()
+        self.player = self.controller.player
+
+    def test_shop_scroll_effect_stacking(self):
+        """测试商店购买卷轴时的效果叠加"""
+        # 给玩家足够的金币
+        self.player.gold = 100
+        
+        # 第一次购买减伤卷轴
+        self.player.apply_item_effect("damage_reduction", 10)
+        initial_duration = self.player.statuses["damage_reduction"]["duration"]
+        
+        # 第二次购买减伤卷轴
+        self.player.apply_item_effect("damage_reduction", 10)
+        new_duration = self.player.statuses["damage_reduction"]["duration"]
+        
+        # 验证持续时间是否叠加
+        self.assertGreater(new_duration, initial_duration, "购买相同卷轴时持续时间应该叠加")
+        
+        # 测试攻击力增益卷轴
+        self.player.apply_item_effect("atk_up", 10)
+        initial_atk_duration = self.player.statuses["atk_up"]["duration"]
+        initial_atk_value = self.player.statuses["atk_up"]["value"]
+        
+        # 再次购买攻击力增益卷轴
+        self.player.apply_item_effect("atk_up", 15)  # 使用更大的值
+        new_atk_duration = self.player.statuses["atk_up"]["duration"]
+        new_atk_value = self.player.statuses["atk_up"]["value"]
+        
+        # 验证攻击力增益卷轴的叠加
+        self.assertGreater(new_atk_duration, initial_atk_duration, "攻击力增益卷轴持续时间应该叠加")
+        self.assertEqual(new_atk_value, 15, "攻击力增益卷轴应该取较大的值")
+
+    def test_monster_drop_scroll_effect_stacking(self):
+        """测试怪物掉落卷轴时的效果叠加"""
+        # 创建一个Tier 2的怪物
+        monster = Monster("测试怪物", 10, 5, tier=2)
+        
+        # 先给玩家一个减伤卷轴效果
+        self.player.apply_item_effect("damage_reduction", 10)
+        initial_duration = self.player.statuses["damage_reduction"]["duration"]
+        
+        # 修改怪物的掉落，确保掉落减伤卷轴
+        monster.loot = [
+            ("gold", 10),
+            ("scroll", ("damage_reduction", "减伤卷轴", 10))
+        ]
+        
+        # 处理怪物掉落
+        monster.process_loot(self.player)
+        new_duration = self.player.statuses["damage_reduction"]["duration"]
+        
+        # 验证持续时间是否叠加
+        self.assertGreater(new_duration, initial_duration, "怪物掉落相同卷轴时持续时间应该叠加")
+        
+        # 测试攻击力增益卷轴
+        self.player.apply_item_effect("atk_up", 10)
+        initial_atk_duration = self.player.statuses["atk_up"]["duration"]
+        initial_atk_value = self.player.statuses["atk_up"]["value"]
+        
+        # 修改怪物的掉落，确保掉落攻击力增益卷轴
+        monster.loot = [
+            ("gold", 10),
+            ("scroll", ("atk_up", "攻击力增益卷轴", 15))
+        ]
+        
+        # 处理怪物掉落
+        monster.process_loot(self.player)
+        new_atk_duration = self.player.statuses["atk_up"]["duration"]
+        new_atk_value = self.player.statuses["atk_up"]["value"]
+        
+        # 验证攻击力增益卷轴的叠加
+        self.assertGreater(new_atk_duration, initial_atk_duration, "怪物掉落的攻击力增益卷轴持续时间应该叠加")
+        self.assertEqual(new_atk_value, 15, "怪物掉落的攻击力增益卷轴应该取较大的值")
+
+    def test_kill_monster_with_existing_scroll(self):
+        """测试玩家已有卷轴效果时杀死掉落相同卷轴的怪物"""
+        # 创建一个Tier 2的怪物
+        monster = Monster("测试怪物", 10, 5, tier=2)
+        
+        # 先给玩家一个减伤卷轴效果
+        self.player.apply_item_effect("damage_reduction", 10)
+        initial_duration = self.player.statuses["damage_reduction"]["duration"]
+        
+        # 修改怪物的掉落，确保掉落减伤卷轴
+        monster.loot = [
+            ("gold", 10),
+            ("scroll", ("damage_reduction", "减伤卷轴", 10))
+        ]
+        
+        # 攻击怪物直到死亡
+        while monster.hp > 0:
+            self.player.attack(monster)
+        
+        # 处理怪物掉落
+        monster.process_loot(self.player)
+        new_duration = self.player.statuses["damage_reduction"]["duration"]
+        
+        # 验证持续时间是否叠加
+        self.assertGreater(new_duration, initial_duration, "杀死掉落相同卷轴的怪物时，卷轴持续时间应该叠加")
+        
+        # 测试攻击力增益卷轴
+        self.player.apply_item_effect("atk_up", 10)
+        initial_atk_duration = self.player.statuses["atk_up"]["duration"]
+        initial_atk_value = self.player.statuses["atk_up"]["value"]
+        
+        # 创建新的怪物并修改掉落
+        monster = Monster("测试怪物2", 10, 5, tier=2)
+        monster.loot = [
+            ("gold", 10),
+            ("scroll", ("atk_up", "攻击力增益卷轴", 15))
+        ]
+        
+        # 攻击怪物直到死亡
+        while monster.hp > 0:
+            self.player.attack(monster)
+        
+        # 处理怪物掉落
+        monster.process_loot(self.player)
+        new_atk_duration = self.player.statuses["atk_up"]["duration"]
+        new_atk_value = self.player.statuses["atk_up"]["value"]
+        
+        # 验证攻击力增益卷轴的叠加
+        self.assertGreater(new_atk_duration, initial_atk_duration, "杀死掉落攻击力增益卷轴的怪物时，持续时间应该叠加")
+        self.assertEqual(new_atk_value, 15, "杀死掉落攻击力增益卷轴的怪物时，应该取较大的攻击力值")
 
 if __name__ == '__main__':
     unittest.main() 

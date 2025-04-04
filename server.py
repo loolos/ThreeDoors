@@ -340,7 +340,8 @@ class Player:
             # 处理状态效果卷轴
             duration = random.randint(10, 20)  # 统一使用10-20回合的持续时间
             if item_type == "atk_up":
-                atk_boost = random.randint(10, 20)  # 攻击力提升10-20
+                # 如果没有指定value值，则使用随机的10-20之间的提升值
+                atk_boost = value if value is not None else random.randint(10, 20)
                 if "atk_up" in self.statuses:
                     # 如果已有atk_up状态，累加持续时间，取较大的攻击力提升
                     old_duration = self.statuses["atk_up"]["duration"]
@@ -517,11 +518,13 @@ class BattleScene(Scene):
         
         # 如果怪物死亡，处理战利品
         if monster_dead:
-            loot = self.controller.monster_loot(self.monster)
-            self.controller.add_message(loot)
+            # 处理怪物掉落
+            self.monster.process_loot(p)
             # 清除所有战斗状态
             StatusEffect.clear_battle_statuses(p)
-            self.controller.door_scene._generate_doors()  # 添加这行，确保战斗胜利后重新生成门
+            # 重新生成门
+            self.controller.door_scene._generate_doors()
+            # 返回门场景
             self.controller.go_to_scene("door_scene")
 
     def do_escape(self, p):
@@ -661,7 +664,7 @@ class ShopLogic:
             ("稀有装备", "weapon", 5, 30, False),
             ("复活卷轴", "revive", 1, 25, False),
             ("减伤卷轴", "damage_reduction", 2, 15, False),
-            ("攻击力增益卷轴", "atk_up", 5, 20, False),
+            ("攻击力增益卷轴", "atk_up", random.randint(10, 20), 20, False),
             ("恢复卷轴", "healing_scroll", 0, 30, False),
             ("免疫卷轴", "immune", 0, 25, False),
             ("飞锤", "飞锤", 0, 20, True),
@@ -809,31 +812,6 @@ class GameController:
         if self.scene_manager.current_scene is not None:
             self.last_scene = self.scene_manager.current_scene
         self.scene_manager.go_to(name)
-
-    def monster_loot(self, monster):
-        tier = monster.tier
-        p = self.player
-        # 必定掉落金币
-        gold_amt = random.randint(8, 20) + 5 * tier
-        p.add_gold(gold_amt)
-        msg = f"怪物掉落金币, 你获得 {gold_amt} 金币!"
-        
-        # 额外掉落（30% 概率）
-        if random.random() < 0.3:
-            drop_type = random.choice(["healing_potion", "weapon", "armor"])
-            if drop_type == "healing_potion":
-                heal_amt = random.randint(5, 10)
-                effect_msg = p.apply_item_effect("heal", heal_amt)
-                msg += f" 治疗药剂, {effect_msg}!"
-            elif drop_type == "weapon":
-                atk_boost = random.randint(2, 4) + tier
-                effect_msg = p.apply_item_effect("weapon", atk_boost)
-                msg += f" 武器, {effect_msg}!"
-            elif drop_type == "armor":
-                hp_boost = random.randint(5, 10)
-                effect_msg = p.apply_item_effect("armor", hp_boost)
-                msg += f" 护甲碎片, {effect_msg}!"
-        return msg
 
     def resume_scene(self):
         # 如果上一个场景存在且类型为 BattleScene，则恢复它
