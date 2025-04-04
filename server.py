@@ -146,6 +146,11 @@ class Player:
             dmg = max(1, int(dmg * 0.25))  # 减少75%伤害
             if self.controller:
                 self.controller.add_message(f"一部分伤害被减伤卷轴挡掉了！（原伤害 {original_dmg}，实际伤害 {dmg}）")
+        
+        # 显示伤害消息
+        if self.controller:
+            self.controller.add_message(f"你受到了 {dmg} 点伤害!")
+        
         self.hp -= dmg
         
         # 检查是否死亡
@@ -233,16 +238,6 @@ class Player:
             actual_dmg = self.take_damage(mdmg)
             if self.controller:
                 self.controller.add_message(f"逃跑失败，{monster.name} 反击造成 {actual_dmg} 点伤害!")
-            
-            # 检查是否死亡
-            if self.hp <= 0:
-                revived = self.try_revive()
-                if self.controller:
-                    if revived:
-                        self.controller.add_message("复活卷轴救了你(HP=1)!")
-                    else:
-                        self.controller.add_message("你被怪物击倒, 英勇牺牲!")
-            
             return False
 
     def apply_turn_effects(self, is_battle_turn=False):
@@ -427,6 +422,7 @@ class DoorScene(Scene):
             return
             
         c.round_count += 1
+        c.add_message(f"第{c.round_count}回合：")
         
         # 如果选择了非怪物门，清除所有战斗状态
         door = self.doors[index]
@@ -435,8 +431,7 @@ class DoorScene(Scene):
         p.apply_turn_effects(is_battle_turn=False)  # Adventure turn effects
         
         # 进入门并处理事件
-        msg = door.enter(p, c)
-        c.add_message(f"第{c.round_count}回合：{msg}")
+        door.enter(p, c)
             
         # 检查玩家生命值
         if p.hp <= 0:
@@ -511,6 +506,11 @@ class BattleScene(Scene):
         if index == 0:
             self.do_attack(p)
         elif index == 1:
+            # 检查是否有可用的主动道具
+            active_items = [item for item in p.inventory if item.get("active", False)]
+            if not active_items:
+                self.controller.add_message("你没有可用的道具！")
+                return
             # 保存当前战斗场景作为上一个场景
             self.controller.last_scene = self
             # 跳转到道具使用场景
@@ -570,10 +570,11 @@ class ShopScene(Scene):
 
     def handle_choice(self, index):
         logic = self.controller.shop_logic
-        msg = logic.purchase_item(index, self.controller.player)
-        self.controller.door_scene._generate_doors()  # Ensure doors regenerate
-        self.controller.go_to_scene("door_scene")
-        self.controller.add_message(msg + "\n离开商店, 回到门场景")
+        success = logic.purchase_item(index, self.controller.player)
+        if success:
+            self.controller.door_scene._generate_doors()  # Ensure doors regenerate
+            self.controller.go_to_scene("door_scene")
+            self.controller.add_message("离开商店, 回到门场景")
 
 class UseItemScene(Scene):
     def __init__(self, controller):
@@ -707,13 +708,16 @@ class ShopLogic:
 
     def purchase_item(self, idx, player):
         if idx < 0 or idx >= len(self.shop_items):
-            return "无效的购买选项!"
+            player.controller.add_message("无效的购买选项!")
+            return False
         item = self.shop_items[idx]
         if player.gold < item["cost"]:
-            return "你的金币不足, 无法购买!"
+            player.controller.add_message("你的金币不足, 无法购买!")
+            return False
         # 如果物品为主动使用类型，检查库存是否已满（最多10个）
         if item["active"] and len(player.inventory) >= 10:
-            return "你的道具栏已满, 无法购买!"
+            player.controller.add_message("你的道具栏已满, 无法购买!")
+            return False
             
         player.gold -= item["cost"]
         n, t, v, cost, active = item["name"], item["type"], item["value"], item["cost"], item["active"]
@@ -721,11 +725,13 @@ class ShopLogic:
         if active:
             # 主动使用物品加入库存
             player.inventory.append(item.copy())
-            return f"你花费 {cost} 金币, 购买了 {n}, 已存入道具栏!"
+            player.controller.add_message(f"你花费 {cost} 金币, 购买了 {n}, 已存入道具栏!")
         else:
             # 非主动使用物品立即生效
             effect = player.apply_item_effect(t, v)
-            return f"你花费 {cost} 金币, 购买了 {n}, {effect}!"
+            player.controller.add_message(f"你花费 {cost} 金币, 购买了 {n}, {effect}!")
+        
+        return True
 
 # -------------------------------
 # 3) 控制器及辅助类

@@ -201,7 +201,7 @@ class Door:
                 monster_desc += f" [晕眩{monster.statuses['stun']['duration']}回合]"
             controller.current_monster = monster
             controller.go_to_scene("battle_scene")
-            return monster_desc
+            controller.add_message(monster_desc)
         elif self.event == "trap":
             # 根据回合数和玩家状态决定陷阱效果
             current_round = controller.round_count
@@ -210,9 +210,11 @@ class Door:
             base_damage = random.randint(5, 15)
             damage = base_damage + (current_round // 5) * 2
             
+            # 添加陷阱消息
+            controller.add_message("你触发了陷阱!")
+            
             # 造成伤害
-            actual_dmg = player.take_damage(damage)
-            controller.add_message(f"你触发了陷阱，受到 {actual_dmg} 点伤害!")
+            player.take_damage(damage)
             
             # 30%概率损失金币
             if random.random() < 0.3:
@@ -221,17 +223,6 @@ class Door:
                 loss = base_loss + (current_round // 5) * 3  # 降低每5回合的额外损失
                 player.gold = max(0, player.gold - loss)
                 controller.add_message(f"你损失了 {loss} 金币!")
-            
-            # 检查是否死亡
-            if player.hp <= 0:
-                revived = player.try_revive()
-                if revived:
-                    controller.add_message("复活卷轴救了你(HP=1)!")
-                else:
-                    controller.add_message("你被陷阱击倒, 英勇牺牲!")
-                    controller.go_to_scene("game_over_scene")
-            
-            return "你触发了陷阱!"
         elif self.event == "reward":
             # 根据回合数决定奖励
             current_round = controller.round_count
@@ -242,28 +233,27 @@ class Door:
             player.gold += gold
             
             # 30%概率获得额外奖励
-            extra_reward = ""
             if random.random() < 0.3:
                 # 随机选择一种额外奖励
                 reward_type = random.choice(["heal", "weapon", "armor"])
                 if reward_type == "heal":
                     heal_amt = random.randint(5, 15)
                     player.heal(heal_amt)
-                    extra_reward = f"你恢复了 {heal_amt} 点生命!"
+                    controller.add_message(f"你获得了 {gold} 金币! 你恢复了 {heal_amt} 点生命!")
                 elif reward_type == "weapon":
                     atk_boost = random.randint(2, 5)
                     player.atk += atk_boost
                     player.base_atk += atk_boost
-                    extra_reward = f"你的攻击力提升了 {atk_boost} 点!"
+                    controller.add_message(f"你获得了 {gold} 金币! 你的攻击力提升了 {atk_boost} 点!")
                 elif reward_type == "armor":
                     hp_boost = random.randint(5, 10)
                     player.hp += hp_boost
-                    extra_reward = f"你的生命值提升了 {hp_boost} 点!"
-            
-            return f"你获得了 {gold} 金币! {extra_reward}"
+                    controller.add_message(f"你获得了 {gold} 金币! 你的生命值提升了 {hp_boost} 点!")
+            else:
+                controller.add_message(f"你获得了 {gold} 金币!")
         elif self.event == "shop":
             # 进入商店
             controller.go_to_scene("shop_scene")
-            return "你进入了商店!"
+            controller.add_message("你进入了商店!")
         else:
-            return "未知事件!" 
+            controller.add_message("未知事件!") 
