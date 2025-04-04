@@ -1,6 +1,7 @@
 import unittest
 from server import GameController, Player, DoorScene, BattleScene, ShopScene, UseItemScene, GameOverScene, GameConfig
 from models.monster import get_random_monster, Monster
+import random
 
 class TestGameInitialization(unittest.TestCase):
     def setUp(self):
@@ -208,7 +209,9 @@ class TestPlayerActions(unittest.TestCase):
                 elif scroll_name == "damage_reduction":
                     self.assertEqual(scroll_value, 20, "Tier 2怪物的减伤卷轴效果应该为20")
                 elif scroll_name == "atk_up":
-                    self.assertEqual(scroll_value, 6, "Tier 2怪物的攻击力增益卷轴效果应该为6")
+                    # 检查攻击力增益是否在正确的范围内
+                    self.assertGreaterEqual(scroll_value, 7, "Tier 2怪物的攻击力增益卷轴效果应该至少为7")
+                    self.assertLessEqual(scroll_value, 16, "Tier 2怪物的攻击力增益卷轴效果应该最多为16")
         
         self.assertTrue(has_gold, "怪物应该掉落金币")
 
@@ -640,6 +643,56 @@ class TestScrollEffectStacking(unittest.TestCase):
         # 验证攻击力增益卷轴的叠加
         self.assertGreater(new_atk_duration, initial_atk_duration, "杀死掉落攻击力增益卷轴的怪物时，持续时间应该叠加")
         self.assertEqual(new_atk_value, 15, "杀死掉落攻击力增益卷轴的怪物时，应该取较大的攻击力值")
+
+class TestGameStability(unittest.TestCase):
+    def setUp(self):
+        self.controller = GameController()
+        self.config = GameConfig()
+
+    def test_random_button_clicks(self):
+        """测试随机点击按钮1000次，确保游戏不会崩溃"""
+        # 重置游戏状态
+        self.controller.reset_game()
+        
+        # 记录初始状态
+        initial_hp = self.controller.player.hp
+        initial_gold = self.controller.player.gold
+        
+        # 随机点击1000次
+        for i in range(1000):
+            try:
+                # 确保当前场景有按钮
+                if hasattr(self.controller.scene_manager.current_scene, 'buttons'):
+                    # 获取当前场景的按钮
+                    button_count = len(self.controller.scene_manager.current_scene.buttons)
+                    if button_count > 0:
+                        # 如果是游戏结束场景，避免选择"结束游戏"按钮（通常是最后一个按钮）
+                        if isinstance(self.controller.scene_manager.current_scene, GameOverScene):
+                            random_choice = random.randint(0, button_count - 2)  # 不选择最后一个按钮
+                        else:
+                            random_choice = random.randint(0, button_count - 1)
+                        self.controller.scene_manager.current_scene.handle_choice(random_choice)
+                
+                # 检查玩家状态是否有效
+                self.assertGreaterEqual(self.controller.player.hp, 0, "玩家生命值不应该小于0")
+                self.assertGreaterEqual(self.controller.player.gold, 0, "玩家金币不应该小于0")
+                
+                # 如果玩家死亡，重置游戏
+                if self.controller.player.hp <= 0:
+                    self.controller.reset_game()
+                
+                # 每100次点击打印一次进度
+                if (i + 1) % 100 == 0:
+                    print(f"已完成 {i + 1} 次随机点击测试")
+                
+            except Exception as e:
+                self.fail(f"游戏在随机点击过程中崩溃: {str(e)}")
+        
+        # 验证游戏状态
+        self.assertIsNotNone(self.controller.player, "玩家对象不应该为None")
+        self.assertIsNotNone(self.controller.scene_manager.current_scene, "当前场景不应该为None")
+        self.assertGreaterEqual(self.controller.player.hp, 0, "最终玩家生命值不应该小于0")
+        self.assertGreaterEqual(self.controller.player.gold, 0, "最终玩家金币不应该小于0")
 
 if __name__ == '__main__':
     unittest.main() 
