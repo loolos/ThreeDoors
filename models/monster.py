@@ -210,7 +210,7 @@ class Monster:
                 scroll_type = random.choice([
                     ("healing_scroll", "恢复卷轴", 5 * self.tier),  # 恢复值随等级提升
                     ("damage_reduction", "减伤卷轴", 10 * self.tier),  # 减伤值随等级提升
-                    ("atk_up", "攻击力增益卷轴", random.randint(10, 20)),  # 攻击力加成随机10-20
+                    ("atk_up", "攻击力增益卷轴", random.randint(self.tier+5, self.tier*3+10)),  # 攻击力加成随机10-20
                 ])
                 loot.append(("scroll", scroll_type))
         

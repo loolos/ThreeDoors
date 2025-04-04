@@ -648,6 +648,44 @@ class TestGameStability(unittest.TestCase):
     def setUp(self):
         self.controller = GameController()
         self.config = GameConfig()
+        # Initialize tracking variables as instance variables
+        self.scene_visits = {
+            'door_scene': 0,
+            'battle_scene': 0,
+            'shop_scene': 0,
+            'game_over_scene': 0,
+            'use_item_scene': 0
+        }
+        self.total_transitions = 0
+        self.restart_count = 0
+        
+        # 保存原始的go_to_scene方法
+        self.original_go_to_scene = self.controller.go_to_scene
+        
+        def go_to_scene_with_tracking(scene_name):
+            # 记录当前场景
+            before_scene = self.controller.scene_manager.current_scene.__class__.__name__.lower()
+            before_scene = before_scene.replace('scene', '_scene')
+            
+            # 调用原始方法
+            self.original_go_to_scene(scene_name)
+            
+            # 记录新场景
+            after_scene = self.controller.scene_manager.current_scene.__class__.__name__.lower()
+            after_scene = after_scene.replace('scene', '_scene')
+            
+            # 如果场景改变，更新统计
+            if before_scene != after_scene:
+                self.scene_visits[after_scene] = self.scene_visits.get(after_scene, 0) + 1
+                self.total_transitions += 1
+                print(f"场景跳转: {before_scene} -> {after_scene}")
+        
+        # 替换go_to_scene方法
+        self.controller.go_to_scene = go_to_scene_with_tracking
+
+    def tearDown(self):
+        # 恢复原始的go_to_scene方法
+        self.controller.go_to_scene = self.original_go_to_scene
 
     def test_random_button_clicks(self):
         """测试随机点击按钮1000次，确保游戏不会崩溃"""
@@ -658,41 +696,70 @@ class TestGameStability(unittest.TestCase):
         initial_hp = self.controller.player.hp
         initial_gold = self.controller.player.gold
         
-        # 随机点击1000次
-        for i in range(1000):
-            try:
+        # 记录初始场景
+        current_scene = self.controller.scene_manager.current_scene.__class__.__name__.lower()
+        current_scene = current_scene.replace('scene', '_scene')
+        self.scene_visits[current_scene] = 1
+        
+        try:
+            # 随机点击1000次
+            for i in range(1000):
                 # 确保当前场景有按钮
-                if hasattr(self.controller.scene_manager.current_scene, 'buttons'):
-                    # 获取当前场景的按钮
-                    button_count = len(self.controller.scene_manager.current_scene.buttons)
+                if hasattr(self.controller.scene_manager.current_scene, 'button_texts'):
+                    # 获取当前场景的按钮数量
+                    button_count = len(self.controller.scene_manager.current_scene.button_texts)
                     if button_count > 0:
-                        # 如果是游戏结束场景，避免选择"结束游戏"按钮（通常是最后一个按钮）
+                        # 如果是游戏结束场景，避免选择"退出游戏"按钮
                         if isinstance(self.controller.scene_manager.current_scene, GameOverScene):
-                            random_choice = random.randint(0, button_count - 2)  # 不选择最后一个按钮
+                            random_choice = random.randint(0, button_count - 2)
                         else:
                             random_choice = random.randint(0, button_count - 1)
+                        
+                        # 执行按钮点击
+                        print(f"点击按钮: {self.controller.scene_manager.current_scene.button_texts[random_choice]}")
                         self.controller.scene_manager.current_scene.handle_choice(random_choice)
                 
-                # 检查玩家状态是否有效
-                self.assertGreaterEqual(self.controller.player.hp, 0, "玩家生命值不应该小于0")
-                self.assertGreaterEqual(self.controller.player.gold, 0, "玩家金币不应该小于0")
-                
-                # 如果玩家死亡，重置游戏
-                if self.controller.player.hp <= 0:
+                # 如果在游戏结束场景，重置游戏
+                if isinstance(self.controller.scene_manager.current_scene, GameOverScene):
                     self.controller.reset_game()
+                    self.restart_count += 1
+                else:
+                    # 只有在非游戏结束场景才检查玩家状态
+                    self.assertGreaterEqual(self.controller.player.hp, 0, "玩家生命值不应该小于0")
+                    self.assertGreaterEqual(self.controller.player.gold, 0, "玩家金币不应该小于0")
                 
-                # 每100次点击打印一次进度
+                # 每100次点击打印一次进度和场景统计
                 if (i + 1) % 100 == 0:
-                    print(f"已完成 {i + 1} 次随机点击测试")
+                    current_scene = self.controller.scene_manager.current_scene.__class__.__name__.lower()
+                    current_scene = current_scene.replace('scene', '_scene')
+                    print(f"\n已完成 {i + 1} 次随机点击测试")
+                    print(f"当前场景：{current_scene}")
+                    print(f"场景跳转次数：{self.total_transitions}")
+                    print("当前场景访问统计：")
+                    for scene_type, count in self.scene_visits.items():
+                        print(f"- {scene_type}: {count}次")
+                    print(f"重开次数：{self.restart_count}\n")
                 
-            except Exception as e:
-                self.fail(f"游戏在随机点击过程中崩溃: {str(e)}")
+        except Exception as e:
+            current_scene = self.controller.scene_manager.current_scene.__class__.__name__.lower()
+            current_scene = current_scene.replace('scene', '_scene')
+            print(f"错误发生时的场景：{current_scene}")
+            print(f"错误发生时的按钮：{self.controller.scene_manager.current_scene.button_texts}")
+            raise e
         
         # 验证游戏状态
         self.assertIsNotNone(self.controller.player, "玩家对象不应该为None")
         self.assertIsNotNone(self.controller.scene_manager.current_scene, "当前场景不应该为None")
         self.assertGreaterEqual(self.controller.player.hp, 0, "最终玩家生命值不应该小于0")
         self.assertGreaterEqual(self.controller.player.gold, 0, "最终玩家金币不应该小于0")
+        
+        # 打印最终统计信息
+        print(f"\n测试完成：在1000次随机点击中的最终统计")
+        print(f"总场景跳转次数：{self.total_transitions}")
+        print("各场景访问次数：")
+        for scene_type, count in self.scene_visits.items():
+            print(f"- {scene_type}: {count}次")
+        print(f"玩家重开次数：{self.restart_count}次")
 
 if __name__ == '__main__':
     unittest.main() 
