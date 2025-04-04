@@ -654,6 +654,7 @@ class TestGameStability(unittest.TestCase):
         self.scene_visits = {}  # 动态记录场景访问
         self.total_transitions = 0
         self.restart_count = 0
+        self.round_counts = []  # 记录每次重生时的回合数
         
         # 保存原始的go_to_scene方法
         self.original_go_to_scene = self.controller.go_to_scene
@@ -727,6 +728,8 @@ class TestGameStability(unittest.TestCase):
                 
                 # 如果在游戏结束场景，通过点击按钮重置游戏
                 if isinstance(self.controller.scene_manager.current_scene, GameOverScene):
+                    # 记录当前回合数
+                    self.round_counts.append(self.controller.round_count)
                     # 确保有按钮可以点击
                     if hasattr(self.controller.scene_manager.current_scene, 'button_texts'):
                         # 点击"重新开始"按钮（通常是第一个按钮）
@@ -760,13 +763,43 @@ class TestGameStability(unittest.TestCase):
         self.assertGreaterEqual(self.controller.player.hp, 0, "最终玩家生命值不应该小于0")
         self.assertGreaterEqual(self.controller.player.gold, 0, "最终玩家金币不应该小于0")
         
-        # 打印最终统计信息
-        print(f"\n测试完成：在1000次随机点击中的最终统计")
-        print(f"总场景跳转次数：{self.total_transitions}")
-        print("各场景访问次数：")
-        for scene_type, count in self.scene_visits.items():
-            print(f"- {scene_type}: {count}次")
-        print(f"玩家重开次数：{self.restart_count}次")
+        # 分析回合数分布
+        if self.round_counts:
+            # 计算统计信息
+            total_rounds = len(self.round_counts)
+            min_rounds = min(self.round_counts)
+            max_rounds = max(self.round_counts)
+            avg_rounds = sum(self.round_counts) / total_rounds
+            
+            # 计算回合数分布
+            round_distribution = {}
+            for rounds in self.round_counts:
+                # 将回合数分组，每5回合一组
+                group = (rounds // 5) * 5
+                if group not in round_distribution:
+                    round_distribution[group] = 0
+                round_distribution[group] += 1
+            
+            # 打印最终统计信息
+            print(f"\n测试完成：在1000次随机点击中的最终统计")
+            print(f"总场景跳转次数：{self.total_transitions}")
+            print("各场景访问次数：")
+            for scene_type, count in self.scene_visits.items():
+                print(f"- {scene_type}: {count}次")
+            print(f"玩家重开次数：{self.restart_count}次")
+            
+            # 打印回合数分析
+            print("\n回合数分析：")
+            print(f"总死亡次数：{total_rounds}")
+            print(f"最小存活回合：{min_rounds}")
+            print(f"最大存活回合：{max_rounds}")
+            print(f"平均存活回合：{avg_rounds:.2f}")
+            print("\n回合数分布：")
+            for group in sorted(round_distribution.keys()):
+                percentage = (round_distribution[group] / total_rounds) * 100
+                print(f"{group}-{group+4}回合: {round_distribution[group]}次 ({percentage:.1f}%)")
+        else:
+            print("\n测试完成：在1000次随机点击中没有发生死亡")
 
 if __name__ == '__main__':
     unittest.main() 

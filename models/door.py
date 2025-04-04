@@ -2,82 +2,84 @@ import random
 from .monster import get_random_monster
 
 class Door:
-    # 基础组合提示
-    combo_hints = {
-        frozenset({"monster", "reward"}): [
-            "野兽的咆哮中夹杂着金币的叮当声",
-            "危险的气息中闪烁着宝物的光芒",
-            "黑暗中似乎有宝藏，但似乎也有危险",
-            "猛兽的嘶吼与财宝的诱惑交织",
-            "危机与机遇并存"
-        ],
-        frozenset({"monster", "shop"}): [
-            "商人的吆喝声中藏着野兽的咆哮",
-            "交易与危险并存",
-            "商人的声音中似乎藏着威胁",
-            "猛兽的怒吼与商人的叫卖交织",
-            "买卖与战斗并存"
-        ],
-        frozenset({"monster", "trap"}): [
-            "危险的气息扑面而来",
-            "猛兽与陷阱的双重威胁",
-            "黑暗中藏着双重危险",
-            "野兽的咆哮与机关的咔嗒声交织",
-            "危机四伏"
-        ],
-        frozenset({"trap", "reward"}): [
-            "机关与宝藏并存",
-            "陷阱中似乎藏着宝物",
-            "危险与机遇并存",
-            "机关的咔嗒声中夹杂着金币的叮当声",
-            "危机与财富并存"
-        ],
-        frozenset({"trap", "shop"}): [
-            "商人的声音中似乎藏着机关",
-            "交易与陷阱并存",
-            "买卖声中似乎有机关的咔嗒声",
-            "商人的吆喝与机关的咔嗒声交织",
-            "买卖与危险并存"
-        ],
-        frozenset({"shop", "reward"}): [
-            "商人的吆喝声中夹杂着金币的叮当声",
-            "交易与财富并存",
-            "买卖声中似乎有宝物的光芒",
-            "商人的声音与财宝的诱惑交织",
-            "买卖与机遇并存"
-        ]
-    }
-        
-    # 缺省提示语
-    default_hints = {
-        "monster": [
-            "黑暗中似乎有什么在移动...",
-            "危险的气息扑面而来...",
-            "有什么东西在等待着你...",
-            "空气中弥漫着紧张的气氛...",
-            "似乎有什么可怕的存在..."
-        ],
-        "trap": [
-            "这里的气氛有些诡异...",
-            "空气中弥漫着危险的气息...",
-            "似乎有什么机关在等待...",
-            "这里的一切都显得那么可疑...",
-            "黑暗中似乎藏着什么..."
-        ],
-        "reward": [
-            "金光闪闪，似乎有什么宝物...",
-            "空气中飘来一丝财富的气息...",
-            "这里似乎藏着什么好东西...",
-            "金光若隐若现，引人遐想...",
-            "似乎有什么宝物在等待..."
-        ],
-        "shop": [
-            "商人的吆喝声传来...",
-            "空气中飘来交易的气息...",
-            "这里似乎有商人在此...",
-            "商人的声音若隐若现...",
-            "似乎有什么人在做买卖..."
-        ]
+    # 基础提示语配置
+    HINT_CONFIGS = {
+        # 组合提示
+        "combo": {
+            frozenset({"monster", "reward"}): [
+                "野兽的咆哮中夹杂着金币的叮当声",
+                "危险的气息中闪烁着宝物的光芒",
+                "黑暗中似乎有宝藏，但似乎也有危险",
+                "猛兽的嘶吼与财宝的诱惑交织",
+                "危机与机遇并存"
+            ],
+            frozenset({"monster", "shop"}): [
+                "商人的吆喝声中藏着野兽的咆哮",
+                "交易与危险并存",
+                "商人的声音中似乎藏着威胁",
+                "猛兽的怒吼与商人的叫卖交织",
+                "买卖与战斗并存"
+            ],
+            frozenset({"monster", "trap"}): [
+                "危险的气息扑面而来",
+                "猛兽与陷阱的双重威胁",
+                "黑暗中藏着双重危险",
+                "野兽的咆哮与机关的咔嗒声交织",
+                "危机四伏"
+            ],
+            frozenset({"trap", "reward"}): [
+                "机关与宝藏并存",
+                "陷阱中似乎藏着宝物",
+                "危险与机遇并存",
+                "机关的咔嗒声中夹杂着金币的叮当声",
+                "危机与财富并存"
+            ],
+            frozenset({"trap", "shop"}): [
+                "商人的声音中似乎藏着机关",
+                "交易与陷阱并存",
+                "买卖声中似乎有机关的咔嗒声",
+                "商人的吆喝与机关的咔嗒声交织",
+                "买卖与危险并存"
+            ],
+            frozenset({"shop", "reward"}): [
+                "商人的吆喝声中夹杂着金币的叮当声",
+                "交易与财富并存",
+                "买卖声中似乎有宝物的光芒",
+                "商人的声音与财宝的诱惑交织",
+                "买卖与机遇并存"
+            ]
+        },
+        # 缺省提示语
+        "default": {
+            "monster": [
+                "黑暗中似乎有什么在移动...",
+                "危险的气息扑面而来...",
+                "有什么东西在等待着你...",
+                "空气中弥漫着紧张的气氛...",
+                "似乎有什么可怕的存在..."
+            ],
+            "trap": [
+                "这里的气氛有些诡异...",
+                "空气中弥漫着危险的气息...",
+                "似乎有什么机关在等待...",
+                "这里的一切都显得那么可疑...",
+                "黑暗中似乎藏着什么..."
+            ],
+            "reward": [
+                "金光闪闪，似乎有什么宝物...",
+                "空气中飘来一丝财富的气息...",
+                "这里似乎藏着什么好东西...",
+                "金光若隐若现，引人遐想...",
+                "似乎有什么宝物在等待..."
+            ],
+            "shop": [
+                "商人的吆喝声传来...",
+                "空气中飘来交易的气息...",
+                "这里似乎有商人在此...",
+                "商人的声音若隐若现...",
+                "似乎有什么人在做买卖..."
+            ]
+        }
     }
 
     @classmethod
@@ -150,37 +152,17 @@ class Door:
         # 生成一个虚假的门类型（与真实门不同）
         fake_event = random.choice([e for e in all_events if e != real_event])
         
-        # 根据真实门和虚假门的类型生成提示
-        if real_event == "monster":
-            # 如果真实门是怪物门
-            combo = cls.combo_hints.get(frozenset({real_event, fake_event}))
-            if not combo:
-                combo = cls.default_hints["monster"]
-            combo = random.choice(combo)
-            
-            if monster:
-                # 直接从monster对象获取提示
-                return f"{combo} {monster.tier_hint} {monster.type_hint}"
-            else:
-                # 使用随机的等级和类型
-                fake_monster = get_random_monster(current_round=1)  # 使用默认回合数
-                return f"{combo} {fake_monster.tier_hint} {fake_monster.type_hint}"
-        elif fake_event == "monster":
-            # 如果虚假门是怪物门
-            combo = cls.combo_hints.get(frozenset({real_event, "monster"}))
-            if not combo:
-                combo = cls.default_hints[real_event]
-            combo = random.choice(combo)
-            
-            # 生成一个随机的怪物提示
-            fake_monster = get_random_monster(current_round=1)  # 使用默认回合数
-            return f"{combo} {fake_monster.tier_hint} {fake_monster.type_hint}"
-        else:
-            # 如果都不是怪物门，使用对应的组合提示
-            combo = cls.combo_hints.get(frozenset({real_event, fake_event}))
-            if not combo:
-                combo = cls.default_hints[real_event]
-            return random.choice(combo)
+        # 获取组合提示
+        combo_key = frozenset({real_event, fake_event})
+        combo_hints = cls.HINT_CONFIGS["combo"].get(combo_key, cls.HINT_CONFIGS["default"][real_event])
+        combo = random.choice(combo_hints)
+        
+        # 处理怪物相关的提示
+        if real_event == "monster" or fake_event == "monster":
+            monster_obj = monster if monster else get_random_monster(current_round=1)
+            return f"{combo} {monster_obj.tier_hint} {monster_obj.type_hint}"
+        
+        return combo
 
     @classmethod
     def generate_trap_door(cls):
