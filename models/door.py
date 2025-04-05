@@ -182,7 +182,7 @@ class Door:
             if monster.has_status("stun"):
                 monster_desc += f" [晕眩{monster.statuses['stun']['duration']}回合]"
             controller.current_monster = monster
-            controller.go_to_scene("battle_scene")
+            controller.scene_manager.go_to("battle_scene")
             controller.add_message(monster_desc)
         elif self.event == "trap":
             # 根据回合数和玩家状态决定陷阱效果
@@ -235,7 +235,7 @@ class Door:
                 controller.add_message(f"你获得了 {gold} 金币!")
         elif self.event == "shop":
             # 进入商店
-            controller.go_to_scene("shop_scene")
+            controller.scene_manager.go_to("shop_scene")
             controller.add_message("你进入了商店!")
         else:
             controller.add_message("未知事件!") 

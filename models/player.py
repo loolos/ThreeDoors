@@ -39,7 +39,7 @@ class Player:
                 else:
                     self.controller.add_message("你被怪物击倒, 英勇牺牲!")
                     # 立即切换到GameOverScene
-                    self.controller.go_to_scene("game_over_scene")
+                    self.controller.scene_manager.go_to("game_over_scene")
         
         return dmg
 
@@ -57,7 +57,10 @@ class Player:
         for item in self.inventory:
             if item["type"] == "revive":
                 self.inventory.remove(item)  # 消耗复活卷轴
-                self.hp = 20  # 复活后恢复20点生命值
+                if self.controller:
+                    self.hp = self.controller.game_config.START_PLAYER_HP
+                else:
+                    self.hp = 20  # 默认值
                 return True
         return False
 
@@ -254,6 +257,9 @@ class Player:
     def revive(self):
         """复活"""
         if self.hp <= 0:
-            self.hp = 20  # 复活后恢复20点生命值
+            if self.controller:
+                self.hp = self.controller.game_config.START_PLAYER_HP
+            else:
+                self.hp = 20  # 默认值
             return True
         return False 

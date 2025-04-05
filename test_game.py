@@ -16,11 +16,7 @@ class TestGameInitialization(unittest.TestCase):
         self.assertEqual(self.controller.player.gold, self.config.START_PLAYER_GOLD)
         self.assertEqual(self.controller.round_count, 0)
         self.assertIsNotNone(self.controller.scene_manager)
-        self.assertIsNotNone(self.controller.door_scene)
-        self.assertIsNotNone(self.controller.battle_scene)
-        self.assertIsNotNone(self.controller.shop_scene)
-        self.assertIsNotNone(self.controller.use_item_scene)
-        self.assertIsNotNone(self.controller.game_over_scene)
+        self.assertIsInstance(self.controller.scene_manager.current_scene, DoorScene)
 
     def test_initial_inventory(self):
         """测试初始道具栏"""
@@ -38,19 +34,19 @@ class TestSceneTransitions(unittest.TestCase):
     def test_scene_transitions(self):
         """测试场景切换"""
         # 测试从门场景切换到战斗场景
-        self.controller.go_to_scene("battle_scene")
+        self.controller.scene_manager.go_to("battle_scene")
         self.assertIsInstance(self.controller.scene_manager.current_scene, BattleScene)
 
         # 测试从战斗场景切换到商店场景
-        self.controller.go_to_scene("shop_scene")
+        self.controller.scene_manager.go_to("shop_scene")
         self.assertIsInstance(self.controller.scene_manager.current_scene, ShopScene)
 
         # 测试从商店场景切换到道具使用场景
-        self.controller.go_to_scene("use_item_scene")
+        self.controller.scene_manager.go_to("use_item_scene")
         self.assertIsInstance(self.controller.scene_manager.current_scene, UseItemScene)
 
         # 测试从道具使用场景切换到游戏结束场景
-        self.controller.go_to_scene("game_over_scene")
+        self.controller.scene_manager.go_to("game_over_scene")
         self.assertIsInstance(self.controller.scene_manager.current_scene, GameOverScene)
 
 class TestPlayerActions(unittest.TestCase):
@@ -212,7 +208,8 @@ class TestPlayerActions(unittest.TestCase):
 class TestDoorGeneration(unittest.TestCase):
     def setUp(self):
         self.controller = GameController()
-        self.door_scene = self.controller.door_scene
+        self.controller.scene_manager.go_to("door_scene")
+        self.door_scene = self.controller.scene_manager.current_scene
 
     def test_door_generation(self):
         """测试门生成"""
@@ -251,7 +248,7 @@ class TestButtonTransitions(unittest.TestCase):
     def test_door_scene_buttons(self):
         """测试门场景按钮跳转"""
         # 确保当前在门场景
-        self.controller.go_to_scene("door_scene")
+        self.controller.scene_manager.go_to("door_scene")
         self.assertIsInstance(self.controller.scene_manager.current_scene, DoorScene)
         
         # 测试每个门的点击
@@ -264,11 +261,11 @@ class TestButtonTransitions(unittest.TestCase):
             if door.event == "monster":
                 self.assertIsInstance(self.controller.scene_manager.current_scene, BattleScene)
                 # 回到门场景继续测试
-                self.controller.go_to_scene("door_scene")
+                self.controller.scene_manager.go_to("door_scene")
             elif door.event == "shop":
                 self.assertIsInstance(self.controller.scene_manager.current_scene, ShopScene)
                 # 回到门场景继续测试
-                self.controller.go_to_scene("door_scene")
+                self.controller.scene_manager.go_to("door_scene")
             elif door.event in ["trap", "reward"]:
                 self.assertIsInstance(self.controller.scene_manager.current_scene, DoorScene)
 
@@ -276,7 +273,7 @@ class TestButtonTransitions(unittest.TestCase):
         """测试战斗场景按钮跳转"""
         # 设置一个怪物并进入战斗场景
         self.controller.current_monster = get_random_monster()
-        self.controller.go_to_scene("battle_scene")
+        self.controller.scene_manager.go_to("battle_scene")
         self.assertIsInstance(self.controller.scene_manager.current_scene, BattleScene)
         
         # 确保玩家有可用的主动道具
@@ -287,7 +284,7 @@ class TestButtonTransitions(unittest.TestCase):
         ]
         
         # 测试使用道具按钮
-        self.controller.go_to_scene("battle_scene")
+        self.controller.scene_manager.go_to("battle_scene")
         self.controller.scene_manager.current_scene.handle_choice(1)
         
         # 打印调试信息
@@ -299,7 +296,7 @@ class TestButtonTransitions(unittest.TestCase):
                             f"Expected UseItemScene, got {self.controller.scene_manager.current_scene.__class__.__name__}")
         
         # 测试逃跑按钮 - 成功情况
-        self.controller.go_to_scene("battle_scene")
+        self.controller.scene_manager.go_to("battle_scene")
         initial_hp = self.controller.player.hp
         self.controller.scene_manager.current_scene.handle_choice(2)
         # 如果逃跑成功，应该回到门场景
@@ -309,7 +306,7 @@ class TestButtonTransitions(unittest.TestCase):
             self.assertEqual(self.controller.player.hp, initial_hp)
         
         # 测试逃跑按钮 - 失败情况
-        self.controller.go_to_scene("battle_scene")
+        self.controller.scene_manager.go_to("battle_scene")
         initial_hp = self.controller.player.hp
         # 设置玩家状态为虚弱，降低逃跑成功率
         self.controller.player.statuses["weak"] = {"duration": 3}
@@ -323,7 +320,7 @@ class TestButtonTransitions(unittest.TestCase):
         """测试商店场景按钮跳转"""
         # 给玩家一些金币并进入商店场景
         self.controller.player.gold = 100
-        self.controller.go_to_scene("shop_scene")
+        self.controller.scene_manager.go_to("shop_scene")
         self.assertIsInstance(self.controller.scene_manager.current_scene, ShopScene)
         
         # 测试购买按钮
@@ -332,7 +329,7 @@ class TestButtonTransitions(unittest.TestCase):
             # 购买后应该回到门场景
             self.assertIsInstance(self.controller.scene_manager.current_scene, DoorScene)
             # 回到商店场景继续测试
-            self.controller.go_to_scene("shop_scene")
+            self.controller.scene_manager.go_to("shop_scene")
 
     def test_use_item_scene_buttons(self):
         """测试道具使用场景按钮跳转"""
@@ -345,7 +342,7 @@ class TestButtonTransitions(unittest.TestCase):
         
         # 设置一个怪物并进入战斗场景
         self.controller.current_monster = get_random_monster()
-        self.controller.go_to_scene("battle_scene")
+        self.controller.scene_manager.go_to("battle_scene")
         self.assertIsInstance(self.controller.scene_manager.current_scene, BattleScene)
         
         # 进入道具使用场景
@@ -362,21 +359,21 @@ class TestButtonTransitions(unittest.TestCase):
 
     def test_game_over_scene_buttons(self):
         """测试游戏结束场景按钮跳转"""
-        # 进入游戏结束场景
-        self.controller.go_to_scene("game_over_scene")
-        self.assertIsInstance(self.controller.scene_manager.current_scene, GameOverScene)
+        # 设置玩家死亡
+        self.controller.player.hp = 0
+        self.controller.scene_manager.go_to("game_over_scene")
         
         # 测试重启游戏按钮
         self.controller.scene_manager.current_scene.handle_choice(0)
         self.assertEqual(self.controller.player.hp, self.controller.game_config.START_PLAYER_HP)
-        self.assertEqual(self.controller.player.gold, self.controller.game_config.START_PLAYER_GOLD)
+        self.assertIsInstance(self.controller.scene_manager.current_scene, DoorScene)
         
         # 测试使用复活卷轴按钮
-        self.controller.go_to_scene("game_over_scene")
+        self.controller.player.hp = 0
+        self.controller.scene_manager.go_to("game_over_scene")
         self.controller.scene_manager.current_scene.handle_choice(1)
-        # 如果有复活卷轴，应该回到上一个场景
-        if "revive" in [item["type"] for item in self.controller.player.inventory]:
-            self.assertIsNotNone(self.controller.last_scene)
+        self.assertEqual(self.controller.player.hp, self.controller.game_config.START_PLAYER_HP // 2)
+        self.assertIsNotNone(self.controller.scene_manager.last_scene)
 
     def test_shop_no_gold(self):
         """测试玩家没有金币时进入商店的情况"""
@@ -384,7 +381,7 @@ class TestButtonTransitions(unittest.TestCase):
         self.controller.player.gold = 0
         
         # 进入商店场景
-        self.controller.go_to_scene("shop_scene")
+        self.controller.scene_manager.go_to("shop_scene")
         
         # 验证是否回到了门场景
         self.assertIsInstance(self.controller.scene_manager.current_scene, DoorScene)
@@ -400,7 +397,7 @@ class TestButtonText(unittest.TestCase):
     def test_door_scene_button_text(self):
         """测试门场景按钮文本"""
         # 进入门场景
-        self.controller.go_to_scene("door_scene")
+        self.controller.scene_manager.go_to("door_scene")
         door_scene = self.controller.scene_manager.current_scene
         
         # 验证初始按钮文本
@@ -417,7 +414,7 @@ class TestButtonText(unittest.TestCase):
         """测试战斗场景按钮文本"""
         # 设置一个怪物并进入战斗场景
         self.controller.current_monster = get_random_monster()
-        self.controller.go_to_scene("battle_scene")
+        self.controller.scene_manager.go_to("battle_scene")
         battle_scene = self.controller.scene_manager.current_scene
         
         # 验证初始按钮文本
@@ -433,7 +430,7 @@ class TestButtonText(unittest.TestCase):
         """测试商店场景按钮文本"""
         # 给玩家足够的金币
         self.controller.player.gold = 100
-        self.controller.go_to_scene("shop_scene")
+        self.controller.scene_manager.go_to("shop_scene")
         shop_scene = self.controller.scene_manager.current_scene
         
         # 验证初始按钮文本
@@ -454,7 +451,7 @@ class TestButtonText(unittest.TestCase):
         ]
         
         # 进入道具使用场景
-        self.controller.go_to_scene("use_item_scene")
+        self.controller.scene_manager.go_to("use_item_scene")
         use_item_scene = self.controller.scene_manager.current_scene
         
         # 验证初始按钮文本
@@ -469,7 +466,7 @@ class TestButtonText(unittest.TestCase):
     def test_game_over_scene_button_text(self):
         """测试游戏结束场景按钮文本"""
         # 进入游戏结束场景
-        self.controller.go_to_scene("game_over_scene")
+        self.controller.scene_manager.go_to("game_over_scene")
         game_over_scene = self.controller.scene_manager.current_scene
         
         # 验证初始按钮文本
@@ -484,7 +481,7 @@ class TestButtonText(unittest.TestCase):
     def test_door_scene_button_text_update(self):
         """测试门场景点击按钮后按钮文本更新"""
         # 进入门场景
-        self.controller.go_to_scene("door_scene")
+        self.controller.scene_manager.go_to("door_scene")
         door_scene = self.controller.scene_manager.current_scene
         
         # 记录初始按钮文本
@@ -657,7 +654,7 @@ class TestGameStability(unittest.TestCase):
         self.round_counts = []  # 记录每次重生时的回合数
         
         # 保存原始的go_to_scene方法
-        self.original_go_to_scene = self.controller.go_to_scene
+        self.original_go_to_scene = self.controller.scene_manager.go_to
         
         def go_to_scene_with_tracking(scene_name):
             # 获取当前场景名称
@@ -679,11 +676,11 @@ class TestGameStability(unittest.TestCase):
                 print(f"场景跳转: {before_scene} -> {after_scene}")
         
         # 替换go_to_scene方法
-        self.controller.go_to_scene = go_to_scene_with_tracking
+        self.controller.scene_manager.go_to = go_to_scene_with_tracking
 
     def tearDown(self):
         # 恢复原始的go_to_scene方法
-        self.controller.go_to_scene = self.original_go_to_scene
+        self.controller.scene_manager.go_to = self.original_go_to_scene
 
     def test_random_button_clicks(self):
         """测试随机点击按钮1000次，确保游戏不会崩溃"""

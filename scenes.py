@@ -57,7 +57,7 @@ class DoorScene(Scene):
             
         # 检查玩家生命值
         if p.hp <= 0:
-            self.controller.go_to_scene("game_over_scene")
+            self.controller.scene_manager.go_to("game_over_scene")
         
         # 如果不是怪物门，重新生成门
         if door.event != "monster":
@@ -134,9 +134,9 @@ class BattleScene(Scene):
                 self.controller.add_message("你没有可用的道具！")
                 return
             # 保存当前战斗场景作为上一个场景
-            self.controller.last_scene = self
+            self.controller.scene_manager.last_scene = self
             # 跳转到道具使用场景
-            self.controller.go_to_scene("use_item_scene")
+            self.controller.scene_manager.go_to("use_item_scene")
             self.controller.add_message("进入使用道具界面")
         elif index == 2:
             self.do_escape(p)
@@ -158,14 +158,14 @@ class BattleScene(Scene):
             # 清除所有战斗状态
             StatusEffect.clear_battle_statuses(p)
             # 重新生成门
-            self.controller.door_scene._generate_doors()
+            self.controller.scene_manager.generate_doors()
             # 返回门场景
-            self.controller.go_to_scene("door_scene")
+            self.controller.scene_manager.go_to("door_scene")
 
     def do_escape(self, p):
         success = p.try_escape(self.monster)
         if success:
-            self.controller.go_to_scene("door_scene")
+            self.controller.scene_manager.go_to("door_scene")
 
 class ShopScene(Scene):
     def __init__(self, controller):
@@ -177,8 +177,8 @@ class ShopScene(Scene):
         logic.generate_items(self.controller.player)
         if self.controller.player.gold == 0 or len(logic.shop_items) == 0:
             self.controller.add_message("你没有钱，于是被商人踢了出来。")
-            self.controller.door_scene._generate_doors()  # 刷新门
-            self.controller.go_to_scene("door_scene")
+            self.controller.scene_manager.generate_doors()  # 刷新门
+            self.controller.scene_manager.go_to("door_scene")
             self.shop_items = []
             return  # 确保不再继续处理
         self.shop_items = logic.shop_items
@@ -194,8 +194,8 @@ class ShopScene(Scene):
         logic = self.controller.shop_logic
         success = logic.purchase_item(index, self.controller.player)
         if success:
-            self.controller.door_scene._generate_doors()  # Ensure doors regenerate
-            self.controller.go_to_scene("door_scene")
+            self.controller.scene_manager.generate_doors()  # Ensure doors regenerate
+            self.controller.scene_manager.go_to("door_scene")
             self.controller.add_message("离开商店, 回到门场景")
 
 class UseItemScene(Scene):
@@ -209,7 +209,7 @@ class UseItemScene(Scene):
         self.active_items = [item for item in p.inventory if item.get("active", False)]
         if not self.active_items:
             self.controller.add_message("你没有可用的道具！返回战斗场景。")
-            self.controller.go_to_scene("battle_scene")
+            self.controller.scene_manager.go_to("battle_scene")
             return
         # 更新按钮文本
         self.button_texts = [
@@ -248,11 +248,13 @@ class UseItemScene(Scene):
             effect_msg = f"治疗药水生效，恢复 {heal_amt} HP！"
         else:
             effect_msg = f"道具 {item['name']} 未定义效果。"
+        
+        # 使用完道具后，从背包中移除
         if item in p.inventory:
             p.inventory.remove(item)
-        # 使用完道具后，恢复上一个战斗场景
-        self.controller.resume_scene()
+        
         self.controller.add_message(effect_msg)
+        self.controller.scene_manager.resume_scene()
 
 class GameOverScene(Scene):
     def __init__(self, controller):
@@ -260,21 +262,38 @@ class GameOverScene(Scene):
         self.button_texts = ["重启游戏", "使用复活卷轴", "退出游戏"]
 
     def on_enter(self):
-        """进入游戏结束场景时的处理"""
-        pass
+        self.controller.add_message("游戏结束！")
 
     def handle_choice(self, index):
-        """处理游戏结束状态下的按钮选择"""
-        if index == 0:
+        if index == 0:  # 重启游戏
             self.controller.reset_game()
             self.controller.add_message("游戏已重置")
-        elif index == 1:
-            result = self.controller.player.try_revive()
-            if result:
-                self.controller.add_message(f"使用复活卷轴成功, 回到上一个场景: {self.controller.last_scene.__class__.__name__}!")
-                self.controller.scene_manager.current_scene = self.controller.last_scene
+            self.controller.scene_manager.go_to("door_scene")
+        elif index == 1:  # 使用复活卷轴
+            p = self.controller.player
+            revive_scroll = next((item for item in p.inventory if item["type"] == "revive"), None)
+            if revive_scroll and not revive_scroll["active"]:
+                p.hp = self.controller.game_config.START_PLAYER_HP // 2  # 恢复一半生命值
+                revive_scroll["active"] = True  # 标记复活卷轴为已使用
+                
+                # 如果有上一个场景，恢复到那个场景，否则回到门场景
+                if self.controller.scene_manager.last_scene:
+                    self.controller.add_message(f"使用复活卷轴成功, 回到上一个场景: {self.controller.scene_manager.last_scene.__class__.__name__}!")
+                    self.controller.scene_manager.resume_scene()
+                else:
+                    self.controller.add_message("使用复活卷轴成功, 回到门场景!")
+                    self.controller.scene_manager.go_to("door_scene")
             else:
-                self.controller.add_message("你没有复活卷轴!")
-        elif index == 2:
-            os._exit(0)
-            self.controller.add_message("游戏结束") 
+                self.controller.add_message("你没有可用的复活卷轴！")
+        elif index == 2:  # 退出游戏
+            self.controller.add_message("感谢游玩！")
+            # 这里可以添加退出游戏的逻辑
+
+# 场景字典
+SCENE_DICT = {
+    "door_scene": DoorScene,
+    "battle_scene": BattleScene,
+    "shop_scene": ShopScene,
+    "use_item_scene": UseItemScene,
+    "game_over_scene": GameOverScene
+}

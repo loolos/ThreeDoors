@@ -16,6 +16,8 @@ class ShopLogic:
             ("超高级治疗药水", "heal", 30, 30, False),
             ("普通装备", "weapon", 2, 15, False),
             ("稀有装备", "weapon", 5, 30, False),
+            ("史诗装备", "weapon", 10, 50, False),
+            ("传说装备", "weapon", 15, 75, False),
             ("复活卷轴", "revive", 1, 25, False),
             ("减伤卷轴", "damage_reduction", 2, 15, False),
             ("攻击力增益卷轴", "atk_up", random.randint(10, 20), 20, False),
