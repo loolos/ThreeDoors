@@ -7,7 +7,7 @@ from models.monster import Monster, get_random_monster
 from models.player import Player
 from models.status_effect import StatusEffect
 from models.shop import ShopLogic
-from scenes import Scene, DoorScene, BattleScene, ShopScene, UseItemScene, GameOverScene, SCENE_DICT
+from scenes import Scene, DoorScene, BattleScene, ShopScene, UseItemScene, GameOverScene, SceneManager, SCENE_DICT
 
 # -------------------------------
 # 1) Flask 应用初始化
@@ -21,57 +21,6 @@ Session(app)
 # -------------------------------
 # 2) 控制器及辅助类
 # -------------------------------
-
-class SceneManager:
-    def __init__(self):
-        self.current_scene = None
-        self.last_scene = None
-        self.game_controller = None
-    
-    def set_game_controller(self, game_controller):
-        self.game_controller = game_controller
-    
-    def initialize_scenes(self):
-        """初始化所有场景"""
-        # 首先初始化门场景并设置为当前场景
-        door_scene = SCENE_DICT["door_scene"](self.game_controller)
-        door_scene._generate_doors()
-        self.current_scene = door_scene
-        if hasattr(door_scene, "on_enter"):
-            door_scene.on_enter()
-        
-        # 初始化其他场景但不设置为当前场景
-        for scene_name, scene_class in SCENE_DICT.items():
-            if scene_name != "door_scene":
-                scene = scene_class(self.game_controller)
-                if hasattr(scene, "on_enter"):
-                    scene.on_enter()
-    
-    def go_to(self, name):
-        """切换到指定场景"""
-        if self.current_scene is not None:
-            self.last_scene = self.current_scene
-        
-        if name in SCENE_DICT:
-            self.current_scene = SCENE_DICT[name](self.game_controller)
-            if hasattr(self.current_scene, "on_enter"):
-                self.current_scene.on_enter()
-        else:
-            raise ValueError(f"场景 {name} 未注册!")
-    
-    def resume_scene(self):
-        """恢复上一个场景"""
-        if self.last_scene is not None and self.last_scene.__class__.__name__ == "BattleScene":
-            self.current_scene = self.last_scene
-        else:
-            self.current_scene = SCENE_DICT["battle_scene"](self.game_controller)
-    
-    def generate_doors(self):
-        """重新生成门"""
-        door_scene = SCENE_DICT["door_scene"](self.game_controller)
-        door_scene._generate_doors()
-        if isinstance(self.current_scene, SCENE_DICT["door_scene"]):
-            self.current_scene = door_scene
 
 class GameConfig:
     START_PLAYER_HP = 20
