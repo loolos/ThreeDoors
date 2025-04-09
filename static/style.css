@@ -56,13 +56,24 @@ h1 {
   margin-bottom: 10px;
 }
 
-#startOverBtn {
+#startOverBtn, #exitGameBtn {
   font-size: 0.9rem;
   padding: 8px 16px;
   margin-top: 10px;
   border: 1px solid #666;
   border-radius: 4px;
   background: #f0f0f0;
+  margin-right: 5px;
+}
+
+#exitGameBtn {
+  background: #ff6b6b;
+  color: white;
+  border-color: #ff5252;
+}
+
+#exitGameBtn:hover {
+  background: #ff5252;
 }
 
 /* 响应式设计 */
@@ -97,7 +108,7 @@ h1 {
     font-size: 0.85rem;
   }
 
-  #startOverBtn {
+  #startOverBtn, #exitGameBtn {
     font-size: 0.85rem;
     padding: 6px 12px;
   }

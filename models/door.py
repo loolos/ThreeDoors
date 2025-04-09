@@ -225,7 +225,6 @@ class Door:
                 elif reward_type == "weapon":
                     atk_boost = random.randint(2, 5)
                     player.atk += atk_boost
-                    player.base_atk += atk_boost
                     controller.add_message(f"你获得了 {gold} 金币! 你的攻击力提升了 {atk_boost} 点!")
                 elif reward_type == "armor":
                     hp_boost = random.randint(5, 10)

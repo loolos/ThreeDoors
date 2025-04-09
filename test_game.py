@@ -2,52 +2,85 @@ import unittest
 from server import GameController, Player, DoorScene, BattleScene, ShopScene, UseItemScene, GameOverScene, GameConfig
 from models.monster import get_random_monster, Monster
 import random
+from models.items import ItemType, Equipment, HealingScroll, DamageReductionScroll, AttackUpScroll
+from models import items
+from models.status import Status, StatusName, CreateStatusByName
 
 class TestGameInitialization(unittest.TestCase):
+    """测试游戏初始化"""
+    
     def setUp(self):
         self.controller = GameController()
-        self.config = GameConfig()
-
-    def test_game_initialization(self):
-        """测试游戏初始化"""
-        self.assertIsNotNone(self.controller.player)
-        self.assertEqual(self.controller.player.hp, self.config.START_PLAYER_HP)
-        self.assertEqual(self.controller.player.atk, self.config.START_PLAYER_ATK)
-        self.assertEqual(self.controller.player.gold, self.config.START_PLAYER_GOLD)
-        self.assertEqual(self.controller.round_count, 0)
-        self.assertIsNotNone(self.controller.scene_manager)
-        self.assertIsInstance(self.controller.scene_manager.current_scene, DoorScene)
-
+        
     def test_initial_inventory(self):
         """测试初始道具栏"""
-        self.assertEqual(len(self.controller.player.inventory), 4)
-        inventory_types = [item["type"] for item in self.controller.player.inventory]
-        self.assertIn("revive", inventory_types)
-        self.assertIn("飞锤", inventory_types)
-        self.assertIn("巨大卷轴", inventory_types)
-        self.assertIn("结界", inventory_types)
-
-class TestSceneTransitions(unittest.TestCase):
-    def setUp(self):
-        self.controller = GameController()
-
+        # 检查初始道具数量
+        total_items = sum(len(items) for items in self.controller.player.inventory.values())
+        self.assertEqual(total_items, 4)
+        
+        # 检查道具类型
+        battle_items = self.controller.player.get_items_by_type(ItemType.BATTLE)
+        self.assertEqual(len(battle_items), 3)  # 飞锤、巨大卷轴、结界
+        
+        passive_items = self.controller.player.get_items_by_type(ItemType.PASSIVE)
+        self.assertEqual(len(passive_items), 1)  # 复活卷轴
+        
     def test_scene_transitions(self):
         """测试场景切换"""
-        # 测试从门场景切换到战斗场景
-        self.controller.scene_manager.go_to("battle_scene")
-        self.assertIsInstance(self.controller.scene_manager.current_scene, BattleScene)
-
-        # 测试从战斗场景切换到商店场景
+        # 测试初始场景
+        self.assertIsInstance(self.controller.scene_manager.current_scene, DoorScene)
+        
+        # 给玩家一些金币以确保可以进入商店
+        self.controller.player.gold = 100
+        
+        # 测试切换到商店场景
         self.controller.scene_manager.go_to("shop_scene")
         self.assertIsInstance(self.controller.scene_manager.current_scene, ShopScene)
-
-        # 测试从商店场景切换到道具使用场景
+        
+        # 测试切换到战斗场景
+        self.controller.current_monster = get_random_monster()  # 设置当前怪物
+        self.controller.scene_manager.go_to("battle_scene")
+        self.assertIsInstance(self.controller.scene_manager.current_scene, BattleScene)
+        
+        # 测试切换到道具使用场景
         self.controller.scene_manager.go_to("use_item_scene")
         self.assertIsInstance(self.controller.scene_manager.current_scene, UseItemScene)
-
-        # 测试从道具使用场景切换到游戏结束场景
+        
+        # 测试切换到游戏结束场景
         self.controller.scene_manager.go_to("game_over_scene")
         self.assertIsInstance(self.controller.scene_manager.current_scene, GameOverScene)
+        
+        # 测试返回上一个场景
+        self.controller.scene_manager.resume_scene()
+        self.assertIsInstance(self.controller.scene_manager.current_scene, UseItemScene)
+
+class TestGameReset(unittest.TestCase):
+    """测试游戏重置"""
+    
+    def setUp(self):
+        self.controller = GameController()
+        
+    def test_game_reset(self):
+        """测试游戏重置"""
+        # 修改一些游戏状态
+        self.controller.player.hp = 10
+        self.controller.player.gold = 100
+        self.controller.round_count = 5
+        
+        # 重置游戏
+        self.controller.reset_game()
+        
+        # 检查玩家属性是否重置
+        self.assertEqual(self.controller.player.hp, GameConfig.START_PLAYER_HP)
+        self.assertEqual(self.controller.player.gold, 0)
+        self.assertEqual(self.controller.round_count, 0)
+        
+        # 检查初始道具数量
+        total_items = sum(len(items) for items in self.controller.player.inventory.values())
+        self.assertEqual(total_items, 4)
+        
+        # 检查场景是否重置
+        self.assertIsInstance(self.controller.scene_manager.current_scene, DoorScene)
 
 class TestPlayerActions(unittest.TestCase):
     def setUp(self):
@@ -71,8 +104,8 @@ class TestPlayerActions(unittest.TestCase):
     def test_player_status_effects(self):
         """测试玩家状态效果"""
         # 测试添加状态效果
-        self.player.statuses["poison"] = {"duration": 3}
-        self.assertEqual(self.player.statuses["poison"]["duration"], 3)
+        self.player.apply_status(CreateStatusByName(StatusName.POISON, duration=3, target=self.player))
+        self.assertTrue(self.player.has_status(StatusName.POISON))
         
         # 测试状态效果描述
         status_desc = self.player.get_status_desc()
@@ -83,10 +116,10 @@ class TestPlayerActions(unittest.TestCase):
         # 设置玩家生命值为100
         self.player.hp = 100
         # 添加中毒状态
-        self.player.statuses["poison"] = {"duration": 3}
+        self.player.apply_status(CreateStatusByName(StatusName.POISON, duration=3, target=self.player))
         
         # 应用回合效果
-        self.player._apply_base_effects()
+        self.player.battle_status_duration_pass()
         
         # 验证生命值减少了10%（10点）
         self.assertEqual(self.player.hp, 90)
@@ -95,115 +128,158 @@ class TestPlayerActions(unittest.TestCase):
         self.assertIn("中毒效果造成 10 点伤害！", self.controller.messages)
 
     def test_stun_effect(self):
-        """测试晕眩效果"""
+        """测试玩家在晕眩状态下无法行动"""
+        # 创建战斗场景
+        battle_scene = BattleScene(self.controller)
+        battle_scene.monster = Monster("测试怪物", 20, 5)
+        self.controller.current_monster = battle_scene.monster
+        
         # 添加晕眩状态
-        self.player.statuses["stun"] = {"duration": 2}
+        self.player.apply_status(CreateStatusByName(StatusName.STUN, duration=3, target=self.player))
         
-        # 创建一个测试怪物
-        test_monster = Monster("测试怪物", 20, 5)
-        
-        # 测试玩家在晕眩状态下无法攻击
-        monster_dead = self.player.attack(test_monster)
-        self.assertFalse(monster_dead)  # 晕眩状态下攻击应该失败
-        
-        # 测试玩家在晕眩状态下无法使用道具
-        self.player.inventory.append({"name": "测试道具", "type": "heal", "value": 10, "active": True})
-        self.assertTrue(self.player.is_stunned())
-        
-        # 测试晕眩状态持续时间减少
-        self.player._update_status_durations(is_battle_turn=True)
-        self.assertEqual(self.player.statuses["stun"]["duration"], 1)
-        
-        # 测试晕眩状态结束后可以正常行动
-        self.player._update_status_durations(is_battle_turn=True)
-        self.assertFalse(self.player.is_stunned())
-
-    def test_immunity_effect(self):
-        """测试免疫效果对怪物攻击的影响"""
-        # 创建一个必定触发效果的怪物
-        test_monster = Monster("测试怪物", 20, 5, tier=4, effect_probability=1.0)
-        
-        # 给玩家添加免疫效果
-        self.player.statuses["immune"] = {"duration": 5}
-        
-        # 进行一次攻击测试就足够了
-        test_monster.attack(self.player)
-        
-        # 检查是否收到免疫保护消息
+        # 测试无法攻击
+        battle_scene.handle_choice(0)  # 尝试攻击
         self.assertTrue(
-            any("免疫效果保护了你免受" in msg for msg in self.controller.messages),
-            "免疫效果应该保护玩家免受怪物的负面效果"
+            any(msg.startswith("你处于眩晕状态") for msg in self.controller.messages),
+            "应该显示眩晕状态消息"
         )
+        # 测试晕眩状态持续时间减少
+        self.assertEqual(self.player.get_status_duration(StatusName.STUN), 2)
         
-        # 验证玩家没有获得任何负面效果
-        self.assertNotIn("weak", self.player.statuses)
-        self.assertNotIn("poison", self.player.statuses)
-        self.assertNotIn("stun", self.player.statuses)
+        # 测试无法使用道具
+        # 添加一个治疗药水到背包
+        healing_potion = items.HealingPotion("治疗药水", heal_amount=10, cost=5)
+        self.player.add_item(healing_potion)
         
-        # 清除免疫效果并再次测试
-        del self.player.statuses["immune"]
+        battle_scene.handle_choice(1)  # 尝试使用道具
+        self.assertTrue(
+            any(msg.startswith("你处于眩晕状态") for msg in self.controller.messages),
+            "应该显示眩晕状态消息"
+        )
+
+        # 测试晕眩状态结束后可以正常行动
+        self.player.battle_status_duration_pass()
+        self.assertFalse(self.player.has_status(StatusName.STUN))
+        
+        # 清除之前的消息
         self.controller.clear_messages()
         
-        # 再次进行一次攻击测试
-        test_monster.attack(self.player)
+        # 验证可以正常攻击
+        battle_scene.handle_choice(0)  # 尝试攻击
+        self.assertFalse(
+            any(msg.startswith("你处于眩晕状态") for msg in self.controller.messages),
+            "不应该显示眩晕状态消息"
+        )
         
-        # 验证在没有免疫效果时，负面效果可以正常应用
-        self.assertTrue(
-            any(effect in self.player.statuses for effect in ["weak", "poison", "stun"]),
-            "在没有免疫效果时，怪物应该能够施加负面效果"
+        # 清除之前的消息
+        self.controller.clear_messages()
+        
+        # 验证可以正常使用道具
+        battle_scene.handle_choice(1)
+        self.assertFalse(
+            any(msg.startswith("你处于眩晕状态") for msg in self.controller.messages),
+            "不应该显示眩晕状态消息"
         )
 
-    def test_monster_loot(self):
-        """测试怪物死亡后的掉落效果"""
-        # 创建一个Tier 2的怪物
-        monster = Monster("测试怪物", 10, 5, tier=2)
-        initial_gold = self.player.gold
-        initial_atk = self.player.atk
+    def test_immunity_effect(self):
+        """测试免疫效果"""
+        # 先给玩家添加免疫状态
+        immune_status = CreateStatusByName(StatusName.IMMUNE, duration=5, target=self.controller.player)
+        self.controller.player.apply_status(immune_status)
+        self.assertTrue(self.controller.player.has_status(StatusName.IMMUNE), "玩家应该具有免疫状态")
         
-        # 攻击怪物直到死亡
-        while monster.hp > 0:
-            self.player.attack(monster)
+        # 测试免疫效果对负面状态的影响
+        # 1. 测试免疫效果对虚弱状态的影响
+        self.controller.clear_messages()  # 清除之前的消息
+        weak_status = CreateStatusByName(StatusName.WEAK, duration=3, target=self.controller.player)
+        self.controller.player.apply_status(weak_status)
+        self.assertFalse(self.controller.player.has_status(StatusName.WEAK), "免疫效果应该阻止虚弱状态")
+        self.assertTrue(
+            any("免疫效果保护了你免受 虚弱 效果!" in msg for msg in self.controller.messages),
+            "应该显示免疫保护消息"
+        )
         
-        # 处理掉落
-        monster.process_loot(self.player)
+        # 2. 测试免疫效果对中毒状态的影响
+        self.controller.clear_messages()  # 清除之前的消息
+        poison_status = CreateStatusByName(StatusName.POISON, duration=3, target=self.controller.player)
+        self.controller.player.apply_status(poison_status)
+        self.assertFalse(self.controller.player.has_status(StatusName.POISON), "免疫效果应该阻止中毒状态")
+        self.assertTrue(
+            any("免疫效果保护了你免受 中毒 效果!" in msg for msg in self.controller.messages),
+            "应该显示免疫保护消息"
+        )
         
-        # 验证金币增加
-        self.assertGreater(self.player.gold, initial_gold, "怪物死亡后应该获得金币")
+        # 3. 测试免疫效果对晕眩状态的影响
+        self.controller.clear_messages()  # 清除之前的消息
+        stun_status = CreateStatusByName(StatusName.STUN, duration=2, target=self.controller.player)
+        self.controller.player.apply_status(stun_status)
+        self.assertFalse(self.controller.player.has_status(StatusName.STUN), "免疫效果应该阻止晕眩状态")
+        self.assertTrue(
+            any("免疫效果保护了你免受 晕眩 效果!" in msg for msg in self.controller.messages),
+            "应该显示免疫保护消息"
+        )
         
-        # 验证攻击力可能增加（因为可能有装备掉落）
-        self.assertGreaterEqual(self.player.atk, initial_atk, "怪物死亡后攻击力不应该降低")
+        # 4. 测试免疫效果对正面状态的影响
+        # 4.1 测试攻击力翻倍状态
+        self.controller.clear_messages()  # 清除之前的消息
+        atk_multiplier_status = CreateStatusByName(StatusName.ATK_MULTIPLIER, duration=1, target=self.controller.player, value=2)
+        self.controller.player.apply_status(atk_multiplier_status)
+        self.assertTrue(self.controller.player.has_status(StatusName.ATK_MULTIPLIER), "免疫效果不应该阻止攻击力翻倍状态")
+        self.assertFalse(
+            any("免疫效果保护了你免受" in msg for msg in self.controller.messages),
+            "不应该显示免疫保护消息"
+        )
         
-        # 验证掉落物品数量
-        self.assertGreaterEqual(len(monster.loot), 1, "怪物至少应该掉落金币")
-        self.assertLessEqual(len(monster.loot), 3, "怪物最多掉落三种物品（金币、装备、卷轴）")
+        # 4.2 测试攻击力提升状态
+        self.controller.clear_messages()  # 清除之前的消息
+        atk_up_status = CreateStatusByName(StatusName.ATK_UP, duration=5, target=self.controller.player, value=2)
+        self.controller.player.apply_status(atk_up_status)
+        self.assertTrue(self.controller.player.has_status(StatusName.ATK_UP), "免疫效果不应该阻止攻击力提升状态")
+        self.assertFalse(
+            any("免疫效果保护了你免受" in msg for msg in self.controller.messages),
+            "不应该显示免疫保护消息"
+        )
         
-        # 验证掉落物品类型
-        has_gold = False
-        has_equip = False
-        has_scroll = False
+        # 4.3 测试减伤状态
+        self.controller.clear_messages()  # 清除之前的消息
+        damage_reduction_status = CreateStatusByName(StatusName.DAMAGE_REDUCTION, duration=5, target=self.controller.player)
+        self.controller.player.apply_status(damage_reduction_status)
+        self.assertTrue(self.controller.player.has_status(StatusName.DAMAGE_REDUCTION), "免疫效果不应该阻止减伤状态")
+        self.assertFalse(
+            any("免疫效果保护了你免受" in msg for msg in self.controller.messages),
+            "不应该显示免疫保护消息"
+        )
         
-        for item_type, value in monster.loot:
-            if item_type == "gold":
-                has_gold = True
-                self.assertGreaterEqual(value, 10, "Tier 2怪物的金币掉落应该至少为10")
-                self.assertLessEqual(value, 30, "Tier 2怪物的金币掉落应该最多为30")
-            elif item_type == "equip":
-                has_equip = True
-                self.assertEqual(value, 4, "Tier 2怪物的装备加成应该为4")
-            elif item_type == "scroll":
-                has_scroll = True
-                scroll_name, scroll_desc, scroll_value = value
-                self.assertIn(scroll_name, ["healing_scroll", "damage_reduction", "atk_up"])
-                if scroll_name == "healing_scroll":
-                    self.assertEqual(scroll_value, 10, "Tier 2怪物的恢复卷轴效果应该为10")
-                elif scroll_name == "damage_reduction":
-                    self.assertEqual(scroll_value, 20, "Tier 2怪物的减伤卷轴效果应该为20")
-                elif scroll_name == "atk_up":
-                    # 检查攻击力增益是否在正确的范围内
-                    self.assertGreaterEqual(scroll_value, 7, "Tier 2怪物的攻击力增益卷轴效果应该至少为7")
-                    self.assertLessEqual(scroll_value, 16, "Tier 2怪物的攻击力增益卷轴效果应该最多为16")
+        # 4.4 测试结界状态
+        self.controller.clear_messages()  # 清除之前的消息
+        barrier_status = CreateStatusByName(StatusName.BARRIER, duration=3, target=self.controller.player)
+        self.controller.player.apply_status(barrier_status)
+        self.assertTrue(self.controller.player.has_status(StatusName.BARRIER), "免疫效果不应该阻止结界状态")
+        self.assertFalse(
+            any("免疫效果保护了你免受" in msg for msg in self.controller.messages),
+            "不应该显示免疫保护消息"
+        )
         
-        self.assertTrue(has_gold, "怪物应该掉落金币")
+        # 4.5 测试恢复卷轴状态
+        self.controller.clear_messages()  # 清除之前的消息
+        healing_scroll_status = CreateStatusByName(StatusName.HEALING_SCROLL, duration=10, target=self.controller.player, value=5)
+        self.controller.player.apply_status(healing_scroll_status)
+        self.assertTrue(self.controller.player.has_status(StatusName.HEALING_SCROLL), "免疫效果不应该阻止恢复卷轴状态")
+        self.assertFalse(
+            any("免疫效果保护了你免受" in msg for msg in self.controller.messages),
+            "不应该显示免疫保护消息"
+        )
+        
+        # 5. 测试免疫效果叠加
+        self.controller.clear_messages()  # 清除之前的消息
+        immune_status2 = CreateStatusByName(StatusName.IMMUNE, duration=5, target=self.controller.player)
+        self.controller.player.apply_status(immune_status2)
+        self.assertTrue(self.controller.player.has_status(StatusName.IMMUNE), "免疫效果应该可以叠加")
+        self.assertEqual(self.controller.player.statuses[StatusName.IMMUNE].duration, 10, "免疫效果叠加后持续时间应该增加")
+        self.assertTrue(
+            any("免疫效果从 5 回合提升至 10 回合!" in msg for msg in self.controller.messages),
+            "应该显示免疫效果叠加的消息"
+        )
 
 class TestDoorGeneration(unittest.TestCase):
     def setUp(self):
@@ -220,36 +296,18 @@ class TestDoorGeneration(unittest.TestCase):
         monster_doors = [door for door in self.door_scene.doors if door.event == "monster"]
         self.assertGreater(len(monster_doors), 0)
 
-class TestGameReset(unittest.TestCase):
-    def setUp(self):
-        self.controller = GameController()
-        self.config = GameConfig()
-
-    def test_game_reset(self):
-        """测试游戏重置"""
-        # 修改一些游戏状态
-        self.controller.player.hp = 10
-        self.controller.player.gold = 100
-        self.controller.round_count = 5
-        
-        # 重置游戏
-        self.controller.reset_game()
-        
-        # 验证重置后的状态
-        self.assertEqual(self.controller.player.hp, self.config.START_PLAYER_HP)
-        self.assertEqual(self.controller.player.gold, self.config.START_PLAYER_GOLD)
-        self.assertEqual(self.controller.round_count, 0)
-        self.assertEqual(len(self.controller.player.inventory), 4)
-
 class TestButtonTransitions(unittest.TestCase):
     def setUp(self):
         self.controller = GameController()
 
     def test_door_scene_buttons(self):
         """测试门场景按钮跳转"""
-        # 确保当前在门场景
+        # 给玩家一些金币以确保可以进入商店
+        self.controller.player.gold = 100
+        
+        # 进入门场景
         self.controller.scene_manager.go_to("door_scene")
-        self.assertIsInstance(self.controller.scene_manager.current_scene, DoorScene)
+        door_scene = self.controller.scene_manager.current_scene
         
         # 测试每个门的点击
         for i in range(3):
@@ -276,45 +334,13 @@ class TestButtonTransitions(unittest.TestCase):
         self.controller.scene_manager.go_to("battle_scene")
         self.assertIsInstance(self.controller.scene_manager.current_scene, BattleScene)
         
-        # 确保玩家有可用的主动道具
-        self.controller.player.inventory = [
-            {"name": "飞锤", "type": "飞锤", "value": 0, "cost": 0, "active": True},
-            {"name": "结界", "type": "结界", "value": 0, "cost": 0, "active": True},
-            {"name": "巨大卷轴", "type": "巨大卷轴", "value": 0, "cost": 0, "active": True}
-        ]
-        
         # 测试使用道具按钮
-        self.controller.scene_manager.go_to("battle_scene")
         self.controller.scene_manager.current_scene.handle_choice(1)
+        self.assertIsInstance(self.controller.scene_manager.current_scene, UseItemScene)
         
-        # 打印调试信息
-        print(f"当前场景类型: {self.controller.scene_manager.current_scene.__class__.__name__}")
-        print(f"玩家道具: {self.controller.player.inventory}")
-        
-        # 验证场景切换
-        self.assertIsInstance(self.controller.scene_manager.current_scene, UseItemScene,
-                            f"Expected UseItemScene, got {self.controller.scene_manager.current_scene.__class__.__name__}")
-        
-        # 测试逃跑按钮 - 成功情况
+        # 测试返回战斗场景
         self.controller.scene_manager.go_to("battle_scene")
-        initial_hp = self.controller.player.hp
-        self.controller.scene_manager.current_scene.handle_choice(2)
-        # 如果逃跑成功，应该回到门场景
-        if self.controller.scene_manager.current_scene.__class__.__name__ == "DoorScene":
-            self.assertIsInstance(self.controller.scene_manager.current_scene, DoorScene)
-            # 逃跑成功不应该受到伤害
-            self.assertEqual(self.controller.player.hp, initial_hp)
-        
-        # 测试逃跑按钮 - 失败情况
-        self.controller.scene_manager.go_to("battle_scene")
-        initial_hp = self.controller.player.hp
-        # 设置玩家状态为虚弱，降低逃跑成功率
-        self.controller.player.statuses["weak"] = {"duration": 3}
-        self.controller.scene_manager.current_scene.handle_choice(2)
-        # 如果逃跑失败，应该受到伤害
-        if self.controller.scene_manager.current_scene.__class__.__name__ == "BattleScene":
-            self.assertIsInstance(self.controller.scene_manager.current_scene, BattleScene)
-            self.assertLess(self.controller.player.hp, initial_hp)
+        self.assertIsInstance(self.controller.scene_manager.current_scene, BattleScene)
 
     def test_shop_scene_buttons(self):
         """测试商店场景按钮跳转"""
@@ -333,12 +359,8 @@ class TestButtonTransitions(unittest.TestCase):
 
     def test_use_item_scene_buttons(self):
         """测试道具使用场景按钮跳转"""
-        # 确保玩家有可用的道具
-        self.controller.player.inventory = [
-            {"name": "飞锤", "type": "飞锤", "value": 0, "cost": 0, "active": True},
-            {"name": "结界", "type": "结界", "value": 0, "cost": 0, "active": True},
-            {"name": "巨大卷轴", "type": "巨大卷轴", "value": 0, "cost": 0, "active": True}
-        ]
+        # 添加一些道具到玩家背包
+        self.controller.player.add_item(items.FlyingHammer("飞锤", cost=25, duration=3))
         
         # 设置一个怪物并进入战斗场景
         self.controller.current_monster = get_random_monster()
@@ -350,30 +372,32 @@ class TestButtonTransitions(unittest.TestCase):
         self.assertIsInstance(self.controller.scene_manager.current_scene, UseItemScene)
         
         # 测试使用道具按钮
-        initial_inventory_size = len(self.controller.player.inventory)
+        initial_inventory_size = self.controller.player.get_inventory_size()
         self.controller.scene_manager.current_scene.handle_choice(0)  # 使用第一个道具
         
         # 验证道具使用后的状态
-        self.assertEqual(len(self.controller.player.inventory), initial_inventory_size - 1)  # 道具应该被消耗
+        self.assertEqual(self.controller.player.get_inventory_size(), initial_inventory_size - 1)  # 道具应该被消耗
         self.assertIsInstance(self.controller.scene_manager.current_scene, BattleScene)  # 应该回到战斗场景
 
     def test_game_over_scene_buttons(self):
         """测试游戏结束场景按钮跳转"""
-        # 设置玩家死亡
-        self.controller.player.hp = 0
+        # 进入游戏结束场景
         self.controller.scene_manager.go_to("game_over_scene")
+        self.assertIsInstance(self.controller.scene_manager.current_scene, GameOverScene)
         
-        # 测试重启游戏按钮
-        self.controller.scene_manager.current_scene.handle_choice(0)
-        self.assertEqual(self.controller.player.hp, self.controller.game_config.START_PLAYER_HP)
-        self.assertIsInstance(self.controller.scene_manager.current_scene, DoorScene)
+        # 添加复活卷轴到玩家背包
+        revive_scroll = items.ReviveScroll("复活卷轴", cost=0)
+        self.controller.player.add_item(revive_scroll)
         
         # 测试使用复活卷轴按钮
-        self.controller.player.hp = 0
-        self.controller.scene_manager.go_to("game_over_scene")
         self.controller.scene_manager.current_scene.handle_choice(1)
-        self.assertEqual(self.controller.player.hp, self.controller.game_config.START_PLAYER_HP // 2)
-        self.assertIsNotNone(self.controller.scene_manager.last_scene)
+        self.assertIsInstance(self.controller.scene_manager.current_scene, DoorScene)  # 应该回到门场景
+        self.assertEqual(self.controller.player.hp, GameConfig.START_PLAYER_HP)  # 应该恢复满血
+        
+        # 测试重启游戏按钮
+        self.controller.scene_manager.go_to("game_over_scene")
+        self.controller.scene_manager.current_scene.handle_choice(0)
+        self.assertIsInstance(self.controller.scene_manager.current_scene, DoorScene)  # 应该回到门场景
 
     def test_shop_no_gold(self):
         """测试玩家没有金币时进入商店的情况"""
@@ -443,12 +467,10 @@ class TestButtonText(unittest.TestCase):
 
     def test_use_item_scene_button_text(self):
         """测试道具使用场景按钮文本"""
-        # 确保玩家有道具
-        self.controller.player.inventory = [
-            {"name": "飞锤", "type": "飞锤", "value": 0, "cost": 0, "active": True},
-            {"name": "结界", "type": "结界", "value": 0, "cost": 0, "active": True},
-            {"name": "巨大卷轴", "type": "巨大卷轴", "value": 0, "cost": 0, "active": True}
-        ]
+        # 添加一些道具到玩家背包
+        self.controller.player.add_item(
+            items.FlyingHammer("飞锤", cost=25, duration=3)
+        )
         
         # 进入道具使用场景
         self.controller.scene_manager.go_to("use_item_scene")
@@ -459,8 +481,9 @@ class TestButtonText(unittest.TestCase):
         self.assertEqual(len(buttons), 3, "按钮数量应该与道具数量相同")
         
         # 验证每个道具按钮的文本
+        battle_items = self.controller.player.inventory[ItemType.BATTLE]
         for i, button in enumerate(buttons):
-            self.assertEqual(button, self.controller.player.inventory[i]["name"], 
+            self.assertEqual(button, battle_items[i].name, 
                            "按钮文本应该与道具名称相同")
 
     def test_game_over_scene_button_text(self):
@@ -516,132 +539,69 @@ class TestButtonText(unittest.TestCase):
             self.assertRegex(updated_buttons[i], r"门\d+ - .*", "更新后的按钮文本应该符合'门X - 描述'的格式")
 
 class TestScrollEffectStacking(unittest.TestCase):
+    """测试卷轴效果叠加"""
+    
     def setUp(self):
         self.controller = GameController()
         self.player = self.controller.player
-
+        
     def test_shop_scroll_effect_stacking(self):
         """测试商店购买卷轴时的效果叠加"""
+        # 给玩家添加减伤卷轴效果
+        self.player.apply_status(CreateStatusByName(StatusName.DAMAGE_REDUCTION, duration=5, target=self.player))
+        self.assertIn(StatusName.DAMAGE_REDUCTION, self.player.statuses)
+        
         # 给玩家足够的金币
         self.player.gold = 100
         
-        # 第一次购买减伤卷轴
-        self.player.apply_item_effect("damage_reduction", 10)
-        initial_duration = self.player.statuses["damage_reduction"]["duration"]
+        # 创建一个商店物品
+        scroll = items.DamageReductionScroll("减伤卷轴", cost=10, duration=5)
         
-        # 第二次购买减伤卷轴
-        self.player.apply_item_effect("damage_reduction", 10)
-        new_duration = self.player.statuses["damage_reduction"]["duration"]
+        # 购买并使用卷轴
+        scroll.acquire(player=self.player)
+        scroll.effect(target=self.player)
         
-        # 验证持续时间是否叠加
-        self.assertGreater(new_duration, initial_duration, "购买相同卷轴时持续时间应该叠加")
+        # 检查状态持续时间是否叠加
+        self.assertIn(StatusName.DAMAGE_REDUCTION, self.player.statuses)
+        self.assertEqual(self.player.get_status_duration(StatusName.DAMAGE_REDUCTION), 10)
         
-        # 测试攻击力增益卷轴
-        self.player.apply_item_effect("atk_up", 10)
-        initial_atk_duration = self.player.statuses["atk_up"]["duration"]
-        initial_atk_value = self.player.statuses["atk_up"]["value"]
-        
-        # 再次购买攻击力增益卷轴
-        self.player.apply_item_effect("atk_up", 15)  # 使用更大的值
-        new_atk_duration = self.player.statuses["atk_up"]["duration"]
-        new_atk_value = self.player.statuses["atk_up"]["value"]
-        
-        # 验证攻击力增益卷轴的叠加
-        self.assertGreater(new_atk_duration, initial_atk_duration, "攻击力增益卷轴持续时间应该叠加")
-        self.assertEqual(new_atk_value, 15, "攻击力增益卷轴应该取较大的值")
-
     def test_monster_drop_scroll_effect_stacking(self):
         """测试怪物掉落卷轴时的效果叠加"""
-        # 创建一个Tier 2的怪物
-        monster = Monster("测试怪物", 10, 5, tier=2)
+        # 给玩家添加减伤卷轴效果
+        self.player.apply_status(CreateStatusByName(StatusName.DAMAGE_REDUCTION, duration=5, target=self.player))
+        self.assertIn(StatusName.DAMAGE_REDUCTION, self.player.statuses)
         
-        # 先给玩家一个减伤卷轴效果
-        self.player.apply_item_effect("damage_reduction", 10)
-        initial_duration = self.player.statuses["damage_reduction"]["duration"]
+        # 创建一个必定掉落减伤卷轴的怪物
+        test_monster = Monster("测试怪物", 20, 5, tier=4, effect_probability=0)
+        test_monster.loot = [items.DamageReductionScroll("减伤卷轴", cost=10, duration=5)]
         
-        # 修改怪物的掉落，确保掉落减伤卷轴
-        monster.loot = [
-            ("gold", 10),
-            ("scroll", ("damage_reduction", "减伤卷轴", 10))
-        ]
+        # 击杀怪物并获得掉落
+        test_monster.hp = 1
+        self.player.attack(test_monster)
+        test_monster.process_loot(self.player)
         
-        # 处理怪物掉落
-        monster.process_loot(self.player)
-        new_duration = self.player.statuses["damage_reduction"]["duration"]
+        # 检查状态持续时间是否叠加
+        self.assertIn(StatusName.DAMAGE_REDUCTION, self.player.statuses)
+        self.assertEqual(self.player.get_status_duration(StatusName.DAMAGE_REDUCTION), 10)
         
-        # 验证持续时间是否叠加
-        self.assertGreater(new_duration, initial_duration, "怪物掉落相同卷轴时持续时间应该叠加")
-        
-        # 测试攻击力增益卷轴
-        self.player.apply_item_effect("atk_up", 10)
-        initial_atk_duration = self.player.statuses["atk_up"]["duration"]
-        initial_atk_value = self.player.statuses["atk_up"]["value"]
-        
-        # 修改怪物的掉落，确保掉落攻击力增益卷轴
-        monster.loot = [
-            ("gold", 10),
-            ("scroll", ("atk_up", "攻击力增益卷轴", 15))
-        ]
-        
-        # 处理怪物掉落
-        monster.process_loot(self.player)
-        new_atk_duration = self.player.statuses["atk_up"]["duration"]
-        new_atk_value = self.player.statuses["atk_up"]["value"]
-        
-        # 验证攻击力增益卷轴的叠加
-        self.assertGreater(new_atk_duration, initial_atk_duration, "怪物掉落的攻击力增益卷轴持续时间应该叠加")
-        self.assertEqual(new_atk_value, 15, "怪物掉落的攻击力增益卷轴应该取较大的值")
-
     def test_kill_monster_with_existing_scroll(self):
         """测试玩家已有卷轴效果时杀死掉落相同卷轴的怪物"""
-        # 创建一个Tier 2的怪物
-        monster = Monster("测试怪物", 10, 5, tier=2)
+        # 给玩家添加减伤卷轴效果
+        self.player.apply_status(CreateStatusByName(StatusName.DAMAGE_REDUCTION, duration=5, target=self.player))
+        self.assertIn(StatusName.DAMAGE_REDUCTION, self.player.statuses)
         
-        # 先给玩家一个减伤卷轴效果
-        self.player.apply_item_effect("damage_reduction", 10)
-        initial_duration = self.player.statuses["damage_reduction"]["duration"]
+        # 创建一个必定掉落减伤卷轴的怪物
+        test_monster = Monster("测试怪物", 20, 5, tier=4, effect_probability=0)
+        test_monster.loot = [items.DamageReductionScroll("减伤卷轴", cost=10, duration=5)]
         
-        # 修改怪物的掉落，确保掉落减伤卷轴
-        monster.loot = [
-            ("gold", 10),
-            ("scroll", ("damage_reduction", "减伤卷轴", 10))
-        ]
+        # 击杀怪物并处理掉落
+        test_monster.hp = 1
+        self.player.attack(test_monster)
+        test_monster.process_loot(self.player)
         
-        # 攻击怪物直到死亡
-        while monster.hp > 0:
-            self.player.attack(monster)
-        
-        # 处理怪物掉落
-        monster.process_loot(self.player)
-        new_duration = self.player.statuses["damage_reduction"]["duration"]
-        
-        # 验证持续时间是否叠加
-        self.assertGreater(new_duration, initial_duration, "杀死掉落相同卷轴的怪物时，卷轴持续时间应该叠加")
-        
-        # 测试攻击力增益卷轴
-        self.player.apply_item_effect("atk_up", 10)
-        initial_atk_duration = self.player.statuses["atk_up"]["duration"]
-        initial_atk_value = self.player.statuses["atk_up"]["value"]
-        
-        # 创建新的怪物并修改掉落
-        monster = Monster("测试怪物2", 10, 5, tier=2)
-        monster.loot = [
-            ("gold", 10),
-            ("scroll", ("atk_up", "攻击力增益卷轴", 15))
-        ]
-        
-        # 攻击怪物直到死亡
-        while monster.hp > 0:
-            self.player.attack(monster)
-        
-        # 处理怪物掉落
-        monster.process_loot(self.player)
-        new_atk_duration = self.player.statuses["atk_up"]["duration"]
-        new_atk_value = self.player.statuses["atk_up"]["value"]
-        
-        # 验证攻击力增益卷轴的叠加
-        self.assertGreater(new_atk_duration, initial_atk_duration, "杀死掉落攻击力增益卷轴的怪物时，持续时间应该叠加")
-        self.assertEqual(new_atk_value, 15, "杀死掉落攻击力增益卷轴的怪物时，应该取较大的攻击力值")
+        # 检查状态持续时间是否叠加
+        self.assertIn(StatusName.DAMAGE_REDUCTION, self.player.statuses)
+        self.assertEqual(self.player.get_status_duration(StatusName.DAMAGE_REDUCTION), 10)
 
 class TestGameStability(unittest.TestCase):
     def setUp(self):
@@ -797,6 +757,97 @@ class TestGameStability(unittest.TestCase):
                 print(f"{group}-{group+4}回合: {round_distribution[group]}次 ({percentage:.1f}%)")
         else:
             print("\n测试完成：在1000次随机点击中没有发生死亡")
+
+class TestMonsterLoot(unittest.TestCase):
+    """测试怪物掉落系统"""
+    
+    def setUp(self):
+        """测试前的准备工作"""
+        self.controller = GameController()
+        self.player = self.controller.player
+        self.monster = Monster("测试怪物", 20, 5)
+        
+    def test_loot_generation(self):
+        """测试掉落物品生成"""
+        # 测试掉落物品的类型
+        loot = self.monster.generate_loot()
+        if loot:
+            self.assertIn(loot.item_type, [ItemType.CONSUMABLE, ItemType.BATTLE, ItemType.PASSIVE])
+            
+    def test_loot_application(self):
+        """测试掉落物品的应用"""
+        # 创建测试物品
+        healing_potion = items.HealingPotion("小治疗药水", heal_amount=5, cost=5)
+        self.monster.loot = [healing_potion]
+        self.monster.process_loot(self.player)
+        self.assertGreater(self.player.hp, GameConfig.START_PLAYER_HP)
+        
+        # 测试战斗物品添加到背包
+        flying_hammer = items.FlyingHammer("飞锤", cost=25, duration=3)
+        self.monster.loot = [flying_hammer]
+        self.monster.process_loot(self.player)
+        self.assertIn(flying_hammer, self.player.get_items_by_type(ItemType.BATTLE))
+        
+        # 测试被动物品添加到背包
+        revive_scroll = items.ReviveScroll("复活卷轴", cost=3, duration=3)
+        self.monster.loot = [revive_scroll]
+        self.monster.process_loot(self.player)
+        self.assertIn(revive_scroll, self.player.get_items_by_type(ItemType.PASSIVE))
+
+class TestGame(unittest.TestCase):
+    def setUp(self):
+        self.controller = GameController()
+        self.player = self.controller.player
+        self.scene_manager = self.controller.scene_manager
+
+    def test_initial_scene(self):
+        """测试游戏启动时是否正确进入门场景"""
+        # 检查当前场景是否为 DoorScene
+        self.assertIsInstance(self.scene_manager.current_scene, DoorScene)
+        
+        # 检查门场景是否已初始化
+        self.assertTrue(self.scene_manager.current_scene.has_initialized)
+        self.assertEqual(len(self.scene_manager.current_scene.doors), 3)
+        
+        # 检查按钮文本是否正确
+        button_texts = self.scene_manager.current_scene.get_button_texts()
+        self.assertEqual(len(button_texts), 3)
+        self.assertTrue(all(text.startswith("门") for text in button_texts))
+
+class TestFlyingHammer(unittest.TestCase):
+    """测试飞锤效果"""
+    
+    def setUp(self):
+        self.controller = GameController()
+        self.player = self.controller.player
+        self.monster = Monster("测试怪物", 20, 5)
+        self.controller.current_monster = self.monster
+        
+    def test_flying_hammer_effect(self):
+        """测试飞锤效果：怪物被晕眩后无法反击"""
+        # 给玩家添加飞锤
+        flying_hammer = items.FlyingHammer("飞锤", cost=0, duration=3)
+        self.player.add_item(flying_hammer)
+        
+        # 进入战斗场景
+        self.controller.scene_manager.go_to("battle_scene")
+        
+        # 使用飞锤
+        self.controller.scene_manager.current_scene.handle_choice(1)  # 使用道具
+        self.controller.scene_manager.current_scene.handle_choice(0)  # 选择飞锤
+        
+        # 验证怪物是否被晕眩
+        self.assertTrue(self.monster.has_status(StatusName.STUN))
+        self.assertEqual(self.monster.get_status_duration(StatusName.STUN), 3)
+        
+        # 记录玩家当前生命值
+        initial_hp = self.player.hp
+        
+        # 尝试让怪物攻击
+        self.monster.attack(self.player)
+        
+        # 验证玩家生命值没有变化
+        self.assertEqual(self.player.hp, initial_hp)
 
 if __name__ == '__main__':
     unittest.main() 

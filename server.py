@@ -1,13 +1,15 @@
 # server.py
 from flask import Flask, render_template, session, request, jsonify, redirect, url_for
 from flask_session import Session
-import random, string, os
+import random, string, os, time, threading
 from models.door import Door
 from models.monster import Monster, get_random_monster
 from models.player import Player
-from models.status_effect import StatusEffect
-from models.shop import ShopLogic
+from models.status import Status
+from models.shop import Shop
 from scenes import Scene, DoorScene, BattleScene, ShopScene, UseItemScene, GameOverScene, SceneManager, SCENE_DICT
+from models.game_config import GameConfig
+from models.items import ReviveScroll, FlyingHammer, GiantScroll, Barrier
 
 # -------------------------------
 # 1) Flask 应用初始化
@@ -22,43 +24,42 @@ Session(app)
 # 2) 控制器及辅助类
 # -------------------------------
 
-class GameConfig:
-    START_PLAYER_HP = 20
-    START_PLAYER_ATK = 5
-    START_PLAYER_GOLD = 50
 
 class GameController:
     def __init__(self):
         self.game_config = GameConfig()
         self.scene_manager = SceneManager()
-        self.shop_logic = ShopLogic()
         self.scene_manager.set_game_controller(self)
-        
-        # Reset game state first (this creates the player)
-        self.reset_game()
-        
-        # Initialize scenes
-        self.scene_manager.initialize_scenes()
-
-    def reset_game(self):
-        """Reset game state"""
-        # Reset player
-        self.player = Player("勇士", self.game_config.START_PLAYER_HP,
-                           self.game_config.START_PLAYER_ATK,
-                           self.game_config.START_PLAYER_GOLD, self)
-        
-        # Initialize inventory
-        self.player.inventory = [
-            {"name": "复活卷轴", "type": "revive", "value": 1, "cost": 0, "active": False},
-            {"name": "飞锤", "type": "飞锤", "value": 0, "cost": 0, "active": True},
-            {"name": "巨大卷轴", "type": "巨大卷轴", "value": 0, "cost": 0, "active": True},
-            {"name": "结界", "type": "结界", "value": 0, "cost": 0, "active": True}
-        ]
-        
-        # Reset game state
+        self.player = None
+        self.shop = None
         self.round_count = 0
         self.messages = []
         self.current_monster = None
+        
+        # Initialize game state
+        self.reset_game()
+
+    def reset_game(self):
+        """重置游戏状态"""
+        self.player = Player(self)
+        self.player.reset()  # 重置玩家状态
+        self.scene_manager = SceneManager()
+        self.scene_manager.game_controller = self  # 直接设置 game_controller
+        self.scene_manager.initialize_scenes()  # 这会设置当前场景为 DoorScene
+        self.current_monster = None
+        self.round_count = 0
+        self.messages = []
+        
+        # Create or reset shop
+        if self.shop is None:
+            self.shop = Shop(self.player)
+        else:
+            self.shop.player = self.player
+            self.shop.generate_items()
+            
+        # 确保当前场景是 DoorScene
+        if not isinstance(self.scene_manager.current_scene, DoorScene):
+            self.scene_manager.go_to("door_scene")
 
     def add_message(self, msg):
         """添加消息到消息列表"""
@@ -80,8 +81,7 @@ def get_game():
         session["game_id"] = "".join(random.choices(string.ascii_lowercase + string.digits, k=8))
     gid = session["game_id"]
     if gid not in games_store:
-        games_store[gid] = GameController()
-        games_store[gid].reset_game()  # 初始化游戏，设置初始物品
+        games_store[gid] = GameController()  # 这里会调用一次 reset_game
     return games_store[gid]
 
 games_store = {}
@@ -102,26 +102,38 @@ def get_state():
     p = g.player
     scn = g.scene_manager.current_scene
     
-    state = {
-        "round": g.round_count,
-        "player": {
-            "hp": p.hp,
-            "atk": p.atk,
-            "gold": p.gold,
-            "status_desc": p.get_status_desc(),
-            "inventory": p.inventory
-        },
-        "button_texts": scn.get_button_texts() if scn else ["", "", ""]
-    }
-    
-    # 修改消息处理逻辑
-    if g.messages:
-        state["last_message"] = "\n".join(g.messages)
-        # 只有在消息成功发送到前端后才清空
-        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-            g.clear_messages()
-    
-    return jsonify(state)
+    try:
+        # 转换inventory为可序列化的格式
+        inventory_dict = {}
+        for item_type, items in p.inventory.items():
+            inventory_dict[item_type.value] = [
+                {"name": item.name, "type": item.item_type.value} 
+                for item in items
+            ]
+            
+        state = {
+            "round": g.round_count,
+            "player": {
+                "hp": p.hp,
+                "atk": p.atk,
+                "gold": p.gold,
+                "status_desc": p.get_status_desc(),
+                "inventory": inventory_dict
+            },
+            "button_texts": scn.get_button_texts() if scn else ["", "", ""]
+        }
+        
+        # 修改消息处理逻辑
+        if g.messages:
+            state["last_message"] = "\n".join(g.messages)
+            # 只有在消息成功发送到前端后才清空
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                g.clear_messages()
+        
+        return jsonify(state)
+    except Exception as e:
+        print(f"Error in get_state: {str(e)}")
+        return jsonify({"error": str(e)}), 500
 
 @app.route("/buttonAction", methods=["POST"])
 def button_action():
@@ -146,9 +158,29 @@ def button_action():
         "log": "\n".join(current_messages) if current_messages else ""
     })
 
+@app.route("/exitGame", methods=["POST"])
+def exit_game():
+    g = get_game()
+    # 清除游戏会话
+    if "game_id" in session:
+        game_id = session["game_id"]
+        if game_id in games_store:
+            del games_store[game_id]
+        session.clear()
+    
+    # 使用定时器在返回响应后关闭服务器
+    def shutdown_server():
+        time.sleep(2)  # 等待2秒确保响应已发送
+        os._exit(0)  # 强制退出进程
+    
+    # 在新线程中运行关闭操作
+    threading.Thread(target=shutdown_server).start()
+    
+    return jsonify({"log": "游戏已关闭，感谢游玩！"})
+
 # -------------------------------
 # 4) 启动 Flask 应用
 # -------------------------------
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(debug=True, port=5000)

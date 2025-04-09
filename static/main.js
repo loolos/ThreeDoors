@@ -4,6 +4,7 @@ document.addEventListener("DOMContentLoaded", () => {
   initUI();
   getStateAndRender();
   document.getElementById("startOverBtn").addEventListener("click", startOver);
+  document.getElementById("exitGameBtn").addEventListener("click", exitGame);
 });
 
 function initUI() {
@@ -30,6 +31,16 @@ async function startOver() {
   getStateAndRender();
 }
 
+async function exitGame() {
+  const res = await fetch("/exitGame", { method: "POST" });
+  const data = await res.json();
+  addLog(data.log || data.msg);
+  // 1秒后关闭窗口
+  setTimeout(() => {
+    window.close();
+  }, 1000);
+}
+
 async function getStateAndRender() {
   const res = await fetch("/getState");
   const state = await res.json();
@@ -40,12 +51,17 @@ function renderState(state) {
   const statusArea = document.getElementById("status-area");
   statusArea.textContent = `回合: ${state.round} | HP: ${state.player.hp}, ATK: ${state.player.atk}, Gold: ${state.player.gold}, 状态: ${state.player.status_desc}`;
 
-  // 新增：显示库存内容
+  // 显示库存内容
   const inventoryArea = document.getElementById("inventory-area");
-  if (state.player.inventory && state.player.inventory.length > 0) {
+  if (state.player.inventory) {
     let invText = "库存：";
-    // 列表显示所有道具名称（你也可以显示数量、效果等信息）
-    invText += state.player.inventory.map(item => item.name).join(", ");
+    // 合并所有类型的物品名称
+    const allItems = [];
+    for (const itemType in state.player.inventory) {
+      const items = state.player.inventory[itemType];
+      allItems.push(...items.map(item => item.name));
+    }
+    invText += allItems.join(", ");
     inventoryArea.textContent = invText;
   } else {
     inventoryArea.textContent = "库存：暂无道具";

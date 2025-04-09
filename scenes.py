@@ -1,9 +1,10 @@
 from models.door import Door
 from models.monster import Monster, get_random_monster
-from models.status_effect import StatusEffect
+from models.status import Status, StatusName
 import random
 import os
-
+from models.items import ItemType
+from models.game_config import GameConfig
 class Scene:
     """场景基类"""
     def __init__(self, controller):
@@ -37,41 +38,46 @@ class SceneManager:
         door_scene = SCENE_DICT["door_scene"](self.game_controller)
         door_scene._generate_doors()
         self.current_scene = door_scene
-        if hasattr(door_scene, "on_enter"):
-            door_scene.on_enter()
+        self._call_on_enter(door_scene)
         
         # 初始化其他场景但不设置为当前场景
         for scene_name, scene_class in SCENE_DICT.items():
             if scene_name != "door_scene":
                 scene = scene_class(self.game_controller)
-                if hasattr(scene, "on_enter"):
-                    scene.on_enter()
+                # 调用on_enter但不设置为当前场景
+                self._call_on_enter(scene)
+    
+    def _call_on_enter(self, scene):
+        """调用场景的on_enter方法并处理按钮文本"""
+        if hasattr(scene, "on_enter"):
+            scene.on_enter()
+        # 确保场景有默认按钮文本
+        if not scene.button_texts or all(not text for text in scene.button_texts):
+            scene.button_texts = ["选项1", "选项2", "选项3"]
     
     def go_to(self, name):
         """切换到指定场景"""
-        if self.current_scene is not None:
-            self.last_scene = self.current_scene
-        
         if name in SCENE_DICT:
+            self.last_scene = self.current_scene
             self.current_scene = SCENE_DICT[name](self.game_controller)
-            if hasattr(self.current_scene, "on_enter"):
-                self.current_scene.on_enter()
+            self.current_scene.on_enter()
         else:
-            raise ValueError(f"场景 {name} 未注册!")
+            print(f"场景 {name} 未注册!")
+            # 如果场景不存在，返回到门场景
+            self.go_to("door_scene")
     
     def resume_scene(self):
         """恢复上一个场景"""
-        if self.last_scene is not None and self.last_scene.__class__.__name__ == "BattleScene":
+        if self.last_scene is not None:
             self.current_scene = self.last_scene
+            self._call_on_enter(self.current_scene)
         else:
-            self.current_scene = SCENE_DICT["battle_scene"](self.game_controller)
+            self.go_to("door_scene")
     
     def generate_doors(self):
         """重新生成门"""
-        door_scene = SCENE_DICT["door_scene"](self.game_controller)
-        door_scene._generate_doors()
-        if isinstance(self.current_scene, SCENE_DICT["door_scene"]):
-            self.current_scene = door_scene
+        if isinstance(self.current_scene, DoorScene):
+            self.current_scene._generate_doors()
 
 class DoorScene(Scene):
     """选择门的场景"""
@@ -79,7 +85,6 @@ class DoorScene(Scene):
         super().__init__(controller)
         self.doors = []
         self.has_initialized = False
-        # Initialize default button texts
         self.button_texts = ["门1", "门2", "门3"]
 
     def on_enter(self):
@@ -100,8 +105,8 @@ class DoorScene(Scene):
         # 如果选择了非怪物门，清除所有战斗状态
         door = self.doors[index]
         if door.event != "monster":
-            StatusEffect.clear_battle_statuses(p)
-        p.apply_turn_effects(is_battle_turn=False)  # Adventure turn effects
+            p.clear_battle_status()  # 使用新的清除战斗状态方法
+        p.adventure_status_duration_pass()  # Adventure turn effects
         
         # 进入门并处理事件
         door.enter(p, c)
@@ -156,82 +161,95 @@ class BattleScene(Scene):
         super().__init__(controller)
         self.monster = None
         self.button_texts = ["攻击", "使用道具", "逃跑"]
+        self.monster_dead = False
 
     def on_enter(self):
         # 使用 DoorScene 中提前生成的怪物
         self.monster = self.controller.current_monster
         if self.monster:
             monster_desc = f"你遇到了 {self.monster.name} (HP: {self.monster.hp}, ATK: {self.monster.atk}, Tier: {self.monster.tier})"
-            if self.monster.has_status("stun"):
-                monster_desc += f" [晕眩{self.monster.statuses['stun']['duration']}回合]"
             self.controller.add_message(monster_desc)
-        
+
     def handle_choice(self, index):
         p = self.controller.player
-        if p.is_stunned():
-            # 先应用战斗状态效果
-            p.apply_turn_effects(is_battle_turn=True)
+        if p.has_status(StatusName.STUN):
             # 玩家晕眩时，怪物进行攻击
             self.controller.add_message("你处于眩晕状态, 无法行动!")
             self.monster.attack(p)
-            return
-
-        if index == 0:
-            self.do_attack(p)
-        elif index == 1:
-            # 检查是否有可用的主动道具
-            active_items = [item for item in p.inventory if item.get("active", False)]
-            if not active_items:
-                self.controller.add_message("你没有可用的道具！")
-                return
-            # 保存当前战斗场景作为上一个场景
-            self.controller.scene_manager.last_scene = self
-            # 跳转到道具使用场景
-            self.controller.scene_manager.go_to("use_item_scene")
-            self.controller.add_message("进入使用道具界面")
-        elif index == 2:
-            self.do_escape(p)
+            p.battle_status_duration_pass()  # 处理状态持续时间
+            self.monster.battle_status_duration_pass()
         else:
-            self.controller.add_message("无效操作")
+            monster_dead = False
+            escaped = False
+            if index == 0:
+                monster_dead = p.attack(self.monster)
+            elif index == 1:
+                self.do_use_item(p)
+            elif index == 2:
+                escaped = self.do_escape(p)
+            else:
+                self.controller.add_message("无效操作")
+            # 如果怪物未死亡，怪物反击
+            if not escaped:
+                if not monster_dead:
+                    self.monster.attack(p)
+                    p.battle_status_duration_pass()
+                    self.monster.battle_status_duration_pass()
+                
+                # 如果怪物死亡，处理战利品
+                else:
+                    # 处理怪物掉落
+                    self.monster.process_loot(p)
+                    # 清除所有战斗状态
+                    p.clear_battle_status()  # 使用新的清除战斗状态方法
+                    # 重新生成门
+                    self.controller.scene_manager.generate_doors()
+                    # 返回门场景
+                    self.controller.scene_manager.go_to("door_scene")
+        
 
-    def do_attack(self, p):
-        # 玩家攻击
-        monster_dead = p.attack(self.monster)
-        
-        # 如果怪物未死亡，怪物反击
-        if not monster_dead:
-            self.monster.attack(p)
-        
-        # 如果怪物死亡，处理战利品
-        if monster_dead:
-            # 处理怪物掉落
-            self.monster.process_loot(p)
-            # 清除所有战斗状态
-            StatusEffect.clear_battle_statuses(p)
-            # 重新生成门
-            self.controller.scene_manager.generate_doors()
-            # 返回门场景
-            self.controller.scene_manager.go_to("door_scene")
+    def do_use_item(self, p):
+        """处理使用道具的逻辑"""
+        # 检查是否有可用的战斗物品
+        battle_items = p.get_items_by_type(ItemType.BATTLE)
+        if not battle_items:
+            self.controller.add_message("你没有可用的道具！")
+            return
+        # 保存当前战斗场景作为上一个场景
+        self.controller.scene_manager.last_scene = self
+        # 跳转到道具使用场景
+        self.controller.scene_manager.go_to("use_item_scene")
+        self.controller.add_message("进入使用道具界面")
 
     def do_escape(self, p):
         success = p.try_escape(self.monster)
         if success:
+            p.clear_battle_status()  # 使用新的清除战斗状态方法
+            self.monster.clear_battle_status()
             self.controller.scene_manager.go_to("door_scene")
+        else:
+            self.controller.add_message("逃跑失败，怪物追了上来！")
+        return success
 
 class ShopScene(Scene):
     def __init__(self, controller):
         super().__init__(controller)
         self.shop_items = []
+        self.button_texts = ["购买物品1", "购买物品2", "购买物品3"]
 
     def on_enter(self):
-        logic = self.controller.shop_logic
-        logic.generate_items(self.controller.player)
+        """进入商店场景时的处理"""
+        logic = self.controller.shop
+        if logic is None:
+            self.controller.add_message("商店未初始化")
+            return
+        logic.generate_items()
         if self.controller.player.gold == 0 or len(logic.shop_items) == 0:
             self.controller.add_message("你没有钱，于是被商人踢了出来。")
             self.controller.scene_manager.generate_doors()  # 刷新门
             self.controller.scene_manager.go_to("door_scene")
-            self.shop_items = []
-            return  # 确保不再继续处理
+            return
+            
         self.shop_items = logic.shop_items
         # 更新按钮文本
         if self.shop_items:
@@ -242,8 +260,8 @@ class ShopScene(Scene):
             ]
 
     def handle_choice(self, index):
-        logic = self.controller.shop_logic
-        success = logic.purchase_item(index, self.controller.player)
+        logic = self.controller.shop
+        success = logic.purchase_item(index)
         if success:
             self.controller.scene_manager.generate_doors()  # Ensure doors regenerate
             self.controller.scene_manager.go_to("door_scene")
@@ -253,20 +271,24 @@ class UseItemScene(Scene):
     def __init__(self, controller):
         super().__init__(controller)
         self.active_items = []
+        self.button_texts = ["返回", "返回", "返回"]
 
     def on_enter(self):
         p = self.controller.player
-        # 筛选库存中主动使用的道具，排除复活卷轴（active=False）
-        self.active_items = [item for item in p.inventory if item.get("active", False)]
+        # 获取所有战斗物品
+        battle_items = p.get_items_by_type(ItemType.BATTLE)
+        self.active_items = battle_items
+                
         if not self.active_items:
             self.controller.add_message("你没有可用的道具！返回战斗场景。")
             self.controller.scene_manager.go_to("battle_scene")
             return
+            
         # 更新按钮文本
         self.button_texts = [
-            self.active_items[0]['name'] if len(self.active_items) > 0 else "无",
-            self.active_items[1]['name'] if len(self.active_items) > 1 else "无",
-            self.active_items[2]['name'] if len(self.active_items) > 2 else "无"
+            self.active_items[0].name if len(self.active_items) > 0 else "返回",
+            self.active_items[1].name if len(self.active_items) > 1 else "返回",
+            self.active_items[2].name if len(self.active_items) > 2 else "返回"
         ]
 
     def handle_choice(self, index):
@@ -278,33 +300,13 @@ class UseItemScene(Scene):
         if not item:
             self.controller.add_message("你没有选择任何道具")
             return
-        t = item["type"]
-        if t == "飞锤":
-            # 对当前怪物施加晕眩效果
-            if self.controller.current_monster:
-                self.controller.current_monster.apply_status("stun", 3)
-                effect_msg = "飞锤飞出，怪物被晕眩3回合！"
-            else:
-                effect_msg = "当前没有怪物，飞锤未产生效果。"
-        elif t == "结界":
-            p.statuses["barrier"] = {"duration": 3}
-            effect_msg = "结界形成，接下来3回合你免受怪物伤害！"
-        elif t == "巨大卷轴":
-            # 设置一个足够大的持续时间，确保在当前战斗中持续有效
-            p.statuses["atk_multiplier"] = {"duration": 999, "value": 2}
-            effect_msg = "巨大卷轴激活，当前战斗中你的攻击力翻倍！"
-        elif t == "heal":
-            heal_amt = item["value"]
-            p.heal(heal_amt)
-            effect_msg = f"治疗药水生效，恢复 {heal_amt} HP！"
-        else:
-            effect_msg = f"道具 {item['name']} 未定义效果。"
+            
+        # 使用物品效果
+        item.effect(player=p, monster=self.controller.current_monster)
         
         # 使用完道具后，从背包中移除
-        if item in p.inventory:
-            p.inventory.remove(item)
+        p.remove_item(item)
         
-        self.controller.add_message(effect_msg)
         self.controller.scene_manager.resume_scene()
 
 class GameOverScene(Scene):
@@ -322,10 +324,13 @@ class GameOverScene(Scene):
             self.controller.scene_manager.go_to("door_scene")
         elif index == 1:  # 使用复活卷轴
             p = self.controller.player
-            revive_scroll = next((item for item in p.inventory if item["type"] == "revive"), None)
-            if revive_scroll and not revive_scroll["active"]:
-                p.hp = self.controller.game_config.START_PLAYER_HP // 2  # 恢复一半生命值
-                revive_scroll["active"] = True  # 标记复活卷轴为已使用
+            # 检查是否有复活卷轴
+            revive_scrolls = [item for item in p.get_items_by_type(ItemType.PASSIVE) 
+                            if item.name == "复活卷轴"]
+            if revive_scrolls:
+                revive_scroll = revive_scrolls[0]
+                p.hp = GameConfig.START_PLAYER_HP  # 恢复生命值
+                p.remove_item(revive_scroll)  # 移除复活卷轴
                 
                 # 如果有上一个场景，恢复到那个场景，否则回到门场景
                 if self.controller.scene_manager.last_scene:
