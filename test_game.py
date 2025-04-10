@@ -27,32 +27,42 @@ class TestGameInitialization(unittest.TestCase):
         
     def test_scene_transitions(self):
         """测试场景切换"""
-        # 测试初始场景
-        self.assertIsInstance(self.controller.scene_manager.current_scene, DoorScene)
+        # 进入门场景
+        self.controller.scene_manager.go_to("door_scene")
+        door_scene = self.controller.scene_manager.current_scene
         
-        # 给玩家一些金币以确保可以进入商店
-        self.controller.player.gold = 100
+        # 测试怪物门切换
+        door_scene.generate_doors(door_types=["monster", "shop", "trap"])
+        door_scene.handle_choice(0)  # 选择怪物门
+        self.assertIsInstance(self.controller.scene_manager.current_scene, BattleScene)
+        self.assertIsNotNone(self.controller.current_monster)
         
-        # 测试切换到商店场景
-        self.controller.scene_manager.go_to("shop_scene")
+        # 返回门场景
+        self.controller.scene_manager.go_to("door_scene")
+        door_scene = self.controller.scene_manager.current_scene
+        
+        # 测试商店门切换
+        self.controller.player.gold = 100  # 确保有足够金币进入商店
+        door_scene.generate_doors(door_types=["monster", "shop", "trap"])
+        door_scene.handle_choice(1)  # 选择商店门
         self.assertIsInstance(self.controller.scene_manager.current_scene, ShopScene)
         
-        # 测试切换到战斗场景
-        self.controller.current_monster = get_random_monster()  # 设置当前怪物
+        # 返回门场景
+        self.controller.scene_manager.go_to("door_scene")
+        door_scene = self.controller.scene_manager.current_scene
+        
+        # 测试陷阱门切换
+        door_scene.generate_doors(door_types=["monster", "shop", "trap"])
+        door_scene.handle_choice(2)  # 选择陷阱门
+        self.assertIsInstance(self.controller.scene_manager.current_scene, DoorScene)
+        
+        # 测试战斗场景中的道具使用切换
         self.controller.scene_manager.go_to("battle_scene")
         self.assertIsInstance(self.controller.scene_manager.current_scene, BattleScene)
-        
-        # 测试切换到道具使用场景
-        self.controller.scene_manager.go_to("use_item_scene")
+        battle_scene = self.controller.scene_manager.current_scene
+        battle_scene.handle_choice(1)  # 选择使用道具
         self.assertIsInstance(self.controller.scene_manager.current_scene, UseItemScene)
         
-        # 测试切换到游戏结束场景
-        self.controller.scene_manager.go_to("game_over_scene")
-        self.assertIsInstance(self.controller.scene_manager.current_scene, GameOverScene)
-        
-        # 测试返回上一个场景
-        self.controller.scene_manager.resume_scene()
-        self.assertIsInstance(self.controller.scene_manager.current_scene, UseItemScene)
 
 class TestGameReset(unittest.TestCase):
     """测试游戏重置"""
@@ -66,6 +76,7 @@ class TestGameReset(unittest.TestCase):
         self.controller.player.hp = 10
         self.controller.player.gold = 100
         self.controller.round_count = 5
+        self.controller.player.clear_inventory()
         
         # 重置游戏
         self.controller.reset_game()
@@ -289,7 +300,7 @@ class TestDoorGeneration(unittest.TestCase):
 
     def test_door_generation(self):
         """测试门生成"""
-        self.door_scene._generate_doors()
+        self.door_scene.generate_doors()
         self.assertEqual(len(self.door_scene.doors), 3)
         
         # 检查是否至少有一扇怪物门
@@ -848,6 +859,83 @@ class TestFlyingHammer(unittest.TestCase):
         
         # 验证玩家生命值没有变化
         self.assertEqual(self.player.hp, initial_hp)
+
+class TestSceneSystem(unittest.TestCase):
+    """测试场景系统"""
+    
+    def setUp(self):
+        self.controller = GameController()
+        self.player = self.controller.player
+        
+    def test_scene_transitions(self):
+        """测试场景切换"""
+        # 进入门场景
+        self.controller.scene_manager.go_to("door_scene")
+        door_scene = self.controller.scene_manager.current_scene
+        
+        # 测试怪物门切换
+        door_scene.generate_doors(door_types=["monster", "shop", "trap"])
+        door_scene.handle_choice(0)  # 选择怪物门
+        self.assertIsInstance(self.controller.scene_manager.current_scene, BattleScene)
+        self.assertIsNotNone(self.controller.current_monster)
+        
+        # 返回门场景
+        self.controller.scene_manager.go_to("door_scene")
+        door_scene = self.controller.scene_manager.current_scene
+        
+        # 测试商店门切换
+        self.player.gold = 100  # 确保有足够金币进入商店
+        door_scene.generate_doors(door_types=["monster", "shop", "trap"])
+        door_scene.handle_choice(1)  # 选择商店门
+        self.assertIsInstance(self.controller.scene_manager.current_scene, ShopScene)
+        
+        # 返回门场景
+        self.controller.scene_manager.go_to("door_scene")
+        door_scene = self.controller.scene_manager.current_scene
+        
+        # 测试陷阱门切换
+        door_scene.generate_doors(door_types=["monster", "shop", "trap"])
+        door_scene.handle_choice(2)  # 选择陷阱门
+        self.assertIsInstance(self.controller.scene_manager.current_scene, DoorScene)
+        
+        # 测试战斗场景中的道具使用切换
+        self.controller.scene_manager.go_to("battle_scene")
+        battle_scene = self.controller.scene_manager.current_scene
+        battle_scene.handle_choice(1)  # 选择使用道具
+        self.assertIsInstance(self.controller.scene_manager.current_scene, UseItemScene)
+        
+        # 测试通过陷阱门进入游戏结束场景
+        self.controller.scene_manager.go_to("door_scene")
+        door_scene = self.controller.scene_manager.current_scene
+        self.player.hp = 1  # 设置玩家生命值很低
+        door_scene.generate_doors(door_types=["monster", "shop", "trap"])
+        door_scene.handle_choice(2)  # 选择陷阱门
+        self.assertIsInstance(self.controller.scene_manager.current_scene, GameOverScene)
+
+    def test_door_battle_game_over_transition(self):
+        # 测试通过怪物攻击进入游戏结束场景
+        self.setUp()
+        door_scene = self.controller.scene_manager.current_scene
+        self.player.hp = 1  # 设置玩家生命值很低
+        self.player.atk = 0 # 设置玩家攻击力很低
+        
+        door_scene.generate_doors(door_types=["monster", "shop", "trap"])
+        door_scene.doors[0].monster = Monster("测试怪物", 100, 10)
+        self.controller.scene_manager.go_to("door_scene")
+        self.assertIsInstance(self.controller.scene_manager.current_scene, DoorScene)
+
+        #清空玩家的物品栏
+        self.player.clear_inventory()
+        self.controller.clear_messages()
+        
+        door_scene.handle_choice(0)  # 选择怪物门
+        battle_scene = self.controller.scene_manager.current_scene
+        
+        self.assertIsInstance(self.controller.scene_manager.current_scene, BattleScene)
+        self.controller.clear_messages()
+        self.assertEqual(self.player.hp, 1)
+        battle_scene.handle_choice(0)  # 选择攻击
+        self.assertIsInstance(self.controller.scene_manager.current_scene, GameOverScene)
 
 if __name__ == '__main__':
     unittest.main() 

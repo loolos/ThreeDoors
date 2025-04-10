@@ -335,6 +335,8 @@ class Monster:
         """怪物攻击目标"""
         # 检查是否晕眩
         if self.has_status(StatusName.STUN):
+            if hasattr(target, 'controller') and target.controller:
+                target.controller.add_message(f"{self.name} 处于眩晕状态，无法攻击！")
             return False
 
         # 检查目标是否有结界
@@ -349,7 +351,6 @@ class Monster:
         # 如果有攻击力翻倍效果
         if self.has_status(StatusName.ATK_MULTIPLIER):
             dmg *= self.statuses[StatusName.ATK_MULTIPLIER].value
-        
         # 造成伤害
         target.take_damage(dmg)
 

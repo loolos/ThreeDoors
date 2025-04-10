@@ -41,7 +41,7 @@ class Player:
             
         # 应用伤害
         self.hp -= damage
-        self.controller.add_message(f"你受到了 {damage} 点伤害!")
+        self.controller.add_message(f"你受到了 {damage} 点伤害! 剩余生命值: {self.hp}。")
         
         # 检查是否死亡
         if self.hp <= 0:
@@ -58,7 +58,16 @@ class Player:
             self.controller.add_message("游戏结束")
             self.controller.scene_manager.go_to("game_over_scene")
             return
-
+    def clear_inventory(self):
+        """重置背包"""
+        self.inventory = {
+            ItemType.CONSUMABLE: [],
+            ItemType.BATTLE: [],
+            ItemType.PASSIVE: []
+        }
+    def player_desc(self):
+        """玩家描述"""
+        return f"生命值: {self.hp}, 攻击力: {self.atk}, 金币: {self.gold}, 背包: {self.inventory}"
     def heal(self, amount):
         """恢复生命值"""
         old_hp = self.hp
@@ -87,7 +96,6 @@ class Player:
         # 造成伤害
         target.take_damage(dmg)
         self.controller.add_message(f"你攻击 {target.name} 造成 {dmg} 点伤害.")
-        
         # 检查目标是否死亡
         if target.hp <= 0:
             self.controller.add_message(f"你击败了 {target.name}!")

@@ -36,7 +36,7 @@ class SceneManager:
         """初始化所有场景"""
         # 首先初始化门场景并设置为当前场景
         door_scene = SCENE_DICT["door_scene"](self.game_controller)
-        door_scene._generate_doors()
+        door_scene.generate_doors()
         self.current_scene = door_scene
         self._call_on_enter(door_scene)
         
@@ -65,6 +65,16 @@ class SceneManager:
             print(f"场景 {name} 未注册!")
             # 如果场景不存在，返回到门场景
             self.go_to("door_scene")
+
+    def back_to(self, name):
+        """返回指定场景"""
+        if name in SCENE_DICT:
+            self.last_scene = self.current_scene
+            self.current_scene = SCENE_DICT[name](self.game_controller)
+        else:
+            print(f"场景 {name} 未注册!")
+            # 如果场景不存在，返回到门场景
+            self.go_to("door_scene")
     
     def resume_scene(self):
         """恢复上一个场景"""
@@ -73,11 +83,6 @@ class SceneManager:
             self._call_on_enter(self.current_scene)
         else:
             self.go_to("door_scene")
-    
-    def generate_doors(self):
-        """重新生成门"""
-        if isinstance(self.current_scene, DoorScene):
-            self.current_scene._generate_doors()
 
 class DoorScene(Scene):
     """选择门的场景"""
@@ -89,7 +94,7 @@ class DoorScene(Scene):
 
     def on_enter(self):
         if not self.has_initialized:
-            self._generate_doors()
+            self.generate_doors()
             self.has_initialized = True
 
     def handle_choice(self, index):
@@ -117,34 +122,53 @@ class DoorScene(Scene):
         
         # 如果不是怪物门，重新生成门
         if door.event != "monster":
-            self._generate_doors()
+            self.generate_doors()
 
-    def _generate_doors(self):
-        """生成三扇门，确保至少一扇是怪物门"""
-        # 获取可用的门类型
-        available_doors = ["trap", "reward", "shop"]
-        if self.controller.player.gold > 0:
-            available_doors.append("shop")
-            
-        # 生成一扇怪物门
-        monster = get_random_monster(current_round=self.controller.round_count)
-        monster_door = Door.generate_monster_door(monster)
+    def generate_doors(self, door_types=None):
+        """生成三扇门，确保至少一扇是怪物门
         
-        # 生成其他两扇门
-        other_doors = []
-        for _ in range(2):
-            door_type = random.choice(available_doors)
-            if door_type == "trap":
-                door = Door.generate_trap_door()
-            elif door_type == "reward":
-                door = Door.generate_reward_door()
-            elif door_type == "shop":
-                door = Door.generate_shop_door()
-            other_doors.append(door)
+        Args:
+            door_types (list, optional): 指定门的类型列表，如 ["monster", "shop", "trap"]。
+                                        如果为None，则随机生成门类型。
+        """
+        # 如果指定了门类型，使用指定的类型
+        if door_types and len(door_types) == 3:
+            self.doors = []
+            for door_type in door_types:
+                if door_type == "monster":
+                    monster = get_random_monster(current_round=self.controller.round_count)
+                    self.doors.append(Door.generate_monster_door(monster))
+                elif door_type == "trap":
+                    self.doors.append(Door.generate_trap_door())
+                elif door_type == "reward":
+                    self.doors.append(Door.generate_reward_door())
+                elif door_type == "shop":
+                    self.doors.append(Door.generate_shop_door())
+        else:
+            # 获取可用的门类型
+            available_doors = ["trap", "reward", "shop"]
+            if self.controller.player.gold > 0:
+                available_doors.append("shop")
+                
+            # 生成一扇怪物门
+            monster = get_random_monster(current_round=self.controller.round_count)
+            monster_door = Door.generate_monster_door(monster)
             
-        # 随机打乱三扇门的顺序
-        self.doors = [monster_door] + other_doors
-        random.shuffle(self.doors)
+            # 生成其他两扇门
+            other_doors = []
+            for _ in range(2):
+                door_type = random.choice(available_doors)
+                if door_type == "trap":
+                    door = Door.generate_trap_door()
+                elif door_type == "reward":
+                    door = Door.generate_reward_door()
+                elif door_type == "shop":
+                    door = Door.generate_shop_door()
+                other_doors.append(door)
+                
+            # 随机打乱三扇门的顺序
+            self.doors = [monster_door] + other_doors
+            random.shuffle(self.doors)
         
         # 更新按钮文本
         if self.doors:
@@ -166,9 +190,6 @@ class BattleScene(Scene):
     def on_enter(self):
         # 使用 DoorScene 中提前生成的怪物
         self.monster = self.controller.current_monster
-        if self.monster:
-            monster_desc = f"你遇到了 {self.monster.name} (HP: {self.monster.hp}, ATK: {self.monster.atk}, Tier: {self.monster.tier})"
-            self.controller.add_message(monster_desc)
 
     def handle_choice(self, index):
         p = self.controller.player
@@ -182,31 +203,33 @@ class BattleScene(Scene):
             monster_dead = False
             escaped = False
             if index == 0:
+                self.controller.add_message("你将要攻击怪物!" + p.player_desc())
                 monster_dead = p.attack(self.monster)
-            elif index == 1:
-                self.do_use_item(p)
-            elif index == 2:
-                escaped = self.do_escape(p)
-            else:
-                self.controller.add_message("无效操作")
-            # 如果怪物未死亡，怪物反击
-            if not escaped:
+                
+                self.controller.add_message("你攻击了怪物!" + p.player_desc())
                 if not monster_dead:
                     self.monster.attack(p)
-                    p.battle_status_duration_pass()
-                    self.monster.battle_status_duration_pass()
-                
                 # 如果怪物死亡，处理战利品
                 else:
                     # 处理怪物掉落
                     self.monster.process_loot(p)
                     # 清除所有战斗状态
                     p.clear_battle_status()  # 使用新的清除战斗状态方法
-                    # 重新生成门
-                    self.controller.scene_manager.generate_doors()
                     # 返回门场景
                     self.controller.scene_manager.go_to("door_scene")
-        
+            elif index == 1:
+                self.do_use_item(p)
+            elif index == 2:
+                escaped = p.try_escape(self.monster)
+                if escaped:
+                    p.clear_battle_status()  # 使用新的清除战斗状态方法
+                    self.monster.clear_battle_status()
+                    self.controller.scene_manager.back_to("door_scene")
+                else:
+                    self.monster.attack(p)
+                    self.controller.add_message("逃跑失败，怪物追了上来！")
+                    p.battle_status_duration_pass()
+                    self.monster.battle_status_duration_pass()
 
     def do_use_item(self, p):
         """处理使用道具的逻辑"""
@@ -220,16 +243,6 @@ class BattleScene(Scene):
         # 跳转到道具使用场景
         self.controller.scene_manager.go_to("use_item_scene")
         self.controller.add_message("进入使用道具界面")
-
-    def do_escape(self, p):
-        success = p.try_escape(self.monster)
-        if success:
-            p.clear_battle_status()  # 使用新的清除战斗状态方法
-            self.monster.clear_battle_status()
-            self.controller.scene_manager.go_to("door_scene")
-        else:
-            self.controller.add_message("逃跑失败，怪物追了上来！")
-        return success
 
 class ShopScene(Scene):
     def __init__(self, controller):
@@ -246,7 +259,6 @@ class ShopScene(Scene):
         logic.generate_items()
         if self.controller.player.gold == 0 or len(logic.shop_items) == 0:
             self.controller.add_message("你没有钱，于是被商人踢了出来。")
-            self.controller.scene_manager.generate_doors()  # 刷新门
             self.controller.scene_manager.go_to("door_scene")
             return
             
@@ -263,7 +275,6 @@ class ShopScene(Scene):
         logic = self.controller.shop
         success = logic.purchase_item(index)
         if success:
-            self.controller.scene_manager.generate_doors()  # Ensure doors regenerate
             self.controller.scene_manager.go_to("door_scene")
             self.controller.add_message("离开商店, 回到门场景")
 
@@ -343,7 +354,8 @@ class GameOverScene(Scene):
                 self.controller.add_message("你没有可用的复活卷轴！")
         elif index == 2:  # 退出游戏
             self.controller.add_message("感谢游玩！")
-            # 这里可以添加退出游戏的逻辑
+            import sys
+            sys.exit(0)  # 正常退出游戏
 
 # 场景字典
 SCENE_DICT = {
