@@ -142,7 +142,7 @@ class TestPlayerActions(unittest.TestCase):
         """测试玩家在晕眩状态下无法行动"""
         # 创建战斗场景
         battle_scene = BattleScene(self.controller)
-        battle_scene.monster = Monster("测试怪物", 20, 5)
+        battle_scene.monster = Monster("测试怪物", 20, 1, effect_probability=0)
         self.controller.current_monster = battle_scene.monster
         
         # 添加晕眩状态

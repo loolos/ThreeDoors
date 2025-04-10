@@ -203,10 +203,8 @@ class BattleScene(Scene):
             monster_dead = False
             escaped = False
             if index == 0:
-                self.controller.add_message("你将要攻击怪物!" + p.player_desc())
                 monster_dead = p.attack(self.monster)
                 
-                self.controller.add_message("你攻击了怪物!" + p.player_desc())
                 if not monster_dead:
                     self.monster.attack(p)
                 # 如果怪物死亡，处理战利品
