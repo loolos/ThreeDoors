@@ -27,6 +27,19 @@ class StatusName(Enum):
             StatusName.HEALING_SCROLL: "恢复",
             StatusName.IMMUNE: "免疫"
         }.get(self, self.value)
+    @property
+    def get_status_class(self):
+        return {
+            StatusName.WEAK: WeakStatus,
+            StatusName.POISON: PoisonStatus,
+            StatusName.STUN: StunStatus,
+            StatusName.ATK_MULTIPLIER: AtkMultiplierStatus,
+            StatusName.BARRIER: BarrierStatus,
+            StatusName.ATK_UP: AtkUpStatus,
+            StatusName.DAMAGE_REDUCTION: DamageReductionStatus,
+            StatusName.HEALING_SCROLL: HealingScrollStatus,
+            StatusName.IMMUNE: ImmuneStatus
+        }.get(self)
 
 class Status:
     """状态效果基类"""

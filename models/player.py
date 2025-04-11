@@ -9,16 +9,7 @@ class Player:
     def __init__(self, controller):
         """初始化玩家"""
         self.controller = controller
-        self.hp = GameConfig.START_PLAYER_HP
-        self.atk = GameConfig.START_PLAYER_ATK
-        self.gold = 0
-        self.inventory = {
-            ItemType.CONSUMABLE: [],
-            ItemType.BATTLE: [],
-            ItemType.PASSIVE: []
-        }
-        self.statuses = {}  # 使用 StatusName 枚举值作为键，存储状态效果
-        self._init_default_items()
+        self.reset()
 
     def _init_default_items(self):
         """初始化默认物品"""

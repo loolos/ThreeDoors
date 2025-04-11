@@ -5,11 +5,14 @@ import random
 import os
 from models.items import ItemType
 from models.game_config import GameConfig
+from enum import Enum, auto
+
 class Scene:
     """场景基类"""
     def __init__(self, controller):
         self.controller = controller
         self.button_texts = ["", "", ""]  # 默认三个空按钮
+        self.enum = None
 
     def on_enter(self):
         """进入场景时的处理"""
@@ -23,67 +26,6 @@ class Scene:
         """获取按钮文本"""
         return self.button_texts
 
-class SceneManager:
-    def __init__(self):
-        self.current_scene = None
-        self.last_scene = None
-        self.game_controller = None
-    
-    def set_game_controller(self, game_controller):
-        self.game_controller = game_controller
-    
-    def initialize_scenes(self):
-        """初始化所有场景"""
-        # 首先初始化门场景并设置为当前场景
-        door_scene = SCENE_DICT["door_scene"](self.game_controller)
-        door_scene.generate_doors()
-        self.current_scene = door_scene
-        self._call_on_enter(door_scene)
-        
-        # 初始化其他场景但不设置为当前场景
-        for scene_name, scene_class in SCENE_DICT.items():
-            if scene_name != "door_scene":
-                scene = scene_class(self.game_controller)
-                # 调用on_enter但不设置为当前场景
-                self._call_on_enter(scene)
-    
-    def _call_on_enter(self, scene):
-        """调用场景的on_enter方法并处理按钮文本"""
-        if hasattr(scene, "on_enter"):
-            scene.on_enter()
-        # 确保场景有默认按钮文本
-        if not scene.button_texts or all(not text for text in scene.button_texts):
-            scene.button_texts = ["选项1", "选项2", "选项3"]
-    
-    def go_to(self, name):
-        """切换到指定场景"""
-        if name in SCENE_DICT:
-            self.last_scene = self.current_scene
-            self.current_scene = SCENE_DICT[name](self.game_controller)
-            self.current_scene.on_enter()
-        else:
-            print(f"场景 {name} 未注册!")
-            # 如果场景不存在，返回到门场景
-            self.go_to("door_scene")
-
-    def back_to(self, name):
-        """返回指定场景"""
-        if name in SCENE_DICT:
-            self.last_scene = self.current_scene
-            self.current_scene = SCENE_DICT[name](self.game_controller)
-        else:
-            print(f"场景 {name} 未注册!")
-            # 如果场景不存在，返回到门场景
-            self.go_to("door_scene")
-    
-    def resume_scene(self):
-        """恢复上一个场景"""
-        if self.last_scene is not None:
-            self.current_scene = self.last_scene
-            self._call_on_enter(self.current_scene)
-        else:
-            self.go_to("door_scene")
-
 class DoorScene(Scene):
     """选择门的场景"""
     def __init__(self, controller):
@@ -91,6 +33,7 @@ class DoorScene(Scene):
         self.doors = []
         self.has_initialized = False
         self.button_texts = ["门1", "门2", "门3"]
+        self.enum = SceneType.DOOR
 
     def on_enter(self):
         if not self.has_initialized:
@@ -115,10 +58,17 @@ class DoorScene(Scene):
         
         # 进入门并处理事件
         door.enter(p, c)
-            
+        
         # 检查玩家生命值
         if p.hp <= 0:
-            self.controller.scene_manager.go_to("game_over_scene")
+            c.scene_manager.go_to("game_over_scene")
+            return
+            
+        # 根据门类型切换到相应场景
+        elif door.event == "monster":
+            c.scene_manager.go_to("battle_scene")
+        elif door.event == "shop":
+            c.scene_manager.go_to("shop_scene")
         
         # 如果不是怪物门，重新生成门
         if door.event != "monster":
@@ -186,6 +136,7 @@ class BattleScene(Scene):
         self.monster = None
         self.button_texts = ["攻击", "使用道具", "逃跑"]
         self.monster_dead = False
+        self.enum = SceneType.BATTLE
 
     def on_enter(self):
         # 使用 DoorScene 中提前生成的怪物
@@ -222,7 +173,7 @@ class BattleScene(Scene):
                 if escaped:
                     p.clear_battle_status()  # 使用新的清除战斗状态方法
                     self.monster.clear_battle_status()
-                    self.controller.scene_manager.back_to("door_scene")
+                    self.controller.scene_manager.go_to("door_scene", generate_doors=False)
                 else:
                     self.monster.attack(p)
                     self.controller.add_message("逃跑失败，怪物追了上来！")
@@ -245,42 +196,41 @@ class BattleScene(Scene):
 class ShopScene(Scene):
     def __init__(self, controller):
         super().__init__(controller)
-        self.shop_items = []
         self.button_texts = ["购买物品1", "购买物品2", "购买物品3"]
-
+        self.enum = SceneType.SHOP
     def on_enter(self):
         """进入商店场景时的处理"""
-        logic = self.controller.shop
-        if logic is None:
+        shop = self.controller.shop
+        if shop is None:
             self.controller.add_message("商店未初始化")
             return
-        logic.generate_items()
-        if self.controller.player.gold == 0 or len(logic.shop_items) == 0:
+        shop.generate_items()
+        if len(shop.shop_items) < 3:
+            raise ValueError("商店没有足够的物品")
+        if self.controller.player.gold == 0:
             self.controller.add_message("你没有钱，于是被商人踢了出来。")
             self.controller.scene_manager.go_to("door_scene")
             return
             
-        self.shop_items = logic.shop_items
         # 更新按钮文本
-        if self.shop_items:
+        if shop.shop_items:
             self.button_texts = [
-                f"{self.shop_items[0]['name']} ({self.shop_items[0]['cost']}G)",
-                f"{self.shop_items[1]['name']} ({self.shop_items[1]['cost']}G)",
-                f"{self.shop_items[2]['name']} ({self.shop_items[2]['cost']}G)"
+                f"{shop.shop_items[0].name} ({shop.shop_items[0].cost}G)",
+                f"{shop.shop_items[1].name} ({shop.shop_items[1].cost}G)",
+                f"{shop.shop_items[2].name} ({shop.shop_items[2].cost}G)"
             ]
 
     def handle_choice(self, index):
         logic = self.controller.shop
         success = logic.purchase_item(index)
-        if success:
-            self.controller.scene_manager.go_to("door_scene")
-            self.controller.add_message("离开商店, 回到门场景")
+        self.controller.scene_manager.go_to("door_scene")
 
 class UseItemScene(Scene):
     def __init__(self, controller):
         super().__init__(controller)
         self.active_items = []
         self.button_texts = ["返回", "返回", "返回"]
+        self.enum = SceneType.USE_ITEM
 
     def on_enter(self):
         p = self.controller.player
@@ -322,7 +272,7 @@ class GameOverScene(Scene):
     def __init__(self, controller):
         super().__init__(controller)
         self.button_texts = ["重启游戏", "使用复活卷轴", "退出游戏"]
-
+        self.enum = SceneType.GAME_OVER
     def on_enter(self):
         self.controller.add_message("游戏结束！")
 
@@ -355,11 +305,69 @@ class GameOverScene(Scene):
             import sys
             sys.exit(0)  # 正常退出游戏
 
-# 场景字典
-SCENE_DICT = {
-    "door_scene": DoorScene,
-    "battle_scene": BattleScene,
-    "shop_scene": ShopScene,
-    "use_item_scene": UseItemScene,
-    "game_over_scene": GameOverScene
-}
+class SceneType(Enum):
+    """场景名称枚举类"""
+    DOOR =  DoorScene
+    BATTLE = BattleScene
+    SHOP = ShopScene
+    USE_ITEM = UseItemScene
+    GAME_OVER = GameOverScene
+
+    @staticmethod
+    def get_name_scene_dict():
+        return {
+            "door_scene": DoorScene,
+            "battle_scene": BattleScene,
+            "shop_scene": ShopScene,
+            "use_item_scene": UseItemScene,
+            "game_over_scene": GameOverScene
+        }
+
+    def is_scene_name(name: str)->bool:
+        return name in SceneType.get_name_scene_dict().keys()
+    
+    def get_scene_class_by_name(name: str)->Scene:
+        return SceneType.get_name_scene_dict().get(name)
+
+class SceneManager:
+    def __init__(self):
+        self.current_scene = None
+        self.last_scene = None
+        self.game_controller = None
+        self.scene_dict = {}
+    
+    def set_game_controller(self, game_controller):
+        self.game_controller = game_controller
+    
+    def initialize_scenes(self):
+        """初始化所有场景"""
+        for scene_name in SceneType.get_name_scene_dict().keys():
+            self.scene_dict[scene_name] = SceneType.get_scene_class_by_name(scene_name)(self.game_controller)
+            self.scene_dict[scene_name].on_enter()
+            scene = self.scene_dict[scene_name]
+            if scene_name == SceneType.DOOR.value:
+                scene.generate_doors()
+        # 确保场景有默认按钮文本
+            if not scene.button_texts or all(not text for text in scene.button_texts):
+                scene.button_texts = ["选项1", "选项2", "选项3"]
+        self.current_scene = self.scene_dict["door_scene"]
+
+    def go_to(self, name, generate_doors=True):
+        """切换到指定场景"""
+        if SceneType.is_scene_name(name):
+            self.last_scene = self.current_scene
+            self.current_scene = self.scene_dict[name]
+            self.current_scene.on_enter()
+            if generate_doors and name == "door_scene":
+                self.current_scene.generate_doors()
+        else:
+            print(f"场景 {name} 未注册!")
+            # 如果场景不存在，返回到门场景
+            self.go_to("door_scene")
+    
+    def resume_scene(self):
+        """恢复上一个场景"""
+        if self.last_scene is not None:
+            self.current_scene = self.last_scene
+        else:
+            self.go_to("door_scene")

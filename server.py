@@ -7,7 +7,7 @@ from models.monster import Monster, get_random_monster
 from models.player import Player
 from models.status import Status
 from models.shop import Shop
-from scenes import Scene, DoorScene, BattleScene, ShopScene, UseItemScene, GameOverScene, SceneManager, SCENE_DICT
+from scenes import Scene, DoorScene, BattleScene, ShopScene, UseItemScene, GameOverScene, SceneManager
 from models.game_config import GameConfig
 from models.items import ReviveScroll, FlyingHammer, GiantScroll, Barrier
 
@@ -28,34 +28,24 @@ Session(app)
 class GameController:
     def __init__(self):
         self.game_config = GameConfig()
-        self.scene_manager = SceneManager()
-        self.scene_manager.set_game_controller(self)
-        self.player = None
-        self.shop = None
-        self.round_count = 0
-        self.messages = []
-        self.current_monster = None
         
         # Initialize game state
         self.reset_game()
 
     def reset_game(self):
         """重置游戏状态"""
-        self.player = Player(self)
-        self.player.reset()  # 重置玩家状态
-        self.scene_manager = SceneManager()
-        self.scene_manager.game_controller = self  # 直接设置 game_controller
-        self.scene_manager.initialize_scenes()  # 这会设置当前场景为 DoorScene
         self.current_monster = None
         self.round_count = 0
         self.messages = []
+        self.player = Player(self)
+        self.player.reset()  # 重置玩家状态
+        self.shop = Shop(self.player)
+        self.shop.player = self.player
+        self.shop.generate_items()
+        self.scene_manager = SceneManager()
+        self.scene_manager.game_controller = self  # 直接设置 game_controller
+        self.scene_manager.initialize_scenes()  # 这会设置当前场景为 DoorScene
         
-        # Create or reset shop
-        if self.shop is None:
-            self.shop = Shop(self.player)
-        else:
-            self.shop.player = self.player
-            self.shop.generate_items()
             
         # 确保当前场景是 DoorScene
         if not isinstance(self.scene_manager.current_scene, DoorScene):
