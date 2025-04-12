@@ -46,7 +46,6 @@ class Player:
                     
             # 如果没有复活卷轴，游戏结束
             self.controller.add_message("你被击败了!")
-            self.controller.add_message("游戏结束")
             self.controller.scene_manager.go_to("game_over_scene")
             return
     def clear_inventory(self):

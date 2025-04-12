@@ -1,4 +1,4 @@
-from models.door import Door
+from models.door import Door, DoorEnum
 from models.monster import Monster, get_random_monster
 from models.status import Status, StatusName
 import random
@@ -6,6 +6,7 @@ import os
 from models.items import ItemType
 from models.game_config import GameConfig
 from enum import Enum, auto
+
 
 class Scene:
     """场景基类"""
@@ -51,13 +52,11 @@ class DoorScene(Scene):
         c.add_message(f"第{c.round_count}回合：")
         
         # 如果选择了非怪物门，清除所有战斗状态
-        door = self.doors[index]
-        if door.event != "monster":
-            p.clear_battle_status()  # 使用新的清除战斗状态方法
+        door = self.doors[index]# 使用新的清除战斗状态方法
         p.adventure_status_duration_pass()  # Adventure turn effects
         
         # 进入门并处理事件
-        door.enter(p, c)
+        door.enter()
         
         # 检查玩家生命值
         if p.hp <= 0:
@@ -65,59 +64,50 @@ class DoorScene(Scene):
             return
             
         # 根据门类型切换到相应场景
-        elif door.event == "monster":
+        elif door.enum == DoorEnum.MONSTER:
             c.scene_manager.go_to("battle_scene")
-        elif door.event == "shop":
-            c.scene_manager.go_to("shop_scene")
-        
+        elif door.enum == DoorEnum.SHOP:
+            if self.controller.player.gold <= 0:
+                self.controller.add_message("你没有钱，于是被商人踢了出来。")
+            else:
+                c.scene_manager.go_to("shop_scene")
         # 如果不是怪物门，重新生成门
-        if door.event != "monster":
+        if door.enum != DoorEnum.MONSTER:
             self.generate_doors()
+        
 
-    def generate_doors(self, door_types=None):
+        
+
+    def generate_doors(self, door_enums=None):
         """生成三扇门，确保至少一扇是怪物门
         
         Args:
-            door_types (list, optional): 指定门的类型列表，如 ["monster", "shop", "trap"]。
+            door_enums (list, optional): 指定门的类型列表，如 ["monster", "shop", "trap"]。
                                         如果为None，则随机生成门类型。
         """
         # 如果指定了门类型，使用指定的类型
-        if door_types and len(door_types) == 3:
+        if door_enums and len(door_enums) == 3:
             self.doors = []
-            for door_type in door_types:
-                if door_type == "monster":
-                    monster = get_random_monster(current_round=self.controller.round_count)
-                    self.doors.append(Door.generate_monster_door(monster))
-                elif door_type == "trap":
-                    self.doors.append(Door.generate_trap_door())
-                elif door_type == "reward":
-                    self.doors.append(Door.generate_reward_door())
-                elif door_type == "shop":
-                    self.doors.append(Door.generate_shop_door())
+            for door_enum in door_enums:
+                if DoorEnum.is_valid_door_enum(door_enum):
+                    door = DoorEnum.create_instance(door_enum, controller=self.controller)
+                    self.doors.append(door)
+                else:
+                    raise ValueError(f"无效的门类型: {door_enum}")
         else:
             # 获取可用的门类型
-            available_doors = ["trap", "reward", "shop"]
-            if self.controller.player.gold > 0:
-                available_doors.append("shop")
+            available_door_enums = [door_enum for door_enum in DoorEnum]
                 
             # 生成一扇怪物门
             monster = get_random_monster(current_round=self.controller.round_count)
-            monster_door = Door.generate_monster_door(monster)
-            
+            monster_door = DoorEnum.MONSTER.create_instance(monster=monster, controller=self.controller)
             # 生成其他两扇门
-            other_doors = []
+            self.doors = [monster_door]
             for _ in range(2):
-                door_type = random.choice(available_doors)
-                if door_type == "trap":
-                    door = Door.generate_trap_door()
-                elif door_type == "reward":
-                    door = Door.generate_reward_door()
-                elif door_type == "shop":
-                    door = Door.generate_shop_door()
-                other_doors.append(door)
-                
+                door_enum = random.choice(available_door_enums)
+                self.doors.append(door_enum.create_instance(controller=self.controller))
+            
             # 随机打乱三扇门的顺序
-            self.doors = [monster_door] + other_doors
             random.shuffle(self.doors)
         
         # 更新按钮文本
@@ -173,12 +163,14 @@ class BattleScene(Scene):
                 if escaped:
                     p.clear_battle_status()  # 使用新的清除战斗状态方法
                     self.monster.clear_battle_status()
-                    self.controller.scene_manager.go_to("door_scene", generate_doors=False)
+                    self.controller.scene_manager.go_to("door_scene", generate_new_doors=False)
                 else:
                     self.monster.attack(p)
                     self.controller.add_message("逃跑失败，怪物追了上来！")
                     p.battle_status_duration_pass()
                     self.monster.battle_status_duration_pass()
+            if self.controller.player.hp <= 0:
+                self.controller.scene_manager.go_to("game_over_scene")
 
     def do_use_item(self, p):
         """处理使用道具的逻辑"""
@@ -200,17 +192,12 @@ class ShopScene(Scene):
         self.enum = SceneType.SHOP
     def on_enter(self):
         """进入商店场景时的处理"""
-        shop = self.controller.shop
+        shop = self.controller.current_shop
         if shop is None:
             self.controller.add_message("商店未初始化")
             return
-        shop.generate_items()
         if len(shop.shop_items) < 3:
             raise ValueError("商店没有足够的物品")
-        if self.controller.player.gold == 0:
-            self.controller.add_message("你没有钱，于是被商人踢了出来。")
-            self.controller.scene_manager.go_to("door_scene")
-            return
             
         # 更新按钮文本
         if shop.shop_items:
@@ -221,7 +208,7 @@ class ShopScene(Scene):
             ]
 
     def handle_choice(self, index):
-        logic = self.controller.shop
+        logic = self.controller.current_shop
         success = logic.purchase_item(index)
         self.controller.scene_manager.go_to("door_scene")
 
@@ -350,15 +337,15 @@ class SceneManager:
         # 确保场景有默认按钮文本
             if not scene.button_texts or all(not text for text in scene.button_texts):
                 scene.button_texts = ["选项1", "选项2", "选项3"]
-        self.current_scene = self.scene_dict["door_scene"]
+        self.go_to("door_scene")
 
-    def go_to(self, name, generate_doors=True):
+    def go_to(self, name, generate_new_doors=True):
         """切换到指定场景"""
         if SceneType.is_scene_name(name):
             self.last_scene = self.current_scene
             self.current_scene = self.scene_dict[name]
             self.current_scene.on_enter()
-            if generate_doors and name == "door_scene":
+            if generate_new_doors and name == "door_scene":
                 self.current_scene.generate_doors()
         else:
             print(f"场景 {name} 未注册!")

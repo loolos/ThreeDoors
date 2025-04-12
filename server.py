@@ -39,17 +39,10 @@ class GameController:
         self.messages = []
         self.player = Player(self)
         self.player.reset()  # 重置玩家状态
-        self.shop = Shop(self.player)
-        self.shop.player = self.player
-        self.shop.generate_items()
+        self.current_shop = Shop(self.player)
         self.scene_manager = SceneManager()
         self.scene_manager.game_controller = self  # 直接设置 game_controller
         self.scene_manager.initialize_scenes()  # 这会设置当前场景为 DoorScene
-        
-            
-        # 确保当前场景是 DoorScene
-        if not isinstance(self.scene_manager.current_scene, DoorScene):
-            self.scene_manager.go_to("door_scene")
 
     def add_message(self, msg):
         """添加消息到消息列表"""

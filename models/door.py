@@ -1,240 +1,237 @@
 import random
 from .monster import get_random_monster
+from typing import Optional, Dict, Any
+from models.base_class import BaseClass
+from models.monster import Monster
+from models.shop import Shop
+from enum import Enum
 
-class Door:
-    # 基础提示语配置
-    HINT_CONFIGS = {
-        # 组合提示
-        "combo": {
-            frozenset({"monster", "reward"}): [
-                "野兽的咆哮中夹杂着金币的叮当声",
-                "危险的气息中闪烁着宝物的光芒",
-                "黑暗中似乎有宝藏，但似乎也有危险",
-                "猛兽的嘶吼与财宝的诱惑交织",
-                "危机与机遇并存"
-            ],
-            frozenset({"monster", "shop"}): [
-                "商人的吆喝声中藏着野兽的咆哮",
-                "交易与危险并存",
-                "商人的声音中似乎藏着威胁",
-                "猛兽的怒吼与商人的叫卖交织",
-                "买卖与战斗并存"
-            ],
-            frozenset({"monster", "trap"}): [
-                "危险的气息扑面而来",
-                "猛兽与陷阱的双重威胁",
-                "黑暗中藏着双重危险",
-                "野兽的咆哮与机关的咔嗒声交织",
-                "危机四伏"
-            ],
-            frozenset({"trap", "reward"}): [
-                "机关与宝藏并存",
-                "陷阱中似乎藏着宝物",
-                "危险与机遇并存",
-                "机关的咔嗒声中夹杂着金币的叮当声",
-                "危机与财富并存"
-            ],
-            frozenset({"trap", "shop"}): [
-                "商人的声音中似乎藏着机关",
-                "交易与陷阱并存",
-                "买卖声中似乎有机关的咔嗒声",
-                "商人的吆喝与机关的咔嗒声交织",
-                "买卖与危险并存"
-            ],
-            frozenset({"shop", "reward"}): [
-                "商人的吆喝声中夹杂着金币的叮当声",
-                "交易与财富并存",
-                "买卖声中似乎有宝物的光芒",
-                "商人的声音与财宝的诱惑交织",
-                "买卖与机遇并存"
-            ]
-        },
-        # 缺省提示语
-        "default": {
-            "monster": [
-                "黑暗中似乎有什么在移动...",
-                "危险的气息扑面而来...",
-                "有什么东西在等待着你...",
-                "空气中弥漫着紧张的气氛...",
-                "似乎有什么可怕的存在..."
-            ],
-            "trap": [
-                "这里的气氛有些诡异...",
-                "空气中弥漫着危险的气息...",
-                "似乎有什么机关在等待...",
-                "这里的一切都显得那么可疑...",
-                "黑暗中似乎藏着什么..."
-            ],
-            "reward": [
-                "金光闪闪，似乎有什么宝物...",
-                "空气中飘来一丝财富的气息...",
-                "这里似乎藏着什么好东西...",
-                "金光若隐若现，引人遐想...",
-                "似乎有什么宝物在等待..."
-            ],
-            "shop": [
-                "商人的吆喝声传来...",
-                "空气中飘来交易的气息...",
-                "这里似乎有商人在此...",
-                "商人的声音若隐若现...",
-                "似乎有什么人在做买卖..."
-            ]
-        }
-    }
 
-    @classmethod
-    def generate_monster_door(cls, monster):
-        """生成怪物门"""
-        # 创建 Monster 对象
-        monster_obj = monster
-        event_details = {
-            "monster": {
-                "name": monster.name,
-                "hp": monster.hp,
-                "atk": monster.atk,
-                "tier": monster.tier
-            }
-        }
-        return cls("monster", event_details, monster_obj)
-
-    @classmethod
-    def generate_reward_door(cls):
-        """生成奖励门"""
-        # 随机决定奖励类型
-        reward_type = random.random()
-        if reward_type < 0.4:  # 40%概率获得金币
-            g = random.randint(5, 15)
-            event_details = {
-                "reward": {"type": "gold", "value": g}
-            }
-        elif reward_type < 0.7:  # 30%概率获得装备
-            boost = random.randint(1, 10)
-            event_details = {
-                "reward": {"type": "equip", "value": boost}
-            }
-        else:  # 30%概率获得状态卷轴
-            scroll_type = random.choice([
-                ("healing_scroll", "恢复卷轴", random.randint(10, 20)),
-                ("damage_reduction", "减伤卷轴", random.randint(10, 20)),  # 随机持续10-20回合
-                ("atk_up", "攻击力增益卷轴", random.randint(10, 20)),
-            ])
-            event_details = {
-                "reward": {
-                    "type": "scroll", 
-                    "scroll_type": scroll_type[0], 
-                    "duration": scroll_type[2],
-                    "value": random.randint(10, 20) if scroll_type[0] == "atk_up" else None  # 随机增加10-20攻击力
-                }
-            }
-        return cls("reward", event_details)
-
-    @classmethod
-    def generate_shop_door(cls):
-        """生成商店门"""
-        return cls("shop")
-
-    def __init__(self, event, event_details=None, monster=None):
-        self.event = event
-        self.event_details = event_details or {}
-        self.monster = monster  # 保存monster对象
-        # 根据事件类型生成提示
-        if event == "monster":
-            self.hint = self.generate_mixed_hints(event, monster)
+class Door(BaseClass):
+    """门的基类"""
+    def _initialize(self, **kwargs) -> None:
+        super()._initialize(**kwargs)
+        self.controller = kwargs.get('controller', None)
+        if not self.controller:
+            raise ValueError("controller is required")
+                
+        if 'hint' in kwargs:
+            self.hint = kwargs['hint']
         else:
-            self.hint = self.generate_mixed_hints(event)
+            self.hint= ""
 
-    @classmethod
-    def generate_mixed_hints(cls, real_event, monster=None):
-        """生成混淆的提示，基于真实门和虚假门的类型"""
-        # 获取所有可能的门类型
-        all_events = ["monster", "trap", "reward", "shop"]
-        
-        # 生成一个虚假的门类型（与真实门不同）
-        fake_event = random.choice([e for e in all_events if e != real_event])
-        
-        # 获取组合提示
-        combo_key = frozenset({real_event, fake_event})
-        combo_hints = cls.HINT_CONFIGS["combo"].get(combo_key, cls.HINT_CONFIGS["default"][real_event])
-        combo = random.choice(combo_hints)
-        
-        # 处理怪物相关的提示
-        if real_event == "monster" or fake_event == "monster":
-            monster_obj = monster if monster else get_random_monster(current_round=1)
-            return f"{combo} {monster_obj.tier_hint} {monster_obj.type_hint}"
-        
-        return combo
+    def generate_hint(self) -> None:
+        """生成门的提示"""
+        raise NotImplementedError("子类必须实现generate_hint方法")
 
-    @classmethod
-    def generate_trap_door(cls):
-        """生成陷阱门"""
-        dmg = random.randint(5, 10)
-        event_details = {
-            "trap": {"damage": dmg}
-        }
-        return cls("trap", event_details)
+    def generate_non_monster_door_hint(self) -> None:
+        fake_door_enum = random.choice([enum for enum in DoorEnum if enum != self.enum])
+        self.hint = get_mixed_door_hint(frozenset([self.enum, fake_door_enum]))
+        if fake_door_enum == DoorEnum.MONSTER:
+            fake_monster = get_random_monster(current_round=self.controller.round_count)
+            tier_hint, type_hint = fake_monster.get_hints()
+            self.hint = f"{self.hint}, {tier_hint}, {type_hint}"
 
-    def enter(self, player, controller):
-        """进入门并处理事件"""
-        if self.event == "monster":
-            # 使用传入的monster对象
-            monster = self.monster
-            monster_desc = f"你遇到了 {monster.name} (HP: {monster.hp}, ATK: {monster.atk}, Tier: {monster.tier})"
-            if monster.has_status("stun"):
-                monster_desc += f" [晕眩{monster.statuses['stun']['duration']}回合]"
-            controller.current_monster = monster
-            controller.scene_manager.go_to("battle_scene")
-            controller.add_message(monster_desc)
-        elif self.event == "trap":
-            # 根据回合数和玩家状态决定陷阱效果
-            current_round = controller.round_count
+    def enter(self) -> bool:
+        """进入门"""
+        raise NotImplementedError("子类必须实现enter方法")
+    
+    
+
+
+class TrapDoor(Door):
+    """陷阱门"""
+    
+    def _initialize(self, **kwargs) -> None:
+        self.enum = DoorEnum.TRAP
+        super()._initialize(**kwargs)
+        self.damage = kwargs.get('damage', 10)
+        self.generate_hint()
+    
+
+    def generate_hint(self) -> None:
+        if not self.hint:
+            self.generate_non_monster_door_hint()
             
-            # 计算基础伤害，回合数越高伤害越高
-            base_damage = random.randint(5, 15)
-            damage = base_damage + (current_round // 5) * 2
-            
-            # 添加陷阱消息
-            controller.add_message("你触发了陷阱!")
-            
-            # 造成伤害
-            player.take_damage(damage)
-            
-            # 30%概率损失金币
-            if random.random() < 0.3:
-                # 计算金币损失，回合数越高损失越多
-                base_loss = random.randint(5, 15)  # 降低基础损失范围
-                loss = base_loss + (current_round // 5) * 3  # 降低每5回合的额外损失
-                player.gold = max(0, player.gold - loss)
-                controller.add_message(f"你损失了 {loss} 金币!")
-        elif self.event == "reward":
-            # 根据回合数决定奖励
-            current_round = controller.round_count
-            
-            # 计算金币奖励，回合数越高奖励越多
-            base_gold = random.randint(10, 30)
-            gold = base_gold + (current_round // 5) * 5
-            player.gold += gold
-            
-            # 30%概率获得额外奖励
-            if random.random() < 0.3:
-                # 随机选择一种额外奖励
-                reward_type = random.choice(["heal", "weapon", "armor"])
-                if reward_type == "heal":
-                    heal_amt = random.randint(5, 15)
-                    player.heal(heal_amt)
-                    controller.add_message(f"你获得了 {gold} 金币! 你恢复了 {heal_amt} 点生命!")
-                elif reward_type == "weapon":
-                    atk_boost = random.randint(2, 5)
-                    player.atk += atk_boost
-                    controller.add_message(f"你获得了 {gold} 金币! 你的攻击力提升了 {atk_boost} 点!")
-                elif reward_type == "armor":
-                    hp_boost = random.randint(5, 10)
-                    player.hp += hp_boost
-                    controller.add_message(f"你获得了 {gold} 金币! 你的生命值提升了 {hp_boost} 点!")
+    def enter(self) -> bool:
+        self.controller.player.take_damage(self.damage)
+        self.controller.add_message(f"你受到了{self.damage}点伤害！")
+        return True
+
+
+class RewardDoor(Door):
+    """奖励门"""
+    
+    def _initialize(self, **kwargs) -> None:
+        self.enum = DoorEnum.REWARD
+        super()._initialize(**kwargs)
+        self.reward = kwargs.get('reward', {'gold': 50})
+        self.generate_hint()
+    
+    def generate_hint(self) -> None:
+        self.generate_non_monster_door_hint()
+    
+    def enter(self) -> bool:
+        for item, amount in self.reward.items():
+            if item == 'gold':
+                self.controller.player.gold += amount
+                self.controller.add_message(f"你获得了{amount}金币！")
             else:
-                controller.add_message(f"你获得了 {gold} 金币!")
-        elif self.event == "shop":
-            # 进入商店
-            controller.scene_manager.go_to("shop_scene")
-            controller.add_message("你进入了商店!")
+                self.controller.player.add_item(item, amount)
+                self.controller.add_message(f"你获得了{amount}个{item}！")
+        return True
+
+
+class MonsterDoor(Door):
+    """怪物门"""
+    
+    def _initialize(self, **kwargs) -> None:
+        self.enum = DoorEnum.MONSTER
+        super()._initialize(**kwargs)
+        if 'monster' in kwargs:
+            self.monster = kwargs['monster']
         else:
-            controller.add_message("未知事件!") 
+            self.monster = get_random_monster(current_round=self.controller.round_count)
+        self.generate_hint()
+    
+    def generate_hint(self) -> None:
+        fake_door_enum = random.choice([enum for enum in DoorEnum if enum != self.enum])
+        tier_hint, type_hint = self.monster.get_hints()
+        self.hint = f"{get_mixed_door_hint(frozenset([self.enum, fake_door_enum]))}, {tier_hint}, {type_hint}"
+    
+    def enter(self) -> bool:
+        if not self.monster:
+            return False
+        self.controller.current_monster = self.monster
+        return True
+
+
+class ShopDoor(Door):
+    """商店门"""
+    
+    def _initialize(self, **kwargs) -> None:
+        self.enum = DoorEnum.SHOP
+        super()._initialize(**kwargs)
+        self.shop = self.controller.current_shop
+        self.generate_hint()
+    
+    def generate_hint(self) -> None:
+        self.generate_non_monster_door_hint()
+    
+    def enter(self) -> bool:
+        if not self.shop:
+            return False
+        self.controller.current_shop = self.shop
+        return True
+
+
+class DoorEnum(Enum):
+    """门类型枚举"""
+    
+    TRAP = TrapDoor
+    REWARD = RewardDoor
+    MONSTER = MonsterDoor
+    SHOP = ShopDoor
+    
+    def create_instance(self, **kwargs) -> Door:
+        """创建门实例"""
+        return self.value(**kwargs)
+    
+    @classmethod
+    def is_valid_door_type(cls, door_type: Any) -> bool:
+        """检查是否是有效的门类型"""
+        return isinstance(door_type, Door)
+
+    
+    @classmethod
+    def is_valid_door_enum(cls, door_enum: Any) -> bool:
+        """检查是否是有效的门枚举"""
+        return isinstance(door_enum, cls)
+
+# 基础提示语配置
+HINT_CONFIGS = {
+    # 组合提示
+    "combo": {
+        frozenset({DoorEnum.MONSTER, DoorEnum.REWARD}): [
+            "野兽的咆哮中夹杂着金币的叮当声",
+            "危险的气息中闪烁着宝物的光芒",
+            "黑暗中似乎有宝藏，但似乎也有危险",
+            "猛兽的嘶吼与财宝的诱惑交织",
+            "危机与机遇并存"
+        ],
+        frozenset({DoorEnum.MONSTER, DoorEnum.SHOP}): [
+            "商人的吆喝声中藏着野兽的咆哮",
+            "交易与危险并存",
+            "商人的声音中似乎藏着威胁",
+            "猛兽的怒吼与商人的叫卖交织",
+            "买卖与战斗并存"
+        ],
+        frozenset({DoorEnum.MONSTER, DoorEnum.TRAP}): [
+            "危险的气息扑面而来",
+            "猛兽与陷阱的双重威胁",
+            "黑暗中藏着双重危险",
+            "野兽的咆哮与机关的咔嗒声交织",
+            "危机四伏"
+        ],
+        frozenset({DoorEnum.TRAP, DoorEnum.REWARD}): [
+            "机关与宝藏并存",
+            "陷阱中似乎藏着宝物",
+            "危险与机遇并存",
+            "机关的咔嗒声中夹杂着金币的叮当声",
+            "危机与财富并存"
+        ],
+        frozenset({DoorEnum.TRAP, DoorEnum.SHOP}): [
+            "商人的声音中似乎藏着机关",
+            "交易与陷阱并存",
+            "买卖声中似乎有机关的咔嗒声",
+            "商人的吆喝与机关的咔嗒声交织",
+            "买卖与危险并存"
+        ],
+        frozenset({DoorEnum.SHOP, DoorEnum.REWARD}): [
+            "商人的吆喝声中夹杂着金币的叮当声",
+            "交易与财富并存",
+            "买卖声中似乎有宝物的光芒",
+            "商人的声音与财宝的诱惑交织",
+            "买卖与机遇并存"
+        ]
+    },
+    # 缺省提示语
+    "default": {
+        DoorEnum.MONSTER: [
+            "黑暗中似乎有什么在移动...",
+            "危险的气息扑面而来...",
+            "有什么东西在等待着你...",
+            "空气中弥漫着紧张的气氛...",
+            "似乎有什么可怕的存在..."
+        ],
+        DoorEnum.TRAP: [
+            "这里的气氛有些诡异...",
+            "空气中弥漫着危险的气息...",
+            "似乎有什么机关在等待...",
+            "这里的一切都显得那么可疑...",
+            "黑暗中似乎藏着什么..."
+        ],
+        DoorEnum.REWARD: [
+            "金光闪闪，似乎有什么宝物...",
+            "空气中飘来一丝财富的气息...",
+            "这里似乎藏着什么好东西...",
+            "金光若隐若现，引人遐想...",
+            "似乎有什么宝物在等待..."
+        ],
+        DoorEnum.SHOP: [
+            "商人的吆喝声传来...",
+            "空气中飘来交易的气息...",
+            "这里似乎有商人在此...",
+            "商人的声音若隐若现...",
+            "似乎有什么人在做买卖..."
+        ]
+    }
+}
+
+def get_mixed_door_hint(door_enums: list[DoorEnum]) -> str:
+    """获取混合门提示"""
+    if not door_enums:
+        return ""
+    if len(door_enums) == 1:
+        return random.choice(HINT_CONFIGS["default"][door_enums[0].value])
+    return random.choice(HINT_CONFIGS["combo"][frozenset(random.sample(door_enums, 2))])
