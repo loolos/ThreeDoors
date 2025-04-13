@@ -7,6 +7,33 @@ from models.shop import Shop
 from enum import Enum
 
 
+class DoorEnum(Enum):
+    """门类型枚举"""
+    TRAP = "trap"
+    REWARD = "reward"
+    MONSTER = "monster"
+    SHOP = "shop"
+    
+    def create_instance(self, **kwargs):
+        """创建门实例"""
+        return {
+            DoorEnum.TRAP: TrapDoor,
+            DoorEnum.REWARD: RewardDoor,
+            DoorEnum.MONSTER: MonsterDoor,
+            DoorEnum.SHOP: ShopDoor
+        }.get(self)(**kwargs)
+    
+    @classmethod
+    def is_valid_door_type(cls, door_type: Any) -> bool:
+        """检查是否是有效的门类型"""
+        return isinstance(door_type, Door)
+
+    
+    @classmethod
+    def is_valid_door_enum(cls, door_enum: Any) -> bool:
+        """检查是否是有效的门枚举"""
+        return isinstance(door_enum, cls)
+
 class Door(BaseClass):
     """门的基类"""
     def _initialize(self, **kwargs) -> None:
@@ -123,30 +150,6 @@ class ShopDoor(Door):
             return False
         self.controller.current_shop = self.shop
         return True
-
-
-class DoorEnum(Enum):
-    """门类型枚举"""
-    
-    TRAP = TrapDoor
-    REWARD = RewardDoor
-    MONSTER = MonsterDoor
-    SHOP = ShopDoor
-    
-    def create_instance(self, **kwargs) -> Door:
-        """创建门实例"""
-        return self.value(**kwargs)
-    
-    @classmethod
-    def is_valid_door_type(cls, door_type: Any) -> bool:
-        """检查是否是有效的门类型"""
-        return isinstance(door_type, Door)
-
-    
-    @classmethod
-    def is_valid_door_enum(cls, door_enum: Any) -> bool:
-        """检查是否是有效的门枚举"""
-        return isinstance(door_enum, cls)
 
 # 基础提示语配置
 HINT_CONFIGS = {

@@ -765,7 +765,7 @@ class TestSceneSystem(unittest.TestCase):
         
         door_scene.generate_doors([DoorEnum.MONSTER, DoorEnum.SHOP, DoorEnum.TRAP])
         door_scene.doors[0].monster = Monster("测试怪物", 100, 10)
-        self.controller.scene_manager.go_to("door_scene")
+        self.controller.scene_manager.go_to("door_scene", generate_new_doors=False)
         self.assertIsInstance(self.controller.scene_manager.current_scene, DoorScene)
 
         #清空玩家的物品栏
