@@ -1,7 +1,7 @@
 """
 游戏系统测试
 """
-from .test_base import BaseTest
+from test.test_base import BaseTest
 
 class TestGameSystem(BaseTest):
     """游戏系统测试类"""

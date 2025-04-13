@@ -2,14 +2,18 @@
 状态系统测试
 """
 from test_base import BaseTest
+from models.monster import Monster
 
 class TestStatusSystem(BaseTest):
     """状态系统测试类"""
+    def setUp(self):
+        super().setUp()
+        self.player = self.controller.player
+        self.monster = Monster("测试怪物", 100, 10)
     
     def test_status_application(self):
         """测试状态应用"""
         pass
-        
     def test_status_duration(self):
         """测试状态持续时间"""
         pass

@@ -27,8 +27,8 @@ class StatusName(Enum):
             StatusName.HEALING_SCROLL: "恢复",
             StatusName.IMMUNE: "免疫"
         }.get(self, self.value)
-    @property
-    def get_status_class(self):
+
+    def create_instance(self, **kwargs):
         return {
             StatusName.WEAK: WeakStatus,
             StatusName.POISON: PoisonStatus,
@@ -39,7 +39,7 @@ class StatusName(Enum):
             StatusName.DAMAGE_REDUCTION: DamageReductionStatus,
             StatusName.HEALING_SCROLL: HealingScrollStatus,
             StatusName.IMMUNE: ImmuneStatus
-        }.get(self)
+        }.get(self)(**kwargs)
 
 class Status:
     """状态效果基类"""
@@ -316,29 +316,29 @@ class ImmuneStatus(Status):
         if old_duration != self.duration:
             self.target.controller.add_message(f"免疫效果从 {old_duration} 回合提升至 {self.duration} 回合!")
 
-def CreateStatusByName(status_name: StatusName, **kwargs) -> Status:
-    """根据状态名称创建对应的状态实例
+# def CreateStatusByName(status_name: StatusName, **kwargs) -> Status:
+#     """根据状态名称创建对应的状态实例
     
-    Args:
-        status_name: 状态名称枚举
-        **kwargs: 传递给状态构造函数的参数
+#     Args:
+#         status_name: 状态名称枚举
+#         **kwargs: 传递给状态构造函数的参数
         
-    Returns:
-        创建的状态实例
-    """
-    status_map = {
-        StatusName.WEAK: WeakStatus,
-        StatusName.POISON: PoisonStatus,
-        StatusName.STUN: StunStatus,
-        StatusName.ATK_MULTIPLIER: AtkMultiplierStatus,
-        StatusName.BARRIER: BarrierStatus,
-        StatusName.ATK_UP: AtkUpStatus,
-        StatusName.DAMAGE_REDUCTION: DamageReductionStatus,
-        StatusName.HEALING_SCROLL: HealingScrollStatus,
-        StatusName.IMMUNE: ImmuneStatus
-    }
+#     Returns:
+#         创建的状态实例
+#     """
+#     status_map = {
+#         StatusName.WEAK: WeakStatus,
+#         StatusName.POISON: PoisonStatus,
+#         StatusName.STUN: StunStatus,
+#         StatusName.ATK_MULTIPLIER: AtkMultiplierStatus,
+#         StatusName.BARRIER: BarrierStatus,
+#         StatusName.ATK_UP: AtkUpStatus,
+#         StatusName.DAMAGE_REDUCTION: DamageReductionStatus,
+#         StatusName.HEALING_SCROLL: HealingScrollStatus,
+#         StatusName.IMMUNE: ImmuneStatus
+#     }
     
-    if status_name not in status_map:
-        raise ValueError(f"Unknown status name: {status_name}")
+#     if status_name not in status_map:
+#         raise ValueError(f"Unknown status name: {status_name}")
         
-    return status_map[status_name](**kwargs)
+#     return status_map[status_name](**kwargs)

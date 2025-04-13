@@ -2,7 +2,7 @@ from models.items import Item, ItemType, Equipment, HealingScroll, DamageReducti
 from typing import Optional, TYPE_CHECKING
 from models.game_config import GameConfig
 from models import items
-from .status import Status, StatusName, CreateStatusByName
+from .status import Status, StatusName
 if TYPE_CHECKING:
     from models.player import Player
 
@@ -360,7 +360,7 @@ class Monster:
             duration = random.randint(1, 2)
             
             # 应用状态
-            status = effect.get_status_class(duration=duration, target=target)
+            status = effect.create_instance(duration=duration, target=target)
             target.apply_status(status)
             if hasattr(target, 'controller') and target.controller:
                 # 获取状态名称的中文描述
@@ -435,7 +435,7 @@ class Monster:
 
     def stun(self, duration: int) -> None:
         """使怪物晕眩"""
-        self.statuses[StatusName.STUN] = StatusName.get_status_class(StatusName.STUN)(duration=duration, target=self)
+        self.statuses[StatusName.STUN] = StatusName.create_instance(StatusName.STUN)(duration=duration, target=self)
 
     def battle_status_duration_pass(self) -> None:
         """处理战斗回合的状态持续时间"""

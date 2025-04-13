@@ -2,6 +2,12 @@
 基础测试类，包含通用的测试设置和工具方法
 """
 import unittest
+import sys
+import os
+
+# 添加项目根目录到 Python 路径
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from server import GameController
 from models.player import Player
 from models.monster import Monster

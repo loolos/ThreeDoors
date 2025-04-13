@@ -2,7 +2,7 @@ import unittest
 from server import GameController, Player, BattleScene
 from models.monster import Monster
 from models import items
-from models.status import StatusName, CreateStatusByName
+from models.status import StatusName
 
 class TestPlayerActions(unittest.TestCase):
     def setUp(self):
@@ -26,7 +26,7 @@ class TestPlayerActions(unittest.TestCase):
     def test_player_status_effects(self):
         """测试玩家状态效果"""
         # 测试添加状态效果
-        self.player.apply_status(CreateStatusByName(StatusName.POISON, duration=3, target=self.player))
+        self.player.apply_status(StatusName.POISON.create_instance(duration=3, target=self.player))
         self.assertTrue(self.player.has_status(StatusName.POISON))
         
         # 测试状态效果描述
@@ -38,7 +38,7 @@ class TestPlayerActions(unittest.TestCase):
         # 设置玩家生命值为100
         self.player.hp = 100
         # 添加中毒状态
-        self.player.apply_status(CreateStatusByName(StatusName.POISON, duration=3, target=self.player))
+        self.player.apply_status(StatusName.POISON.create_instance(duration=3, target=self.player))
         
         # 应用回合效果
         self.player.battle_status_duration_pass()
@@ -57,7 +57,7 @@ class TestPlayerActions(unittest.TestCase):
         self.controller.current_monster = battle_scene.monster
         
         # 添加晕眩状态
-        self.player.apply_status(CreateStatusByName(StatusName.STUN, duration=3, target=self.player))
+        self.player.apply_status(StatusName.STUN.create_instance(duration=3, target=self.player))
         
         # 测试无法攻击
         battle_scene.handle_choice(0)  # 尝试攻击
@@ -106,14 +106,14 @@ class TestPlayerActions(unittest.TestCase):
     def test_immunity_effect(self):
         """测试免疫效果"""
         # 先给玩家添加免疫状态
-        immune_status = CreateStatusByName(StatusName.IMMUNE, duration=5, target=self.controller.player)
+        immune_status = StatusName.IMMUNE.create_instance(duration=5, target=self.controller.player)
         self.controller.player.apply_status(immune_status)
         self.assertTrue(self.controller.player.has_status(StatusName.IMMUNE), "玩家应该具有免疫状态")
         
         # 测试免疫效果对负面状态的影响
         # 1. 测试免疫效果对虚弱状态的影响
         self.controller.clear_messages()  # 清除之前的消息
-        weak_status = CreateStatusByName(StatusName.WEAK, duration=3, target=self.controller.player)
+        weak_status = StatusName.WEAK.create_instance(duration=3, target=self.controller.player)
         self.controller.player.apply_status(weak_status)
         self.assertFalse(self.controller.player.has_status(StatusName.WEAK), "免疫效果应该阻止虚弱状态")
         self.assertTrue(
@@ -123,7 +123,7 @@ class TestPlayerActions(unittest.TestCase):
         
         # 2. 测试免疫效果对中毒状态的影响
         self.controller.clear_messages()  # 清除之前的消息
-        poison_status = CreateStatusByName(StatusName.POISON, duration=3, target=self.controller.player)
+        poison_status = StatusName.POISON.create_instance(duration=3, target=self.controller.player)
         self.controller.player.apply_status(poison_status)
         self.assertFalse(self.controller.player.has_status(StatusName.POISON), "免疫效果应该阻止中毒状态")
         self.assertTrue(
@@ -133,7 +133,7 @@ class TestPlayerActions(unittest.TestCase):
         
         # 3. 测试免疫效果对晕眩状态的影响
         self.controller.clear_messages()  # 清除之前的消息
-        stun_status = CreateStatusByName(StatusName.STUN, duration=2, target=self.controller.player)
+        stun_status = StatusName.STUN.create_instance(duration=2, target=self.controller.player)
         self.controller.player.apply_status(stun_status)
         self.assertFalse(self.controller.player.has_status(StatusName.STUN), "免疫效果应该阻止晕眩状态")
         self.assertTrue(
@@ -144,7 +144,7 @@ class TestPlayerActions(unittest.TestCase):
         # 4. 测试免疫效果对正面状态的影响
         # 4.1 测试攻击力翻倍状态
         self.controller.clear_messages()  # 清除之前的消息
-        atk_multiplier_status = CreateStatusByName(StatusName.ATK_MULTIPLIER, duration=1, target=self.controller.player, value=2)
+        atk_multiplier_status = StatusName.ATK_MULTIPLIER.create_instance(duration=1, target=self.controller.player, value=2)
         self.controller.player.apply_status(atk_multiplier_status)
         self.assertTrue(self.controller.player.has_status(StatusName.ATK_MULTIPLIER), "免疫效果不应该阻止攻击力翻倍状态")
         self.assertFalse(
@@ -154,7 +154,7 @@ class TestPlayerActions(unittest.TestCase):
         
         # 4.2 测试攻击力提升状态
         self.controller.clear_messages()  # 清除之前的消息
-        atk_up_status = CreateStatusByName(StatusName.ATK_UP, duration=5, target=self.controller.player, value=2)
+        atk_up_status = StatusName.ATK_UP.create_instance(duration=5, target=self.controller.player, value=2)
         self.controller.player.apply_status(atk_up_status)
         self.assertTrue(self.controller.player.has_status(StatusName.ATK_UP), "免疫效果不应该阻止攻击力提升状态")
         self.assertFalse(

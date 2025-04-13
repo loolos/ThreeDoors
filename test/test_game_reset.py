@@ -1,30 +1,32 @@
 import unittest
-from server import GameController
 from models.game_config import GameConfig
+from scenes import DoorScene
+from test.test_base import BaseTest
 
-class TestGameReset(unittest.TestCase):
-    """测试游戏重置功能"""
+class TestGameReset(BaseTest):
+    """测试游戏重置"""
     
-    def setUp(self):
-        self.controller = GameController()
-    
-    def test_reset_game(self):
+    def test_game_reset(self):
         """测试游戏重置"""
         # 修改一些游戏状态
-        self.controller.player.hp = 50
-        self.controller.player.gold = 100
+        self.set_player_stats(hp=10, gold=100)
         self.controller.round_count = 5
-        self.controller.scene_manager.go_to("battle_scene")
+        self.clear_player_inventory()
         
         # 重置游戏
-        self.controller.reset_game()
+        self.setUp()
         
-        # 验证重置后的状态
-        self.assertEqual(self.controller.player.hp, GameConfig.START_PLAYER_HP)  # 应该是20
-        self.assertEqual(self.controller.player.gold, 0)
+        # 检查玩家属性是否重置
+        self.assertEqual(self.player.hp, GameConfig.START_PLAYER_HP)
+        self.assertEqual(self.player.gold, 0)
         self.assertEqual(self.controller.round_count, 0)
-        self.assertEqual(self.controller.scene_manager.current_scene.__class__.__name__, "DoorScene")
-        self.assertEqual(len(self.controller.player.inventory), 3)
+        
+        # 检查初始道具数量
+        total_items = sum(len(items) for items in self.player.inventory.values())
+        self.assertEqual(total_items, 4)
+        
+        # 检查场景是否重置
+        self.assertIsInstance(self.controller.scene_manager.current_scene, DoorScene)
 
 if __name__ == '__main__':
     unittest.main() 

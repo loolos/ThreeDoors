@@ -1,7 +1,7 @@
 import random
 from enum import Enum
 from models.game_config import GameConfig
-from models.status import Status, StatusName, CreateStatusByName
+from models.status import Status, StatusName
 from typing import Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -102,27 +102,27 @@ class Equipment(ConsumableItem):
 class DamageReductionScroll(ConsumableItem):
     def __init__(self, name: str, **kwargs):
         super().__init__(name, cost=kwargs.get('cost', 0))
-        self.duration = kwargs.get('duration', 0)
+        self.duration = kwargs.get('duration', random.randint(10, 15))
 
     def effect(self, **kwargs):
         player = kwargs.get('player')
         monster = kwargs.get('monster')
         if player:
-            player.apply_status(CreateStatusByName(StatusName.DAMAGE_REDUCTION, duration=self.duration, target=player))
+            player.apply_status(StatusName.DAMAGE_REDUCTION.create_instance(duration=self.duration, target=player))
         elif monster:
-            monster.apply_status(CreateStatusByName(StatusName.DAMAGE_REDUCTION, duration=self.duration, target=monster))
+            monster.apply_status(StatusName.DAMAGE_REDUCTION.create_instance(duration=self.duration, target=monster))
 
 # 攻击力增益卷轴类
 class AttackUpScroll(ConsumableItem):
     def __init__(self, name: str, **kwargs):
         super().__init__(name, cost=kwargs.get('cost', 0))
         self.atk_bonus = kwargs.get('atk_bonus', 0)
-        self.duration = kwargs.get('duration', 0)
+        self.duration = kwargs.get('duration', random.randint(10, 15))
 
     def effect(self, **kwargs):
         player = kwargs.get('player')
         if player:
-            player.apply_status(CreateStatusByName(StatusName.ATK_UP, duration=self.duration, target=player, value=self.atk_bonus))
+            player.apply_status(StatusName.ATK_UP.create_instance(duration=self.duration, target=player, value=self.atk_bonus))
 
 # 复活卷轴类
 class ReviveScroll(PassiveItem):
@@ -140,12 +140,12 @@ class ReviveScroll(PassiveItem):
 class HealingScroll(ConsumableItem):
     def __init__(self, name: str, **kwargs):
         super().__init__(name, cost=kwargs.get('cost', 0))
-        self.duration = kwargs.get('duration', 0)
+        self.duration = kwargs.get('duration', random.randint(10, 15))
 
     def effect(self, **kwargs):
         player = kwargs.get('player')
         if player:
-            player.apply_status(CreateStatusByName(StatusName.HEALING_SCROLL, duration=self.duration, target=player))
+            player.apply_status(StatusName.HEALING_SCROLL.create_instance(duration=self.duration, target=player))
 
 # 免疫卷轴类
 class ImmuneScroll(ConsumableItem):
@@ -156,7 +156,7 @@ class ImmuneScroll(ConsumableItem):
     def effect(self, **kwargs):
         player = kwargs.get('player')
         if player:
-            player.apply_status(CreateStatusByName(StatusName.IMMUNE, duration=self.duration, target=player))
+            player.apply_status(StatusName.IMMUNE.create_instance(duration=self.duration, target=player))
 
 # 战斗物品类
 class BattleItemBase(BattleItem):
@@ -171,7 +171,7 @@ class FlyingHammer(BattleItemBase):
         monster = kwargs.get('monster')
         target = kwargs.get('target', monster)  # 默认对怪物生效
         if player and target:
-            target.apply_status(CreateStatusByName(StatusName.STUN, duration=3, target=target))
+            target.apply_status(StatusName.STUN.create_instance(duration=3, target=target))
             player.controller.add_message("飞锤飞出，怪物被晕眩3回合！")
 
 # 结界类
@@ -180,7 +180,7 @@ class Barrier(BattleItemBase):
         player = kwargs.get('player')
         target = kwargs.get('target', player)  # 默认对自己生效
         if player and target:
-            target.apply_status(CreateStatusByName(StatusName.BARRIER, duration=self.duration, target=target))
+            target.apply_status(StatusName.BARRIER.create_instance(duration=self.duration, target=target))
             player.controller.add_message(f"结界形成，接下来{self.duration}回合你免受怪物伤害！")
 
 # 巨大卷轴类
@@ -189,7 +189,7 @@ class GiantScroll(BattleItemBase):
         player = kwargs.get('player')
         target = kwargs.get('target', player)  # 默认对自己生效
         if player and target:
-            target.apply_status(CreateStatusByName(StatusName.ATK_MULTIPLIER, duration=self.duration, target=target, value=2))
+            target.apply_status(StatusName.ATK_MULTIPLIER.create_instance(duration=self.duration, target=target, value=2))
             player.controller.add_message(f"巨大卷轴激活，接下来{self.duration}回合你的攻击力翻倍！")
 
 # 金币袋子类
