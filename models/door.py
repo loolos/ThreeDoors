@@ -1,4 +1,4 @@
-import random
+import random, numpy
 from .monster import get_random_monster
 from typing import Optional, Dict, Any
 from models.base_class import BaseClass
@@ -231,10 +231,14 @@ HINT_CONFIGS = {
     }
 }
 
-def get_mixed_door_hint(door_enums: list[DoorEnum]) -> str:
+def get_mixed_door_hint(door_enums):
     """获取混合门提示"""
     if not door_enums:
         return ""
     if len(door_enums) == 1:
         return random.choice(HINT_CONFIGS["default"][door_enums[0].value])
-    return random.choice(HINT_CONFIGS["combo"][frozenset(random.sample(door_enums,2))])
+    door_enums_list = list(door_enums)
+    selected_enums = []
+    selected_enums.append(door_enums_list.pop(random.randint(0, len(door_enums_list) - 1)))
+    selected_enums.append(door_enums_list.pop(random.randint(0, len(door_enums_list) - 1)))
+    return random.choice(HINT_CONFIGS["combo"][frozenset(selected_enums)])

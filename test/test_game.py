@@ -3,7 +3,7 @@
 """
 from test.test_base import BaseTest
 from models.game_config import GameConfig
-from scenes import DoorScene
+from scenes import DoorScene, SceneType
 from models.items import ItemType
 import random
 class TestGameSystem(BaseTest):
@@ -29,7 +29,10 @@ class TestGameSystem(BaseTest):
         self.set_player_stats(hp=10, gold=100)
         self.controller.round_count = 5
         for k in range(10):
-            self.controller.scene_manager.current_scene.handle_choice(random.randint(0, 2))
+            if self.controller.scene_manager.current_scene.enum == SceneType.GAME_OVER:
+                self.controller.scene_manager.current_scene.handle_choice(random.randint(0, 1))
+            else:
+                self.controller.scene_manager.current_scene.handle_choice(random.randint(0, 2))
         self.clear_player_inventory()
         
         # 重置游戏
