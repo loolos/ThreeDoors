@@ -330,7 +330,6 @@ class SceneManager:
         """初始化所有场景"""
         for scene_name in SceneType.get_name_scene_dict().keys():
             self.scene_dict[scene_name] = SceneType.get_scene_class_by_name(scene_name)(self.game_controller)
-            self.scene_dict[scene_name].on_enter()
             scene = self.scene_dict[scene_name]
             if scene_name == SceneType.DOOR.value:
                 scene.generate_doors()

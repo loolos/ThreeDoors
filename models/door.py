@@ -130,6 +130,7 @@ class MonsterDoor(Door):
         if not self.monster:
             return False
         self.controller.current_monster = self.monster
+        self.controller.add_message(f"你遇到了 {self.monster.name}！")
         return True
 
 
