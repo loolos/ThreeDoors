@@ -45,10 +45,8 @@ class Shop:
             # 计算实际价格（有浮动）
             cost = int(base_cost * random.uniform(*self.SHOP_PRICE_MULTIPLIER))
             
-            # 如果玩家金币不足，跳过这个物品
-            if cost > self.player.gold:
-                possible.remove(item_data)
-                continue
+            # 如果玩家金币不足，跳过这个物品 -> removed
+
                 
             # 创建物品
             if item_type == "heal":

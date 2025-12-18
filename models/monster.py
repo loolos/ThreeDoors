@@ -1,8 +1,7 @@
-from models.items import Item, ItemType, Equipment, HealingScroll, DamageReductionScroll, AttackUpScroll, create_random_item
+from models.items import Item, ItemType, Equipment, HealingScroll, DamageReductionScroll, AttackUpScroll, create_random_item, GoldBag
 from typing import Optional, TYPE_CHECKING
 from models.game_config import GameConfig
-from models import items
-from .status import Status, StatusName
+from models.status import Status, StatusName
 if TYPE_CHECKING:
     from models.player import Player
 
@@ -217,7 +216,7 @@ class Monster:
         
         # 基础金币掉落，随怪物等级提升
         base_gold = random.randint(5, 15) * self.tier
-        gold_bag = items.GoldBag(f"{base_gold}金币", gold_amount=base_gold)
+        gold_bag = GoldBag(f"{base_gold}金币", gold_amount=base_gold)
         loot.append(gold_bag)
         
         # 根据怪物等级决定额外掉落
@@ -234,11 +233,11 @@ class Monster:
                 scroll_type = random.choice(["healing", "damage_reduction", "attack_up"])
                 
                 if scroll_type == "healing":
-                    item = items.HealingScroll("恢复卷轴", cost=scroll_value * 2, duration=scroll_value)
+                    item = HealingScroll("恢复卷轴", cost=scroll_value * 2, duration=scroll_value)
                 elif scroll_type == "damage_reduction":
-                    item = items.DamageReductionScroll("减伤卷轴", cost=scroll_value * 2, duration=scroll_value)
+                    item = DamageReductionScroll("减伤卷轴", cost=scroll_value * 2, duration=scroll_value)
                 else:  # attack_up
-                    item = items.AttackUpScroll("攻击力增益卷轴", atk_bonus=scroll_value, cost=scroll_value * 2, duration=scroll_value)
+                    item = AttackUpScroll("攻击力增益卷轴", atk_bonus=scroll_value, cost=scroll_value * 2, duration=scroll_value)
                     
                 loot.append(item)
         
@@ -375,8 +374,9 @@ class Monster:
 
     def generate_loot(self) -> Optional[Item]:
         """生成掉落物品"""
+        loot = [] # Added to make 'loot' defined
         if random.random() < GameConfig.LOOT_CHANCE:
-            return create_random_item()
+                loot.append(create_random_item())
         return None
 
     def drop_loot(self, player):
@@ -435,7 +435,7 @@ class Monster:
 
     def stun(self, duration: int) -> None:
         """使怪物晕眩"""
-        self.statuses[StatusName.STUN] = StatusName.create_instance(StatusName.STUN)(duration=duration, target=self)
+        self.statuses[StatusName.STUN] = StatusName.STUN.create_instance(duration=duration, target=self)
 
     def battle_status_duration_pass(self) -> None:
         """处理战斗回合的状态持续时间"""

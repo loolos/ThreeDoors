@@ -32,7 +32,7 @@ class BaseTest(unittest.TestCase):
         
     def apply_status_to_player(self, status_name, duration=1):
         """给玩家添加状态"""
-        status = Status(status_name, duration)
+        status = status_name.create_instance(duration=duration, target=self.player)
         self.player.apply_status(status)
         
     def clear_player_status(self):

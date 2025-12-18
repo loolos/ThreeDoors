@@ -37,10 +37,11 @@ class Player:
         # 检查是否死亡
         if self.hp <= 0:
             # 检查是否有复活卷轴
-            for item in self.inventory.get(ItemType.CONSUMABLE, []):
+            for item in self.inventory.get(ItemType.PASSIVE, []):
                 if item.name == "复活卷轴":
                     self.hp = GameConfig.START_PLAYER_HP  # 使用初始生命值
-                    self.inventory[ItemType.CONSUMABLE].remove(item)  # 移除复活卷轴
+                    self.inventory[ItemType.PASSIVE].remove(item)  # 移除复活卷轴
+
                     self.controller.add_message("复活卷轴效果触发，你复活了!")
                     return
                     

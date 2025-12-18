@@ -50,7 +50,7 @@ class Status:
         self.is_battle_only = kwargs.get("is_battle_only", False)
         self.description = kwargs.get("description", "")
         self.target = kwargs.get("target", None)
-        self.start_effect()
+        # self.start_effect() # Removed to avoid double application
         
     def start_effect(self) -> None:
         """状态效果开始时调用"""
