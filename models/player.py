@@ -9,7 +9,6 @@ class Player:
     def __init__(self, controller):
         """初始化玩家"""
         self.controller = controller
-        self.max_hp = GameConfig.START_PLAYER_HP
         self.reset()
 
     def _init_default_items(self):
@@ -197,7 +196,6 @@ class Player:
     def reset(self):
         """重置玩家状态"""
         self.hp = GameConfig.START_PLAYER_HP
-        self.max_hp = GameConfig.START_PLAYER_HP
         self.atk = GameConfig.START_PLAYER_ATK
         self.gold = 0
         self.inventory = {

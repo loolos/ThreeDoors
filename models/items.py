@@ -82,8 +82,8 @@ class HealingPotion(ConsumableItem):
     def effect(self, **kwargs):
         player = kwargs.get('player')
         if player:
-            player.hp += self.heal_amount
-            player.controller.add_message(f"恢复 {self.heal_amount} HP!")
+            recovered = player.heal(self.heal_amount)
+            player.controller.add_message(f"恢复 {recovered} HP!")
 
 # 装备类
 class Equipment(ConsumableItem):

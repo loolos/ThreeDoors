@@ -103,6 +103,16 @@ function renderState(state) {
       emoji = "💀";
       desc = "胜败乃兵家常事...";
       break;
+    case "EVENT":
+      emoji = getEventEmoji(state.event_info ? state.event_info.title : "");
+      if (state.event_info) {
+        desc = state.event_info.description;
+        // Add title to description for context if needed, or just rely on desc
+        // desc = `【${state.event_info.title}】\n${state.event_info.description}`; 
+      } else {
+        desc = "发生了一个事件...";
+      }
+      break;
     default:
       emoji = "✨";
       desc = "未知领域";
@@ -164,6 +174,18 @@ function getMonsterEmoji(name) {
   if (name.includes("鬼")) return "👻";
   if (name.includes("熊")) return "🐻";
   return "👾";
+}
+
+function getEventEmoji(title) {
+  if (!title) return "❔";
+  if (title.includes("Stranger")) return "🤕";
+  if (title.includes("Smuggler")) return "🕵️";
+  if (title.includes("Shrine")) return "⛩️";
+  if (title.includes("Gambler")) return "🎲";
+  if (title.includes("Lost Child")) return "👧";
+  if (title.includes("Cursed Chest")) return "🧰";
+  if (title.includes("Wise Sage")) return "🧙";
+  return "🎭";
 }
 
 function addLog(msg) {

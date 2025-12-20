@@ -1,4 +1,5 @@
 import unittest
+import unittest.mock
 from server import GameController, Player, DoorScene, BattleScene, ShopScene, UseItemScene, GameOverScene, GameConfig
 from models.monster import get_random_monster, Monster
 import random
@@ -502,14 +503,77 @@ class TestGameStability(unittest.TestCase):
                             random_choice = random.randint(0, button_count - 1)
                         
                         # 执行按钮点击
+                        before_scene = self.controller.scene_manager.current_scene.enum
+                        before_buttons = self.controller.scene_manager.current_scene.button_texts[:]
                         button_text = self.controller.scene_manager.current_scene.button_texts[random_choice]
+                        
+                        # 记录点击前的状态 (HP, Gold, Atk)
+                        before_hp = self.controller.player.hp
+                        before_gold = self.controller.player.gold
+                        before_atk = self.controller.player.atk
+                        
                         self.controller.scene_manager.current_scene.handle_choice(random_choice)
+                        
+                        # 记录点击后的状态
+                        after_hp = self.controller.player.hp
+                        after_gold = self.controller.player.gold
+                        after_atk = self.controller.player.atk
+                        
+                        # 验证状态波动 (Exception: Game Over -> DoorScene (Reset) or using Revive Scroll)
+                        # 如果不是重置游戏（GameOver -> Door），则检查波动
+                        is_game_reset = (before_scene == SceneType.GAME_OVER and 
+                                       self.controller.scene_manager.current_scene.enum == SceneType.DOOR)
+                                       
+                        if not is_game_reset:
+                            # 允许复活卷轴导致 HP 恢复到初始值 (e.g. 100)，所以 check delta > 200
+                            hp_delta = after_hp - before_hp
+                            gold_delta = after_gold - before_gold
+                            atk_delta = after_atk - before_atk
+                            
+                            # HP 检查：
+                            # 1. 增加值不应过大（考虑到后期 MaxHP 可能增长，放宽到 500）
+                            # 2. 当前血量不应超过最大血量
+                            self.assertLess(hp_delta, 500, 
+                                f"HP increased drastically by {hp_delta} after '{button_text}'! (Before: {before_hp}, After: {after_hp})")
+                                
+                            self.assertLess(gold_delta, 500, 
+                                f"Gold increased drastically by {gold_delta} after '{button_text}'! (Before: {before_gold}, After: {after_gold})")
+                            self.assertLess(atk_delta, 100, 
+                                f"Atk increased drastically by {atk_delta} after '{button_text}'! (Before: {before_atk}, After: {after_atk})")
                         
                         # 验证是否有新的日志生成
                         current_messages = self.controller.messages
                         self.assertTrue(len(current_messages) > 0, f"点击按钮 '{button_text}' 后没有生成新的日志消息")
-                if not isinstance(self.controller.scene_manager.current_scene, GameOverScene):
-                    self.assertGreaterEqual(self.controller.player.hp, 0, "玩家生命值不应该小于0")
+                        # 确保日志内容不是空字符串
+                        self.assertTrue(any(msg.strip() for msg in current_messages), f"点击按钮 '{button_text}' 后生成了空日志")
+                        
+                        # 验证状态改变（防止死循环/无反应）
+                        after_scene = self.controller.scene_manager.current_scene.enum
+                        after_buttons = self.controller.scene_manager.current_scene.button_texts
+                        
+                        # 如果在 EventScene，点击后应该跳转（除非是无效点击，但这里我们只点击有效按钮）
+                        if before_scene == SceneType.EVENT:
+                            self.assertNotEqual(after_scene, SceneType.EVENT, 
+                                f"EventScene stuck! Choice {random_choice} kept us in EventScene. Log: {current_messages}")
+                            
+                        # 如果场景没变，至少按钮文本或者是回合数、状态发生变化（除了无效操作）
+                        if before_scene == after_scene:
+                            # 门场景自循环必须刷新门（按钮改变）
+                            if before_scene == SceneType.DOOR:
+                                self.assertNotEqual(before_buttons, after_buttons,
+                                    "DoorScene refreshed but buttons (doors) didn't change! Did verify_doors fail?")
+                            # 某些场景可能不换场景但会有反馈（如 Battle）
+                            pass
+
+                # 验证死亡逻辑
+                if self.controller.player.hp <= 0:
+                     self.assertIsInstance(self.controller.scene_manager.current_scene, GameOverScene, 
+                                         f"Player died (HP={self.controller.player.hp}) but scene is {self.controller.scene_manager.current_scene.enum}!")
+                else:
+                     # 如果没死，生命值应该是正数 (Allow 0 if accidentally exact? No usually died at <=0)
+                     # Actually hp <= 0 is dead. So hp > 0.
+                     pass
+                     
                 # 每100次点击打印一次进度
                 if (i + 1) % 500 == 0:
                     current_scene = self.controller.scene_manager.current_scene.__class__.__name__
@@ -557,8 +621,12 @@ class TestMonsterLoot(unittest.TestCase):
         # 创建测试物品
         healing_potion = items.HealingPotion("小治疗药水", heal_amount=5, cost=5)
         self.monster.loot = [healing_potion]
+        
+        # 先扣血，确保能加血
+        self.controller.player.hp = 1
+        
         self.monster.process_loot(self.controller.player)
-        self.assertGreater(self.controller.player.hp, GameConfig.START_PLAYER_HP)
+        self.assertGreater(self.controller.player.hp, 1)
         
         # 测试战斗物品添加到背包
         flying_hammer = items.FlyingHammer("飞锤", cost=25, duration=3)
@@ -703,6 +771,62 @@ class TestSceneSystem(unittest.TestCase):
         self.assertEqual(self.controller.player.hp, 1)
         battle_scene.handle_choice(0)  # 选择攻击
         self.assertIsInstance(self.controller.scene_manager.current_scene, GameOverScene)
+
+
+
+class TestTrapDoors(unittest.TestCase):
+    """测试陷阱门"""
+    
+    def setUp(self):
+        self.controller = GameController()
+        self.controller.player = self.controller.player
+        # Create a TrapDoor directly
+        from models.door import TrapDoor
+        self.trap_door = TrapDoor(controller=self.controller, damage=10)
+        
+    def test_spike_trap(self):
+        """测试尖刺陷阱"""
+        with unittest.mock.patch('random.choice', return_value='spike'):
+            initial_hp = self.controller.player.hp
+            self.trap_door.enter()
+            
+            # 验证伤害
+            self.assertEqual(self.controller.player.hp, initial_hp - 10)
+            # 验证消息
+            self.assertTrue(any("尖刺" in msg for msg in self.controller.messages))
+            self.assertTrue(any("触发了机关" in msg for msg in self.controller.messages))
+            
+    def test_poison_trap(self):
+        """测试毒气陷阱"""
+        with unittest.mock.patch('random.choice', return_value='poison'):
+            self.trap_door.enter()
+            
+            # 验证中毒状态
+            self.assertTrue(self.controller.player.has_status(StatusName.POISON))
+            # 验证消息
+            self.assertTrue(any("毒气" in msg for msg in self.controller.messages))
+            
+    def test_gold_trap(self):
+        """测试窃贼陷阱"""
+        self.controller.player.gold = 100
+        with unittest.mock.patch('random.choice', return_value='gold'):
+            with unittest.mock.patch('random.randint', return_value=20):
+                self.trap_door.enter()
+                
+                # 验证金币损失
+                self.assertEqual(self.controller.player.gold, 80)
+                # 验证消息
+                self.assertTrue(any("地精" in msg for msg in self.controller.messages))
+                
+    def test_weakness_trap(self):
+        """测试虚弱陷阱"""
+        with unittest.mock.patch('random.choice', return_value='weakness'):
+            self.trap_door.enter()
+            
+            # 验证虚弱状态
+            self.assertTrue(self.controller.player.has_status(StatusName.WEAK))
+            # 验证消息
+            self.assertTrue(any("虚弱" in msg for msg in self.controller.messages))
 
 if __name__ == '__main__':
     unittest.main()

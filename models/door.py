@@ -6,6 +6,7 @@ from models.monster import Monster
 from models.shop import Shop
 from enum import Enum
 from models.items import create_random_item
+from models.events import get_random_event
 
 
 class DoorEnum(Enum):
@@ -14,14 +15,17 @@ class DoorEnum(Enum):
     REWARD = "reward"
     MONSTER = "monster"
     SHOP = "shop"
+    EVENT = "event"
     
     def create_instance(self, **kwargs):
         """创建门实例"""
         return {
             DoorEnum.TRAP: TrapDoor,
+            DoorEnum.TRAP: TrapDoor,
             DoorEnum.REWARD: RewardDoor,
             DoorEnum.MONSTER: MonsterDoor,
-            DoorEnum.SHOP: ShopDoor
+            DoorEnum.SHOP: ShopDoor,
+            DoorEnum.EVENT: EventDoor
         }.get(self)(**kwargs)
     
     @classmethod
@@ -67,12 +71,15 @@ class Door(BaseClass):
     
 
 
+from models.status import StatusName
+
 class TrapDoor(Door):
     """陷阱门"""
     
     def _initialize(self, **kwargs) -> None:
         self.enum = DoorEnum.TRAP
         super()._initialize(**kwargs)
+        # Default damage for basic traps, but we'll use trap types now
         self.damage = kwargs.get('damage', 10)
         self.generate_hint()
     
@@ -82,8 +89,34 @@ class TrapDoor(Door):
             self.generate_non_monster_door_hint()
             
     def enter(self) -> bool:
-        self.controller.player.take_damage(self.damage)
-        self.controller.add_message(f"你受到了{self.damage}点伤害！")
+        self.controller.add_message("你触发了机关！")
+        
+        trap_type = random.choice(['spike', 'poison', 'gold', 'weakness'])
+        
+        if trap_type == 'spike':
+            self.controller.player.take_damage(self.damage)
+            self.controller.add_message(f"地面的尖刺突然升起！受到了{self.damage}点伤害！")
+            
+        elif trap_type == 'poison':
+            duration = 3
+            self.controller.player.apply_status(StatusName.POISON.create_instance(duration=duration, target=self.controller.player))
+            self.controller.add_message(f"一股毒气喷涌而出！你中毒了，持续{duration}回合。")
+            
+        elif trap_type == 'gold':
+            lost_gold = random.randint(10, 30)
+            current_gold = self.controller.player.gold
+            actual_loss = min(current_gold, lost_gold)
+            if actual_loss > 0:
+                self.controller.player.gold -= actual_loss
+                self.controller.add_message(f"一群地精突然出现抢走了你的钱袋！损失了 {actual_loss} 金币！")
+            else:
+                self.controller.add_message("一群地精试图抢劫你，但发现你是个穷光蛋，骂骂咧咧地走了。")
+                
+        elif trap_type == 'weakness':
+            duration = 3
+            self.controller.player.apply_status(StatusName.WEAK.create_instance(duration=duration, target=self.controller.player))
+            self.controller.add_message(f"你被虚弱诅咒击中！攻击力降低，持续{duration}回合。")
+            
         return True
 
 
@@ -198,6 +231,24 @@ class ShopDoor(Door):
         self.controller.current_shop = self.shop
         return True
 
+
+class EventDoor(Door):
+    """事件门"""
+    
+    def _initialize(self, **kwargs) -> None:
+        self.enum = DoorEnum.EVENT
+        super()._initialize(**kwargs)
+        self.generate_hint()
+    
+    def generate_hint(self) -> None:
+        self.generate_non_monster_door_hint()
+    
+    def enter(self) -> bool:
+        event = get_random_event(self.controller)
+        self.controller.current_event = event
+        self.controller.scene_manager.go_to("event_scene")
+        return True
+
 # 基础提示语配置
 HINT_CONFIGS = {
     # 组合提示
@@ -243,6 +294,34 @@ HINT_CONFIGS = {
             "买卖声中似乎有宝物的光芒",
             "商人的声音与财宝的诱惑交织",
             "买卖与机遇并存"
+        ],
+        frozenset({DoorEnum.EVENT, DoorEnum.MONSTER}): [
+            "奇怪的声音中夹杂着野兽的咆哮",
+            "未知与危险并存",
+            "似乎有什么事情发生，但也有危险",
+            "混乱的气息中藏着野兽",
+            "命运的转折与猛兽并存"
+        ],
+        frozenset({DoorEnum.EVENT, DoorEnum.TRAP}): [
+            "未知的气息中带着一丝危险",
+            "似乎有什么事情发生，小心机关",
+            "命运的岔路口暗藏杀机",
+            "奇怪的氛围中似乎有陷阱",
+            "机遇与危机并存"
+        ],
+        frozenset({DoorEnum.EVENT, DoorEnum.REWARD}): [
+            "神秘的气息中透着宝物的光芒",
+            "未知的事件或许带来财富",
+            "命运的馈赠还是玩笑？",
+            "奇怪的事情似乎伴随着奖励",
+            "机遇与财富并存"
+        ],
+        frozenset({DoorEnum.EVENT, DoorEnum.SHOP}): [
+            "神秘人似乎在和商人交易",
+            "未知的事件与买卖并存",
+            "似乎有什么热闹的事情发生",
+            "商人的吆喝声中夹杂着窃窃私语",
+            "际遇与交易并存"
         ]
     },
     # 缺省提示语
@@ -274,6 +353,13 @@ HINT_CONFIGS = {
             "这里似乎有商人在此...",
             "商人的声音若隐若现...",
             "似乎有什么人在做买卖..."
+        ],
+        DoorEnum.EVENT: [
+            "空气中弥漫着神秘的气息...",
+            "似乎有什么事情正在发生...",
+            "命运的齿轮开始转动...",
+            "这里感觉有些不同寻常...",
+            "未知的遭遇在等待..."
         ]
     }
 }

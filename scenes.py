@@ -37,6 +37,11 @@ class DoorScene(Scene):
         self.enum = SceneType.DOOR
 
     def on_enter(self):
+        # 检查是否死亡（可能从EventScene带着0血量回来）
+        if self.controller.player.hp <= 0:
+            self.controller.scene_manager.go_to("game_over_scene")
+            return
+
         if not self.has_initialized:
             self.generate_doors()
             self.has_initialized = True
@@ -206,6 +211,7 @@ class ShopScene(Scene):
                 f"{shop.shop_items[1].name} ({shop.shop_items[1].cost}G)",
                 f"{shop.shop_items[2].name} ({shop.shop_items[2].cost}G)"
             ]
+        self.controller.add_message("你进入了杂货铺，老板热情的招呼你。")
 
     def handle_choice(self, index):
         logic = self.controller.current_shop
@@ -292,6 +298,32 @@ class GameOverScene(Scene):
             import sys
             sys.exit(0)  # 正常退出游戏
 
+class EventScene(Scene):
+    def __init__(self, controller):
+        super().__init__(controller)
+        self.enum = SceneType.EVENT
+        self.button_texts = ["", "", ""]
+
+    def on_enter(self):
+        event = self.controller.current_event
+        if event:
+            choices = event.get_choices()
+            # Ensure 3 buttons, fill empty with ""
+            self.button_texts = (choices + ["", "", ""])[:3]
+
+    def handle_choice(self, index):
+        event = self.controller.current_event
+        if event:
+             if index < len(event.choices):
+                 result_msg = event.resolve_choice(index)
+                 # Only transition if we haven't already switched scenes (e.g. to Game Over)
+                 current = self.controller.scene_manager.current_scene
+                 if current.enum == SceneType.EVENT:
+                     self.controller.scene_manager.go_to("door_scene")
+             else:
+                 self.controller.add_message("无效的选择")
+
+
 class SceneType(Enum):
     """场景名称枚举类"""
     DOOR =  DoorScene
@@ -299,6 +331,7 @@ class SceneType(Enum):
     SHOP = ShopScene
     USE_ITEM = UseItemScene
     GAME_OVER = GameOverScene
+    EVENT = EventScene
 
     @staticmethod
     def get_name_scene_dict():
@@ -307,7 +340,8 @@ class SceneType(Enum):
             "battle_scene": BattleScene,
             "shop_scene": ShopScene,
             "use_item_scene": UseItemScene,
-            "game_over_scene": GameOverScene
+            "game_over_scene": GameOverScene,
+            "event_scene": EventScene
         }
 
     def is_scene_name(name: str)->bool:

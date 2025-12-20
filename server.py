@@ -35,6 +35,7 @@ class GameController:
     def reset_game(self):
         """重置游戏状态"""
         self.current_monster = None
+        self.current_event = None
         self.round_count = 0
         self.messages = []
         self.player = Player(self)
@@ -98,7 +99,6 @@ def get_state():
             "round": g.round_count,
             "player": {
                 "hp": p.hp,
-                "max_hp": p.max_hp,
                 "atk": p.atk,
                 "gold": p.gold,
                 "status_desc": p.get_status_desc(),
@@ -108,7 +108,12 @@ def get_state():
             "scene_info": {
                 "type": scn.enum.name if scn and scn.enum else "UNKNOWN",
                 "monster_name": getattr(scn.monster, "name", "") if hasattr(scn, "monster") and scn.monster else ""
-            }
+            },
+            "event_info": {
+                "title": getattr(g.current_event, "title", ""),
+                "description": getattr(g.current_event, "description", ""),
+                "choices": g.current_event.get_choices() if g.current_event else []
+            } if scn and scn.enum.name == 'EVENT' else None
         }
         
         # 修改消息处理逻辑
@@ -134,7 +139,7 @@ def button_action():
     scn_name = scn.__class__.__name__ if scn else "None"
     
     # 处理按钮选择
-    if scn_name in ["DoorScene", "BattleScene", "ShopScene", "UseItemScene", "GameOverScene"]:
+    if scn_name in ["DoorScene", "BattleScene", "ShopScene", "UseItemScene", "GameOverScene", "EventScene"]:
         scn.handle_choice(index)
     
     # 获取当前消息并清空
