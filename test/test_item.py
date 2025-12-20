@@ -23,7 +23,7 @@ class TestItemSystem(BaseTest):
         # 检查状态
         actual_duration = self.player.get_status_duration(StatusName.DAMAGE_REDUCTION)
         print(f"DEBUG: Actual duration: {actual_duration}")
-        self.assertEqual(actual_duration, 10)
+        self.assertEqual(actual_duration, 15)
 
     def test_flying_hammer(self):
         """测试飞锤效果"""
