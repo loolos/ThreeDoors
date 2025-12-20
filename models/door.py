@@ -99,7 +99,7 @@ class TrapDoor(Door):
             
         elif trap_type == 'poison':
             duration = 3
-            self.controller.player.apply_status(StatusName.POISON.create_instance(duration=duration, target=self.controller.player))
+            self.controller.player.apply_status(StatusName.FIELD_POISON.create_instance(duration=duration, target=self.controller.player))
             self.controller.add_message(f"一股毒气喷涌而出！你中毒了，持续{duration}回合。")
             
         elif trap_type == 'gold':

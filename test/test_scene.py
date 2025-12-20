@@ -64,7 +64,9 @@ class TestSceneSystem(BaseTest):
         
         # 踩陷阱致死
         door_scene.doors[0].damage = 100
-        door_scene.handle_choice(0)
+        import unittest.mock
+        with unittest.mock.patch('random.choice', return_value='spike'):
+            door_scene.handle_choice(0)
         
         self.assertIsInstance(self.controller.scene_manager.current_scene, GameOverScene)
 

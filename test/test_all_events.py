@@ -25,54 +25,116 @@ class TestAllEvents(BaseTest):
             self.fail(f"{event.title} Choice {choice_index} raised exception: {e}")
 
     @unittest.mock.patch('models.events.create_random_item')
-    def test_stranger_choices(self, mock_create):
+    @unittest.mock.patch('models.events.random.random')
+    def test_stranger_choices(self, mock_random, mock_create):
         mock_create.return_value = FlyingHammer("TestHammer")
         
-        # 0: Help (needs gold)
-        self._run_choice(StrangerEvent, 0, lambda e, p: setattr(p, 'gold', 20))
-        # 0: Help (no gold)
-        self._run_choice(StrangerEvent, 0, lambda e, p: setattr(p, 'gold', 0))
-        # 1: Rob
+        # 1. Help - Success (< 0.7)
+        self.player.hp = 100
+        self.player.gold = 20
+        self.player.clear_inventory()
+        mock_random.return_value = 0.1
+        self._run_choice(StrangerEvent, 0)
+        self.assertIn("感激", self.controller.messages[-1])
+        
+        # 2. Help - Betrayal (>= 0.7)
+        self.player.hp = 100
+        self.player.gold = 20
+        mock_random.return_value = 0.8
+        initial_hp = self.player.hp
+        self._run_choice(StrangerEvent, 0)
+        self.assertLess(self.player.hp, initial_hp)
+        self.assertIn("忘恩负义", self.controller.messages[-1])
+
+        # 3. Help - No Gold
+        self.player.gold = 0
+        self._run_choice(StrangerEvent, 0)
+
+        # 4. Rob - Success (< 0.6)
+        self.player.hp = 100
+        mock_random.return_value = 0.1
         self._run_choice(StrangerEvent, 1)
-        # 2: Ignore
+        self.assertIn("抢走了", self.controller.messages[-1])
+
+        # 5. Rob - Fail (>= 0.6)
+        self.player.hp = 100
+        mock_random.return_value = 0.7
+        initial_hp = self.player.hp
+        self._run_choice(StrangerEvent, 1)
+        self.assertLess(self.player.hp, initial_hp)
+        self.assertIn("反击", self.controller.messages[-1])
+
+        # 6. Ignore
         self._run_choice(StrangerEvent, 2)
 
     @unittest.mock.patch('models.events.create_random_item')
-    def test_smuggler_choices(self, mock_create):
+    @unittest.mock.patch('models.events.random.random')
+    def test_smuggler_choices(self, mock_random, mock_create):
         mock_create.return_value = FlyingHammer("TestHammer")
 
-        # 0: Buy (needs gold)
-        self._run_choice(SmugglerEvent, 0, lambda e, p: setattr(p, 'gold', 100))
-        # 0: Buy (no gold)
-        self._run_choice(SmugglerEvent, 0, lambda e, p: setattr(p, 'gold', 0))
-        # 1: Report
-        self._run_choice(SmugglerEvent, 1)
-        # 2: Leave
+        # 1. Buy - Success (< 0.8)
+        self.player.gold = 100
+        mock_random.return_value = 0.1
+        self._run_choice(SmugglerEvent, 0)
+        self.assertIn("买到了", self.controller.messages[-1])
+
+        # 2. Buy - Valid (No Gold)
+        self.player.gold = 0
+        self._run_choice(SmugglerEvent, 0)
+        
+        # 3. Buy - Fake (>= 0.8)
+        self.player.gold = 100
+        mock_random.return_value = 0.9
+        self._run_choice(SmugglerEvent, 0)
+        self.assertIn("石头", self.controller.messages[-1])
+
+        # Report & Leave
+        mock_random.return_value = 0.1
+        self._run_choice(SmugglerEvent, 1) # Reward
+        mock_random.return_value = 0.6
+        self._run_choice(SmugglerEvent, 1) # Fail
+        
         self._run_choice(SmugglerEvent, 2)
 
     @unittest.mock.patch('models.events.create_random_item')
-    def test_shrine_choices(self, mock_create):
+    @unittest.mock.patch('models.events.random.random')
+    def test_shrine_choices(self, mock_random, mock_create):
         mock_create.return_value = FlyingHammer("TestHammer")
-        # 0: Pray
+        
+        # 1. Pray - Success (< 0.7)
+        self.player.hp = 50
+        mock_random.return_value = 0.1
         self._run_choice(AncientShrineEvent, 0)
-        # 1: Desecrate
+        self.assertIn("恢复", self.controller.messages[-1])
+        
+        # 2. Pray - Curse (>= 0.7)
+        self.clear_player_status()
+        mock_random.return_value = 0.8
+        self._run_choice(AncientShrineEvent, 0)
+        from models.status import StatusName
+        self.assertTrue(self.player.has_status(StatusName.WEAK))
+
+        mock_random.return_value = 0.1 
         self._run_choice(AncientShrineEvent, 1)
-        # 2: Inspect
         self._run_choice(AncientShrineEvent, 2)
 
     def test_gambler_choices(self):
         # 0: High Stakes
-        self._run_choice(GamblerEvent, 0, lambda e, p: setattr(p, 'gold', 100))
+        self.player.gold = 100
+        self._run_choice(GamblerEvent, 0)
         # 1: Low Stakes
-        self._run_choice(GamblerEvent, 1, lambda e, p: setattr(p, 'gold', 100))
+        self.player.gold = 100
+        self._run_choice(GamblerEvent, 1)
         # 2: Decline
         self._run_choice(GamblerEvent, 2)
 
     def test_lost_child_choices(self):
         # 0: Guide Home (might trigger damage)
+        self.player.hp = 100
         self._run_choice(LostChildEvent, 0)
         # 1: Give Gold
-        self._run_choice(LostChildEvent, 1, lambda e, p: setattr(p, 'gold', 100))
+        self.player.gold = 100
+        self._run_choice(LostChildEvent, 1)
         # 2: Ignore
         self._run_choice(LostChildEvent, 2)
 
@@ -93,35 +155,55 @@ class TestAllEvents(BaseTest):
         # Remove Revive Scroll to ensure death
         self.player.clear_inventory()
         
-        # Lost Child Event choice 0 has 30% chance to deal 15 dmg.
-        # We need to force that path. But it uses random.random().
-        # We can patch random.random in models.events
-        
         with unittest.mock.patch('models.events.random.random') as mock_rand:
             mock_rand.return_value = 0.1 # < 0.3 triggers damage path
             
-            # Setup scene manager to simulate real flow
             event = LostChildEvent(self.controller)
             self.controller.current_event = event
             
-            # Manually simulate Scene flow
             scene = self.controller.scene_manager.scene_dict["event_scene"]
             self.controller.scene_manager.current_scene = scene
             
-            # Trigger choice 0
-            print("Triggering Choice 0 (Guide Home)...")
             scene.handle_choice(0)
             
-            # Verify we are in GAME_OVER, NOT DOOR_SCENE
             from scenes import SceneType
-            print(f"Scene after death: {self.controller.scene_manager.current_scene.enum}")
-            print(f"Player HP: {self.player.hp}")
             self.assertEqual(self.controller.scene_manager.current_scene.enum, SceneType.GAME_OVER)
 
-    def test_sage_choices(self):
-        # 0: Power
+    @unittest.mock.patch('models.events.random.random')
+    def test_sage_choices(self, mock_random):
+        # 1. Power - Success (< 0.7)
+        self.player.atk = 10
+        mock_random.return_value = 0.1
         self._run_choice(WiseSageEvent, 0)
-        # 1: Wealth
+        self.assertEqual(self.player.atk, 13)
+        
+        # 2. Power - Curse
+        self.clear_player_status()
+        mock_random.return_value = 0.8
+        self._run_choice(WiseSageEvent, 0)
+        from models.status import StatusName
+        self.assertTrue(self.player.has_status(StatusName.WEAK))
+
+        # 3. Wealth - Success
+        self.player.gold = 0
+        mock_random.return_value = 0.1
         self._run_choice(WiseSageEvent, 1)
-        # 2: Health
+        self.assertEqual(self.player.gold, 200)
+        
+        # 4. Wealth - Illusion
+        mock_random.return_value = 0.8
+        self.player.gold = 100
+        self._run_choice(WiseSageEvent, 1)
+        self.assertLess(self.player.gold, 100)
+
+        # 5. Health - Success
+        self.player.hp = 50
+        mock_random.return_value = 0.1
         self._run_choice(WiseSageEvent, 2)
+        self.assertEqual(self.player.hp, 100)
+        
+        # 6. Health - Poison
+        self.clear_player_status()
+        with unittest.mock.patch('models.events.random.random', return_value=0.8):
+            self._run_choice(WiseSageEvent, 2)
+            self.assertTrue(self.player.has_status(StatusName.FIELD_POISON))

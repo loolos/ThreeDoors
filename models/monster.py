@@ -258,7 +258,9 @@ class Monster:
         """受到伤害"""
         # 检查是否有减伤效果
         if self.has_status(StatusName.DAMAGE_REDUCTION):
-            damage = max(1, damage // 4)  # 减伤75%，至少受到1点伤害
+            # 获取减伤比例 (默认 0.7 即减免 30%)
+            reduction = self.statuses[StatusName.DAMAGE_REDUCTION].value
+            damage = max(1, int(damage * reduction))
             
         # 应用伤害
         self.hp -= damage
@@ -450,12 +452,14 @@ class Monster:
 
     def clear_battle_status(self) -> None:
         """清除所有战斗状态"""
-        battle_statuses = [StatusName.WEAK, StatusName.POISON, StatusName.STUN, 
-                          StatusName.ATK_MULTIPLIER, StatusName.BARRIER, 
-                          StatusName.ATK_UP, StatusName.DAMAGE_REDUCTION]
-        for status_name in battle_statuses:
-            if status_name in self.statuses:
-                del self.statuses[status_name]
+        expired = []
+        for status_name, status in self.statuses.items():
+            if status.is_battle_only:
+                expired.append(status_name)
+        
+        # 移除战斗状态
+        for status_name in expired:
+            del self.statuses[status_name]
 
 def get_random_monster(max_tier=None, current_round=None, effect_probability=None):
     """根据当前回合数生成随机怪物"""

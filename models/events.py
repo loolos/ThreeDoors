@@ -1,6 +1,7 @@
 
 import random
 from models.items import create_random_item
+from models.status import StatusName
 
 class EventChoice:
     def __init__(self, text, callback):
@@ -45,20 +46,32 @@ class StrangerEvent(Event):
         p = self.get_player()
         if p.gold >= 10:
             p.gold -= 10
-            # Reward: Item
-            item = create_random_item()
-            item.acquire(player=p)
-            self.add_message("你花费10金币为陌生人包扎。")
-            self.add_message(f"陌生人感激地给了你 {item.name} 作为回报！")
+            # 70% Reward, 30% Betrayal
+            if random.random() < 0.7:
+                item = create_random_item()
+                item.acquire(player=p)
+                self.add_message("你花费10金币为陌生人包扎。")
+                self.add_message(f"陌生人感激地给了你 {item.name} 作为回报！")
+            else:
+                dmg = 15
+                p.take_damage(dmg)
+                self.add_message("你刚为他包扎好，他突然拔刀刺向你！")
+                self.add_message(f"这个忘恩负义的家伙抢了你的钱就跑了。受到 {dmg} 点伤害。")
         else:
             self.add_message("你囊中羞涩，无法提供帮助，只能遗憾离开。")
         return "Event Completed"
 
     def rob_stranger(self):
         p = self.get_player()
-        gold = random.randint(5, 20)
-        p.gold += gold
-        self.add_message(f"你抢走了陌生人仅剩的 {gold} 金币。你的良心受到了一点谴责。")
+        # 60% Success, 40% Fail
+        if random.random() < 0.6:
+            gold = random.randint(5, 20)
+            p.gold += gold
+            self.add_message(f"你抢走了陌生人仅剩的 {gold} 金币。你的良心受到了一点谴责。")
+        else:
+            dmg = 10
+            p.take_damage(dmg)
+            self.add_message(f"陌生人突然暴起反击！你受到 {dmg} 点伤害，狼狈逃跑。")
         return "Event Completed"
 
     def ignore_stranger(self):
@@ -85,8 +98,12 @@ class SmugglerEvent(Event):
         p = self.get_player()
         if p.gold >= self.cost:
             p.gold -= self.cost
-            self.item.acquire(player=p)
-            self.add_message(f"你以 {self.cost}G 的低价买到了 {self.item.name}！")
+            # 80% Real, 20% Fake
+            if random.random() < 0.8:
+                self.item.acquire(player=p)
+                self.add_message(f"你以 {self.cost}G 的低价买到了 {self.item.name}！")
+            else:
+                self.add_message("你付了钱，打开包裹一看——里面是一块石头！走私犯早就没影了。")
         else:
             self.add_message("走私犯翻了个白眼：'没钱就滚！'")
         return "Event Completed"
@@ -121,8 +138,14 @@ class AncientShrineEvent(Event):
 
     def pray(self):
         p = self.get_player()
-        p.heal(50) 
-        self.add_message("一道温暖的光芒笼罩着你，你的伤势恢复了 50 点！")
+        # 70% Heal, 30% Curse
+        if random.random() < 0.7:
+            p.heal(50) 
+            self.add_message("一道温暖的光芒笼罩着你，你的伤势恢复了 50 点！")
+        else:
+            duration = 3
+            p.apply_status(StatusName.WEAK.create_instance(duration=duration, target=p))
+            self.add_message(f"祭坛突然喷出一股黑气！你被诅咒了，进入虚弱状态 {duration} 回合。")
         return "Event Completed"
 
     def desecrate(self):
@@ -295,21 +318,36 @@ class WiseSageEvent(Event):
 
     def power(self):
         p = self.get_player()
-        p.atk += 3
-        self.add_message("老者点了点头：'力量是双刃剑。' 你的攻击力永久 +3。")
+        if random.random() < 0.7:
+            p.atk += 3
+            self.add_message("老者点了点头：'力量是双刃剑。' 你的攻击力永久 +3。")
+        else:
+            duration = 3
+            p.apply_status(StatusName.WEAK.create_instance(duration=duration, target=p))
+            self.add_message(f"老者摇头：'你渴望力量，却被力量吞噬。' 你变得虚弱了 ({duration}回合)。")
         return "Event Completed"
 
     def wealth(self):
         p = self.get_player()
-        gold = 200
-        p.gold += gold
-        self.add_message(f"老者叹了口气：'身外之物。' 他丢给你 {gold} 金币后消失了。")
+        if random.random() < 0.7:
+            gold = 200
+            p.gold += gold
+            self.add_message(f"老者叹了口气：'身外之物。' 他丢给你 {gold} 金币后消失了。")
+        else:
+            lost = min(p.gold, 50)
+            p.gold -= lost
+            self.add_message(f"老者手一挥，你口袋里的 {lost} 金币变成了石头。'贪婪是原罪。'")
         return "Event Completed"
 
     def health(self):
         p = self.get_player()
-        p.heal(50)
-        self.add_message("老者微笑道：'活着就有希望。' 你的生命值恢复了 50 点。")
+        if random.random() < 0.7:
+            p.heal(50)
+            self.add_message("老者微笑道：'活着就有希望。' 你的生命值恢复了 50 点。")
+        else:
+            duration = 3
+            p.apply_status(StatusName.FIELD_POISON.create_instance(duration=duration, target=p))
+            self.add_message(f"老者给你喝了一杯水，你却感到腹痛。'不仅是身体，心灵也需净化。' 你中毒了 ({duration}回合)。")
         return "Event Completed"
 
 

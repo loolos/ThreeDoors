@@ -12,6 +12,7 @@ class StatusName(Enum):
     DAMAGE_REDUCTION = "damage_reduction"  # 伤害减免
     HEALING_SCROLL = "healing_scroll"  # 恢复卷轴
     IMMUNE = "immune"         # 免疫状态
+    FIELD_POISON = "field_poison"  # 野外中毒(非战斗)
 
     @property
     def cn_name(self) -> str:
@@ -25,7 +26,8 @@ class StatusName(Enum):
             StatusName.ATK_UP: "攻击力提升",
             StatusName.DAMAGE_REDUCTION: "减伤",
             StatusName.HEALING_SCROLL: "恢复",
-            StatusName.IMMUNE: "免疫"
+            StatusName.IMMUNE: "免疫",
+            StatusName.FIELD_POISON: "野外中毒"
         }.get(self, self.value)
 
     def create_instance(self, **kwargs):
@@ -38,7 +40,8 @@ class StatusName(Enum):
             StatusName.ATK_UP: AtkUpStatus,
             StatusName.DAMAGE_REDUCTION: DamageReductionStatus,
             StatusName.HEALING_SCROLL: HealingScrollStatus,
-            StatusName.IMMUNE: ImmuneStatus
+            StatusName.IMMUNE: ImmuneStatus,
+            StatusName.FIELD_POISON: FieldPoisonStatus
         }.get(self)(**kwargs)
 
 class Status:
@@ -81,7 +84,8 @@ class Status:
         old_duration = self.duration
         self.duration = max(self.duration, other.duration)
         if hasattr(self, 'target') and self.target and hasattr(self.target, 'controller'):
-            self.target.controller.add_message(f"{self.name} 状态持续时间从 {old_duration} 回合延长至 {self.duration} 回合!")
+            if self.duration > old_duration:
+                 self.target.controller.add_message(f"{self.enum.cn_name} 状态持续时间延长至 {self.duration} 回合!")
 
 class WeakStatus(Status):
     """虚弱状态"""
@@ -95,10 +99,10 @@ class WeakStatus(Status):
         )
         
     def start_effect(self) -> None:
-        self.target.atk = max(1, self.target.atk - 2)
+        self.target.controller.add_message("你感到一阵虚弱，攻击力降低了！")
         
     def end_effect(self) -> None:
-        self.target.atk = self.target.atk + 2
+        self.target.controller.add_message("虚弱效果消失了，你的攻击力恢复了。")
 
     def combine(self, other: 'Status') -> None:
         """虚弱状态叠加：只叠加持续时间"""
@@ -171,10 +175,10 @@ class AtkMultiplierStatus(Status):
         )
         
     def start_effect(self) -> None:
-        self.target.atk *= self.value
+        self.target.controller.add_message(f"巨大化！攻击力翻倍！")
         
     def end_effect(self) -> None:
-        self.target.atk //= self.value
+        self.target.controller.add_message(f"巨大化效果消失，攻击力恢复正常。")
 
     def combine(self, other: 'Status') -> None:
         """攻击力翻倍状态叠加：取最大倍数"""
@@ -225,10 +229,10 @@ class AtkUpStatus(Status):
         )
         
     def start_effect(self) -> None:
-        self.target.atk += self.value
+        self.target.controller.add_message(f"你的攻击力提升了 {self.value} 点！")
         
     def end_effect(self) -> None:
-        self.target.atk -= self.value
+        self.target.controller.add_message(f"攻击力提升效果消失了。")
 
     def combine(self, other: 'Status') -> None:
         """攻击力提升状态叠加：效果值相加"""
@@ -315,6 +319,34 @@ class ImmuneStatus(Status):
         self.duration += other.duration
         if old_duration != self.duration:
             self.target.controller.add_message(f"免疫效果从 {old_duration} 回合提升至 {self.duration} 回合!")
+
+class FieldPoisonStatus(Status):
+    """野外中毒状态 (非战斗回合扣血)"""
+    def __init__(self, **kwargs):
+        super().__init__(
+            name=StatusName.FIELD_POISON,
+            description="每一步扣除5%生命值",
+            duration=kwargs.get("duration", 5),
+            is_battle_only=False,
+            target=kwargs.get("target")
+        )
+        
+    def duration_pass(self) -> bool:
+        if not self.target.has_status(StatusName.IMMUNE):
+            # 野外中毒扣除 5% HP，或至少 1 点
+            damage = max(1, int(self.target.hp * 0.05))
+            self.target.take_damage(damage)
+            self.target.controller.add_message(f"野外中毒毒发！你受到了 {damage} 点伤害。")
+        return super().duration_pass()
+
+    def combine(self, other: 'Status') -> None:
+        """叠加持续时间"""
+        if not isinstance(other, FieldPoisonStatus):
+            return
+        old_duration = self.duration
+        self.duration = max(self.duration, other.duration)
+        if hasattr(self, 'target') and self.target and hasattr(self.target, 'controller'):
+            self.target.controller.add_message(f"野外中毒状态持续时间从 {old_duration} 回合延长至 {self.duration} 回合!")
 
 # def CreateStatusByName(status_name: StatusName, **kwargs) -> Status:
 #     """根据状态名称创建对应的状态实例

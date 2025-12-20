@@ -57,7 +57,10 @@ class DoorScene(Scene):
         c.add_message(f"第{c.round_count}回合：")
         
         # 如果选择了非怪物门，清除所有战斗状态
-        door = self.doors[index]# 使用新的清除战斗状态方法
+        door = self.doors[index]
+        if door.enum != DoorEnum.MONSTER:
+            p.clear_battle_status()
+            
         p.adventure_status_duration_pass()  # Adventure turn effects
         
         # 进入门并处理事件
@@ -143,8 +146,8 @@ class BattleScene(Scene):
             # 玩家晕眩时，怪物进行攻击
             self.controller.add_message("你处于眩晕状态, 无法行动!")
             self.monster.attack(p)
-            p.battle_status_duration_pass()  # 处理状态持续时间
-            self.monster.battle_status_duration_pass()
+            p.battle_status_duration_pass()  # 处理玩家状态持续时间
+            self.monster.battle_status_duration_pass() # 处理怪物状态持续时间
         else:
             monster_dead = False
             escaped = False
@@ -157,10 +160,12 @@ class BattleScene(Scene):
                 else:
                     # 处理怪物掉落
                     self.monster.process_loot(p)
-                    # 清除所有战斗状态
-                    p.clear_battle_status()  # 使用新的清除战斗状态方法
-                    # 返回门场景
                     self.controller.scene_manager.go_to("door_scene")
+                
+                # 无论怪物是否死亡，只要玩家行动了，就推进状态计时
+                if not p.has_status(StatusName.STUN):
+                    p.battle_status_duration_pass()
+                    self.monster.battle_status_duration_pass()
             elif index == 1:
                 self.do_use_item(p)
             elif index == 2:
@@ -172,6 +177,7 @@ class BattleScene(Scene):
                 else:
                     self.monster.attack(p)
                     self.controller.add_message("逃跑失败，怪物追了上来！")
+                    # 逃跑失败也算一个回合
                     p.battle_status_duration_pass()
                     self.monster.battle_status_duration_pass()
             if self.controller.player.hp <= 0:
@@ -315,11 +321,13 @@ class EventScene(Scene):
         event = self.controller.current_event
         if event:
              if index < len(event.choices):
-                 result_msg = event.resolve_choice(index)
-                 # Only transition if we haven't already switched scenes (e.g. to Game Over)
-                 current = self.controller.scene_manager.current_scene
-                 if current.enum == SceneType.EVENT:
-                     self.controller.scene_manager.go_to("door_scene")
+                 event.resolve_choice(index)
+                 # Only transition if we haven't already switched scenes (e.g. to Game Over or Battle)
+                 # AND if the player is still alive
+                 if self.controller.player.hp > 0:
+                     current = self.controller.scene_manager.current_scene
+                     if current.enum == SceneType.EVENT:
+                         self.controller.scene_manager.go_to("door_scene")
              else:
                  self.controller.add_message("无效的选择")
 

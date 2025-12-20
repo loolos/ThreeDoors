@@ -94,9 +94,7 @@ class Equipment(ConsumableItem):
     def effect(self, **kwargs):
         player = kwargs.get('player')
         if player:
-            old_atk = player.atk
-            player.atk += self.atk_bonus
-            player.controller.add_message(f"攻击力从 {old_atk} 升到 {player.atk}!")
+            player.change_base_atk(self.atk_bonus)
 
 # 减伤卷轴类
 class DamageReductionScroll(ConsumableItem):
@@ -205,17 +203,31 @@ class GoldBag(ConsumableItem):
             player.controller.add_message(f"获得 {self.gold_amount} 金币!")
 
 def create_random_item():
-    """创建随机物品"""
+    """创建随机物品 (包含消耗品、永久装备和战斗物品)"""
     item_types = [
-        (HealingPotion, {"name": "小治疗药水", "heal_amount": 5, "cost": 4}),
-        (HealingPotion, {"name": "中治疗药水", "heal_amount": 10, "cost": 8}),
-        (HealingPotion, {"name": "大治疗药水", "heal_amount": 15, "cost": 13}),
-        (DamageReductionScroll, {"name": "减伤卷轴", "duration": 3, "cost": 20}),
-        (AttackUpScroll, {"name": "攻击力提升卷轴", "atk_bonus": 5, "duration": 5, "cost": 24}),
-        (HealingScroll, {"name": "恢复卷轴", "duration": 5, "cost": 15}),
-        (ImmuneScroll, {"name": "免疫卷轴", "duration": 3, "cost": 18}),
-        (GoldBag, {"name": "金币袋子", "gold_amount": random.randint(10, 30), "cost": 0})
+        # (Class, Params, Weight)
+        (HealingPotion, {"name": "小治疗药水", "heal_amount": 10, "cost": 4}, 20),
+        (HealingPotion, {"name": "大治疗药水", "heal_amount": 30, "cost": 12}, 10),
+        (Equipment, {"name": "生锈的长剑", "atk_bonus": 2, "cost": 15}, 15),
+        (Equipment, {"name": "精钢长剑", "atk_bonus": 5, "cost": 35}, 5),
+        (DamageReductionScroll, {"name": "减伤卷轴", "duration": 5, "cost": 20}, 15),
+        (AttackUpScroll, {"name": "攻击力提升卷轴", "atk_bonus": 5, "duration": 8, "cost": 25}, 10),
+        (HealingScroll, {"name": "恢复卷轴", "duration": 10, "cost": 18}, 10),
+        (ImmuneScroll, {"name": "免疫卷轴", "duration": 5, "cost": 20}, 5),
+        (FlyingHammer, {"name": "飞锤", "cost": 25}, 5),
+        (Barrier, {"name": "结界卷轴", "duration": 3, "cost": 30}, 5),
+        (GiantScroll, {"name": "巨大化卷轴", "duration": 3, "cost": 40}, 5),
+        (GoldBag, {"name": "小钱袋", "gold_amount": random.randint(10, 50), "cost": 0}, 10)
     ]
     
-    item_class, params = random.choice(item_types)
-    return item_class(**params) 
+    # 根据权重随机选择
+    total_weight = sum(item[2] for item in item_types)
+    r = random.uniform(0, total_weight)
+    upto = 0
+    for item_class, params, weight in item_types:
+        if upto + weight >= r:
+            return item_class(**params)
+        upto += weight
+    
+    # Fallback
+    return item_types[0][0](**item_types[0][1])

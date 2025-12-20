@@ -9,7 +9,36 @@ class Player:
     def __init__(self, controller):
         """初始化玩家"""
         self.controller = controller
+        self._atk = 0  # 基础攻击力
         self.reset()
+
+    @property
+    def atk(self):
+        """获取当前攻击力（基础 + 状态修正）"""
+        total_atk = self._atk
+        
+        # 1. 加法修正
+        if self.has_status(StatusName.ATK_UP):
+            total_atk += self.statuses[StatusName.ATK_UP].value
+        if self.has_status(StatusName.WEAK):
+            total_atk -= 2 # 虚弱固定减2
+            
+        # 2. 乘法修正
+        if self.has_status(StatusName.ATK_MULTIPLIER):
+            total_atk *= self.statuses[StatusName.ATK_MULTIPLIER].value
+            
+        return max(1, int(total_atk))
+
+    @atk.setter
+    def atk(self, value):
+        """兼容性 setter，以后应尽量使用 change_base_atk"""
+        self._atk = value
+
+    def change_base_atk(self, delta: int):
+        """修改基础攻击力并记录日志"""
+        old_atk = self._atk
+        self._atk += delta
+        self.controller.add_message(f"你的基础攻击力增加了 {delta} 点! (当前基础: {self._atk})")
 
     def _init_default_items(self):
         """初始化默认物品"""
@@ -27,8 +56,10 @@ class Player:
         """受到伤害"""
         # 检查是否有减伤效果
         if self.has_status(StatusName.DAMAGE_REDUCTION):
-            damage = max(1, damage // 4)  # 减伤75%，至少受到1点伤害
-            self.controller.add_message("减伤卷轴效果触发，伤害减至25%!")
+            # 获取减伤比例 (默认 0.7 即减免 30%，如果是减伤卷轴可能是 0.25)
+            reduction = self.statuses[StatusName.DAMAGE_REDUCTION].value
+            damage = max(1, int(damage * reduction))
+            self.controller.add_message(f"减伤效果触发，受到伤害减至 {int(reduction * 100)}%!")
             
         # 应用伤害
         self.hp -= damage
@@ -196,7 +227,7 @@ class Player:
     def reset(self):
         """重置玩家状态"""
         self.hp = GameConfig.START_PLAYER_HP
-        self.atk = GameConfig.START_PLAYER_ATK
+        self._atk = GameConfig.START_PLAYER_ATK
         self.gold = 0
         self.inventory = {
             ItemType.CONSUMABLE: [],
@@ -218,7 +249,8 @@ class Player:
             return
             
         # 检查是否是负面状态且是否有免疫效果
-        if status.enum in [StatusName.WEAK, StatusName.POISON, StatusName.STUN] and self.has_status(StatusName.IMMUNE):
+        negative_statuses = [StatusName.WEAK, StatusName.POISON, StatusName.STUN, StatusName.FIELD_POISON]
+        if status.enum in negative_statuses and self.has_status(StatusName.IMMUNE):
             if hasattr(self, 'controller') and self.controller:
                 # 获取状态名称的中文描述
                 status_name_cn = status.enum.cn_name

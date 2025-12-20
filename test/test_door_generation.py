@@ -37,13 +37,22 @@ class TestDoorGeneration(BaseTest):
         
         # 测试进入每个门
         for door in self.controller.scene_manager.current_scene.doors:
-            door.enter()
+            # 记录进入前的 HP
+            hp_before = self.controller.player.hp
+            
             if door.enum == DoorEnum.MONSTER:
+                door.enter()
                 self.assertIsNotNone(self.controller.current_monster)
             elif door.enum == DoorEnum.SHOP:
+                door.enter()
                 self.assertIsNotNone(self.controller.current_shop)
             elif door.enum == DoorEnum.TRAP:
-                self.assertLess(self.controller.player.hp, hp)
+                import unittest.mock
+                with unittest.mock.patch('random.choice', return_value='spike'):
+                    door.enter()
+                self.assertLess(self.controller.player.hp, hp_before)
+            else:
+                door.enter()
 
 if __name__ == '__main__':
     unittest.main()
