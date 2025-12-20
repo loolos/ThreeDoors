@@ -98,12 +98,17 @@ def get_state():
             "round": g.round_count,
             "player": {
                 "hp": p.hp,
+                "max_hp": p.max_hp,
                 "atk": p.atk,
                 "gold": p.gold,
                 "status_desc": p.get_status_desc(),
                 "inventory": inventory_dict
             },
-            "button_texts": scn.get_button_texts() if scn else ["", "", ""]
+            "button_texts": scn.get_button_texts() if scn else ["", "", ""],
+            "scene_info": {
+                "type": scn.enum.name if scn and scn.enum else "UNKNOWN",
+                "monster_name": getattr(scn.monster, "name", "") if hasattr(scn, "monster") and scn.monster else ""
+            }
         }
         
         # 修改消息处理逻辑

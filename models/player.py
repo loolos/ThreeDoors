@@ -9,6 +9,7 @@ class Player:
     def __init__(self, controller):
         """初始化玩家"""
         self.controller = controller
+        self.max_hp = GameConfig.START_PLAYER_HP
         self.reset()
 
     def _init_default_items(self):
@@ -62,7 +63,7 @@ class Player:
     def heal(self, amount):
         """恢复生命值"""
         old_hp = self.hp
-        self.hp += amount  # 直接增加生命值
+        self.hp += amount
         return self.hp - old_hp  # 返回实际恢复的生命值
 
     def add_gold(self, amt):
@@ -196,6 +197,7 @@ class Player:
     def reset(self):
         """重置玩家状态"""
         self.hp = GameConfig.START_PLAYER_HP
+        self.max_hp = GameConfig.START_PLAYER_HP
         self.atk = GameConfig.START_PLAYER_ATK
         self.gold = 0
         self.inventory = {

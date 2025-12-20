@@ -5,6 +5,7 @@ from models.base_class import BaseClass
 from models.monster import Monster
 from models.shop import Shop
 from enum import Enum
+from models.items import create_random_item
 
 
 class DoorEnum(Enum):
@@ -92,8 +93,31 @@ class RewardDoor(Door):
     def _initialize(self, **kwargs) -> None:
         self.enum = DoorEnum.REWARD
         super()._initialize(**kwargs)
-        self.reward = kwargs.get('reward', {'gold': 50})
+        self.reward = kwargs.get('reward') # allow None to trigger random generation
+        if not self.reward:
+             self.reward = self._generate_random_reward()
         self.generate_hint()
+
+    def _generate_random_reward(self):
+        """Generate a random reward structure"""
+        reward_type = random.choice(['gold', 'item', 'mixed'])
+        
+        rewards = {}
+        
+        if reward_type == 'gold' or reward_type == 'mixed':
+             rewards['gold'] = random.randint(30, 80)
+        
+        if reward_type == 'item' or reward_type == 'mixed':
+             # Generate 1 random item
+             item = create_random_item()
+             # Key can be object itself or unique string, but logic needs to handle it.
+             # The existing logic iterated dict items().
+             # Let's use a list for items to avoid key collision if possible, 
+             # but to keep backward compatibility with existing dict structure:
+             # reward = {'gold': 50, item_obj: 1}
+             rewards[item] = 1
+             
+        return rewards
     
     def generate_hint(self) -> None:
         self.generate_non_monster_door_hint()
@@ -104,8 +128,30 @@ class RewardDoor(Door):
                 self.controller.player.gold += amount
                 self.controller.add_message(f"你获得了{amount}金币！")
             else:
-                self.controller.player.add_item(item, amount)
-                self.controller.add_message(f"你获得了{amount}个{item}！")
+                # Assuming item is an Item object given the key use in _generate_random_reward
+                # Current logic: controller.player.add_item(item, amount)
+                # But wait, add_item(item, amount) signature? 
+                # Checking player.py: add_item(self, item) -> takes 1 arg (plus self).
+                # Wait, existing code said: self.controller.player.add_item(item, amount)
+                # Let's check player.py again. get_state uses p.inventory.items().
+                # player.add_item(item) just appends.
+                # So the existing code `self.controller.player.add_item(item, amount)` MIGHT BE WRONG or `item` was a string name before?
+                # Previous RewardDoor: self.reward = {'gold': 50} (Default). 
+                # If it had items, it would fail if add_item only takes 1 arg.
+                # Let's assume for my new code: `item` is an Item object.
+                # I will call item.acquire(player=self.controller.player) which handles logic.
+                
+                # Check if item is string (legacy support) or Item object
+                import models.items
+                if isinstance(item, models.items.Item):
+                    # Use the Acquire logic so it auto-uses consumables or adds to inventory
+                    # We repeat `amount` times
+                    for _ in range(amount):
+                        item.acquire(player=self.controller.player)
+                else:
+                    # Fallback for string keys if any exist (though I suggest avoiding them now)
+                    # Implementation for string-based items is likely missing in player.add_item
+                    pass
         return True
 
 

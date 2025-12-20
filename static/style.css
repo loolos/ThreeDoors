@@ -4,11 +4,13 @@
   margin: 0 auto;
   text-align: center;
   padding: 10px;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
 h1 {
   margin-bottom: 20px;
   font-size: 1.8rem;
+  color: #333;
 }
 
 #buttons {
@@ -24,57 +26,158 @@ h1 {
   max-width: 150px;
   min-height: 60px;
   font-size: 1rem;
-  border: 2px solid #666;
-  border-radius: 5px;
-  background: #eee;
+  border: none;
+  border-radius: 8px;
+  background: #4caf50;
+  color: white;
   padding: 8px;
   line-height: 1.2;
   word-wrap: break-word;
+  cursor: pointer;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+  transition: transform 0.1s, box-shadow 0.1s;
 }
 
 .main-btn:active {
-  background: #ddd;
+  transform: translateY(2px);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 
+.main-btn:disabled {
+    background-color: #ccc;
+    cursor: not-allowed;
+}
+
+/* Log Area */
 #log-area {
   margin-top: 15px;
   padding: 10px;
   height: 200px;
   overflow-y: auto;
-  background: #f9f9f9;
-  border: 1px solid #ccc;
-  font-size: 0.9rem;
+  background: #fafafa;
+  border: 1px solid #e0e0e0;
+  border-radius: 5px;
+  font-size: 0.95rem;
+  text-align: left;
+  line-height: 1.4;
 }
 
+#log-area div {
+    padding: 2px 0;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+/* Scene Area */
+#scene-area {
+  margin: 10px 0;
+  padding: 15px;
+  background-color: #f0f4f8;
+  border-radius: 8px;
+  border: 1px dashed #b0bec5;
+  min-height: 120px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+#scene-emoji {
+  font-size: 4rem;
+  margin-bottom: 5px;
+  text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+}
+#scene-desc {
+  font-size: 1.2rem;
+  color: #455a64;
+  font-weight: bold;
+}
+
+/* Status Area & HP Bar */
 #status-area {
-  font-size: 0.9rem;
+  margin-bottom: 15px;
+  background: #fff;
+  padding: 15px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+.stat-row {
   margin-bottom: 10px;
+}
+.hp-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+.stat-label {
+    font-weight: bold;
+    color: #e53935;
+}
+.progress-bar-bg {
+  width: 200px;
+  height: 20px;
+  background-color: #eee;
+  border-radius: 10px;
+  overflow: hidden;
+  position: relative;
+  box-shadow: inset 0 1px 2px rgba(0,0,0,0.1);
+}
+.progress-bar-fill {
+  height: 100%;
+  background-color: #e53935; /* Red for HP */
+  transition: width 0.3s ease;
+  width: 100%;
+}
+#hp-text {
+    font-size: 0.9rem;
+    font-weight: bold;
+    min-width: 60px;
+}
+#other-stats {
+    font-size: 0.95rem;
+    color: #555;
+    background-color: #f5f5f5;
+    padding: 5px 10px;
+    border-radius: 15px;
+    display: inline-block;
 }
 
 #inventory-area {
   font-size: 0.9rem;
   margin-bottom: 10px;
+  color: #666;
 }
 
 #startOverBtn, #exitGameBtn {
   font-size: 0.9rem;
   padding: 8px 16px;
   margin-top: 10px;
-  border: 1px solid #666;
+  border: none;
   border-radius: 4px;
-  background: #f0f0f0;
+  background: #cfd8dc;
   margin-right: 5px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+#startOverBtn:hover {
+    background: #b0bec5;
 }
 
 #exitGameBtn {
-  background: #ff6b6b;
-  color: white;
-  border-color: #ff5252;
+  background: #ffcdd2;
+  color: #c62828;
 }
 
 #exitGameBtn:hover {
-  background: #ff5252;
+  background: #ef9a9a;
 }
+
+/* Log Colors */
+.log-damage { color: #d32f2f; font-weight: bold; }
+.log-heal { color: #388e3c; font-weight: bold; }
+.log-gold { color: #fbc02d; font-weight: bold; text-shadow: 1px 1px 0 rgba(0,0,0,0.1); }
+.log-item { color: #1976d2; font-weight: bold; }
+.log-monster { color: #d32f2f; font-weight: bold; }
+.log-round { color: #666; font-style: italic; border-bottom: 2px solid #eee !important; margin-top: 5px; padding-top: 5px;}
 
 /* 响应式设计 */
 @media screen and (max-width: 480px) {
@@ -85,6 +188,10 @@ h1 {
   h1 {
     font-size: 1.5rem;
     margin-bottom: 15px;
+  }
+  
+  .progress-bar-bg {
+      width: 120px;
   }
 
   #buttons {
@@ -106,10 +213,5 @@ h1 {
 
   #status-area, #inventory-area {
     font-size: 0.85rem;
-  }
-
-  #startOverBtn, #exitGameBtn {
-    font-size: 0.85rem;
-    padding: 6px 12px;
   }
 }

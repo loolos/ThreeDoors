@@ -9,7 +9,23 @@
 <body>
   <div class="container">
     <h1>三选一冒险</h1>
-    <div id="status-area">状态信息加载中...</div>
+    <div id="scene-area">
+      <div id="scene-emoji">🚪</div>
+      <div id="scene-desc">准备开始冒险...</div>
+    </div>
+    
+    <div id="status-area">
+      <div class="stat-row">
+        <div class="hp-container">
+            <span class="stat-label">HP:</span>
+            <div class="progress-bar-bg">
+                <div id="hp-bar-fill" class="progress-bar-fill" style="width: 100%;"></div>
+            </div>
+            <span id="hp-text">20/20</span>
+        </div>
+      </div>
+      <div id="other-stats">ATK: 5 | Gold: 0 | Round: 0</div>
+    </div>
     <!-- 新增库存显示区域 -->
     <div id="inventory-area">库存：暂无道具</div>
     <div id="buttons">
