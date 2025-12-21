@@ -1,85 +1,105 @@
-ThreeDoors Adventure Game
-概述
-ThreeDoors 是一个基于 Flask 框架的冒险游戏。玩家在游戏中扮演一名勇士，通过选择不同的门来遭遇怪物、陷阱、宝藏、商店等事件，并进行战斗或交易。玩家可以使用道具来增强自身能力或恢复健康。
+# ThreeDoors Adventure Game / 三门冒险游戏
 
-安装与运行
-先决条件
-Python 3.x
-Flask
-Flask-Session
-安装步骤
-克隆此仓库：
+🎮 **Play Online / 在线试玩**: [https://threedoors.onrender.com](https://threedoors.onrender.com)
 
-bash
-git clone https://github.com/loolos/ThreeDoors.git
-cd ThreeDoors
-创建并激活虚拟环境（可选）：
+---
 
-bash
-python -m venv venv
-source venv/bin/activate  # 对于 Windows 系统，使用 venv\Scripts\activate
-安装依赖项：
+## English
 
-bash
-pip install -r requirements.txt
-运行应用程序：
+### Overview
+ThreeDoors is a text-based roguelike adventure game built with Flask. As a warrior, you face a perpetual choice of three doors. Behind them lie monsters, traps, treasures, shops, or mysterious events. Your goal is to survive as long as possible, managing your health, gold, and inventory.
 
-bash
-python server.py
-应用程序将在 http://127.0.0.1:5000 运行。打开浏览器并访问此 URL 以开始游戏。
+### Key Features
+- **Roguelike Elements**: Randomly generated encounters and loot.
+- **Strategic Combat**: Turn-based battles with options to Attack, Use Items, or Escape.
+- **Dynamic Shop**: Purchase potions, scrolls, and weapons. Shopkeepers offer "pity discounts" if you're broke!
+- **Interactive UI**: Flip 3D cards to reveal your fate.
+- **Events**: Encounter strangers, shrines, and gamblers that can change your fortune.
 
-游戏玩法
-玩家在游戏开始时拥有一定的生命值、攻击力和金币。
-每个回合，玩家可以选择不同的门进入不同的场景，如战斗、商店、宝藏等。
-在战斗场景中，玩家可以选择攻击、使用道具或逃跑。
-在商店场景中，玩家可以购买各种道具来增强自身能力。
-玩家可以使用道具来恢复健康或增强攻击力等。
-文件结构
-server.py：主程序文件，包含游戏逻辑和 Flask 路由。
-templates/：HTML 模板文件夹。
-static/：静态文件夹，包含 CSS 和 JavaScript 文件。
-贡献
-欢迎提交问题和贡献代码。如果您有任何问题或建议，请随时在 GitHub 上提交问题。
+### Installation & Running
 
-ThreeDoors Adventure Game
-Overview
-ThreeDoors is an adventure game based on the Flask framework. Players take on the role of a warrior, encountering monsters, traps, treasures, shops, and other events by choosing different doors. Players can use items to enhance their abilities or restore health.
+#### Prerequisites
+- Python 3.x
+- Flask
+- Flask-Session
 
-Installation and Running
-Prerequisites
-Python 3.x
-Flask
-Flask-Session
-Installation Steps
-Clone this repository:
+#### Steps
+1. **Clone the repository**:
+   ```bash
+   git clone https://github.com/loolos/ThreeDoors.git
+   cd ThreeDoors
+   ```
 
-bash
-git clone https://github.com/loolos/ThreeDoors.git
-cd ThreeDoors
-Create and activate a virtual environment (optional):
+2. **Create virtual environment (Optional)**:
+   ```bash
+   python -m venv venv
+   # Windows:
+   venv\Scripts\activate
+   # Mac/Linux:
+   source venv/bin/activate
+   ```
 
-bash
-python -m venv venv
-source venv/bin/activate  # On Windows, use venv\Scripts\activate
-Install dependencies:
+3. **Install dependencies**:
+   ```bash
+   pip install -r requirements.txt
+   ```
 
-bash
-pip install -r requirements.txt
-Run the application:
+4. **Run the server**:
+   ```bash
+   python server.py
+   ```
+   The game will be available at http://127.0.0.1:5000
 
-bash
-python server.py
-The application will run at http://127.0.0.1:5000. Open your browser and visit this URL to start the game.
+---
 
-Gameplay
-Players start the game with a certain amount of health, attack power, and gold.
-Each turn, players can choose different doors to enter different scenes, such as battles, shops, treasures, etc.
-In the battle scene, players can choose to attack, use items, or escape.
-In the shop scene, players can purchase various items to enhance their abilities.
-Players can use items to restore health or enhance attack power, etc.
-File Structure
-server.py: The main program file, containing game logic and Flask routes.
-templates/: The folder for HTML templates.
-static/: The folder for static files, including CSS and JavaScript files.
-Contributing
-Issues and pull requests are welcome. If you have any questions or suggestions, feel free to open an issue on GitHub.
+## 中文 (Chinese)
+
+### 游戏概述
+ThreeDoors 是一款基于 Flask 框架开发的文字类 Roguelike 冒险游戏。玩家将扮演一名勇士，在无尽的三扇门中做出抉择。门后可能是凶猛的怪兽、致命的陷阱、诱人的宝藏，或者是出售强力道具的神秘商店。你需要合理管理生命值、金币和道具，尽可能活得更久。
+
+### 核心特色
+- **Roguelike 机制**：随机生成的遭遇战、事件和战利品，每一局都是新的体验。
+- **策略战斗**：回合制战斗系统，你可以选择物理攻击、使用魔法卷轴/药水，或者三十六计走为上。
+- **动态商店**：购买恢复药水、攻击卷轴等。如果你囊中羞涩，好心的店主甚至会为你提供“低保”打折商品！
+- **交互式 UI**：精美的 3D 卡牌翻转效果，揭示命运的一瞬间充满惊喜（或惊吓）。
+- **丰富事件**：偶遇神秘陌生人、祭拜神龛、参与赌局，你的运气决定了一切。
+
+### 安装与运行
+
+#### 环境要求
+- Python 3.x
+- Flask
+- Flask-Session
+
+#### 步骤
+1. **克隆仓库**:
+   ```bash
+   git clone https://github.com/loolos/ThreeDoors.git
+   cd ThreeDoors
+   ```
+
+2. **创建虚拟环境 (可选)**:
+   ```bash
+   python -m venv venv
+   # Windows 系统:
+   venv\Scripts\activate
+   # Mac/Linux 系统:
+   source venv/bin/activate
+   ```
+
+3. **安装依赖**:
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+4. **启动游戏**:
+   ```bash
+   python server.py
+   ```
+   然后在浏览器中访问 http://127.0.0.1:5000 开始冒险！
+
+---
+
+## Contributing / 贡献
+Welcome issues and pull requests! / 欢迎提交问题和代码贡献！
+If you enjoy the game, give us a star! 🌟
