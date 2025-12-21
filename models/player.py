@@ -72,7 +72,7 @@ class Player:
                 if item.name == "复活卷轴":
                     self.hp = GameConfig.START_PLAYER_HP  # 使用初始生命值
                     self.inventory[ItemType.PASSIVE].remove(item)  # 移除复活卷轴
-
+                    self.clear_battle_status() # 清除战斗状态
                     self.controller.add_message("复活卷轴效果触发，你复活了!")
                     return
                     

@@ -2,6 +2,8 @@
 
 let lastSceneKey = ""; // 用于防止重复记录日志
 
+const delay = ms => new Promise(res => setTimeout(res, ms));
+
 document.addEventListener("DOMContentLoaded", () => {
   initUI();
   getStateAndRender();
@@ -10,9 +12,51 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 function initUI() {
-  document.getElementById("btn1").addEventListener("click", () => buttonAction(0));
-  document.getElementById("btn2").addEventListener("click", () => buttonAction(1));
-  document.getElementById("btn3").addEventListener("click", () => buttonAction(2));
+  // Clear old button listeners if any (relying on dynamic binding now)
+  // We will dynamic bind events in renderState
+}
+
+// Map logic for result emoji
+function getResultEmoji(sceneInfo) {
+  if (sceneInfo.type === 'BATTLE') return getMonsterEmoji(sceneInfo.monster_name);
+  if (sceneInfo.type === 'SHOP') return "🛒";
+  if (sceneInfo.type === 'EVENT') return "❔";
+  if (sceneInfo.type === 'GAME_OVER') return "💀";
+  return "✨";
+}
+
+async function handleDoorClick(index) {
+  try {
+    // 1. Commit Action
+    const actionRes = await fetch("/buttonAction", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ index: index })
+    });
+    const actionData = await actionRes.json();
+
+    // 2. Get New State (to peek at result)
+    const stateRes = await fetch("/getState");
+    const newState = await stateRes.json();
+
+    // 3. Reveal Animation
+    const card = document.querySelectorAll('.door-card')[index];
+    const backFace = card.querySelector('.back');
+
+    // Set emoji based on what we found behind the door
+    backFace.textContent = getResultEmoji(newState.scene_info);
+    card.classList.add('flipped');
+
+    // 4. Wait for flip
+    await delay(1000);
+
+    // 5. Render Full State (transition to next scene)
+    if (actionData.log) addLog(actionData.log);
+    renderState(newState);
+
+  } catch (err) {
+    console.error("Door Click Error:", err);
+  }
 }
 
 async function buttonAction(index) {
@@ -23,7 +67,6 @@ async function buttonAction(index) {
       body: JSON.stringify({ index: index })
     });
     const data = await res.json();
-    // 如果有日志，先解析颜色再添加
     if (data.log) {
       addLog(data.log);
     }
@@ -41,17 +84,30 @@ async function startOver() {
 }
 
 async function exitGame() {
-  const res = await fetch("/exitGame", { method: "POST" });
-  const data = await res.json();
-  addLog(data.log || data.msg);
+  try {
+    const res = await fetch("/exitGame", {
+      method: "POST"
+    });
+    const data = await res.json();
+    addLog(data.log || data.msg);
 
-  // 禁用所有按钮
-  document.querySelectorAll("button").forEach(b => b.disabled = true);
+    document.querySelectorAll("button").forEach(b => b.disabled = true);
 
-  // 1秒后关闭窗口
-  setTimeout(() => {
-    window.close();
-  }, 1000);
+    // UI Feedback
+    setTimeout(() => {
+      document.body.innerHTML = `
+            <div style="display:flex;justify-content:center;align-items:center;height:100vh;flex-direction:column;font-family:sans-serif;">
+                <h1>游戏已关闭</h1>
+                <p>服务器已停止运行，您可以关闭此标签页了。</p>
+            </div>
+        `;
+      window.close(); // Try to close
+    }, 1000);
+
+  } catch (e) {
+    console.error("Exit error:", e);
+    addLog("关闭游戏失败，可能是服务器已断开。");
+  }
 }
 
 async function getStateAndRender() {
@@ -65,72 +121,101 @@ async function getStateAndRender() {
 }
 
 function renderState(state) {
-  // 1. Render Status Area (HP Bar, etc)
   const p = state.player;
-  const maxHp = p.max_hp || 20; // 默认20防错
-  const hpPercent = Math.max(0, Math.min(100, (p.hp / maxHp) * 100));
 
-  document.getElementById("hp-bar-fill").style.width = hpPercent + "%";
-  document.getElementById("hp-text").textContent = `${p.hp}`;
-
-  let statsText = `ATK: ${p.atk} | Gold: ${p.gold} | Round: ${state.round}`;
+  // 1. Status Text (HP Included Here)
+  let statsText = `HP: ${p.hp} | ATK: ${p.atk} | Gold: ${p.gold} | Round: ${state.round}`;
   if (p.status_desc && p.status_desc !== "无") {
     statsText += ` | ${p.status_desc}`;
   }
   document.getElementById("other-stats").textContent = statsText;
 
-  // 2. Render Scene Emoji
+  // 2. Scene Rendering
   const sceneInfo = state.scene_info || {};
   const sceneEmojiDiv = document.getElementById("scene-emoji");
+  const doorArea = document.getElementById("door-area");
+  const buttonArea = document.getElementById("buttons");
+
+  // Reset Areas
+  doorArea.style.display = 'none';
+  doorArea.innerHTML = '';
+  buttonArea.style.display = 'flex';
+  buttonArea.innerHTML = ''; // Clear old buttons
 
   let emoji = "❓";
   let desc = "";
 
-  switch (sceneInfo.type) {
-    case "DOOR":
-      emoji = "🚪";
-      desc = "面对三扇门，命运在你手中...";
-      break;
-    case "BATTLE":
-      emoji = getMonsterEmoji(sceneInfo.monster_name);
-      desc = `遭遇 ${sceneInfo.monster_name} ！`;
-      break;
-    case "SHOP":
-      emoji = "🛒";
-      desc = "神秘商人的店铺";
-      break;
-    case "USE_ITEM":
-      emoji = "🎒";
-      desc = "选择要使用的道具";
-      break;
-    case "GAME_OVER":
-      emoji = "💀";
-      desc = "胜败乃兵家常事...";
-      break;
-    case "EVENT":
-      emoji = getEventEmoji(state.event_info ? state.event_info.title : "");
-      if (state.event_info) {
-        desc = state.event_info.description;
-        // Add title to description for context if needed, or just rely on desc
-        // desc = `【${state.event_info.title}】\n${state.event_info.description}`; 
-      } else {
-        desc = "发生了一个事件...";
-      }
-      break;
-    default:
-      emoji = "✨";
-      desc = "未知领域";
+  // Special Handling for Door Scene
+  if (sceneInfo.type === "DOOR") {
+    emoji = ""; // No main emoji, cards are the focus
+    desc = "命运三岔口：选择你的道路...";
+
+    doorArea.style.display = 'flex';
+    buttonArea.style.display = 'none'; // Hide standard buttons
+
+    // Generate 3 Cards
+    (sceneInfo.choices || []).forEach((choiceText, idx) => {
+      const card = document.createElement('div');
+      card.className = 'door-card';
+      card.innerHTML = `
+            <div class="door-card-inner">
+                <div class="door-face front">🚪</div>
+                <div class="door-face back">?</div>
+            </div>
+          `;
+      card.onclick = () => handleDoorClick(idx);
+      doorArea.appendChild(card);
+    });
+
+  } else {
+    // Standard Scenes (Battle, Shop, Event, etc)
+    switch (sceneInfo.type) {
+      case "BATTLE":
+        emoji = getMonsterEmoji(sceneInfo.monster_name);
+        desc = `遭遇 ${sceneInfo.monster_name} ！`;
+        break;
+      case "SHOP":
+        emoji = "🛒";
+        desc = "神秘商人的店铺";
+        break;
+      case "EVENT":
+        emoji = getEventEmoji(state.event_info ? state.event_info.title : "");
+        if (state.event_info && state.event_info.description) {
+          desc = state.event_info.description;
+        } else {
+          desc = "发生了一些意外...";
+        }
+        break;
+      case "GAME_OVER":
+        emoji = "💀";
+        desc = "胜败乃兵家常事...";
+        break;
+      case "USE_ITEM":
+        emoji = "🎒";
+        desc = "打开背包...";
+        break;
+    }
+
+    // Render Standard Buttons
+    (sceneInfo.choices || []).forEach((text, idx) => {
+      if (!text) return;
+      const btn = document.createElement("button");
+      btn.className = "main-btn";
+      btn.textContent = text;
+      btn.onclick = () => buttonAction(idx);
+      buttonArea.appendChild(btn);
+    });
   }
 
   sceneEmojiDiv.textContent = emoji;
 
-  // 生成一个唯一的场景 Key，包含场景类型和怪物名称（如果有）
   const currentSceneKey = `${sceneInfo.type}_${sceneInfo.monster_name || ""}`;
-
   if (desc && currentSceneKey !== lastSceneKey) {
     addLog(desc);
     lastSceneKey = currentSceneKey;
   }
+
+
 
   // 3. Render Inventory
   const inventoryArea = document.getElementById("inventory-area");

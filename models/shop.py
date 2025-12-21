@@ -80,6 +80,20 @@ class Shop:
                 items.HealingPotion("中治疗药水", heal_amount=10, cost=10),
                 items.HealingPotion("大治疗药水", heal_amount=15, cost=15)
             ]
+
+        # -----------------------------
+        # 保底机制：确保至少有一件商品买得起
+        # -----------------------------
+        if self.player.gold > 0 and self.shop_items:
+            # 找到当前最便宜的物品
+            cheapest_item = min(self.shop_items, key=lambda x: x.cost)
+            
+            # 如果连最便宜的都买不起
+            if cheapest_item.cost > self.player.gold:
+                # 强行降价
+                cheapest_item.cost = self.player.gold
+                # 可选：标记一下是打折商品
+                cheapest_item.name = f"{cheapest_item.name} (促销)"
             
     def purchase_item(self, idx):
         if idx < 0 or idx >= len(self.shop_items):

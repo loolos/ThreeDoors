@@ -160,6 +160,7 @@ class BattleScene(Scene):
                 else:
                     # 处理怪物掉落
                     self.monster.process_loot(p)
+                    p.clear_battle_status() # 战斗胜利，清除战斗状态
                     self.controller.scene_manager.go_to("door_scene")
                 
                 # 无论怪物是否死亡，只要玩家行动了，就推进状态计时

@@ -107,7 +107,8 @@ def get_state():
             "button_texts": scn.get_button_texts() if scn else ["", "", ""],
             "scene_info": {
                 "type": scn.enum.name if scn and scn.enum else "UNKNOWN",
-                "monster_name": getattr(scn.monster, "name", "") if hasattr(scn, "monster") and scn.monster else ""
+                "monster_name": getattr(scn.monster, "name", "") if hasattr(scn, "monster") and scn.monster else "",
+                "choices": scn.get_button_texts() if scn else []
             },
             "event_info": {
                 "title": getattr(g.current_event, "title", ""),
