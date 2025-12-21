@@ -83,6 +83,8 @@ class DoorScene(Scene):
         if door.enum != DoorEnum.MONSTER:
             self.generate_doors()
         
+        return door.enum.name
+        
 
         
 
@@ -252,9 +254,16 @@ class UseItemScene(Scene):
 
     def handle_choice(self, index):
         p = self.controller.player
-        if index < 0 or index >= len(self.active_items):
-            self.controller.add_message("无效的道具选择")
+        # 如果选择的索引超出当前道具数量，视为“返回”
+        if index >= len(self.active_items):
+            self.controller.add_message("返回战斗...")
+            self.controller.scene_manager.resume_scene()
             return
+
+        if index < 0:
+             self.controller.add_message("无效的选择")
+             return
+
         item = self.active_items[index]
         if not item:
             self.controller.add_message("你没有选择任何道具")
@@ -302,8 +311,7 @@ class GameOverScene(Scene):
                 self.controller.add_message("你没有可用的复活卷轴！")
         elif index == 2:  # 退出游戏
             self.controller.add_message("感谢游玩！")
-            import sys
-            sys.exit(0)  # 正常退出游戏
+            return "EXIT_GAME"
 
 class EventScene(Scene):
     def __init__(self, controller):

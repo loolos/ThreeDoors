@@ -25,7 +25,13 @@ function getResultEmoji(sceneInfo) {
   return "✨";
 }
 
-async function handleDoorClick(index) {
+async function handleDoorClick(index, card) {
+  if (card.classList.contains('flipped')) return; // Prevent clicking already flipped
+
+  // Disable all doors immediately
+  const doorArea = document.getElementById("door-area");
+  doorArea.style.pointerEvents = "none";
+
   try {
     // 1. Commit Action
     const actionRes = await fetch("/buttonAction", {
@@ -40,12 +46,22 @@ async function handleDoorClick(index) {
     const newState = await stateRes.json();
 
     // 3. Reveal Animation
-    const card = document.querySelectorAll('.door-card')[index];
-    const backFace = card.querySelector('.back');
+    // We use the passed 'card' element directly. 
+    // Fallback just in case, though 'card' should be correct.
+    const targetCard = card || document.querySelectorAll('.door-card')[index];
+    const backFace = targetCard.querySelector('.back');
 
     // Set emoji based on what we found behind the door
-    backFace.textContent = getResultEmoji(newState.scene_info);
-    card.classList.add('flipped');
+    let emoji = "";
+    if (actionData.outcome === "TRAP") {
+      emoji = "🧨";
+    } else if (actionData.outcome === "REWARD") {
+      emoji = "💎";
+    } else {
+      emoji = getResultEmoji(newState.scene_info);
+    }
+    backFace.textContent = emoji;
+    targetCard.classList.add('flipped');
 
     // 4. Wait for flip
     await delay(1000);
@@ -56,6 +72,9 @@ async function handleDoorClick(index) {
 
   } catch (err) {
     console.error("Door Click Error:", err);
+  } finally {
+    // Re-enable pointer events (though renderState usually rebuilds the area)
+    if (doorArea) doorArea.style.pointerEvents = "auto";
   }
 }
 
@@ -70,6 +89,12 @@ async function buttonAction(index) {
     if (data.log) {
       addLog(data.log);
     }
+
+    if (data.outcome === "EXIT_GAME") {
+      exitGame();
+      return;
+    }
+
     getStateAndRender();
   } catch (err) {
     console.error("Action error:", err);
@@ -163,7 +188,7 @@ function renderState(state) {
                 <div class="door-face back">?</div>
             </div>
           `;
-      card.onclick = () => handleDoorClick(idx);
+      card.onclick = () => handleDoorClick(idx, card);
       doorArea.appendChild(card);
     });
 

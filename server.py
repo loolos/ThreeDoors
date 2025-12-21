@@ -140,8 +140,9 @@ def button_action():
     scn_name = scn.__class__.__name__ if scn else "None"
     
     # 处理按钮选择
+    outcome = None
     if scn_name in ["DoorScene", "BattleScene", "ShopScene", "UseItemScene", "GameOverScene", "EventScene"]:
-        scn.handle_choice(index)
+        outcome = scn.handle_choice(index)
     
     # 获取当前消息并清空
     current_messages = g.messages.copy()
@@ -149,7 +150,9 @@ def button_action():
     
     return jsonify({
         "status": "success",
-        "log": "\n".join(current_messages) if current_messages else ""
+        "outcome": outcome,
+        "log": "\n".join(current_messages)
+ if current_messages else ""
     })
 
 @app.route("/exitGame", methods=["POST"])
