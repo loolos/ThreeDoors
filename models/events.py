@@ -48,10 +48,10 @@ class StrangerEvent(Event):
             p.gold -= 10
             # 70% Reward, 30% Betrayal
             if random.random() < 0.7:
-                item = create_random_item()
-                item.acquire(player=p)
                 self.add_message("你花费10金币为陌生人包扎。")
+                item = create_random_item()
                 self.add_message(f"陌生人感激地给了你 {item.name} 作为回报！")
+                item.acquire(player=p)
             else:
                 dmg = 15
                 p.take_damage(dmg)
@@ -140,8 +140,8 @@ class AncientShrineEvent(Event):
         p = self.get_player()
         # 70% Heal, 30% Curse
         if random.random() < 0.7:
-            p.heal(50) 
-            self.add_message("一道温暖的光芒笼罩着你，你的伤势恢复了 50 点！")
+            healed = p.heal(50) 
+            self.add_message(f"一道温暖的光芒笼罩着你，你的伤势恢复了 {healed} 点！")
         else:
             duration = 3
             p.apply_status(StatusName.WEAK.create_instance(duration=duration, target=p))
@@ -161,9 +161,10 @@ class AncientShrineEvent(Event):
 
     def inspect(self):
         if random.random() < 0.7:
+             self.add_message("你在祭坛后面发现了一个遗落的包裹...")
              item = create_random_item()
+             self.add_message(f"里面有 {item.name}！")
              item.acquire(player=self.get_player())
-             self.add_message(f"你在祭坛后面发现了一个遗落的包裹，里面有 {item.name}！")
         else:
              self.add_message("你研究了半天，除了一些灰尘什么也没发现。")
         return "Event Completed"
@@ -319,8 +320,8 @@ class WiseSageEvent(Event):
     def power(self):
         p = self.get_player()
         if random.random() < 0.7:
-            p.atk += 3
-            self.add_message("老者点了点头：'力量是双刃剑。' 你的攻击力永久 +3。")
+            self.add_message("老者点了点头：'力量是双刃剑。'")
+            p.change_base_atk(3)
         else:
             duration = 3
             p.apply_status(StatusName.WEAK.create_instance(duration=duration, target=p))

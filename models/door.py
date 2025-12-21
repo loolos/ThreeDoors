@@ -180,6 +180,7 @@ class RewardDoor(Door):
                     # Use the Acquire logic so it auto-uses consumables or adds to inventory
                     # We repeat `amount` times
                     for _ in range(amount):
+                        self.controller.add_message(f"获得道具：{item.name}")
                         item.acquire(player=self.controller.player)
                 else:
                     # Fallback for string keys if any exist (though I suggest avoiding them now)

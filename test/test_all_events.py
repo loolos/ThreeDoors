@@ -18,7 +18,7 @@ class TestAllEvents(BaseTest):
         if setup_func:
             setup_func(event, self.player)
             
-        print(f"Testing {event.title} Choice {choice_index}...")
+        # print(f"Testing {event.title} Choice {choice_index}...")
         try:
             event.resolve_choice(choice_index)
         except Exception as e:
@@ -35,7 +35,8 @@ class TestAllEvents(BaseTest):
         self.player.clear_inventory()
         mock_random.return_value = 0.1
         self._run_choice(StrangerEvent, 0)
-        self.assertIn("感激", self.controller.messages[-1])
+        # Check last 2 messages as item.acquire adds a message after the gratitude text
+        self.assertIn("感激", "".join(self.controller.messages[-2:]))
         
         # 2. Help - Betrayal (>= 0.7)
         self.player.hp = 100

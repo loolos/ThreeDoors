@@ -57,5 +57,28 @@ class TestStatStability(BaseTest):
         self.assertEqual(p._atk, initial_base_atk + 5)
         self.assertEqual(p.atk, initial_base_atk + 5)
 
+    def test_wise_sage_atk_stability(self):
+        """测试贤者事件加成是否会导致攻击力漂移 (Regression)"""
+        p = self.player
+        p._atk = 10
+        
+        # 1. 应用攻击力翻倍 (x2) -> 20
+        p.apply_status(StatusName.ATK_MULTIPLIER.create_instance(duration=5, target=p, value=2))
+        self.assertEqual(p.atk, 20)
+        
+        # 2. 模拟贤者事件永久加 3 攻击
+        # 以前这里是 p.atk += 3，这会导致 bug
+        p.change_base_atk(3) 
+        
+        # 当前应该是 (10+3)*2 = 26
+        self.assertEqual(p.atk, 26)
+        self.assertEqual(p._atk, 13)
+        
+        # 3. 移除 Buff
+        p.statuses = {}
+        # 应该恢复到稳定的 13
+        self.assertEqual(p.atk, 13)
+        self.assertEqual(p._atk, 13)
+
 if __name__ == '__main__':
     unittest.main()

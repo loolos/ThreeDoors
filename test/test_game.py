@@ -19,7 +19,7 @@ class TestGameStability(BaseTest):
         随机点击测试 (Fuzz Testing)
         模拟玩家随机点击按钮，验证游戏是否会崩溃或进入非法状态
         """
-        print("\n开始 1000 次随机点击测试...")
+        # print("\n开始 1000 次随机点击测试...")
         
         scene_stats = {}
         
@@ -92,12 +92,13 @@ class TestGameStability(BaseTest):
                 
                 # 每 500 次打印进度
                 if (i + 1) % 500 == 0:
-                    print(f"已完成 {i + 1} 次点击，当前场景: {after_scene_obj.__class__.__name__}")
+                    pass
+                    # print(f"已完成 {i + 1} 次点击，当前场景: {after_scene_obj.__class__.__name__}")
 
-            print("\n场景访问统计：")
-            for name, count in sorted(scene_stats.items(), key=lambda x: x[1], reverse=True):
-                print(f"{name}: {count}次")
-            print("1000 次随机点击测试成功完成")
+            # print("\n场景访问统计：")
+            # for name, count in sorted(scene_stats.items(), key=lambda x: x[1], reverse=True):
+            #     print(f"{name}: {count}次")
+            # print("1000 次随机点击测试成功完成")
             
         except Exception as e:
             print(f"ERROR: Testing failed with exception: {str(e)}")

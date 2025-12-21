@@ -1,5 +1,7 @@
 // static/main.js
 
+let lastSceneKey = ""; // 用于防止重复记录日志
+
 document.addEventListener("DOMContentLoaded", () => {
   initUI();
   getStateAndRender();
@@ -71,13 +73,15 @@ function renderState(state) {
   document.getElementById("hp-bar-fill").style.width = hpPercent + "%";
   document.getElementById("hp-text").textContent = `${p.hp}`;
 
-  document.getElementById("other-stats").textContent =
-    `ATK: ${p.atk} | Gold: ${p.gold} | Round: ${state.round}`;
+  let statsText = `ATK: ${p.atk} | Gold: ${p.gold} | Round: ${state.round}`;
+  if (p.status_desc && p.status_desc !== "无") {
+    statsText += ` | ${p.status_desc}`;
+  }
+  document.getElementById("other-stats").textContent = statsText;
 
   // 2. Render Scene Emoji
   const sceneInfo = state.scene_info || {};
   const sceneEmojiDiv = document.getElementById("scene-emoji");
-  const sceneDescDiv = document.getElementById("scene-desc");
 
   let emoji = "❓";
   let desc = "";
@@ -119,7 +123,14 @@ function renderState(state) {
   }
 
   sceneEmojiDiv.textContent = emoji;
-  sceneDescDiv.textContent = desc;
+
+  // 生成一个唯一的场景 Key，包含场景类型和怪物名称（如果有）
+  const currentSceneKey = `${sceneInfo.type}_${sceneInfo.monster_name || ""}`;
+
+  if (desc && currentSceneKey !== lastSceneKey) {
+    addLog(desc);
+    lastSceneKey = currentSceneKey;
+  }
 
   // 3. Render Inventory
   const inventoryArea = document.getElementById("inventory-area");
