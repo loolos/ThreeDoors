@@ -3,8 +3,18 @@
 let lastSceneKey = ""; // 用于防止重复记录日志
 
 const delay = ms => new Promise(res => setTimeout(res, ms));
-const doorTexturePath = key => `/static/assets/doors/${key}.svg`;
-const monsterTexturePath = key => `/static/assets/monsters/${key}.svg`;
+
+function getFrontDoorEmoji(textureKey) {
+  const map = {
+    door_oak: "🚪",
+    door_obsidian: "🪨",
+    door_vine: "🌿",
+    door_rune: "🔮",
+    door_iron: "🛡️",
+    door_bone: "🦴",
+  };
+  return map[textureKey] || "🚪";
+}
 
 document.addEventListener("DOMContentLoaded", () => {
   initUI();
@@ -53,26 +63,20 @@ async function handleDoorClick(index, card) {
     const targetCard = card || document.querySelectorAll('.door-card')[index];
     const backFace = targetCard.querySelector('.back');
 
-    // Set back-face sprite based on what we found behind the door
-    let spriteKey = "";
-    let fallbackEmoji = "";
+    // Set back-face emoji based on what we found behind the door
+    let revealEmoji = "❓";
     if (actionData.outcome === "TRAP") {
-      spriteKey = "result_trap";
-      fallbackEmoji = "🧨";
+      revealEmoji = "🧨";
     } else if (actionData.outcome === "REWARD") {
-      spriteKey = "result_reward";
-      fallbackEmoji = "💎";
+      revealEmoji = "💎";
     } else if (actionData.outcome === "SHOP") {
-      spriteKey = "result_shop";
-      fallbackEmoji = "🛒";
+      revealEmoji = "🛒";
     } else if (actionData.outcome === "EVENT") {
-      spriteKey = "result_event";
-      fallbackEmoji = "❔";
+      revealEmoji = "❔";
     } else {
-      spriteKey = "result_monster";
-      fallbackEmoji = getResultEmoji(newState.scene_info);
+      revealEmoji = getResultEmoji(newState.scene_info);
     }
-    backFace.innerHTML = `<img src="${doorTexturePath(spriteKey)}" alt="${fallbackEmoji}" onerror="this.parentElement.textContent='${fallbackEmoji}'">`;
+    backFace.textContent = revealEmoji;
     targetCard.classList.add('flipped');
 
     // 4. Wait for flip
@@ -195,6 +199,7 @@ function renderState(state) {
     (sceneInfo.choices || []).forEach((choiceText, idx) => {
       const hint = (doors[idx] && doors[idx].hint) ? doors[idx].hint : choiceText.replace(/^门\d+\s*-\s*/, '');
       const textureKey = (doors[idx] && doors[idx].texture_key) ? doors[idx].texture_key : "door_oak";
+      const frontEmoji = getFrontDoorEmoji(textureKey);
 
       const wrapper = document.createElement('div');
       wrapper.className = 'door-wrapper';
@@ -203,12 +208,8 @@ function renderState(state) {
       card.className = 'door-card';
       card.innerHTML = `
             <div class="door-card-inner">
-                <div class="door-face front">
-                  <img src="${doorTexturePath(textureKey)}" alt="door" onerror="this.parentElement.textContent='🚪'">
-                </div>
-                <div class="door-face back">
-                  <img src="${doorTexturePath('result_event')}" alt="?" onerror="this.parentElement.textContent='?'">
-                </div>
+                <div class="door-face front">${frontEmoji}</div>
+                <div class="door-face back">❔</div>
             </div>
           `;
       card.onclick = () => handleDoorClick(idx, card);
@@ -226,11 +227,7 @@ function renderState(state) {
     // Standard Scenes (Battle, Shop, Event, etc)
     switch (sceneInfo.type) {
       case "BATTLE":
-        if (sceneInfo.monster_sprite_key) {
-          emoji = `<img class="scene-sprite" src="${monsterTexturePath(sceneInfo.monster_sprite_key)}" alt="${sceneInfo.monster_name}" onerror="this.outerHTML='${getMonsterEmoji(sceneInfo.monster_name)}'">`;
-        } else {
-          emoji = getMonsterEmoji(sceneInfo.monster_name);
-        }
+        emoji = getMonsterEmoji(sceneInfo.monster_name);
         desc = `遭遇 ${sceneInfo.monster_name} ！`;
         break;
       case "SHOP":
@@ -266,11 +263,7 @@ function renderState(state) {
     });
   }
 
-  if (emoji && emoji.includes && emoji.includes("<")) {
-    sceneEmojiDiv.innerHTML = emoji;
-  } else {
-    sceneEmojiDiv.textContent = emoji;
-  }
+  sceneEmojiDiv.textContent = emoji;
 
   const currentSceneKey = `${sceneInfo.type}_${sceneInfo.monster_name || ""}`;
   if (desc && currentSceneKey !== lastSceneKey) {
@@ -326,12 +319,27 @@ function renderState(state) {
 
 function getMonsterEmoji(name) {
   if (!name) return "👾";
-  if (name.includes("史莱姆")) return "💧";
+  if (name.includes("史莱姆")) return "🟢";
   if (name.includes("哥布林")) return "👺";
   if (name.includes("狼")) return "🐺";
   if (name.includes("龙")) return "🐉";
+  if (name.includes("蛇")) return "🐍";
+  if (name.includes("蜘蛛")) return "🕷️";
+  if (name.includes("蝎")) return "🦂";
+  if (name.includes("幽灵")) return "👻";
+  if (name.includes("吸血鬼")) return "🧛";
+  if (name.includes("树人")) return "🌳";
+  if (name.includes("天使")) return "😇";
+  if (name.includes("法师")) return "🧙";
+  if (name.includes("骑士")) return "⚔️";
+  if (name.includes("土匪")) return "🥷";
+  if (name.includes("凤凰")) return "🔥";
+  if (name.includes("海妖")) return "🧜";
+  if (name.includes("泰坦")) return "🗿";
+  if (name.includes("克拉肯") || name.includes("利维坦")) return "🐙";
+  if (name.includes("食人魔") || name.includes("巨魔")) return "👹";
   if (name.includes("鬼")) return "👻";
-  if (name.includes("熊")) return "🐻";
+  if (name.includes("熊") || name.includes("野猪")) return "🐗";
   return "👾";
 }
 
