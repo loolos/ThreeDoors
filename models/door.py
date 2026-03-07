@@ -50,6 +50,13 @@ class Door(BaseClass):
             self.hint = kwargs['hint']
         else:
             self.hint= ""
+        if "texture_key" in kwargs:
+            self.texture_key = kwargs["texture_key"]
+        else:
+            self.texture_key = self._choose_texture_key()
+
+    def _choose_texture_key(self) -> str:
+        return random.choice(FRONT_DOOR_TEXTURES)
 
     def generate_hint(self) -> None:
         """生成门的提示"""
@@ -363,6 +370,16 @@ HINT_CONFIGS = {
         ]
     }
 }
+
+# 门正面贴图池：与门后内容无关，纯随机外观
+FRONT_DOOR_TEXTURES = [
+    "door_oak",
+    "door_obsidian",
+    "door_vine",
+    "door_rune",
+    "door_iron",
+    "door_bone",
+]
 
 def get_mixed_door_hint(door_enums):
     """获取混合门提示"""

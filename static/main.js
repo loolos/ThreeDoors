@@ -4,6 +4,19 @@ let lastSceneKey = ""; // 用于防止重复记录日志
 
 const delay = ms => new Promise(res => setTimeout(res, ms));
 
+function getFrontDoorStyle(textureKey) {
+  // 主体始终是门，差异只通过小装饰体现
+  const map = {
+    door_oak: { main: "🚪", accent: "🪵" },
+    door_obsidian: { main: "🚪", accent: "🪨" },
+    door_vine: { main: "🚪", accent: "🌿" },
+    door_rune: { main: "🚪", accent: "✨" },
+    door_iron: { main: "🚪", accent: "🔒" },
+    door_bone: { main: "🚪", accent: "🦴" },
+  };
+  return map[textureKey] || { main: "🚪", accent: "🔑" };
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   initUI();
   getStateAndRender();
@@ -51,16 +64,20 @@ async function handleDoorClick(index, card) {
     const targetCard = card || document.querySelectorAll('.door-card')[index];
     const backFace = targetCard.querySelector('.back');
 
-    // Set emoji based on what we found behind the door
-    let emoji = "";
+    // Set back-face emoji based on what we found behind the door
+    let revealEmoji = "❓";
     if (actionData.outcome === "TRAP") {
-      emoji = "🧨";
+      revealEmoji = "🧨";
     } else if (actionData.outcome === "REWARD") {
-      emoji = "💎";
+      revealEmoji = "💎";
+    } else if (actionData.outcome === "SHOP") {
+      revealEmoji = "🛒";
+    } else if (actionData.outcome === "EVENT") {
+      revealEmoji = "❔";
     } else {
-      emoji = getResultEmoji(newState.scene_info);
+      revealEmoji = getResultEmoji(newState.scene_info);
     }
-    backFace.textContent = emoji;
+    backFace.textContent = revealEmoji;
     targetCard.classList.add('flipped');
 
     // 4. Wait for flip
@@ -179,8 +196,11 @@ function renderState(state) {
     buttonArea.style.display = 'none'; // Hide standard buttons
 
     // Generate 3 Cards
+    const doors = sceneInfo.doors || [];
     (sceneInfo.choices || []).forEach((choiceText, idx) => {
-      const hint = choiceText.replace(/^门\d+\s*-\s*/, '');
+      const hint = (doors[idx] && doors[idx].hint) ? doors[idx].hint : choiceText.replace(/^门\d+\s*-\s*/, '');
+      const textureKey = (doors[idx] && doors[idx].texture_key) ? doors[idx].texture_key : "door_oak";
+      const frontStyle = getFrontDoorStyle(textureKey);
 
       const wrapper = document.createElement('div');
       wrapper.className = 'door-wrapper';
@@ -189,8 +209,11 @@ function renderState(state) {
       card.className = 'door-card';
       card.innerHTML = `
             <div class="door-card-inner">
-                <div class="door-face front">🚪</div>
-                <div class="door-face back">?</div>
+                <div class="door-face front">
+                  <span class="door-front-main">${frontStyle.main}</span>
+                  <span class="door-front-accent">${frontStyle.accent}</span>
+                </div>
+                <div class="door-face back">❔</div>
             </div>
           `;
       card.onclick = () => handleDoorClick(idx, card);
@@ -300,12 +323,27 @@ function renderState(state) {
 
 function getMonsterEmoji(name) {
   if (!name) return "👾";
-  if (name.includes("史莱姆")) return "💧";
+  if (name.includes("史莱姆")) return "🟢";
   if (name.includes("哥布林")) return "👺";
   if (name.includes("狼")) return "🐺";
   if (name.includes("龙")) return "🐉";
+  if (name.includes("蛇")) return "🐍";
+  if (name.includes("蜘蛛")) return "🕷️";
+  if (name.includes("蝎")) return "🦂";
+  if (name.includes("幽灵")) return "👻";
+  if (name.includes("吸血鬼")) return "🧛";
+  if (name.includes("树人")) return "🌳";
+  if (name.includes("天使")) return "😇";
+  if (name.includes("法师")) return "🧙";
+  if (name.includes("骑士")) return "⚔️";
+  if (name.includes("土匪")) return "🥷";
+  if (name.includes("凤凰")) return "🔥";
+  if (name.includes("海妖")) return "🧜";
+  if (name.includes("泰坦")) return "🗿";
+  if (name.includes("克拉肯") || name.includes("利维坦")) return "🐙";
+  if (name.includes("食人魔") || name.includes("巨魔")) return "👹";
   if (name.includes("鬼")) return "👻";
-  if (name.includes("熊")) return "🐻";
+  if (name.includes("熊") || name.includes("野猪")) return "🐗";
   return "👾";
 }
 
@@ -318,6 +356,8 @@ function getEventEmoji(title) {
   if (title.includes("Lost Child")) return "👧";
   if (title.includes("Cursed Chest")) return "🧰";
   if (title.includes("Wise Sage")) return "🧙";
+  if (title.includes("Refugee Caravan")) return "🧺";
+  if (title.includes("Fallen Knight")) return "🛡️";
   return "🎭";
 }
 

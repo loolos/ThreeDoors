@@ -7,6 +7,7 @@ from models.monster import Monster, get_random_monster
 from models.player import Player
 from models.status import Status
 from models.shop import Shop
+from models.story_system import StorySystem
 from scenes import Scene, DoorScene, BattleScene, ShopScene, UseItemScene, GameOverScene, SceneManager
 from models.game_config import GameConfig
 from models.items import ReviveScroll, FlyingHammer, GiantScroll, Barrier
@@ -40,6 +41,7 @@ class GameController:
         self.messages = []
         self.player = Player(self)
         self.player.reset()  # 重置玩家状态
+        self.story = StorySystem(self)
         self.current_shop = Shop(self.player)
         self.scene_manager = SceneManager()
         self.scene_manager.game_controller = self  # 直接设置 game_controller
@@ -101,6 +103,7 @@ def get_state():
                 "hp": p.hp,
                 "atk": p.atk,
                 "gold": p.gold,
+                "moral": g.story.moral_score,
                 "status_desc": p.get_status_desc(),
                 "inventory": inventory_dict
             },
@@ -108,6 +111,7 @@ def get_state():
             "scene_info": {
                 "type": scn.enum.name if scn and scn.enum else "UNKNOWN",
                 "monster_name": getattr(scn.monster, "name", "") if hasattr(scn, "monster") and scn.monster else "",
+                "monster_sprite_key": getattr(scn.monster, "sprite_key", "monster_default") if hasattr(scn, "monster") and scn.monster else "",
                 "choices": scn.get_button_texts() if scn else []
             },
             "event_info": {
@@ -116,6 +120,14 @@ def get_state():
                 "choices": g.current_event.get_choices() if g.current_event else []
             } if scn and scn.enum.name == 'EVENT' else None
         }
+        if scn and scn.enum and scn.enum.name == "DOOR" and hasattr(scn, "doors"):
+            state["scene_info"]["doors"] = [
+                {
+                    "hint": door.hint,
+                    "texture_key": getattr(door, "texture_key", "door_oak"),
+                }
+                for door in scn.doors
+            ]
         
         # 修改消息处理逻辑
         if g.messages:

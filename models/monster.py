@@ -187,6 +187,7 @@ class Monster:
             self.hp = hp
             self.atk = atk
         self.tier = tier
+        self.sprite_key = self._infer_sprite_key()
         self.statuses = {}  # 使用状态系统来管理怪物的状态效果
         self.loot = self._generate_loot()  # 生成掉落物品
         
@@ -209,6 +210,23 @@ class Monster:
             self.type_hint = "未知生物的声响..."
         else:
             self.type_hint = random.choice(self.MONSTER_TYPE_HINTS[self.name])  # 类型提示
+
+    def _infer_sprite_key(self) -> str:
+        """根据名称推断怪物贴图分组。"""
+        name = self.name or ""
+        if any(k in name for k in ["龙", "蛇", "凤凰", "雷鸟"]):
+            return "monster_dragon"
+        if any(k in name for k in ["鬼", "幽灵", "冥界", "死亡骑士", "吸血鬼"]):
+            return "monster_undead"
+        if any(k in name for k in ["土匪", "刺客", "骑士", "法师", "蜥蜴人", "半人马"]):
+            return "monster_humanoid"
+        if any(k in name for k in ["狼", "犬", "蜘蛛", "蝎子", "鸟妖", "克拉肯", "利维坦"]):
+            return "monster_beast"
+        if any(k in name for k in ["树人", "天使", "神官", "守护者", "泰坦"]):
+            return "monster_mythic"
+        if any(k in name for k in ["史莱姆", "食人花", "地穴"]):
+            return "monster_spirit"
+        return "monster_default"
 
     def _generate_loot(self):
         """生成怪物的掉落物品"""
