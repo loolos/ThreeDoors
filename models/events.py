@@ -29,6 +29,16 @@ class Event:
     def get_player(self):
         return self.controller.player
 
+    def register_story_choice(self, choice_flag, moral_delta=0, consequences=None):
+        story = getattr(self.controller, "story", None)
+        if not story:
+            return
+        story.register_choice(
+            choice_flag=choice_flag,
+            moral_delta=moral_delta,
+            consequences=consequences or [],
+        )
+
 
 # 1. Injured Stranger
 class StrangerEvent(Event):
@@ -44,6 +54,33 @@ class StrangerEvent(Event):
 
     def help_stranger(self):
         p = self.get_player()
+        self.register_story_choice(
+            choice_flag="stranger_helped",
+            moral_delta=8,
+            consequences=[
+                {
+                    "consequence_id": "stranger_help_village_gift",
+                    "effect_key": "villagers_gift",
+                    "chance": 0.32,
+                    "priority": 8,
+                    "trigger_door_types": ["MONSTER"],
+                    "trigger_monsters": ["土匪", "狼人", "野狼", "小哥布林"],
+                    "payload": {"hint": "旧日善意", "message": "你救下的人来自这个族群，对方主动献上宝物。"},
+                },
+                {
+                    "consequence_id": "stranger_help_thief_revenge",
+                    "effect_key": "revenge_ambush",
+                    "chance": 0.26,
+                    "priority": 7,
+                    "trigger_door_types": ["MONSTER", "EVENT"],
+                    "payload": {
+                        "hp_ratio": 1.2,
+                        "atk_ratio": 1.2,
+                        "message": "你救人时得罪了打手，他们提前布好了伏击。",
+                    },
+                },
+            ],
+        )
         if p.gold >= 10:
             p.gold -= 10
             # 70% Reward, 30% Betrayal
@@ -63,6 +100,32 @@ class StrangerEvent(Event):
 
     def rob_stranger(self):
         p = self.get_player()
+        self.register_story_choice(
+            choice_flag="stranger_robbed",
+            moral_delta=-10,
+            consequences=[
+                {
+                    "consequence_id": "stranger_rob_black_market_discount",
+                    "effect_key": "black_market_discount",
+                    "chance": 0.34,
+                    "priority": 7,
+                    "trigger_door_types": ["SHOP"],
+                    "payload": {"ratio": 0.72, "message": "黑市商人认出你的“手法”，给了同路折扣。"},
+                },
+                {
+                    "consequence_id": "stranger_rob_bounty_revenge",
+                    "effect_key": "revenge_ambush",
+                    "chance": 0.33,
+                    "priority": 8,
+                    "trigger_door_types": ["MONSTER", "EVENT"],
+                    "payload": {
+                        "hp_ratio": 1.28,
+                        "atk_ratio": 1.18,
+                        "message": "你抢劫陌生人的恶行传开，赏金猎人带着怪物来堵你。",
+                    },
+                },
+            ],
+        )
         # 60% Success, 40% Fail
         if random.random() < 0.6:
             gold = random.randint(5, 20)
@@ -75,6 +138,19 @@ class StrangerEvent(Event):
         return "Event Completed"
 
     def ignore_stranger(self):
+        self.register_story_choice(
+            choice_flag="stranger_ignored",
+            moral_delta=-3,
+            consequences=[
+                {
+                    "consequence_id": "stranger_ignore_guilt_curse",
+                    "effect_key": "shrine_curse",
+                    "chance": 0.22,
+                    "trigger_door_types": ["TRAP", "EVENT"],
+                    "payload": {"duration": 1, "message": "你隐约想起那个眼神，动作开始迟滞。"},
+                }
+            ],
+        )
         self.add_message("你冷漠地走开了，不想惹麻烦。")
         return "Event Completed"
 
@@ -96,6 +172,28 @@ class SmugglerEvent(Event):
 
     def buy_item(self):
         p = self.get_player()
+        self.register_story_choice(
+            choice_flag="smuggler_bought_goods",
+            moral_delta=-5,
+            consequences=[
+                {
+                    "consequence_id": "smuggler_buy_friend_discount",
+                    "effect_key": "black_market_discount",
+                    "chance": 0.4,
+                    "priority": 8,
+                    "trigger_door_types": ["SHOP"],
+                    "payload": {"ratio": 0.65, "message": "商人是走私贩朋党，暗号对上后给你低价。"},
+                },
+                {
+                    "consequence_id": "smuggler_buy_counterfeit_penalty",
+                    "effect_key": "black_market_markup",
+                    "chance": 0.28,
+                    "priority": 6,
+                    "trigger_door_types": ["SHOP"],
+                    "payload": {"ratio": 1.35, "message": "你买过赃物的事被盯上，后续商人趁机抬价。"},
+                },
+            ],
+        )
         if p.gold >= self.cost:
             p.gold -= self.cost
             # 80% Real, 20% Fake
@@ -109,6 +207,32 @@ class SmugglerEvent(Event):
         return "Event Completed"
 
     def report_smuggler(self):
+        self.register_story_choice(
+            choice_flag="smuggler_reported",
+            moral_delta=6,
+            consequences=[
+                {
+                    "consequence_id": "smuggler_report_guard_reward",
+                    "effect_key": "guard_reward",
+                    "chance": 0.35,
+                    "priority": 7,
+                    "trigger_door_types": ["SHOP", "EVENT", "REWARD"],
+                    "payload": {"gold": random.randint(25, 55), "message": "卫兵巡逻队再次感谢你的举报并发放悬赏。"},
+                },
+                {
+                    "consequence_id": "smuggler_report_gang_revenge",
+                    "effect_key": "revenge_ambush",
+                    "chance": 0.32,
+                    "priority": 8,
+                    "trigger_door_types": ["MONSTER", "EVENT"],
+                    "payload": {
+                        "hp_ratio": 1.3,
+                        "atk_ratio": 1.2,
+                        "message": "你举报的走私团伙找上门，安排了报复伏击。",
+                    },
+                },
+            ],
+        )
         if random.random() < 0.5:
             reward = random.randint(30, 60)
             self.get_player().gold += reward
@@ -120,6 +244,7 @@ class SmugglerEvent(Event):
         return "Event Completed"
 
     def leave(self):
+        self.register_story_choice(choice_flag="smuggler_left", moral_delta=0)
         self.add_message("你摇摇头，转身离开了。")
         return "Event Completed"
 
@@ -138,6 +263,28 @@ class AncientShrineEvent(Event):
 
     def pray(self):
         p = self.get_player()
+        self.register_story_choice(
+            choice_flag="shrine_prayed",
+            moral_delta=4,
+            consequences=[
+                {
+                    "consequence_id": "shrine_pray_bless",
+                    "effect_key": "shrine_blessing",
+                    "chance": 0.34,
+                    "priority": 7,
+                    "trigger_door_types": ["TRAP", "MONSTER"],
+                    "payload": {"message": "祈祷留下的神圣余辉在关键时刻生效。"},
+                },
+                {
+                    "consequence_id": "shrine_pray_fanatic_hunt",
+                    "effect_key": "revenge_ambush",
+                    "chance": 0.22,
+                    "priority": 6,
+                    "trigger_door_types": ["MONSTER", "EVENT"],
+                    "payload": {"hp_ratio": 1.18, "atk_ratio": 1.15, "message": "祭坛附近的狂信徒误会了你的意图，设下埋伏。"},
+                },
+            ],
+        )
         # 70% Heal, 30% Curse
         if random.random() < 0.7:
             healed = p.heal(50) 
@@ -150,6 +297,28 @@ class AncientShrineEvent(Event):
 
     def desecrate(self):
         p = self.get_player()
+        self.register_story_choice(
+            choice_flag="shrine_desecrated",
+            moral_delta=-9,
+            consequences=[
+                {
+                    "consequence_id": "shrine_desecrate_curse",
+                    "effect_key": "shrine_curse",
+                    "chance": 0.45,
+                    "priority": 8,
+                    "trigger_door_types": ["TRAP", "MONSTER", "EVENT"],
+                    "payload": {"duration": 2, "message": "你破坏祭坛的行为引来持续诅咒。"},
+                },
+                {
+                    "consequence_id": "shrine_desecrate_looter_bonus",
+                    "effect_key": "guard_reward",
+                    "chance": 0.26,
+                    "priority": 5,
+                    "trigger_door_types": ["REWARD", "SHOP"],
+                    "payload": {"gold": random.randint(20, 40), "message": "你记住了祭坛藏宝手法，顺手又捞到一笔。"},
+                },
+            ],
+        )
         gold = random.randint(50, 100)
         p.gold += gold
         self.add_message(f"你在祭坛下挖出了 {gold} 金币！")
@@ -160,6 +329,19 @@ class AncientShrineEvent(Event):
         return "Event Completed"
 
     def inspect(self):
+        self.register_story_choice(
+            choice_flag="shrine_inspected",
+            moral_delta=1,
+            consequences=[
+                {
+                    "consequence_id": "shrine_inspect_training",
+                    "effect_key": "atk_training",
+                    "chance": 0.2,
+                    "trigger_door_types": ["MONSTER", "EVENT"],
+                    "payload": {"delta": 1, "message": "符文学识让你看穿敌人的破绽，攻击微幅提升。"},
+                }
+            ],
+        )
         if random.random() < 0.7:
              self.add_message("你在祭坛后面发现了一个遗落的包裹...")
              item = create_random_item()
@@ -183,6 +365,28 @@ class GamblerEvent(Event):
 
     def high_stakes(self):
         p = self.get_player()
+        self.register_story_choice(
+            choice_flag="gambler_high_stakes",
+            moral_delta=-2,
+            consequences=[
+                {
+                    "consequence_id": "gambler_high_debtor_revenge",
+                    "effect_key": "revenge_ambush",
+                    "chance": 0.31,
+                    "priority": 7,
+                    "trigger_door_types": ["MONSTER"],
+                    "payload": {"hp_ratio": 1.23, "atk_ratio": 1.2, "message": "赌局输家雇了打手，你被截杀。"},
+                },
+                {
+                    "consequence_id": "gambler_high_hot_hand_bonus",
+                    "effect_key": "guard_reward",
+                    "chance": 0.28,
+                    "priority": 6,
+                    "trigger_door_types": ["REWARD", "SHOP"],
+                    "payload": {"gold": random.randint(25, 55), "message": "你手气正旺，后续交易也有额外进账。"},
+                },
+            ],
+        )
         bet = 50
         if p.gold < bet:
             self.add_message("你没有足够的金币！赌徒嘲笑了你一番。")
@@ -199,6 +403,26 @@ class GamblerEvent(Event):
 
     def low_stakes(self):
         p = self.get_player()
+        self.register_story_choice(
+            choice_flag="gambler_low_stakes",
+            moral_delta=-1,
+            consequences=[
+                {
+                    "consequence_id": "gambler_low_small_revenge",
+                    "effect_key": "lose_gold",
+                    "chance": 0.2,
+                    "trigger_door_types": ["SHOP", "EVENT"],
+                    "payload": {"amount": random.randint(10, 20), "message": "你被赌徒顺走了点钱，事后才发现。"},
+                },
+                {
+                    "consequence_id": "gambler_low_lucky_tip",
+                    "effect_key": "black_market_discount",
+                    "chance": 0.22,
+                    "trigger_door_types": ["SHOP"],
+                    "payload": {"ratio": 0.82, "message": "赌徒给你的小道消息，让你捡了便宜。"},
+                },
+            ],
+        )
         bet = 10
         if p.gold < bet:
              self.add_message("你连10金币都没有？真可怜。")
@@ -214,6 +438,26 @@ class GamblerEvent(Event):
         return "Event Completed"
 
     def decline(self):
+        self.register_story_choice(
+            choice_flag="gambler_declined",
+            moral_delta=2,
+            consequences=[
+                {
+                    "consequence_id": "gambler_decline_prudent_bless",
+                    "effect_key": "shrine_blessing",
+                    "chance": 0.25,
+                    "trigger_door_types": ["TRAP", "MONSTER"],
+                    "payload": {"message": "克制欲望带来的专注，让你更容易避开危险。"},
+                },
+                {
+                    "consequence_id": "gambler_decline_mocked_markup",
+                    "effect_key": "black_market_markup",
+                    "chance": 0.15,
+                    "trigger_door_types": ["SHOP"],
+                    "payload": {"ratio": 1.2, "message": "你拒绝赌局得罪了地头蛇，熟人商店也不给你好脸色。"},
+                },
+            ],
+        )
         self.add_message("你拒绝了赌博，赌徒无趣地走开了。")
         return "Event Completed"
 
@@ -231,6 +475,29 @@ class LostChildEvent(Event):
         ]
 
     def guide_home(self):
+        self.register_story_choice(
+            choice_flag="lost_child_guided_home",
+            moral_delta=10,
+            consequences=[
+                {
+                    "consequence_id": "lost_child_village_gift",
+                    "effect_key": "villagers_gift",
+                    "chance": 0.38,
+                    "priority": 8,
+                    "trigger_door_types": ["MONSTER"],
+                    "trigger_monsters": ["土匪", "狼人", "野狼", "食人魔"],
+                    "payload": {"hint": "小女孩的谢礼", "message": "怪物认出你救过村里的孩子，主动献出宝物。"},
+                },
+                {
+                    "consequence_id": "lost_child_fame_backfire",
+                    "effect_key": "revenge_ambush",
+                    "chance": 0.27,
+                    "priority": 7,
+                    "trigger_door_types": ["MONSTER", "EVENT"],
+                    "payload": {"hp_ratio": 1.2, "atk_ratio": 1.18, "message": "你的善举传开后，也引来了专门猎杀英雄的人。"},
+                },
+            ],
+        )
         # High risk (time/encounter), High reward
         if random.random() < 0.3:
             # Encounter monster logic could be complex, for now simple damage from "exhaustion"
@@ -249,6 +516,26 @@ class LostChildEvent(Event):
 
     def give_gold(self):
         p = self.get_player()
+        self.register_story_choice(
+            choice_flag="lost_child_gave_gold",
+            moral_delta=6,
+            consequences=[
+                {
+                    "consequence_id": "lost_child_give_guard_reward",
+                    "effect_key": "guard_reward",
+                    "chance": 0.3,
+                    "trigger_door_types": ["EVENT", "SHOP"],
+                    "payload": {"gold": random.randint(15, 35), "heal": 5, "message": "你资助孩子的事被传开，路人对你伸出了援手。"},
+                },
+                {
+                    "consequence_id": "lost_child_give_pickpocket",
+                    "effect_key": "lose_gold",
+                    "chance": 0.23,
+                    "trigger_door_types": ["SHOP", "EVENT"],
+                    "payload": {"amount": random.randint(12, 28), "message": "你出手阔绰被人盯上，后来被顺走了一笔钱。"},
+                },
+            ],
+        )
         if p.gold >= 20:
             p.gold -= 20
             self.add_message("你给了小女孩20金币让她自己打车回家（虽然森林里没有出租车）。")
@@ -260,6 +547,26 @@ class LostChildEvent(Event):
         return "Event Completed"
 
     def ignore(self):
+        self.register_story_choice(
+            choice_flag="lost_child_ignored",
+            moral_delta=-8,
+            consequences=[
+                {
+                    "consequence_id": "lost_child_ignore_curse",
+                    "effect_key": "shrine_curse",
+                    "chance": 0.33,
+                    "trigger_door_types": ["TRAP", "MONSTER", "EVENT"],
+                    "payload": {"duration": 2, "message": "你心底的不安挥之不去，战斗时更易露出破绽。"},
+                },
+                {
+                    "consequence_id": "lost_child_ignore_black_market",
+                    "effect_key": "black_market_discount",
+                    "chance": 0.25,
+                    "trigger_door_types": ["SHOP"],
+                    "payload": {"ratio": 0.78, "message": "冷酷名声让地下商人觉得你“够狠”，愿意给折扣。"},
+                },
+            ],
+        )
         self.add_message("这里是残酷的世界，你选择了无视。")
         return "Event Completed"
 
@@ -278,6 +585,26 @@ class CursedChestEvent(Event):
 
     def open_chest(self):
         p = self.get_player()
+        self.register_story_choice(
+            choice_flag="cursed_chest_opened",
+            moral_delta=-4,
+            consequences=[
+                {
+                    "consequence_id": "chest_open_curse_follow",
+                    "effect_key": "shrine_curse",
+                    "chance": 0.36,
+                    "trigger_door_types": ["MONSTER", "TRAP", "EVENT"],
+                    "payload": {"duration": 2, "message": "贪婪的回响仍缠着你，诅咒持续发作。"},
+                },
+                {
+                    "consequence_id": "chest_open_rogue_profit",
+                    "effect_key": "black_market_discount",
+                    "chance": 0.24,
+                    "trigger_door_types": ["SHOP"],
+                    "payload": {"ratio": 0.8, "message": "你敢开诅咒箱的名声传到黑市，商人愿和你做“高风险生意”。"},
+                },
+            ],
+        )
         if random.random() < 0.6: # 60% bad
             dmg = 20
             p.take_damage(dmg)
@@ -291,6 +618,26 @@ class CursedChestEvent(Event):
         return "Event Completed"
 
     def purify(self):
+        self.register_story_choice(
+            choice_flag="cursed_chest_purified",
+            moral_delta=5,
+            consequences=[
+                {
+                    "consequence_id": "chest_purify_blessing",
+                    "effect_key": "shrine_blessing",
+                    "chance": 0.32,
+                    "trigger_door_types": ["TRAP", "MONSTER"],
+                    "payload": {"message": "你净化诅咒后的灵力在下一次危险中保护了你。"},
+                },
+                {
+                    "consequence_id": "chest_purify_cult_revenge",
+                    "effect_key": "revenge_ambush",
+                    "chance": 0.22,
+                    "trigger_door_types": ["MONSTER", "EVENT"],
+                    "payload": {"hp_ratio": 1.18, "atk_ratio": 1.16, "message": "崇拜诅咒宝箱的邪教徒盯上了你。"},
+                },
+            ],
+        )
         # Assume successful purify for now, or random
         if random.random() < 0.5:
             gold = 50
@@ -301,6 +648,7 @@ class CursedChestEvent(Event):
         return "Event Completed"
 
     def leave(self):
+        self.register_story_choice(choice_flag="cursed_chest_left", moral_delta=1)
         self.add_message("你明智地远离了诅咒之物。")
         return "Event Completed"
 
@@ -319,6 +667,26 @@ class WiseSageEvent(Event):
 
     def power(self):
         p = self.get_player()
+        self.register_story_choice(
+            choice_flag="sage_power_choice",
+            moral_delta=-1,
+            consequences=[
+                {
+                    "consequence_id": "sage_power_training",
+                    "effect_key": "atk_training",
+                    "chance": 0.3,
+                    "trigger_door_types": ["MONSTER", "EVENT"],
+                    "payload": {"delta": 2, "message": "老者的教诲回响在你脑海，出手更加凌厉。"},
+                },
+                {
+                    "consequence_id": "sage_power_backlash",
+                    "effect_key": "shrine_curse",
+                    "chance": 0.22,
+                    "trigger_door_types": ["MONSTER", "TRAP"],
+                    "payload": {"duration": 2, "message": "你对力量的执念引发反噬，行动变得沉重。"},
+                },
+            ],
+        )
         if random.random() < 0.7:
             self.add_message("老者点了点头：'力量是双刃剑。'")
             p.change_base_atk(3)
@@ -330,6 +698,26 @@ class WiseSageEvent(Event):
 
     def wealth(self):
         p = self.get_player()
+        self.register_story_choice(
+            choice_flag="sage_wealth_choice",
+            moral_delta=-3,
+            consequences=[
+                {
+                    "consequence_id": "sage_wealth_windfall",
+                    "effect_key": "guard_reward",
+                    "chance": 0.28,
+                    "trigger_door_types": ["SHOP", "REWARD", "EVENT"],
+                    "payload": {"gold": random.randint(30, 70), "message": "你嗅到财富机会，后续顺手就赚了一笔。"},
+                },
+                {
+                    "consequence_id": "sage_wealth_fine",
+                    "effect_key": "lose_gold",
+                    "chance": 0.3,
+                    "trigger_door_types": ["SHOP", "EVENT"],
+                    "payload": {"amount": random.randint(20, 50), "message": "你的逐利行为引来盘查，被罚了一笔钱。"},
+                },
+            ],
+        )
         if random.random() < 0.7:
             gold = 200
             p.gold += gold
@@ -342,6 +730,26 @@ class WiseSageEvent(Event):
 
     def health(self):
         p = self.get_player()
+        self.register_story_choice(
+            choice_flag="sage_health_choice",
+            moral_delta=4,
+            consequences=[
+                {
+                    "consequence_id": "sage_health_guard_help",
+                    "effect_key": "guard_reward",
+                    "chance": 0.27,
+                    "trigger_door_types": ["EVENT", "SHOP"],
+                    "payload": {"gold": random.randint(10, 30), "heal": 8, "message": "你重视生存的态度感染了路人，获得援助。"},
+                },
+                {
+                    "consequence_id": "sage_health_dependency",
+                    "effect_key": "black_market_markup",
+                    "chance": 0.2,
+                    "trigger_door_types": ["SHOP"],
+                    "payload": {"ratio": 1.25, "message": "你显得过于求稳，被商人看穿后趁机抬价。"},
+                },
+            ],
+        )
         if random.random() < 0.7:
             p.heal(50)
             self.add_message("老者微笑道：'活着就有希望。' 你的生命值恢复了 50 点。")
@@ -352,10 +760,153 @@ class WiseSageEvent(Event):
         return "Event Completed"
 
 
+class RefugeeCaravanEvent(Event):
+    def __init__(self, controller):
+        super().__init__(controller)
+        self.title = "Refugee Caravan"
+        self.description = "一支逃难车队拦住了你，他们请求食物与路费。"
+        self.choices = [
+            EventChoice("捐助 25G", self.donate),
+            EventChoice("索要保护费", self.extort),
+            EventChoice("假装没看见", self.walk_away),
+        ]
+
+    def donate(self):
+        p = self.get_player()
+        self.register_story_choice(
+            choice_flag="caravan_donated",
+            moral_delta=7,
+            consequences=[
+                {
+                    "consequence_id": "caravan_donate_discount",
+                    "effect_key": "black_market_discount",
+                    "chance": 0.35,
+                    "trigger_door_types": ["SHOP"],
+                    "payload": {"ratio": 0.7, "message": "车队里有人是商会亲属，后续商店给你打了折。"},
+                },
+                {
+                    "consequence_id": "caravan_donate_bandit_envy",
+                    "effect_key": "revenge_ambush",
+                    "chance": 0.24,
+                    "trigger_door_types": ["MONSTER", "EVENT"],
+                    "payload": {"hp_ratio": 1.2, "atk_ratio": 1.16, "message": "你帮助难民的事惹怒了劫匪，他们要拿你开刀。"},
+                },
+            ],
+        )
+        if p.gold >= 25:
+            p.gold -= 25
+            self.add_message("你捐出了 25 金币，车队成员向你致谢。")
+        else:
+            self.add_message("你想捐助，但钱不够。")
+        return "Event Completed"
+
+    def extort(self):
+        p = self.get_player()
+        self.register_story_choice(
+            choice_flag="caravan_extorted",
+            moral_delta=-9,
+            consequences=[
+                {
+                    "consequence_id": "caravan_extort_markup",
+                    "effect_key": "black_market_markup",
+                    "chance": 0.38,
+                    "trigger_door_types": ["SHOP"],
+                    "payload": {"ratio": 1.35, "message": "商会知道你勒索车队后，把你列入高风险名单。"},
+                },
+                {
+                    "consequence_id": "caravan_extort_black_discount",
+                    "effect_key": "black_market_discount",
+                    "chance": 0.27,
+                    "trigger_door_types": ["SHOP"],
+                    "payload": {"ratio": 0.75, "message": "地下商人欣赏你的狠劲，愿意给你更低报价。"},
+                },
+            ],
+        )
+        gain = random.randint(20, 45)
+        p.gold += gain
+        self.add_message(f"你恐吓了车队，抢到 {gain} 金币。")
+        return "Event Completed"
+
+    def walk_away(self):
+        self.register_story_choice(choice_flag="caravan_ignored", moral_delta=-2)
+        self.add_message("你低头赶路，不愿卷入是非。")
+        return "Event Completed"
+
+
+class FallenKnightEvent(Event):
+    def __init__(self, controller):
+        super().__init__(controller)
+        self.title = "Fallen Knight"
+        self.description = "一名重伤骑士倒在路边，盔甲上有王国徽记。"
+        self.choices = [
+            EventChoice("救治骑士", self.aid_knight),
+            EventChoice("搜刮装备", self.loot_knight),
+            EventChoice("谨慎离开", self.leave),
+        ]
+
+    def aid_knight(self):
+        self.register_story_choice(
+            choice_flag="knight_aided",
+            moral_delta=8,
+            consequences=[
+                {
+                    "consequence_id": "knight_aid_guard_reward",
+                    "effect_key": "guard_reward",
+                    "chance": 0.36,
+                    "trigger_door_types": ["EVENT", "SHOP", "REWARD"],
+                    "payload": {"gold": random.randint(20, 50), "heal": 10, "message": "王国巡逻队认出你的善举，给予补给。"},
+                },
+                {
+                    "consequence_id": "knight_aid_traitor_revenge",
+                    "effect_key": "revenge_ambush",
+                    "chance": 0.23,
+                    "trigger_door_types": ["MONSTER", "EVENT"],
+                    "payload": {"hp_ratio": 1.2, "atk_ratio": 1.18, "message": "追杀骑士的叛徒盯上了你。"},
+                },
+            ],
+        )
+        healed = self.get_player().heal(15)
+        self.add_message(f"你为骑士包扎，自己也振作起来，恢复了 {healed} 生命。")
+        return "Event Completed"
+
+    def loot_knight(self):
+        p = self.get_player()
+        self.register_story_choice(
+            choice_flag="knight_looted",
+            moral_delta=-10,
+            consequences=[
+                {
+                    "consequence_id": "knight_loot_bounty",
+                    "effect_key": "lose_gold",
+                    "chance": 0.34,
+                    "trigger_door_types": ["EVENT", "SHOP"],
+                    "payload": {"amount": random.randint(20, 40), "message": "你洗劫骑士的事被追责，花钱才摆平。"},
+                },
+                {
+                    "consequence_id": "knight_loot_underworld_discount",
+                    "effect_key": "black_market_discount",
+                    "chance": 0.29,
+                    "trigger_door_types": ["SHOP"],
+                    "payload": {"ratio": 0.74, "message": "黑市喜欢来路不明的骑士装备，给你更优惠的交易。"},
+                },
+            ],
+        )
+        gain = random.randint(25, 55)
+        p.gold += gain
+        self.add_message(f"你扒下骑士身上的值钱物件，获得 {gain} 金币。")
+        return "Event Completed"
+
+    def leave(self):
+        self.register_story_choice(choice_flag="knight_left", moral_delta=0)
+        self.add_message("你不确定这是陷阱，选择绕开。")
+        return "Event Completed"
+
+
 def get_random_event(controller):
     events = [
         StrangerEvent, SmugglerEvent, AncientShrineEvent, 
-        GamblerEvent, LostChildEvent, CursedChestEvent, WiseSageEvent
+        GamblerEvent, LostChildEvent, CursedChestEvent, WiseSageEvent,
+        RefugeeCaravanEvent, FallenKnightEvent,
     ]
     event_cls = random.choice(events)
     return event_cls(controller)

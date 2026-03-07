@@ -64,6 +64,9 @@ class DoorScene(Scene):
         p.adventure_status_duration_pass()  # Adventure turn effects
         
         # 进入门并处理事件
+        if hasattr(c, "story") and c.story:
+            door = c.story.apply_pre_enter_checks(door)
+            self.doors[index] = door
         door.enter()
         
         # 检查玩家生命值

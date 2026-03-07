@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 180">
+  <rect width="120" height="180" rx="10" fill="#1f4f68"/>
+  <rect x="18" y="55" width="84" height="80" rx="6" fill="#f4f8fb"/>
+  <path d="M18 55 H102 L95 35 H25 Z" fill="#d4e8f8"/>
+  <path d="M30 95 H90" stroke="#8cb4cf" stroke-width="4"/>
+  <circle cx="42" cy="116" r="6" fill="#7ea6c1"/>
+  <circle cx="78" cy="116" r="6" fill="#7ea6c1"/>
+  <text x="60" y="84" text-anchor="middle" font-size="14" fill="#2a5773">SHOP</text>
+</svg>

@@ -50,6 +50,14 @@ class Door(BaseClass):
             self.hint = kwargs['hint']
         else:
             self.hint= ""
+        if "texture_key" in kwargs:
+            self.texture_key = kwargs["texture_key"]
+        else:
+            self.texture_key = self._choose_texture_key()
+
+    def _choose_texture_key(self) -> str:
+        pool = DOOR_TEXTURE_CONFIG.get(self.enum, DOOR_TEXTURE_CONFIG["default"])
+        return random.choice(pool)
 
     def generate_hint(self) -> None:
         """生成门的提示"""
@@ -362,6 +370,15 @@ HINT_CONFIGS = {
             "未知的遭遇在等待..."
         ]
     }
+}
+
+DOOR_TEXTURE_CONFIG = {
+    DoorEnum.MONSTER: ["door_bone", "door_obsidian", "door_iron"],
+    DoorEnum.TRAP: ["door_rune", "door_iron", "door_obsidian"],
+    DoorEnum.REWARD: ["door_oak", "door_rune", "door_vine"],
+    DoorEnum.SHOP: ["door_oak", "door_iron", "door_vine"],
+    DoorEnum.EVENT: ["door_vine", "door_rune", "door_obsidian"],
+    "default": ["door_oak", "door_iron", "door_obsidian"],
 }
 
 def get_mixed_door_hint(door_enums):
