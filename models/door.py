@@ -56,8 +56,7 @@ class Door(BaseClass):
             self.texture_key = self._choose_texture_key()
 
     def _choose_texture_key(self) -> str:
-        pool = DOOR_TEXTURE_CONFIG.get(self.enum, DOOR_TEXTURE_CONFIG["default"])
-        return random.choice(pool)
+        return random.choice(FRONT_DOOR_TEXTURES)
 
     def generate_hint(self) -> None:
         """生成门的提示"""
@@ -372,14 +371,15 @@ HINT_CONFIGS = {
     }
 }
 
-DOOR_TEXTURE_CONFIG = {
-    DoorEnum.MONSTER: ["door_bone", "door_obsidian", "door_iron"],
-    DoorEnum.TRAP: ["door_rune", "door_iron", "door_obsidian"],
-    DoorEnum.REWARD: ["door_oak", "door_rune", "door_vine"],
-    DoorEnum.SHOP: ["door_oak", "door_iron", "door_vine"],
-    DoorEnum.EVENT: ["door_vine", "door_rune", "door_obsidian"],
-    "default": ["door_oak", "door_iron", "door_obsidian"],
-}
+# 门正面贴图池：与门后内容无关，纯随机外观
+FRONT_DOOR_TEXTURES = [
+    "door_oak",
+    "door_obsidian",
+    "door_vine",
+    "door_rune",
+    "door_iron",
+    "door_bone",
+]
 
 def get_mixed_door_hint(door_enums):
     """获取混合门提示"""
