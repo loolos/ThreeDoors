@@ -408,7 +408,18 @@ class StorySystem:
                 first_item = shop.shop_items[0]
                 before = first_item.cost
                 for item in shop.shop_items:
-                    item.cost = max(1, int(item.cost * ratio))
+                    original = item.cost
+                    if ratio > 1:
+                        new_cost = max(1, int(original * ratio + 0.9999))
+                        if new_cost == original:
+                            new_cost = original + 1
+                    elif ratio < 1:
+                        new_cost = max(1, int(original * ratio))
+                        if new_cost == original and original > 1:
+                            new_cost = original - 1
+                    else:
+                        new_cost = original
+                    item.cost = max(1, new_cost)
                 after = first_item.cost
                 preview = f"{first_item.name}: {before}G→{after}G"
         return preview
