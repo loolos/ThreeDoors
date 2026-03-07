@@ -180,6 +180,11 @@ function renderState(state) {
 
     // Generate 3 Cards
     (sceneInfo.choices || []).forEach((choiceText, idx) => {
+      const hint = choiceText.replace(/^门\d+\s*-\s*/, '');
+
+      const wrapper = document.createElement('div');
+      wrapper.className = 'door-wrapper';
+
       const card = document.createElement('div');
       card.className = 'door-card';
       card.innerHTML = `
@@ -189,7 +194,14 @@ function renderState(state) {
             </div>
           `;
       card.onclick = () => handleDoorClick(idx, card);
-      doorArea.appendChild(card);
+
+      const hintDiv = document.createElement('div');
+      hintDiv.className = 'door-hint';
+      hintDiv.textContent = hint;
+
+      wrapper.appendChild(card);
+      wrapper.appendChild(hintDiv);
+      doorArea.appendChild(wrapper);
     });
 
   } else {
