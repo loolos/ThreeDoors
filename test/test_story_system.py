@@ -222,3 +222,24 @@ class TestStorySystem(BaseTest):
         self.assertEqual(changed_door.enum.name, "SHOP")
         self.assertLess(changed_door.shop.shop_items[0].cost, original_cost)
         self.assertIn("shop_discount_case", story.consumed_consequences)
+
+    def test_followup_logs_include_trigger_and_result_details(self):
+        story = self.controller.story
+        shop_door = DoorEnum.SHOP.create_instance(controller=self.controller)
+        story.register_consequence(
+            choice_flag="log_case",
+            consequence_id="log_discount_case",
+            effect_key="black_market_discount",
+            chance=1.0,
+            trigger_door_types=["SHOP"],
+            payload={"ratio": 0.5},
+        )
+        self.controller.messages.clear()
+
+        with unittest.mock.patch("models.story_system.random.random", return_value=0.0):
+            story.apply_pre_enter_checks(shop_door)
+
+        combined = "\n".join(self.controller.messages)
+        self.assertIn("【后续影响触发】", combined)
+        self.assertIn("【后续影响结果】", combined)
+        self.assertIn("log_discount_case", combined)

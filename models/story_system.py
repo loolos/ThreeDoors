@@ -147,6 +147,9 @@ class StorySystem:
         for consequence in candidates:
             if random.random() > consequence.chance:
                 continue
+            self.controller.add_message(
+                f"【后续影响触发】{consequence.source_flag} -> {consequence.consequence_id}"
+            )
             applied, new_door = self._apply_effect(consequence, current_door)
             if applied:
                 self.consumed_consequences.add(consequence.consequence_id)
@@ -209,11 +212,14 @@ class StorySystem:
                     "你过往的行为被人记住了，对方直接把宝物交给了你。",
                 )
             )
-            return True, self._make_reward_door(
+            reward_door = self._make_reward_door(
                 gold=payload.get("gold", random.randint(50, 100)),
                 include_item=payload.get("include_item", True),
                 hint=payload.get("hint", "旧事回响"),
             )
+            reward_desc = self._describe_reward(reward_door)
+            self._log_effect_result(consequence.consequence_id, f"当前门改为奖励门，奖励={reward_desc}")
+            return True, reward_door
 
         if effect == "revenge_ambush":
             force_hunter = payload.get("force_hunter", True)
@@ -236,35 +242,55 @@ class StorySystem:
                 from models.door import DoorEnum
 
                 hunter_hint = payload.get("hunter_hint", "脚步声不是偶然，那是追猎者在校准你的呼吸。")
-                return True, DoorEnum.MONSTER.create_instance(
+                hunter_door = DoorEnum.MONSTER.create_instance(
                     controller=self.controller,
                     monster=hunter,
                     hint=hunter_hint,
                 )
+                self._log_effect_result(
+                    consequence.consequence_id,
+                    f"当前门改为追猎怪物门，怪物={hunter.name}，HP={hunter.hp}，ATK={hunter.atk}",
+                )
+                return True, hunter_door
             if monster:
                 hp_ratio = payload.get("hp_ratio", 1.25)
                 atk_ratio = payload.get("atk_ratio", 1.2)
+                old_hp, old_atk = monster.hp, monster.atk
                 monster.hp = max(1, int(monster.hp * hp_ratio))
                 monster.atk = max(1, int(monster.atk * atk_ratio))
                 self.controller.add_message(
                     self._resolve_message(payload, "message", "旧怨者设下伏击，怪物获得强化。")
                 )
+                self._log_effect_result(
+                    consequence.consequence_id,
+                    f"{monster.name} 被强化：HP {old_hp}->{monster.hp}，ATK {old_atk}->{monster.atk}",
+                )
                 return True, door
             dmg = payload.get("damage", random.randint(5, 12))
+            old_hp = self.controller.player.hp
             self.controller.player.take_damage(dmg)
             self.controller.add_message(
                 self._resolve_message(payload, "message", f"你遭到报复，受到 {dmg} 点伤害。")
+            )
+            self._log_effect_result(
+                consequence.consequence_id,
+                f"玩家受伤：HP {old_hp}->{self.controller.player.hp}（-{dmg}）",
             )
             return True, door
 
         if effect == "guard_reward":
             gold = payload.get("gold", random.randint(20, 60))
             heal = payload.get("heal", 0)
+            old_gold, old_hp = self.controller.player.gold, self.controller.player.hp
             self.controller.player.gold += gold
             if heal > 0:
                 self.controller.player.heal(heal)
             self.controller.add_message(
                 self._resolve_message(payload, "message", f"守卫感谢你的协助，奖励了你 {gold} 金币。")
+            )
+            self._log_effect_result(
+                consequence.consequence_id,
+                f"玩家收益：Gold {old_gold}->{self.controller.player.gold}，HP {old_hp}->{self.controller.player.hp}",
             )
             return True, door
 
@@ -283,6 +309,7 @@ class StorySystem:
                     f"商人认出你是熟客同路人，当前货架即时降价（如 {preview}）。",
                 )
             )
+            self._log_effect_result(consequence.consequence_id, f"商店降价生效：{preview}")
             return True, door
 
         if effect == "black_market_markup":
@@ -300,6 +327,7 @@ class StorySystem:
                     f"商人认出你惹过他们的人，当前货架即时涨价（如 {preview}）。",
                 )
             )
+            self._log_effect_result(consequence.consequence_id, f"商店涨价生效：{preview}")
             return True, door
 
         if effect == "shrine_blessing":
@@ -307,12 +335,22 @@ class StorySystem:
                 self.controller.add_message(
                     self._resolve_message(payload, "message", "圣坛余辉保护了你，陷阱化作馈赠。")
                 )
-                return True, self._make_reward_door(gold=random.randint(25, 65), include_item=False, hint="神佑余辉")
+                reward_door = self._make_reward_door(gold=random.randint(25, 65), include_item=False, hint="神佑余辉")
+                self._log_effect_result(
+                    consequence.consequence_id,
+                    f"陷阱门被改写为奖励门，奖励={self._describe_reward(reward_door)}",
+                )
+                return True, reward_door
             monster = getattr(door, "monster", None)
             if monster:
+                old_atk = monster.atk
                 monster.atk = max(1, int(monster.atk * 0.82))
                 self.controller.add_message(
                     self._resolve_message(payload, "message", "你受到神佑，敌人的攻势被压制。")
+                )
+                self._log_effect_result(
+                    consequence.consequence_id,
+                    f"{monster.name} 攻击受压制：ATK {old_atk}->{monster.atk}",
                 )
                 return True, door
             return False, door
@@ -325,21 +363,32 @@ class StorySystem:
             self.controller.add_message(
                 self._resolve_message(payload, "message", f"诅咒追上了你，陷入虚弱 {duration} 回合。")
             )
+            self._log_effect_result(consequence.consequence_id, f"玩家获得虚弱状态：持续 {duration} 回合")
             return True, door
 
         if effect == "atk_training":
             delta = payload.get("delta", 2)
+            old_atk = self.controller.player._atk
             self.controller.player.change_base_atk(delta)
             self.controller.add_message(
                 self._resolve_message(payload, "message", "这段经历让你学会了更狠的出手方式。")
             )
+            self._log_effect_result(
+                consequence.consequence_id,
+                f"基础攻击提升：ATK {old_atk}->{self.controller.player._atk}",
+            )
             return True, door
 
         if effect == "lose_gold":
+            old_gold = self.controller.player.gold
             lost = min(self.controller.player.gold, payload.get("amount", random.randint(15, 45)))
             self.controller.player.gold -= lost
             self.controller.add_message(
                 self._resolve_message(payload, "message", f"旧账找上门来，你被迫赔了 {lost} 金币。")
+            )
+            self._log_effect_result(
+                consequence.consequence_id,
+                f"玩家损失金币：Gold {old_gold}->{self.controller.player.gold}",
             )
             return True, door
 
@@ -380,6 +429,20 @@ class StorySystem:
             reward=reward,
             hint=hint or "命运的馈赠",
         )
+
+    def _log_effect_result(self, consequence_id: str, detail: str) -> None:
+        self.controller.add_message(f"【后续影响结果】{consequence_id}：{detail}")
+
+    def _describe_reward(self, reward_door: Any) -> str:
+        reward = getattr(reward_door, "reward", {})
+        parts = []
+        for key, amount in reward.items():
+            if key == "gold":
+                parts.append(f"{amount}G")
+            else:
+                name = getattr(key, "name", "未知道具")
+                parts.append(f"{name}x{amount}")
+        return ", ".join(parts) if parts else "无"
 
     def _create_hunter_monster(self):
         from models.monster import Monster
