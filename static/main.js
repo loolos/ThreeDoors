@@ -161,7 +161,7 @@ function renderState(state) {
   const p = state.player;
 
   // 1. Status Text (HP Included Here)
-  let statsText = `HP: ${p.hp} | ATK: ${p.atk} | Gold: ${p.gold} | Moral: ${p.moral} | Round: ${state.round}`;
+  let statsText = `HP: ${p.hp} | ATK: ${p.atk} | Gold: ${p.gold} | Round: ${state.round}`;
   if (p.status_desc && p.status_desc !== "无") {
     statsText += ` | ${p.status_desc}`;
   }
