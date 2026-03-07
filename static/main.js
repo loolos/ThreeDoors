@@ -4,16 +4,17 @@ let lastSceneKey = ""; // 用于防止重复记录日志
 
 const delay = ms => new Promise(res => setTimeout(res, ms));
 
-function getFrontDoorEmoji(textureKey) {
+function getFrontDoorStyle(textureKey) {
+  // 主体始终是门，差异只通过小装饰体现
   const map = {
-    door_oak: "🚪",
-    door_obsidian: "🪨",
-    door_vine: "🌿",
-    door_rune: "🔮",
-    door_iron: "🛡️",
-    door_bone: "🦴",
+    door_oak: { main: "🚪", accent: "🪵" },
+    door_obsidian: { main: "🚪", accent: "🪨" },
+    door_vine: { main: "🚪", accent: "🌿" },
+    door_rune: { main: "🚪", accent: "✨" },
+    door_iron: { main: "🚪", accent: "🔒" },
+    door_bone: { main: "🚪", accent: "🦴" },
   };
-  return map[textureKey] || "🚪";
+  return map[textureKey] || { main: "🚪", accent: "🔑" };
 }
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -199,7 +200,7 @@ function renderState(state) {
     (sceneInfo.choices || []).forEach((choiceText, idx) => {
       const hint = (doors[idx] && doors[idx].hint) ? doors[idx].hint : choiceText.replace(/^门\d+\s*-\s*/, '');
       const textureKey = (doors[idx] && doors[idx].texture_key) ? doors[idx].texture_key : "door_oak";
-      const frontEmoji = getFrontDoorEmoji(textureKey);
+      const frontStyle = getFrontDoorStyle(textureKey);
 
       const wrapper = document.createElement('div');
       wrapper.className = 'door-wrapper';
@@ -208,7 +209,10 @@ function renderState(state) {
       card.className = 'door-card';
       card.innerHTML = `
             <div class="door-card-inner">
-                <div class="door-face front">${frontEmoji}</div>
+                <div class="door-face front">
+                  <span class="door-front-main">${frontStyle.main}</span>
+                  <span class="door-front-accent">${frontStyle.accent}</span>
+                </div>
                 <div class="door-face back">❔</div>
             </div>
           `;
