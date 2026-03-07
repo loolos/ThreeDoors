@@ -124,3 +124,62 @@ class TestStorySystem(BaseTest):
 
         self.assertEqual(changed_door.enum.name, "MONSTER")
         self.assertEqual(changed_door.monster.hp, hp_before)
+
+    def test_chain_followups_can_be_queued_after_trigger(self):
+        story = self.controller.story
+        story.register_consequence(
+            choice_flag="chain_root",
+            consequence_id="chain_start",
+            effect_key="guard_reward",
+            chance=1.0,
+            trigger_door_types=["EVENT"],
+            payload={
+                "gold": 10,
+                "chain_followups": [
+                    {
+                        "consequence_id": "chain_second",
+                        "effect_key": "lose_gold",
+                        "chance": 1.0,
+                        "trigger_door_types": ["SHOP"],
+                        "payload": {"amount": 5},
+                    }
+                ],
+            },
+        )
+        event_door = DoorEnum.EVENT.create_instance(controller=self.controller)
+        shop_door = DoorEnum.SHOP.create_instance(controller=self.controller)
+
+        with unittest.mock.patch("models.story_system.random.random", return_value=0.0):
+            story.apply_pre_enter_checks(event_door)
+
+        self.assertIn("chain_second", story.pending_consequences)
+        self.assertIn("consumed:chain_start", story.story_tags)
+
+        with unittest.mock.patch("models.story_system.random.random", return_value=0.0):
+            story.apply_pre_enter_checks(shop_door)
+        self.assertIn("chain_second", story.consumed_consequences)
+
+    def test_can_register_custom_effect_handler(self):
+        story = self.controller.story
+        marker = {"called": False}
+
+        def custom_handler(consequence, door):
+            marker["called"] = True
+            self.controller.add_message("自定义处理器已触发")
+            return True, door
+
+        story.register_effect_handler("custom_effect", custom_handler)
+        story.register_consequence(
+            choice_flag="custom",
+            consequence_id="custom_id",
+            effect_key="custom_effect",
+            chance=1.0,
+            trigger_door_types=["EVENT"],
+        )
+        event_door = DoorEnum.EVENT.create_instance(controller=self.controller)
+
+        with unittest.mock.patch("models.story_system.random.random", return_value=0.0):
+            story.apply_pre_enter_checks(event_door)
+
+        self.assertTrue(marker["called"])
+        self.assertIn("custom_id", story.consumed_consequences)

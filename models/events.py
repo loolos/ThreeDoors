@@ -182,7 +182,26 @@ class SmugglerEvent(Event):
                     "chance": 0.4,
                     "priority": 8,
                     "trigger_door_types": ["SHOP"],
-                    "payload": {"ratio": 0.65, "message": "商人是走私贩朋党，暗号对上后给你低价。"},
+                    "payload": {
+                        "ratio": 0.65,
+                        "message": [
+                            "你随口报了个假货编号，掌柜脸色一变，立刻把价格改成了“自己人价”。",
+                            "柜台下那本黑账里刚好有你见过的记号，商人什么都没问就给你打了折。",
+                        ],
+                        "chain_followups": [
+                            {
+                                "consequence_id": "smuggler_buy_discount_aftertaste",
+                                "effect_key": "black_market_markup",
+                                "chance": 0.26,
+                                "trigger_door_types": ["SHOP"],
+                                "required_flags": ["choice:smuggler_bought_goods"],
+                                "payload": {
+                                    "ratio": 1.18,
+                                    "message": "第二次再去时，对方笑着说：'折扣是入场券，不是终身会员。'",
+                                },
+                            }
+                        ],
+                    },
                 },
                 {
                     "consequence_id": "smuggler_buy_counterfeit_penalty",
@@ -217,7 +236,13 @@ class SmugglerEvent(Event):
                     "chance": 0.35,
                     "priority": 7,
                     "trigger_door_types": ["SHOP", "EVENT", "REWARD"],
-                    "payload": {"gold": random.randint(25, 55), "message": "卫兵巡逻队再次感谢你的举报并发放悬赏。"},
+                    "payload": {
+                        "gold": random.randint(25, 55),
+                        "message": [
+                            "巡逻队长把一袋赏金塞给你，还嘱咐你下次别单独逞强。",
+                            "你以为只是口头感谢，结果卫兵把查扣赃款按功劳分了你一份。",
+                        ],
+                    },
                 },
                 {
                     "consequence_id": "smuggler_report_gang_revenge",
@@ -228,7 +253,23 @@ class SmugglerEvent(Event):
                     "payload": {
                         "hp_ratio": 1.3,
                         "atk_ratio": 1.2,
-                        "message": "你举报的走私团伙找上门，安排了报复伏击。",
+                        "message": [
+                            "你听见巷口有人喊“线人就是他”，下一秒伏击就从阴影里扑了出来。",
+                            "走私团伙没来找你讲道理，他们直接把怪物引到了你必经的门后。",
+                        ],
+                        "chain_followups": [
+                            {
+                                "consequence_id": "smuggler_report_aftershock",
+                                "effect_key": "black_market_markup",
+                                "chance": 0.35,
+                                "trigger_door_types": ["SHOP"],
+                                "required_flags": ["consumed:smuggler_report_gang_revenge"],
+                                "payload": {
+                                    "ratio": 1.25,
+                                    "message": "你在黑市被认出来了，摊主们统一改了“举报者价”。",
+                                },
+                            }
+                        ],
                     },
                 },
             ],
@@ -486,7 +527,26 @@ class LostChildEvent(Event):
                     "priority": 8,
                     "trigger_door_types": ["MONSTER"],
                     "trigger_monsters": ["土匪", "狼人", "野狼", "食人魔"],
-                    "payload": {"hint": "小女孩的谢礼", "message": "怪物认出你救过村里的孩子，主动献出宝物。"},
+                    "payload": {
+                        "hint": "小女孩的谢礼",
+                        "message": [
+                            "你正要拔剑，对方却把武器倒插在地上：'你救过我们村的小孩，这仗不打。'",
+                            "怪物没冲上来，反而递来一个包裹：'欠你的，不是命，是人情。'",
+                        ],
+                        "chain_followups": [
+                            {
+                                "consequence_id": "lost_child_village_scout_tip",
+                                "effect_key": "atk_training",
+                                "chance": 0.28,
+                                "trigger_door_types": ["MONSTER", "EVENT"],
+                                "required_flags": ["choice:lost_child_guided_home"],
+                                "payload": {
+                                    "delta": 1,
+                                    "message": "村里的猎人后来给你演示了两招，出手更稳了。",
+                                },
+                            }
+                        ],
+                    },
                 },
                 {
                     "consequence_id": "lost_child_fame_backfire",
@@ -494,7 +554,14 @@ class LostChildEvent(Event):
                     "chance": 0.27,
                     "priority": 7,
                     "trigger_door_types": ["MONSTER", "EVENT"],
-                    "payload": {"hp_ratio": 1.2, "atk_ratio": 1.18, "message": "你的善举传开后，也引来了专门猎杀英雄的人。"},
+                    "payload": {
+                        "hp_ratio": 1.2,
+                        "atk_ratio": 1.18,
+                        "message": [
+                            "“专挑好人下手”不是笑话——赏金猎人把你当成了最值钱的目标。",
+                            "你的名声救过人，也暴露了行踪；埋伏的人比感谢你的人先到。",
+                        ],
+                    },
                 },
             ],
         )
@@ -818,7 +885,27 @@ class RefugeeCaravanEvent(Event):
                     "effect_key": "black_market_discount",
                     "chance": 0.27,
                     "trigger_door_types": ["SHOP"],
-                    "payload": {"ratio": 0.75, "message": "地下商人欣赏你的狠劲，愿意给你更低报价。"},
+                    "payload": {
+                        "ratio": 0.75,
+                        "message": [
+                            "你的恶名先你一步到了黑市，摊主把价格写低了，语气却更客气了。",
+                            "掌柜把算盘往你这边一推：'我们欣赏效率，尤其是你那种。'",
+                        ],
+                        "chain_followups": [
+                            {
+                                "consequence_id": "caravan_extort_enforcer_test",
+                                "effect_key": "revenge_ambush",
+                                "chance": 0.24,
+                                "trigger_door_types": ["MONSTER", "EVENT"],
+                                "required_flags": ["choice:caravan_extorted"],
+                                "payload": {
+                                    "hp_ratio": 1.18,
+                                    "atk_ratio": 1.15,
+                                    "message": "地下行会想“试试你够不够狠”，于是派人来探底。",
+                                },
+                            }
+                        ],
+                    },
                 },
             ],
         )
@@ -887,7 +974,26 @@ class FallenKnightEvent(Event):
                     "effect_key": "black_market_discount",
                     "chance": 0.29,
                     "trigger_door_types": ["SHOP"],
-                    "payload": {"ratio": 0.74, "message": "黑市喜欢来路不明的骑士装备，给你更优惠的交易。"},
+                    "payload": {
+                        "ratio": 0.74,
+                        "message": [
+                            "你拿出的徽记还带着血渍，黑市商人却只问了一句：'整套还是散卖？'",
+                            "对方认出那是军械制式，压低声音说：'这种货，今天我给你高价低税。'",
+                        ],
+                        "chain_followups": [
+                            {
+                                "consequence_id": "knight_loot_witness",
+                                "effect_key": "lose_gold",
+                                "chance": 0.26,
+                                "trigger_door_types": ["EVENT", "SHOP"],
+                                "required_flags": ["choice:knight_looted"],
+                                "payload": {
+                                    "amount": random.randint(15, 35),
+                                    "message": "有人认出了那套装备，你花钱才堵住了对方的嘴。",
+                                },
+                            }
+                        ],
+                    },
                 },
             ],
         )
