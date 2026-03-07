@@ -183,3 +183,42 @@ class TestStorySystem(BaseTest):
 
         self.assertTrue(marker["called"])
         self.assertIn("custom_id", story.consumed_consequences)
+
+    def test_revenge_ambush_converts_selected_door_to_hunter_monster(self):
+        story = self.controller.story
+        story.register_consequence(
+            choice_flag="revenge_case",
+            consequence_id="revenge_hunter_case",
+            effect_key="revenge_ambush",
+            chance=1.0,
+            trigger_door_types=["EVENT"],
+            payload={"force_hunter": True},
+        )
+        event_door = DoorEnum.EVENT.create_instance(controller=self.controller)
+
+        with unittest.mock.patch("models.story_system.random.random", return_value=0.0):
+            changed_door = story.apply_pre_enter_checks(event_door)
+
+        self.assertEqual(changed_door.enum.name, "MONSTER")
+        self.assertIn(changed_door.monster.name, {"土匪", "狼人", "暗影刺客"})
+        self.assertIn("revenge_hunter_case", story.consumed_consequences)
+
+    def test_shop_discount_applies_to_selected_shop_door(self):
+        story = self.controller.story
+        shop_door = DoorEnum.SHOP.create_instance(controller=self.controller)
+        original_cost = shop_door.shop.shop_items[0].cost
+        story.register_consequence(
+            choice_flag="discount_case",
+            consequence_id="shop_discount_case",
+            effect_key="black_market_discount",
+            chance=1.0,
+            trigger_door_types=["SHOP"],
+            payload={"ratio": 0.5},
+        )
+
+        with unittest.mock.patch("models.story_system.random.random", return_value=0.0):
+            changed_door = story.apply_pre_enter_checks(shop_door)
+
+        self.assertEqual(changed_door.enum.name, "SHOP")
+        self.assertLess(changed_door.shop.shop_items[0].cost, original_cost)
+        self.assertIn("shop_discount_case", story.consumed_consequences)

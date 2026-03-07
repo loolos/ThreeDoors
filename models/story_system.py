@@ -142,17 +142,20 @@ class StorySystem:
         # 高优先级先尝试，同优先级随机化。
         random.shuffle(candidates)
         candidates.sort(key=lambda c: c.priority, reverse=True)
+        current_door = door
+        applied_any = False
         for consequence in candidates:
             if random.random() > consequence.chance:
                 continue
-            applied, new_door = self._apply_effect(consequence, door)
+            applied, new_door = self._apply_effect(consequence, current_door)
             if applied:
                 self.consumed_consequences.add(consequence.consequence_id)
                 self.story_tags.add(f"consumed:{consequence.consequence_id}")
                 del self.pending_consequences[consequence.consequence_id]
                 self._queue_chain_followups(consequence)
-                return new_door
-        return door
+                current_door = new_door
+                applied_any = True
+        return current_door if applied_any else door
 
     def _trigger_moral_influence(self, door: Any) -> Any:
         monster = getattr(door, "monster", None)
@@ -213,7 +216,31 @@ class StorySystem:
             )
 
         if effect == "revenge_ambush":
+            force_hunter = payload.get("force_hunter", True)
+            convert_to_hunter = payload.get("convert_to_hunter", True)
             monster = getattr(door, "monster", None)
+            if force_hunter or (monster is None and convert_to_hunter):
+                hunter = self._create_hunter_monster()
+                hp_ratio = payload.get("hp_ratio", 1.25)
+                atk_ratio = payload.get("atk_ratio", 1.2)
+                if monster:
+                    hunter.hp = max(hunter.hp, int(monster.hp * hp_ratio))
+                    hunter.atk = max(hunter.atk, int(monster.atk * atk_ratio))
+                self.controller.add_message(
+                    self._resolve_message(
+                        payload,
+                        "message",
+                        "门后等待你的不是原住怪物，而是一路追杀而来的猎手。",
+                    )
+                )
+                from models.door import DoorEnum
+
+                hunter_hint = payload.get("hunter_hint", "脚步声不是偶然，那是追猎者在校准你的呼吸。")
+                return True, DoorEnum.MONSTER.create_instance(
+                    controller=self.controller,
+                    monster=hunter,
+                    hint=hunter_hint,
+                )
             if monster:
                 hp_ratio = payload.get("hp_ratio", 1.25)
                 atk_ratio = payload.get("atk_ratio", 1.2)
@@ -244,28 +271,34 @@ class StorySystem:
         if effect == "black_market_discount":
             if getattr(getattr(door, "enum", None), "name", "") != "SHOP":
                 return False, door
-            shop = getattr(self.controller, "current_shop", None)
-            if not shop:
-                return False, door
             ratio = payload.get("ratio", 0.7)
-            for item in shop.shop_items:
-                item.cost = max(1, int(item.cost * ratio))
+            shop_targets = self._get_shop_targets(door)
+            if not shop_targets:
+                return False, door
+            preview = self._apply_shop_ratio(shop_targets, ratio)
             self.controller.add_message(
-                self._resolve_message(payload, "message", "商人认出你是熟客同路人，给了你暗号折扣。")
+                self._resolve_message(
+                    payload,
+                    "message",
+                    f"商人认出你是熟客同路人，当前货架即时降价（如 {preview}）。",
+                )
             )
             return True, door
 
         if effect == "black_market_markup":
             if getattr(getattr(door, "enum", None), "name", "") != "SHOP":
                 return False, door
-            shop = getattr(self.controller, "current_shop", None)
-            if not shop:
-                return False, door
             ratio = payload.get("ratio", 1.4)
-            for item in shop.shop_items:
-                item.cost = max(1, int(item.cost * ratio))
+            shop_targets = self._get_shop_targets(door)
+            if not shop_targets:
+                return False, door
+            preview = self._apply_shop_ratio(shop_targets, ratio)
             self.controller.add_message(
-                self._resolve_message(payload, "message", "商人认出你惹过他们的人，狠狠抬价。")
+                self._resolve_message(
+                    payload,
+                    "message",
+                    f"商人认出你惹过他们的人，当前货架即时涨价（如 {preview}）。",
+                )
             )
             return True, door
 
@@ -347,3 +380,35 @@ class StorySystem:
             reward=reward,
             hint=hint or "命运的馈赠",
         )
+
+    def _create_hunter_monster(self):
+        from models.monster import Monster
+
+        round_count = getattr(self.controller, "round_count", 0)
+        if round_count <= 10:
+            return Monster(name="土匪", hp=26, atk=6, tier=2)
+        if round_count <= 20:
+            return Monster(name="狼人", hp=38, atk=8, tier=3)
+        return Monster(name="暗影刺客", hp=56, atk=16, tier=4)
+
+    def _get_shop_targets(self, door: Any):
+        shops = []
+        current_shop = getattr(self.controller, "current_shop", None)
+        if current_shop:
+            shops.append(current_shop)
+        door_shop = getattr(door, "shop", None)
+        if door_shop and door_shop not in shops:
+            shops.append(door_shop)
+        return shops
+
+    def _apply_shop_ratio(self, shops, ratio: float) -> str:
+        preview = "无商品"
+        for shop in shops:
+            if getattr(shop, "shop_items", None):
+                first_item = shop.shop_items[0]
+                before = first_item.cost
+                for item in shop.shop_items:
+                    item.cost = max(1, int(item.cost * ratio))
+                after = first_item.cost
+                preview = f"{first_item.name}: {before}G→{after}G"
+        return preview
