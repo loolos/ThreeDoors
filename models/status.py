@@ -347,30 +347,3 @@ class FieldPoisonStatus(Status):
         self.duration = max(self.duration, other.duration)
         if hasattr(self, 'target') and self.target and hasattr(self.target, 'controller'):
             self.target.controller.add_message(f"野外中毒状态持续时间从 {old_duration} 回合延长至 {self.duration} 回合!")
-
-# def CreateStatusByName(status_name: StatusName, **kwargs) -> Status:
-#     """根据状态名称创建对应的状态实例
-    
-#     Args:
-#         status_name: 状态名称枚举
-#         **kwargs: 传递给状态构造函数的参数
-        
-#     Returns:
-#         创建的状态实例
-#     """
-#     status_map = {
-#         StatusName.WEAK: WeakStatus,
-#         StatusName.POISON: PoisonStatus,
-#         StatusName.STUN: StunStatus,
-#         StatusName.ATK_MULTIPLIER: AtkMultiplierStatus,
-#         StatusName.BARRIER: BarrierStatus,
-#         StatusName.ATK_UP: AtkUpStatus,
-#         StatusName.DAMAGE_REDUCTION: DamageReductionStatus,
-#         StatusName.HEALING_SCROLL: HealingScrollStatus,
-#         StatusName.IMMUNE: ImmuneStatus
-#     }
-    
-#     if status_name not in status_map:
-#         raise ValueError(f"Unknown status name: {status_name}")
-        
-#     return status_map[status_name](**kwargs)

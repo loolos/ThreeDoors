@@ -174,13 +174,12 @@ class BattleScene(Scene):
             elif index == 2:
                 escaped = p.try_escape(self.monster)
                 if escaped:
-                    p.clear_battle_status()  # 使用新的清除战斗状态方法
+                    p.clear_battle_status()
                     self.monster.clear_battle_status()
                     self.controller.scene_manager.go_to("door_scene", generate_new_doors=False)
                 else:
                     self.monster.attack(p)
                     self.controller.add_message("逃跑失败，怪物追了上来！")
-                    # 逃跑失败也算一个回合
                     p.battle_status_duration_pass()
                     self.monster.battle_status_duration_pass()
             if self.controller.player.hp <= 0:
@@ -382,9 +381,6 @@ class SceneManager:
         for scene_name in SceneType.get_name_scene_dict().keys():
             self.scene_dict[scene_name] = SceneType.get_scene_class_by_name(scene_name)(self.game_controller)
             scene = self.scene_dict[scene_name]
-            if scene_name == SceneType.DOOR.value:
-                scene.generate_doors()
-        # 确保场景有默认按钮文本
             if not scene.button_texts or all(not text for text in scene.button_texts):
                 scene.button_texts = ["选项1", "选项2", "选项3"]
         self.go_to("door_scene")

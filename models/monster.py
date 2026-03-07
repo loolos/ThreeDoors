@@ -374,42 +374,6 @@ class Monster:
         """获取怪物的提示信息"""
         return [self.tier_hint, self.type_hint]
 
-    def generate_loot(self) -> Optional[Item]:
-        """生成掉落物品"""
-        loot = [] # Added to make 'loot' defined
-        if random.random() < GameConfig.LOOT_CHANCE:
-                loot.append(create_random_item())
-        return None
-
-    def drop_loot(self, player):
-        """掉落物品"""
-        # 掉落金币
-        gold = random.randint(5, 15)
-        player.gold += gold
-        player.controller.add_message(f"获得 {gold} 金币!")
-        
-        # 30%概率掉落装备
-        if random.random() < 0.3:
-            value = random.randint(1, 3)
-            item = Equipment(f"装备", atk_bonus=value, cost=value * 2)
-            item.acquire(player=player)
-            player.controller.add_message(f"获得 {item.name}!")
-            
-        # 30%概率掉落卷轴
-        if random.random() < 0.3:
-            scroll_value = random.randint(1, 3)
-            scroll_type = random.choice(["healing", "damage_reduction", "attack_up"])
-            
-            if scroll_type == "healing":
-                item = HealingScroll("恢复卷轴", cost=scroll_value * 2, duration=scroll_value)
-            elif scroll_type == "damage_reduction":
-                item = DamageReductionScroll("减伤卷轴", cost=scroll_value * 2, duration=scroll_value)
-            else:  # attack_up
-                item = AttackUpScroll("攻击力增益卷轴", atk_bonus=scroll_value, cost=scroll_value * 2, duration=scroll_value)
-                
-            item.acquire(player=player)
-            player.controller.add_message(f"获得 {item.name}!")
-
     @staticmethod
     def get_random_item():
         """获取随机物品"""
@@ -442,13 +406,15 @@ class Monster:
     def battle_status_duration_pass(self) -> None:
         """处理战斗回合的状态持续时间"""
         expired = []
-        for st in self.statuses:
+        for st in list(self.statuses):
+            if st not in self.statuses:
+                continue
             if self.statuses[st].duration_pass():
                 expired.append(st)
         
-        # 移除过期状态
         for st in expired:
-            del self.statuses[st]
+            if st in self.statuses:
+                del self.statuses[st]
 
     def clear_battle_status(self) -> None:
         """清除所有战斗状态"""

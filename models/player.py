@@ -80,6 +80,7 @@ class Player:
             self.controller.add_message("你被击败了!")
             self.controller.scene_manager.go_to("game_over_scene")
             return
+
     def clear_inventory(self):
         """重置背包"""
         self.inventory = {
@@ -87,9 +88,11 @@ class Player:
             ItemType.BATTLE: [],
             ItemType.PASSIVE: []
         }
+
     def player_desc(self):
         """玩家描述"""
         return f"生命值: {self.hp}, 攻击力: {self.atk}, 金币: {self.gold}, 背包: {self.inventory}"
+
     def heal(self, amount):
         """恢复生命值"""
         old_hp = self.hp
@@ -106,14 +109,8 @@ class Player:
             self.controller.add_message("你处于眩晕状态, 无法行动")
             return False
             
-        # 应用战斗状态效果
-        
-        # 计算伤害
+        # 计算伤害（atk property 已包含 ATK_MULTIPLIER 修正）
         dmg = max(1, self.atk - random.randint(0, 1))
-        
-        # 如果有攻击力翻倍效果
-        if self.has_status(StatusName.ATK_MULTIPLIER):
-            dmg *= self.statuses[StatusName.ATK_MULTIPLIER].value
         
         # 造成伤害
         target.take_damage(dmg)
@@ -141,35 +138,36 @@ class Player:
             self.controller.add_message("你成功逃脱了!")
             return True
         else:
-            # 逃跑失败，受到伤害
-            mdmg = max(1, monster.atk - random.randint(0, 1))
-            actual_dmg = self.take_damage(mdmg)
-            self.controller.add_message(f"逃跑失败，{monster.name} 反击造成 {actual_dmg} 点伤害!")
+            self.controller.add_message(f"逃跑失败!")
             return False
 
     def adventure_status_duration_pass(self) -> None:
         """处理冒险回合的状态持续时间"""
         expired = []
-        for st in self.statuses:
+        for st in list(self.statuses):
+            if st not in self.statuses:
+                continue
             if not self.statuses[st].is_battle_only:
                 if self.statuses[st].duration_pass():
                     expired.append(st)
         
-        # 移除过期状态
         for st in expired:
-            del self.statuses[st]
+            if st in self.statuses:
+                del self.statuses[st]
 
     def battle_status_duration_pass(self) -> None:
         """处理战斗回合的状态持续时间"""
         expired = []
-        for st in self.statuses:
+        for st in list(self.statuses):
+            if st not in self.statuses:
+                continue
             if self.statuses[st].is_battle_only:
                 if self.statuses[st].duration_pass():
                     expired.append(st)
         
-        # 移除过期状态
         for st in expired:
-            del self.statuses[st]
+            if st in self.statuses:
+                del self.statuses[st]
 
     def clear_battle_status(self) -> None:
         """清除所有战斗状态"""

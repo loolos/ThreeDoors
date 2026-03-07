@@ -151,8 +151,7 @@ def button_action():
     return jsonify({
         "status": "success",
         "outcome": outcome,
-        "log": "\n".join(current_messages)
- if current_messages else ""
+        "log": "\n".join(current_messages) if current_messages else ""
     })
 
 @app.route("/exitGame", methods=["POST"])

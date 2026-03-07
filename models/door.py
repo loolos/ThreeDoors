@@ -1,4 +1,4 @@
-import random, numpy
+import random
 from .monster import get_random_monster
 from typing import Optional, Dict, Any
 from models.base_class import BaseClass
@@ -20,7 +20,6 @@ class DoorEnum(Enum):
     def create_instance(self, **kwargs):
         """创建门实例"""
         return {
-            DoorEnum.TRAP: TrapDoor,
             DoorEnum.TRAP: TrapDoor,
             DoorEnum.REWARD: RewardDoor,
             DoorEnum.MONSTER: MonsterDoor,

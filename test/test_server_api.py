@@ -49,7 +49,6 @@ class TestServerAPI(unittest.TestCase):
             # Verify scene transition (should go to DoorScene)
             # Use SceneType enum for comparison if possible, or check class name
             current_scene_enum = game.scene_manager.current_scene.enum
-            print(f"Scene after API call: {current_scene_enum}")
             self.assertEqual(current_scene_enum, SceneType.DOOR, 
                              f"API call failed to transition from EventScene. Current: {current_scene_enum}")
 
