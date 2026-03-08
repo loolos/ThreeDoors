@@ -3,6 +3,8 @@ from models.monster import Monster, get_random_monster
 from models.status import Status, StatusName
 import random
 import os
+import json
+import time
 from models.items import ItemType
 from models.game_config import GameConfig
 from enum import Enum, auto
@@ -78,6 +80,9 @@ class DoorScene(Scene):
         elif door.enum == DoorEnum.MONSTER:
             c.scene_manager.go_to("battle_scene")
         elif door.enum == DoorEnum.SHOP:
+            # region agent log
+            open(os.path.expanduser('/opt/cursor/logs/debug.log'), 'a').write(json.dumps({"hypothesisId":"B","location":"scenes.py:83","message":"DoorScene selected SHOP door","data":{"round":c.round_count,"player_gold":p.gold,"shop_id":id(c.current_shop) if hasattr(c, "current_shop") else None,"current_shop_items":[{"name":i.name,"cost":i.cost} for i in (c.current_shop.shop_items if getattr(c, "current_shop", None) else [])]},"timestamp":int(time.time() * 1000)}) + '\n')
+            # endregion
             if self.controller.player.gold <= 0:
                 self.controller.add_message("你没有钱，于是被商人踢了出来。")
             else:
@@ -209,9 +214,13 @@ class ShopScene(Scene):
     def on_enter(self):
         """进入商店场景时的处理"""
         shop = self.controller.current_shop
+        # region agent log
+        open(os.path.expanduser('/opt/cursor/logs/debug.log'), 'a').write(json.dumps({"hypothesisId":"C","location":"scenes.py:218","message":"ShopScene.on_enter called","data":{"shop_id":id(shop) if shop else None,"item_snapshot":[{"name":i.name,"cost":i.cost} for i in (shop.shop_items if shop else [])]},"timestamp":int(time.time() * 1000)}) + '\n')
+        # endregion
         if shop is None:
             self.controller.add_message("商店未初始化")
             return
+        shop.generate_items()
         if len(shop.shop_items) < 3:
             raise ValueError("商店没有足够的物品")
             
@@ -393,6 +402,9 @@ class SceneManager:
         if SceneType.is_scene_name(name):
             self.last_scene = self.current_scene
             self.current_scene = self.scene_dict[name]
+            # region agent log
+            open(os.path.expanduser('/opt/cursor/logs/debug.log'), 'a').write(json.dumps({"hypothesisId":"D","location":"scenes.py:403","message":"SceneManager.go_to before on_enter","data":{"target_scene":name,"generate_new_doors":generate_new_doors,"current_scene_class":self.current_scene.__class__.__name__ if self.current_scene else None},"timestamp":int(time.time() * 1000)}) + '\n')
+            # endregion
             self.current_scene.on_enter()
             if generate_new_doors and name == "door_scene":
                 self.current_scene.generate_doors()

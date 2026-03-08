@@ -6,6 +6,7 @@ from models.door import DoorEnum
 from models.monster import Monster
 from models import items
 from scenes import DoorScene, BattleScene, ShopScene, UseItemScene, GameOverScene
+from unittest import mock
 
 class TestSceneSystem(BaseTest):
     """场景系统测试类"""
@@ -54,6 +55,27 @@ class TestSceneSystem(BaseTest):
         # 离开商店
         self.controller.scene_manager.current_scene.handle_choice(0)
         self.assertIsInstance(self.controller.scene_manager.current_scene, DoorScene)
+
+    def test_shop_items_refresh_on_each_enter(self):
+        """每次进入商店时都应刷新商品列表"""
+        self.player.gold = 100
+        shop = self.controller.current_shop
+        with mock.patch.object(shop, "generate_items", wraps=shop.generate_items) as mocked_generate:
+            # 第一次进入商店
+            door_scene = self.controller.scene_manager.current_scene
+            door_scene.generate_doors([DoorEnum.SHOP, DoorEnum.MONSTER, DoorEnum.TRAP])
+            door_scene.handle_choice(0)
+            self.assertIsInstance(self.controller.scene_manager.current_scene, ShopScene)
+            self.controller.scene_manager.current_scene.handle_choice(0)  # 离开商店
+            self.assertIsInstance(self.controller.scene_manager.current_scene, DoorScene)
+
+            # 第二次进入商店
+            door_scene = self.controller.scene_manager.current_scene
+            door_scene.generate_doors([DoorEnum.SHOP, DoorEnum.MONSTER, DoorEnum.TRAP])
+            door_scene.handle_choice(0)
+            self.assertIsInstance(self.controller.scene_manager.current_scene, ShopScene)
+
+            self.assertGreaterEqual(mocked_generate.call_count, 2)
 
     def test_game_over_transition(self):
         """测试游戏结束场景"""

@@ -2,6 +2,7 @@
 from flask import Flask, render_template, session, request, jsonify, redirect, url_for
 from flask_session import Session
 import random, string, os, time, threading
+import json
 from models.door import Door
 from models.monster import Monster, get_random_monster
 from models.player import Player
@@ -43,6 +44,9 @@ class GameController:
         self.player.reset()  # 重置玩家状态
         self.story = StorySystem(self)
         self.current_shop = Shop(self.player)
+        # region agent log
+        open(os.path.expanduser('/opt/cursor/logs/debug.log'), 'a').write(json.dumps({"hypothesisId":"E","location":"server.py:47","message":"GameController.reset_game created current_shop","data":{"shop_id":id(self.current_shop),"initial_items":[{"name":i.name,"cost":i.cost} for i in self.current_shop.shop_items]},"timestamp":int(time.time() * 1000)}) + '\n')
+        # endregion
         self.scene_manager = SceneManager()
         self.scene_manager.game_controller = self  # 直接设置 game_controller
         self.scene_manager.initialize_scenes()  # 这会设置当前场景为 DoorScene

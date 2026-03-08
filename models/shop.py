@@ -1,6 +1,8 @@
 from models.items import ItemType
 from models import items
 import random
+import json
+import os
 
 class Shop:
     # 商店配置
@@ -11,10 +13,16 @@ class Shop:
     def __init__(self, player):
         self.player = player
         self.shop_items = []
+        # region agent log
+        open(os.path.expanduser('/opt/cursor/logs/debug.log'), 'a').write(json.dumps({"hypothesisId":"A","location":"models/shop.py:17","message":"Shop.__init__ invoked","data":{"player_gold":getattr(player, "gold", None),"shop_id":id(self)},"timestamp":Date.now() if False else __import__("time").time_ns() // 1_000_000}) + '\n')
+        # endregion
         self.generate_items()
 
     def generate_items(self):
         """生成商店物品"""
+        # region agent log
+        open(os.path.expanduser('/opt/cursor/logs/debug.log'), 'a').write(json.dumps({"hypothesisId":"A","location":"models/shop.py:24","message":"Shop.generate_items entry","data":{"shop_id":id(self),"existing_items":[{"name":i.name,"cost":i.cost} for i in self.shop_items],"player_gold":getattr(self.player, "gold", None)},"timestamp":Date.now() if False else __import__("time").time_ns() // 1_000_000}) + '\n')
+        # endregion
         self.shop_items = []
         
         # 正常生成各种物品
@@ -94,6 +102,9 @@ class Shop:
                 cheapest_item.cost = self.player.gold
                 # 可选：标记一下是打折商品
                 cheapest_item.name = f"{cheapest_item.name} (促销)"
+        # region agent log
+        open(os.path.expanduser('/opt/cursor/logs/debug.log'), 'a').write(json.dumps({"hypothesisId":"A","location":"models/shop.py:101","message":"Shop.generate_items exit","data":{"shop_id":id(self),"generated_items":[{"name":i.name,"cost":i.cost} for i in self.shop_items]},"timestamp":Date.now() if False else __import__("time").time_ns() // 1_000_000}) + '\n')
+        # endregion
             
     def purchase_item(self, idx):
         if idx < 0 or idx >= len(self.shop_items):
