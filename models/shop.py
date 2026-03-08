@@ -13,42 +13,83 @@ class Shop:
         self.shop_items = []
         self.generate_items()
 
+    @staticmethod
+    def _weighted_unique_choices(candidates, weights, count):
+        """按权重无放回抽样，返回不重复结果。"""
+        remaining_candidates = list(candidates)
+        remaining_weights = list(weights)
+        selected = []
+        for _ in range(min(count, len(remaining_candidates))):
+            picked = random.choices(remaining_candidates, weights=remaining_weights, k=1)[0]
+            idx = remaining_candidates.index(picked)
+            selected.append(remaining_candidates.pop(idx))
+            remaining_weights.pop(idx)
+        return selected
+
     def generate_items(self):
         """生成商店物品"""
         self.shop_items = []
         
         # 正常生成各种物品 (name, type, value, base_cost, category)
         possible = [
-            ("小治疗药水", "heal", 5, 5, ItemType.CONSUMABLE),
-            ("中治疗药水", "heal", 10, 10, ItemType.CONSUMABLE),
-            ("大治疗药水", "heal", 15, 15, ItemType.CONSUMABLE),
-            ("垃圾装备", "weapon", 2, 5, ItemType.CONSUMABLE),
-            ("普通装备", "weapon", 5, 15, ItemType.CONSUMABLE),
-            ("精良装备", "weapon", 10, 30, ItemType.CONSUMABLE),
-            ("史诗装备", "weapon", 15, 50, ItemType.CONSUMABLE),
-            ("传说装备", "weapon", 20, 75, ItemType.CONSUMABLE),
-            ("减伤卷轴", "damage_reduction", 3, 20, ItemType.CONSUMABLE),
-            ("攻击力提升卷轴", "atk_up", 5, 25, ItemType.CONSUMABLE),
-            ("复活卷轴", "revive", 1, 30, ItemType.PASSIVE),
-            ("恢复卷轴", "healing_scroll", 5, 15, ItemType.CONSUMABLE),
-            ("免疫卷轴", "immune", 3, 20, ItemType.CONSUMABLE),
-            ("飞锤", "battle", 3, 25, ItemType.BATTLE),
-            ("结界", "battle", 3, 30, ItemType.BATTLE),
-            ("巨大卷轴", "battle", 3, 35, ItemType.BATTLE),
+            ("小治疗药水", "heal", 5, 5, "potion"),
+            ("中治疗药水", "heal", 10, 10, "potion"),
+            ("大治疗药水", "heal", 15, 15, "potion"),
+            ("垃圾装备", "weapon", 2, 5, "equipment"),
+            ("普通装备", "weapon", 5, 15, "equipment"),
+            ("精良装备", "weapon", 10, 30, "equipment"),
+            ("史诗装备", "weapon", 15, 50, "equipment"),
+            ("传说装备", "weapon", 20, 75, "equipment"),
+            ("减伤卷轴", "damage_reduction", 3, 20, "scroll"),
+            ("攻击力提升卷轴", "atk_up", 5, 25, "scroll"),
+            ("复活卷轴", "revive", 1, 30, "scroll"),
+            ("恢复卷轴", "healing_scroll", 5, 15, "scroll"),
+            ("免疫卷轴", "immune", 3, 20, "scroll"),
+            ("飞锤", "battle", 3, 25, "battle"),
+            ("结界", "battle", 3, 30, "battle"),
+            ("巨大卷轴", "battle", 3, 35, "battle"),
         ]
         # 根据玩家资金水平计算目标价位：有钱时偏向高价，没钱时偏向低价
         target_cost = max(5, min(75, int(self.player.gold * 0.5)))
-        remaining = list(possible)
-        weights = [1.0 / (1.0 + abs(bc - target_cost)) for (_, _, _, bc, _) in remaining]
+        def cost_weight(item_data):
+            return 1.0 / (1.0 + abs(item_data[3] - target_cost))
 
-        # 按权重随机选择物品，且不重复
-        for _ in range(min(self.SHOP_ITEM_COUNT, len(remaining))):
-            if not remaining:
-                break
-            item_data = random.choices(remaining, weights=weights, k=1)[0]
-            idx = remaining.index(item_data)
-            remaining.pop(idx)
-            weights.pop(idx)
+        # 先尽量保证“多类别”：每个选中类别先拿一件，再按权重补齐
+        categories = {}
+        for item_data in possible:
+            categories.setdefault(item_data[4], []).append(item_data)
+
+        target_category_count = min(self.SHOP_ITEM_COUNT, len(categories))
+        selected_data = []
+
+        if target_category_count > 0:
+            category_names = list(categories.keys())
+            category_weights = [
+                max(cost_weight(candidate) for candidate in categories[name])
+                for name in category_names
+            ]
+            selected_categories = self._weighted_unique_choices(
+                category_names,
+                category_weights,
+                target_category_count
+            )
+            for category_name in selected_categories:
+                category_candidates = categories[category_name]
+                candidate_weights = [cost_weight(candidate) for candidate in category_candidates]
+                selected_data.append(
+                    random.choices(category_candidates, weights=candidate_weights, k=1)[0]
+                )
+
+        remaining = [item for item in possible if item not in selected_data]
+        remaining_count = self.SHOP_ITEM_COUNT - len(selected_data)
+        if remaining_count > 0 and remaining:
+            remaining_weights = [cost_weight(item_data) for item_data in remaining]
+            selected_data.extend(
+                self._weighted_unique_choices(remaining, remaining_weights, remaining_count)
+            )
+
+        random.shuffle(selected_data)
+        for item_data in selected_data:
             name, item_type, value, base_cost, item_category = item_data
 
             # 计算实际价格（有浮动）
@@ -82,6 +123,7 @@ class Shop:
             else:
                 raise ValueError(f"未知的物品类型: {item_type}")
 
+            item.shop_category = item_category
             self.shop_items.append(item)
         if len(self.shop_items) < self.SHOP_ITEM_COUNT:
             self.shop_items = [
