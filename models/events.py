@@ -948,7 +948,12 @@ class FallenKnightEvent(Event):
                     "effect_key": "revenge_ambush",
                     "chance": 0.23,
                     "trigger_door_types": ["MONSTER", "EVENT"],
-                    "payload": {"hp_ratio": 1.2, "atk_ratio": 1.18, "message": "因你救治了骑士，追杀他的叛徒盯上了你。"},
+                    "payload": {
+                        "hp_ratio": 1.2,
+                        "atk_ratio": 1.18,
+                        "hunter_name": "暗影刺客",
+                        "message": "因你救治了骑士，追杀他的叛徒盯上了你。",
+                    },
                 },
             ],
         )

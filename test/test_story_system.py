@@ -243,7 +243,28 @@ class TestStorySystem(BaseTest):
             story.apply_pre_enter_checks(shop_door)
 
         combined = "\n".join(self.controller.messages)
-        self.assertNotIn("【后续影响触发】", combined)
-        self.assertNotIn("【后续影响结果】", combined)
+        self.assertIn("旧事", combined)
+        self.assertIn("掌柜就改了价签", combined)
+        self.assertNotIn("【后续影响", combined)
         self.assertNotIn("log_discount_case", combined)
-        self.assertIn("商店降价生效", combined)
+
+    def test_knight_revenge_log_is_diegetic(self):
+        story = self.controller.story
+        event_door = DoorEnum.EVENT.create_instance(controller=self.controller)
+        story.register_consequence(
+            choice_flag="knight_aided",
+            consequence_id="knight_aid_traitor_revenge",
+            effect_key="revenge_ambush",
+            chance=1.0,
+            trigger_door_types=["EVENT"],
+            payload={"force_hunter": True, "hunter_name": "暗影刺客"},
+        )
+        self.controller.messages.clear()
+
+        with unittest.mock.patch("models.story_system.random.random", return_value=0.0):
+            story.apply_pre_enter_checks(event_door)
+
+        combined = "\n".join(self.controller.messages)
+        self.assertIn("因为你之前救了骑士", combined)
+        self.assertIn("来追杀你了", combined)
+        self.assertIn("暗影刺客", combined)
