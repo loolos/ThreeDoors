@@ -386,7 +386,8 @@ def get_mixed_door_hint(door_enums):
     if not door_enums:
         return ""
     if len(door_enums) == 1:
-        return random.choice(HINT_CONFIGS["default"][door_enums[0].value])
+        single_enum = next(iter(door_enums))
+        return random.choice(HINT_CONFIGS["default"][single_enum])
     door_enums_list = list(door_enums)
     selected_enums = []
     selected_enums.append(door_enums_list.pop(random.randint(0, len(door_enums_list) - 1)))

@@ -1,5 +1,5 @@
 import unittest
-from models.door import Door, DoorEnum
+from models.door import Door, DoorEnum, get_mixed_door_hint
 from test.test_base import BaseTest
 
 class TestDoorGeneration(BaseTest):
@@ -53,6 +53,12 @@ class TestDoorGeneration(BaseTest):
                 self.assertLess(self.controller.player.hp, hp_before)
             else:
                 door.enter()
+
+    def test_singleton_hint_set_does_not_crash(self):
+        """单元素集合提示应正常返回字符串"""
+        hint = get_mixed_door_hint(frozenset({DoorEnum.MONSTER}))
+        self.assertIsInstance(hint, str)
+        self.assertNotEqual(hint, "")
 
 if __name__ == '__main__':
     unittest.main()
