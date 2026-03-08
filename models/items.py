@@ -215,8 +215,8 @@ def create_random_item():
         (HealingScroll, {"name": "恢复卷轴", "duration": 10, "cost": 18}, 10),
         (ImmuneScroll, {"name": "免疫卷轴", "duration": 5, "cost": 20}, 5),
         (FlyingHammer, {"name": "飞锤", "cost": 25}, 5),
-        (Barrier, {"name": "结界卷轴", "duration": 3, "cost": 30}, 5),
-        (GiantScroll, {"name": "巨大化卷轴", "duration": 3, "cost": 40}, 5),
+        (Barrier, {"name": "结界", "duration": 3, "cost": 30}, 5),
+        (GiantScroll, {"name": "巨大卷轴", "duration": 3, "cost": 40}, 5),
         (GoldBag, {"name": "小钱袋", "gold_amount": random.randint(10, 50), "cost": 0}, 10)
     ]
     

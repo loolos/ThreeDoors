@@ -200,7 +200,9 @@ class TestStorySystem(BaseTest):
             changed_door = story.apply_pre_enter_checks(event_door)
 
         self.assertEqual(changed_door.enum.name, "MONSTER")
-        self.assertIn(changed_door.monster.name, {"土匪", "狼人", "暗影刺客"})
+        hunter_names = {"土匪", "野狼", "蝙蝠", "小哥布林", "狼人", "食人魔", "美杜莎", "幽灵", "吸血鬼",
+                       "暗影刺客", "死亡骑士", "冥界使者", "海妖", "雷鸟"}
+        self.assertIn(changed_door.monster.name, hunter_names)
         self.assertIn("revenge_hunter_case", story.consumed_consequences)
 
     def test_shop_discount_applies_to_selected_shop_door(self):
@@ -223,7 +225,8 @@ class TestStorySystem(BaseTest):
         self.assertLess(changed_door.shop.shop_items[0].cost, original_cost)
         self.assertIn("shop_discount_case", story.consumed_consequences)
 
-    def test_followup_logs_include_trigger_and_result_details(self):
+    def test_followup_logs_are_user_friendly_without_technical_ids(self):
+        """后续影响应展示可读性描述，不展示技术性 ID"""
         story = self.controller.story
         shop_door = DoorEnum.SHOP.create_instance(controller=self.controller)
         story.register_consequence(
@@ -240,6 +243,7 @@ class TestStorySystem(BaseTest):
             story.apply_pre_enter_checks(shop_door)
 
         combined = "\n".join(self.controller.messages)
-        self.assertIn("【后续影响触发】", combined)
-        self.assertIn("【后续影响结果】", combined)
-        self.assertIn("log_discount_case", combined)
+        self.assertNotIn("【后续影响触发】", combined)
+        self.assertNotIn("【后续影响结果】", combined)
+        self.assertNotIn("log_discount_case", combined)
+        self.assertIn("商店降价生效", combined)

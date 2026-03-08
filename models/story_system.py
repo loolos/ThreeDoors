@@ -147,9 +147,6 @@ class StorySystem:
         for consequence in candidates:
             if random.random() > consequence.chance:
                 continue
-            self.controller.add_message(
-                f"【后续影响触发】{consequence.source_flag} -> {consequence.consequence_id}"
-            )
             applied, new_door = self._apply_effect(consequence, current_door)
             if applied:
                 self.consumed_consequences.add(consequence.consequence_id)
@@ -431,7 +428,8 @@ class StorySystem:
         )
 
     def _log_effect_result(self, consequence_id: str, detail: str) -> None:
-        self.controller.add_message(f"【后续影响结果】{consequence_id}：{detail}")
+        """记录效果的可读性描述，供玩家了解具体变化（不展示技术 ID）"""
+        self.controller.add_message(detail)
 
     def _describe_reward(self, reward_door: Any) -> str:
         reward = getattr(reward_door, "reward", {})
@@ -444,15 +442,24 @@ class StorySystem:
                 parts.append(f"{name}x{amount}")
         return ", ".join(parts) if parts else "无"
 
+    # 追猎怪物池：按回合区间划分，每档内随机选择
+    HUNTER_POOL = [
+        (10, [("土匪", 26, 6), ("野狼", 22, 5), ("蝙蝠", 20, 6), ("小哥布林", 24, 5)]),
+        (20, [("狼人", 38, 8), ("食人魔", 40, 7), ("美杜莎", 32, 9), ("幽灵", 28, 10), ("吸血鬼", 42, 10)]),
+        (999, [("暗影刺客", 56, 16), ("死亡骑士", 55, 14), ("冥界使者", 62, 15), ("海妖", 52, 14), ("雷鸟", 58, 13)]),
+    ]
+
     def _create_hunter_monster(self):
         from models.monster import Monster
 
         round_count = getattr(self.controller, "round_count", 0)
-        if round_count <= 10:
-            return Monster(name="土匪", hp=26, atk=6, tier=2)
-        if round_count <= 20:
-            return Monster(name="狼人", hp=38, atk=8, tier=3)
-        return Monster(name="暗影刺客", hp=56, atk=16, tier=4)
+        for max_round, pool in self.HUNTER_POOL:
+            if round_count <= max_round:
+                name, base_hp, base_atk = random.choice(pool)
+                tier = 2 if max_round == 10 else (3 if max_round == 20 else 4)
+                return Monster(name=name, hp=base_hp, atk=base_atk, tier=tier)
+        name, base_hp, base_atk = random.choice(self.HUNTER_POOL[-1][1])
+        return Monster(name=name, hp=base_hp, atk=base_atk, tier=4)
 
     def _get_shop_targets(self, door: Any):
         shops = []

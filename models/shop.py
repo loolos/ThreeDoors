@@ -17,7 +17,7 @@ class Shop:
         """生成商店物品"""
         self.shop_items = []
         
-        # 正常生成各种物品
+        # 正常生成各种物品 (name, type, value, base_cost, category)
         possible = [
             ("小治疗药水", "heal", 5, 5, ItemType.CONSUMABLE),
             ("中治疗药水", "heal", 10, 10, ItemType.CONSUMABLE),
@@ -36,12 +36,21 @@ class Shop:
             ("结界", "battle", 3, 30, ItemType.BATTLE),
             ("巨大卷轴", "battle", 3, 35, ItemType.BATTLE),
         ]
-            
-        # 随机选择物品
-        while len(self.shop_items) < self.SHOP_ITEM_COUNT and possible:
-            item_data = random.choice(possible)
+        # 根据玩家资金水平计算目标价位：有钱时偏向高价，没钱时偏向低价
+        target_cost = max(5, min(75, int(self.player.gold * 0.5)))
+        remaining = list(possible)
+        weights = [1.0 / (1.0 + abs(bc - target_cost)) for (_, _, _, bc, _) in remaining]
+
+        # 按权重随机选择物品，且不重复
+        for _ in range(min(self.SHOP_ITEM_COUNT, len(remaining))):
+            if not remaining:
+                break
+            item_data = random.choices(remaining, weights=weights, k=1)[0]
+            idx = remaining.index(item_data)
+            remaining.pop(idx)
+            weights.pop(idx)
             name, item_type, value, base_cost, item_category = item_data
-            
+
             # 计算实际价格（有浮动）
             cost = int(base_cost * random.uniform(*self.SHOP_PRICE_MULTIPLIER))
             

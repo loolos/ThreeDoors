@@ -110,7 +110,7 @@ class StrangerEvent(Event):
                     "chance": 0.34,
                     "priority": 7,
                     "trigger_door_types": ["SHOP"],
-                    "payload": {"ratio": 0.72, "message": "黑市商人认出你的“手法”，给了同路折扣。"},
+                    "payload": {"ratio": 0.72, "message": "因你之前抢劫过陌生人，黑市商人认出你的“手法”，给了同路折扣。"},
                 },
                 {
                     "consequence_id": "stranger_rob_bounty_revenge",
@@ -147,7 +147,7 @@ class StrangerEvent(Event):
                     "effect_key": "shrine_curse",
                     "chance": 0.22,
                     "trigger_door_types": ["TRAP", "EVENT"],
-                    "payload": {"duration": 1, "message": "你隐约想起那个眼神，动作开始迟滞。"},
+                    "payload": {"duration": 1, "message": "因你之前无视了受伤的陌生人，隐约想起那个眼神，动作开始迟滞。"},
                 }
             ],
         )
@@ -209,7 +209,7 @@ class SmugglerEvent(Event):
                     "chance": 0.28,
                     "priority": 6,
                     "trigger_door_types": ["SHOP"],
-                    "payload": {"ratio": 1.35, "message": "你买过赃物的事被盯上，后续商人趁机抬价。"},
+                    "payload": {"ratio": 1.35, "message": "因你之前向走私犯买过货，你买赃物的事被盯上，后续商人趁机抬价。"},
                 },
             ],
         )
@@ -239,8 +239,8 @@ class SmugglerEvent(Event):
                     "payload": {
                         "gold": random.randint(25, 55),
                         "message": [
-                            "巡逻队长把一袋赏金塞给你，还嘱咐你下次别单独逞强。",
-                            "你以为只是口头感谢，结果卫兵把查扣赃款按功劳分了你一份。",
+                            "因你之前举报了走私犯，巡逻队长把一袋赏金塞给你，还嘱咐你下次别单独逞强。",
+                            "因你之前举报了走私犯，卫兵把查扣赃款按功劳分了你一份。",
                         ],
                     },
                 },
@@ -254,8 +254,8 @@ class SmugglerEvent(Event):
                         "hp_ratio": 1.3,
                         "atk_ratio": 1.2,
                         "message": [
-                            "你听见巷口有人喊“线人就是他”，下一秒伏击就从阴影里扑了出来。",
-                            "走私团伙没来找你讲道理，他们直接把怪物引到了你必经的门后。",
+                            "因你之前举报了走私犯，巷口有人喊“线人就是他”，下一秒伏击就从阴影里扑了出来。",
+                            "因你之前举报了走私犯，走私团伙没来找你讲道理，直接把怪物引到了你必经的门后。",
                         ],
                         "chain_followups": [
                             {
@@ -266,7 +266,7 @@ class SmugglerEvent(Event):
                                 "required_flags": ["consumed:smuggler_report_gang_revenge"],
                                 "payload": {
                                     "ratio": 1.25,
-                                    "message": "你在黑市被认出来了，摊主们统一改了“举报者价”。",
+                                    "message": "因你举报了走私犯，在黑市被认出来后，摊主们统一改了“举报者价”。",
                                 },
                             }
                         ],
@@ -314,7 +314,7 @@ class AncientShrineEvent(Event):
                     "chance": 0.34,
                     "priority": 7,
                     "trigger_door_types": ["TRAP", "MONSTER"],
-                    "payload": {"message": "祈祷留下的神圣余辉在关键时刻生效。"},
+                    "payload": {"message": "因你曾在祭坛虔诚祈祷，神圣余辉在关键时刻生效。"},
                 },
                 {
                     "consequence_id": "shrine_pray_fanatic_hunt",
@@ -322,7 +322,7 @@ class AncientShrineEvent(Event):
                     "chance": 0.22,
                     "priority": 6,
                     "trigger_door_types": ["MONSTER", "EVENT"],
-                    "payload": {"hp_ratio": 1.18, "atk_ratio": 1.15, "message": "祭坛附近的狂信徒误会了你的意图，设下埋伏。"},
+                    "payload": {"hp_ratio": 1.18, "atk_ratio": 1.15, "message": "因你曾在祭坛虔诚祈祷，附近的狂信徒误会了你的意图，设下埋伏。"},
                 },
             ],
         )
@@ -379,7 +379,7 @@ class AncientShrineEvent(Event):
                     "effect_key": "atk_training",
                     "chance": 0.2,
                     "trigger_door_types": ["MONSTER", "EVENT"],
-                    "payload": {"delta": 1, "message": "符文学识让你看穿敌人的破绽，攻击微幅提升。"},
+                    "payload": {"delta": 1, "message": "因你调查过祭坛符文，符文学识让你看穿敌人破绽，攻击微幅提升。"},
                 }
             ],
         )
@@ -424,7 +424,7 @@ class GamblerEvent(Event):
                     "chance": 0.28,
                     "priority": 6,
                     "trigger_door_types": ["REWARD", "SHOP"],
-                    "payload": {"gold": random.randint(25, 55), "message": "你手气正旺，后续交易也有额外进账。"},
+                    "payload": {"gold": random.randint(25, 55), "message": "因你之前在赌局上手气正旺，后续交易也有额外进账。"},
                 },
             ],
         )
@@ -453,14 +453,14 @@ class GamblerEvent(Event):
                     "effect_key": "lose_gold",
                     "chance": 0.2,
                     "trigger_door_types": ["SHOP", "EVENT"],
-                    "payload": {"amount": random.randint(10, 20), "message": "你被赌徒顺走了点钱，事后才发现。"},
+                    "payload": {"amount": random.randint(10, 20), "message": "因你之前小玩了一把，被赌徒顺走了点钱，事后才发现。"},
                 },
                 {
                     "consequence_id": "gambler_low_lucky_tip",
                     "effect_key": "black_market_discount",
                     "chance": 0.22,
                     "trigger_door_types": ["SHOP"],
-                    "payload": {"ratio": 0.82, "message": "赌徒给你的小道消息，让你捡了便宜。"},
+                    "payload": {"ratio": 0.82, "message": "因你之前小玩了一把，赌徒给你的小道消息让你捡了便宜。"},
                 },
             ],
         )
@@ -592,14 +592,14 @@ class LostChildEvent(Event):
                     "effect_key": "guard_reward",
                     "chance": 0.3,
                     "trigger_door_types": ["EVENT", "SHOP"],
-                    "payload": {"gold": random.randint(15, 35), "heal": 5, "message": "你资助孩子的事被传开，路人对你伸出了援手。"},
+                    "payload": {"gold": random.randint(15, 35), "heal": 5, "message": "因你之前资助了迷路的孩子，这事被传开后，路人对你伸出了援手。"},
                 },
                 {
                     "consequence_id": "lost_child_give_pickpocket",
                     "effect_key": "lose_gold",
                     "chance": 0.23,
                     "trigger_door_types": ["SHOP", "EVENT"],
-                    "payload": {"amount": random.randint(12, 28), "message": "你出手阔绰被人盯上，后来被顺走了一笔钱。"},
+                    "payload": {"amount": random.randint(12, 28), "message": "因你之前资助孩子时出手阔绰，被人盯上后顺走了一笔钱。"},
                 },
             ],
         )
@@ -623,14 +623,14 @@ class LostChildEvent(Event):
                     "effect_key": "shrine_curse",
                     "chance": 0.33,
                     "trigger_door_types": ["TRAP", "MONSTER", "EVENT"],
-                    "payload": {"duration": 2, "message": "你心底的不安挥之不去，战斗时更易露出破绽。"},
+                    "payload": {"duration": 2, "message": "因你之前无视了迷路的孩子，心底的不安挥之不去，战斗时更易露出破绽。"},
                 },
                 {
                     "consequence_id": "lost_child_ignore_black_market",
                     "effect_key": "black_market_discount",
                     "chance": 0.25,
                     "trigger_door_types": ["SHOP"],
-                    "payload": {"ratio": 0.78, "message": "冷酷名声让地下商人觉得你“够狠”，愿意给折扣。"},
+                    "payload": {"ratio": 0.78, "message": "因你之前冷酷地无视了迷路的孩子，地下商人觉得你“够狠”，愿意给折扣。"},
                 },
             ],
         )
@@ -701,7 +701,7 @@ class CursedChestEvent(Event):
                     "effect_key": "revenge_ambush",
                     "chance": 0.22,
                     "trigger_door_types": ["MONSTER", "EVENT"],
-                    "payload": {"hp_ratio": 1.18, "atk_ratio": 1.16, "message": "崇拜诅咒宝箱的邪教徒盯上了你。"},
+                    "payload": {"hp_ratio": 1.18, "atk_ratio": 1.16, "message": "因你之前净化了诅咒宝箱，崇拜它的邪教徒盯上了你。"},
                 },
             ],
         )
@@ -774,14 +774,14 @@ class WiseSageEvent(Event):
                     "effect_key": "guard_reward",
                     "chance": 0.28,
                     "trigger_door_types": ["SHOP", "REWARD", "EVENT"],
-                    "payload": {"gold": random.randint(30, 70), "message": "你嗅到财富机会，后续顺手就赚了一笔。"},
+                    "payload": {"gold": random.randint(30, 70), "message": "因你在老者处选了财富，嗅到机会后顺手又赚了一笔。"},
                 },
                 {
                     "consequence_id": "sage_wealth_fine",
                     "effect_key": "lose_gold",
                     "chance": 0.3,
                     "trigger_door_types": ["SHOP", "EVENT"],
-                    "payload": {"amount": random.randint(20, 50), "message": "你的逐利行为引来盘查，被罚了一笔钱。"},
+                    "payload": {"amount": random.randint(20, 50), "message": "因你在老者处选了财富，逐利行为引来盘查，被罚了一笔钱。"},
                 },
             ],
         )
@@ -806,14 +806,14 @@ class WiseSageEvent(Event):
                     "effect_key": "guard_reward",
                     "chance": 0.27,
                     "trigger_door_types": ["EVENT", "SHOP"],
-                    "payload": {"gold": random.randint(10, 30), "heal": 8, "message": "你重视生存的态度感染了路人，获得援助。"},
+                    "payload": {"gold": random.randint(10, 30), "heal": 8, "message": "因你在老者处选了生存，重视生存的态度感染了路人，获得援助。"},
                 },
                 {
                     "consequence_id": "sage_health_dependency",
                     "effect_key": "black_market_markup",
                     "chance": 0.2,
                     "trigger_door_types": ["SHOP"],
-                    "payload": {"ratio": 1.25, "message": "你显得过于求稳，被商人看穿后趁机抬价。"},
+                    "payload": {"ratio": 1.25, "message": "因你在老者处选了生存，显得过于求稳，被商人看穿后趁机抬价。"},
                 },
             ],
         )
@@ -849,7 +849,7 @@ class RefugeeCaravanEvent(Event):
                     "effect_key": "black_market_discount",
                     "chance": 0.35,
                     "trigger_door_types": ["SHOP"],
-                    "payload": {"ratio": 0.7, "message": "车队里有人是商会亲属，后续商店给你打了折。"},
+                    "payload": {"ratio": 0.7, "message": "因你之前捐助了逃难车队，车队里有人是商会亲属，后续商店给你打了折。"},
                 },
                 {
                     "consequence_id": "caravan_donate_bandit_envy",
@@ -941,14 +941,14 @@ class FallenKnightEvent(Event):
                     "effect_key": "guard_reward",
                     "chance": 0.36,
                     "trigger_door_types": ["EVENT", "SHOP", "REWARD"],
-                    "payload": {"gold": random.randint(20, 50), "heal": 10, "message": "王国巡逻队认出你的善举，给予补给。"},
+                    "payload": {"gold": random.randint(20, 50), "heal": 10, "message": "因你之前救治了骑士，王国巡逻队认出你的善举，给予补给。"},
                 },
                 {
                     "consequence_id": "knight_aid_traitor_revenge",
                     "effect_key": "revenge_ambush",
                     "chance": 0.23,
                     "trigger_door_types": ["MONSTER", "EVENT"],
-                    "payload": {"hp_ratio": 1.2, "atk_ratio": 1.18, "message": "追杀骑士的叛徒盯上了你。"},
+                    "payload": {"hp_ratio": 1.2, "atk_ratio": 1.18, "message": "因你救治了骑士，追杀他的叛徒盯上了你。"},
                 },
             ],
         )

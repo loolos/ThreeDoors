@@ -1,6 +1,7 @@
 // static/main.js
 
 let lastSceneKey = ""; // 用于防止重复记录日志
+let actionInProgress = false; // 防止战斗等场景下双击导致连续请求被误解析为选门
 
 const delay = ms => new Promise(res => setTimeout(res, ms));
 
@@ -96,6 +97,11 @@ async function handleDoorClick(index, card) {
 }
 
 async function buttonAction(index) {
+  if (actionInProgress) return;
+  actionInProgress = true;
+  const buttonArea = document.getElementById("buttons");
+  if (buttonArea) buttonArea.style.pointerEvents = "none";
+
   try {
     const res = await fetch("/buttonAction", {
       method: "POST",
@@ -112,9 +118,12 @@ async function buttonAction(index) {
       return;
     }
 
-    getStateAndRender();
+    await getStateAndRender();
   } catch (err) {
     console.error("Action error:", err);
+  } finally {
+    actionInProgress = false;
+    if (buttonArea) buttonArea.style.pointerEvents = "auto";
   }
 }
 
@@ -323,27 +332,36 @@ function renderState(state) {
 
 function getMonsterEmoji(name) {
   if (!name) return "👾";
-  if (name.includes("史莱姆")) return "🟢";
-  if (name.includes("哥布林")) return "👺";
-  if (name.includes("狼")) return "🐺";
+  // 精确匹配优先，避免子串重叠
+  const emojiMap = {
+    "小哥布林": "👺", "史莱姆": "🟢", "蝙蝠": "🦇", "野狼": "🐺",
+    "食人花": "🌸", "小蜥蜴人": "🦎", "土匪": "🗡️", "小鸟妖": "🧚",
+    "半人马": "🏹", "牛头人": "🐂", "树人": "🌳", "狼人": "🌙",
+    "食人魔": "👹", "美杜莎": "🐍", "巨型蝎子": "🦂", "幽灵": "👻",
+    "巨魔酋长": "🧌", "九头蛇": "🐲", "石像鬼": "🗿", "吸血鬼": "🧛",
+    "独眼巨人": "👁️", "精灵法师": "🧙", "地狱犬": "🔥", "巨型蜘蛛": "🕷️",
+    "青铜龙": "🐉", "白银龙": "💎", "黄金龙": "🌟",
+    "死亡骑士": "💀", "冰霜巨人": "❄️", "暗影刺客": "🥷", "雷鸟": "⚡",
+    "海妖": "🧜", "地穴领主": "🏛️", "炎魔": "😈",
+    "利维坦": "🐋", "凤凰": "🦅", "泰坦": "🏔️", "冥界使者": "🕴️",
+    "天使": "😇", "混沌巫师": "🌀", "远古守卫": "🛡️",
+    "克拉肯": "🐙", "天启骑士": "☠️", "世界之蛇": "🌐", "深渊领主": "🦑",
+    "创世神官": "✨", "混沌之主": "💫", "永恒守护者": "🔮",
+  };
+  if (emojiMap[name]) return emojiMap[name];
+  // 关键词回退
   if (name.includes("龙")) return "🐉";
   if (name.includes("蛇")) return "🐍";
-  if (name.includes("蜘蛛")) return "🕷️";
+  if (name.includes("狼")) return "🐺";
+  if (name.includes("哥布林")) return "👺";
   if (name.includes("蝎")) return "🦂";
-  if (name.includes("幽灵")) return "👻";
-  if (name.includes("吸血鬼")) return "🧛";
-  if (name.includes("树人")) return "🌳";
-  if (name.includes("天使")) return "😇";
-  if (name.includes("法师")) return "🧙";
-  if (name.includes("骑士")) return "⚔️";
-  if (name.includes("土匪")) return "🥷";
-  if (name.includes("凤凰")) return "🔥";
-  if (name.includes("海妖")) return "🧜";
-  if (name.includes("泰坦")) return "🗿";
-  if (name.includes("克拉肯") || name.includes("利维坦")) return "🐙";
-  if (name.includes("食人魔") || name.includes("巨魔")) return "👹";
-  if (name.includes("鬼")) return "👻";
-  if (name.includes("熊") || name.includes("野猪")) return "🐗";
+  if (name.includes("蜘蛛")) return "🕷️";
+  if (name.includes("鸟")) return "🦅";
+  if (name.includes("花")) return "🌸";
+  if (name.includes("蜥蜴")) return "🦎";
+  if (name.includes("人") || name.includes("骑")) return "⚔️";
+  if (name.includes("鬼") || name.includes("灵")) return "👻";
+  if (name.includes("魔") || name.includes("妖")) return "😈";
   return "👾";
 }
 
