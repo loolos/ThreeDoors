@@ -138,24 +138,23 @@ class RewardDoor(Door):
         self.generate_hint()
 
     def _generate_random_reward(self):
-        """Generate a random reward structure"""
+        """生成随机奖励：金币适度减少，物品种类多样化"""
+        import models.items as items_module
         reward_type = random.choice(['gold', 'item', 'mixed'])
-        
         rewards = {}
-        
-        if reward_type == 'gold' or reward_type == 'mixed':
-             rewards['gold'] = random.randint(30, 80)
-        
-        if reward_type == 'item' or reward_type == 'mixed':
-             # Generate 1 random item
-             item = create_random_item()
-             # Key can be object itself or unique string, but logic needs to handle it.
-             # The existing logic iterated dict items().
-             # Let's use a list for items to avoid key collision if possible, 
-             # but to keep backward compatibility with existing dict structure:
-             # reward = {'gold': 50, item_obj: 1}
-             rewards[item] = 1
-             
+
+        if reward_type == 'gold':
+            rewards['gold'] = random.randint(8, 22)
+        elif reward_type == 'mixed':
+            rewards['gold'] = random.randint(4, 14)
+            rewards[items_module.create_reward_door_item()] = 1
+            if random.random() < 0.35:
+                rewards[items_module.create_reward_door_item()] = 1
+        else:
+            item = items_module.create_reward_door_item()
+            rewards[item] = 1
+            if random.random() < 0.4:
+                rewards[items_module.create_reward_door_item()] = 1
         return rewards
     
     def generate_hint(self) -> None:

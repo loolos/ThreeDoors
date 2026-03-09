@@ -202,6 +202,57 @@ class GoldBag(ConsumableItem):
             player.add_gold(self.gold_amount)
             player.controller.add_message(f"获得 {self.gold_amount} 金币!")
 
+def create_reward_door_item():
+    """创建宝物门专用随机物品，多样化且不含金币袋"""
+    # 治疗药水：小/中/大，回复量随机
+    potion_choices = [
+        ("微光药水", 5, 12),
+        ("小治疗药水", 8, 18),
+        ("中治疗药水", 12, 28),
+        ("大治疗药水", 20, 45),
+        ("生命精华", 30, 55),
+    ]
+    # 装备：多种名称与加成
+    equip_choices = [
+        ("生锈的匕首", 1, 2),
+        ("铁剑", 2, 3),
+        ("精钢长剑", 3, 5),
+        ("秘银短剑", 4, 6),
+        ("附魔之刃", 5, 8),
+    ]
+    # 卷轴：多种类型与数值
+    scroll_defs = [
+        ("减伤卷轴", DamageReductionScroll, {"duration": random.randint(3, 8)}),
+        ("攻击卷轴", AttackUpScroll, {"atk_bonus": random.randint(3, 7), "duration": random.randint(5, 12)}),
+        ("恢复卷轴", HealingScroll, {"duration": random.randint(6, 14)}),
+        ("免疫卷轴", ImmuneScroll, {"duration": random.randint(3, 6)}),
+    ]
+    # 战斗物品
+    battle_defs = [
+        (FlyingHammer, {"name": "飞锤"}),
+        (Barrier, {"name": "结界", "duration": random.randint(2, 5)}),
+        (GiantScroll, {"name": "巨大卷轴", "duration": random.randint(2, 4)}),
+    ]
+
+    category = random.choices(
+        ["potion", "equip", "scroll", "battle"],
+        weights=[25, 22, 28, 25],
+        k=1
+    )[0]
+    if category == "potion":
+        name, lo, hi = random.choice(potion_choices)
+        return HealingPotion(name, heal_amount=random.randint(lo, hi), cost=0)
+    if category == "equip":
+        name, lo, hi = random.choice(equip_choices)
+        atk = random.randint(lo, hi)
+        return Equipment(name, atk_bonus=atk, cost=atk * 3)
+    if category == "scroll":
+        name, cls, extra = random.choice(scroll_defs)
+        return cls(name, cost=0, **extra)
+    cls, extra = random.choice(battle_defs)
+    return cls(name=extra.get("name", "宝物"), cost=0, **{k: v for k, v in extra.items() if k != "name"})
+
+
 def create_random_item():
     """创建随机物品 (包含消耗品、永久装备和战斗物品)"""
     item_types = [
