@@ -1,6 +1,8 @@
 import unittest.mock
 
 from models.door import DoorEnum
+from models.events import MoonBountyEvent
+from models.items import FlyingHammer
 from models.monster import Monster
 from test.test_base import BaseTest
 
@@ -270,3 +272,88 @@ class TestStorySystem(BaseTest):
         self.assertIn("因为你之前救了骑士", combined)
         self.assertIn("来追杀你了", combined)
         self.assertIn("暗影刺客", combined)
+
+    def test_force_story_event_can_override_next_event_door(self):
+        story = self.controller.story
+        story.register_consequence(
+            choice_flag="force_event_case",
+            consequence_id="force_moon_verdict_once",
+            effect_key="force_story_event",
+            chance=1.0,
+            trigger_door_types=["EVENT"],
+            payload={"event_key": "moon_verdict_event"},
+        )
+        event_door = DoorEnum.EVENT.create_instance(controller=self.controller)
+
+        with unittest.mock.patch("models.story_system.random.random", return_value=0.0):
+            changed_door = story.apply_pre_enter_checks(event_door)
+
+        self.assertEqual(getattr(changed_door, "story_forced_event_key", ""), "moon_verdict_event")
+        changed_door.enter()
+        self.assertEqual(self.controller.current_event.title, "Moon Verdict")
+
+    def test_treasure_marked_item_rewrites_reward_door(self):
+        story = self.controller.story
+        reward_door = DoorEnum.REWARD.create_instance(controller=self.controller, reward={"gold": 20})
+        story.register_consequence(
+            choice_flag="treasure_case",
+            consequence_id="treasure_marked_once",
+            effect_key="treasure_marked_item",
+            chance=1.0,
+            trigger_door_types=["REWARD"],
+            payload={"item_key": "giant_scroll", "gold_bonus": 10},
+        )
+
+        with unittest.mock.patch("models.story_system.random.random", return_value=0.0):
+            changed_door = story.apply_pre_enter_checks(reward_door)
+
+        reward = changed_door.reward
+        item_names = [getattr(key, "name", "") for key in reward.keys() if key != "gold"]
+        self.assertIn("巨大卷轴", item_names)
+        self.assertEqual(reward.get("gold", 0), 30)
+
+    def test_treasure_vanish_can_empty_reward_door(self):
+        story = self.controller.story
+        reward_door = DoorEnum.REWARD.create_instance(
+            controller=self.controller,
+            reward={"gold": 66, FlyingHammer(name="临时飞锤", cost=1): 1},
+        )
+        story.register_consequence(
+            choice_flag="treasure_void_case",
+            consequence_id="treasure_void_once",
+            effect_key="treasure_vanish",
+            chance=1.0,
+            trigger_door_types=["REWARD"],
+            payload={"fake_gold": 6},
+        )
+
+        with unittest.mock.patch("models.story_system.random.random", return_value=0.0):
+            changed_door = story.apply_pre_enter_checks(reward_door)
+
+        self.assertEqual(changed_door.reward, {"gold": 6})
+
+    def test_long_chain_can_progress_from_hunter_to_shop_to_forced_event(self):
+        story = self.controller.story
+        moon_event = MoonBountyEvent(self.controller)
+        moon_event.resolve_choice(0)
+        self.assertIn("moon_chain_accept_hunter", story.pending_consequences)
+
+        first_event_door = DoorEnum.EVENT.create_instance(controller=self.controller)
+        with unittest.mock.patch("models.story_system.random.random", return_value=0.0):
+            hunter_door = story.apply_pre_enter_checks(first_event_door)
+        self.assertEqual(hunter_door.enum.name, "MONSTER")
+        self.assertTrue(hasattr(hunter_door.monster, "story_consequence_id"))
+        self.assertIn("moon_chain_accept_hunter", story.pending_consequences)
+
+        story.resolve_battle_consequence(hunter_door.monster, defeated=True)
+        self.assertIn("moon_chain_accept_shop", story.pending_consequences)
+
+        shop_door = DoorEnum.SHOP.create_instance(controller=self.controller)
+        with unittest.mock.patch("models.story_system.random.random", return_value=0.0):
+            story.apply_pre_enter_checks(shop_door)
+        self.assertIn("moon_chain_accept_force_verdict", story.pending_consequences)
+
+        second_event_door = DoorEnum.EVENT.create_instance(controller=self.controller)
+        with unittest.mock.patch("models.story_system.random.random", return_value=0.0):
+            forced_event_door = story.apply_pre_enter_checks(second_event_door)
+        self.assertEqual(getattr(forced_event_door, "story_forced_event_key", ""), "moon_verdict_event")
