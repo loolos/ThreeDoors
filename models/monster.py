@@ -280,9 +280,9 @@ class Monster:
     def process_loot(self, player):
         """处理怪物的掉落物品，应用到玩家身上"""
         for item in self.loot:
-            if item.acquire(player=player):
-                if hasattr(player, 'controller') and player.controller:
-                    player.controller.add_message(f"获得 {item.name}!")
+            if hasattr(player, 'controller') and player.controller:
+                player.controller.add_message(f"掉落：{item.name}")
+            item.acquire(player=player)
 
     def take_damage(self, damage: int):
         """受到伤害"""

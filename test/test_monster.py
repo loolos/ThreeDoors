@@ -40,7 +40,7 @@ class TestMonsterSystem(BaseTest):
         monster.process_loot(self.player)
         
         self.assertEqual(self.player.get_inventory_size(), old_size + 1)
-        self.assertIn("获得 飞锤", self.controller.messages[-1])
+        self.assertTrue(any("掉落：飞锤" in m for m in self.controller.messages), "日志应包含掉落信息")
 
     def test_monster_attributes(self):
         """测试怪物属性初始化"""
