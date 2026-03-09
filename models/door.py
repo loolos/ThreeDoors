@@ -6,7 +6,7 @@ from models.monster import Monster
 from models.shop import Shop
 from enum import Enum
 from models.items import create_random_item
-from models.events import get_random_event
+from models.events import get_random_event, get_story_event_by_key
 
 
 class DoorEnum(Enum):
@@ -251,7 +251,11 @@ class EventDoor(Door):
         self.generate_non_monster_door_hint()
     
     def enter(self) -> bool:
-        event = get_random_event(self.controller)
+        forced_key = getattr(self, "story_forced_event_key", None)
+        if forced_key:
+            event = get_story_event_by_key(forced_key, self.controller) or get_random_event(self.controller)
+        else:
+            event = get_random_event(self.controller)
         self.controller.current_event = event
         self.controller.scene_manager.go_to("event_scene")
         return True

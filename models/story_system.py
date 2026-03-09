@@ -2,7 +2,16 @@ import random
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, Iterable, Optional, Set, Tuple
 
-from models.items import create_random_item
+from models.items import (
+    AttackUpScroll,
+    Barrier,
+    FlyingHammer,
+    GiantScroll,
+    HealingScroll,
+    ImmuneScroll,
+    ReviveScroll,
+    create_random_item,
+)
 from models.status import StatusName
 
 
@@ -423,6 +432,72 @@ class StorySystem:
             )
             return True, door
 
+        if effect == "force_story_event":
+            if getattr(getattr(door, "enum", None), "name", "") != "EVENT":
+                return False, door
+            event_key = payload.get("event_key")
+            if not isinstance(event_key, str) or not event_key.strip():
+                return False, door
+            door.story_forced_event_key = event_key.strip()
+            hint = payload.get("hint")
+            if isinstance(hint, str) and hint.strip():
+                door.hint = hint.strip()
+            self.controller.add_message(
+                self._resolve_message(payload, "message", "命运突然偏转，下一扇事件门被写上了你的名字。")
+            )
+            self._log_effect_result(
+                consequence,
+                f"后续事件被固定为 {door.story_forced_event_key}",
+            )
+            return True, door
+
+        if effect == "treasure_marked_item":
+            if getattr(getattr(door, "enum", None), "name", "") != "REWARD":
+                return False, door
+            current_reward = getattr(door, "reward", {})
+            if not isinstance(current_reward, dict):
+                current_reward = {}
+            keep_gold = bool(payload.get("keep_gold", True))
+            reward_gold = current_reward.get("gold", 0) if keep_gold else 0
+            if bool(payload.get("replace_existing_items", True)):
+                new_reward: Dict[Any, int] = {}
+            else:
+                new_reward = {k: v for k, v in current_reward.items() if k != "gold"}
+            if reward_gold > 0:
+                new_reward["gold"] = reward_gold
+            bonus_gold = int(payload.get("gold_bonus", 0))
+            if bonus_gold > 0:
+                new_reward["gold"] = new_reward.get("gold", 0) + bonus_gold
+            amount = max(1, int(payload.get("amount", 1)))
+            item_key = payload.get("item_key")
+            marked_item = self._create_story_item(item_key)
+            if not marked_item:
+                marked_item = create_random_item()
+            new_reward[marked_item] = amount
+            door.reward = new_reward
+            self.controller.add_message(
+                self._resolve_message(payload, "message", f"宝物门被人做了记号，里面是 {marked_item.name}。")
+            )
+            self._log_effect_result(
+                consequence,
+                f"宝物内容被改写：{self._describe_reward(door)}",
+            )
+            return True, door
+
+        if effect == "treasure_vanish":
+            if getattr(getattr(door, "enum", None), "name", "") != "REWARD":
+                return False, door
+            fake_gold = max(0, int(payload.get("fake_gold", 0)))
+            door.reward = {"gold": fake_gold} if fake_gold > 0 else {}
+            self.controller.add_message(
+                self._resolve_message(payload, "message", "你推开宝物门，只看到被提前洗劫的空架子。")
+            )
+            self._log_effect_result(
+                consequence,
+                "宝物已被掏空",
+            )
+            return True, door
+
         return False, door
 
     def _queue_chain_followups(self, consequence: PendingConsequence) -> None:
@@ -524,8 +599,38 @@ class StorySystem:
         if effect == "lose_gold":
             self.controller.add_message(f"这笔旧账终究要还：{detail}。")
             return
+        if effect == "force_story_event":
+            self.controller.add_message(f"接下来的遭遇被强行改写：{detail}。")
+            return
+        if effect == "treasure_marked_item":
+            self.controller.add_message(f"宝物门里的陈设明显被提前动过手脚：{detail}。")
+            return
+        if effect == "treasure_vanish":
+            self.controller.add_message(f"你只摸到一层冷灰，值钱的东西全没了：{detail}。")
+            return
 
         self.controller.add_message(f"命运的回声改写了这一刻：{detail}。")
+
+    def _create_story_item(self, item_key: Any):
+        if not isinstance(item_key, str):
+            return None
+        key = item_key.strip().lower()
+        item_factory = {
+            "flying_hammer": lambda: FlyingHammer(name="飞锤", cost=25),
+            "barrier": lambda: Barrier(name="结界", duration=3, cost=30),
+            "giant_scroll": lambda: GiantScroll(name="巨大卷轴", duration=3, cost=40),
+            "revive_scroll": lambda: ReviveScroll(name="复活卷轴", cost=50),
+            "attack_up_scroll": lambda: AttackUpScroll(
+                name="攻击力提升卷轴",
+                atk_bonus=5,
+                duration=8,
+                cost=25,
+            ),
+            "healing_scroll": lambda: HealingScroll(name="恢复卷轴", duration=10, cost=18),
+            "immune_scroll": lambda: ImmuneScroll(name="免疫卷轴", duration=5, cost=20),
+        }
+        factory = item_factory.get(key)
+        return factory() if factory else None
 
     def _describe_reward(self, reward_door: Any) -> str:
         reward = getattr(reward_door, "reward", {})

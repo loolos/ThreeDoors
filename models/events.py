@@ -1013,11 +1013,811 @@ class FallenKnightEvent(Event):
         return "Event Completed"
 
 
+class MoonBountyEvent(Event):
+    """长链1：月蚀通缉令"""
+
+    def __init__(self, controller):
+        super().__init__(controller)
+        self.title = "Moon Bounty"
+        self.description = "你在墙上看到一张会发光的通缉令：'月蚀前带回叛徒，生死不论。'"
+        self.choices = [
+            EventChoice("接单追猎", self.accept_contract),
+            EventChoice("暗中护送叛徒", self.protect_target),
+            EventChoice("两头通吃，伪造线索", self.double_cross),
+        ]
+
+    def accept_contract(self):
+        self.register_story_choice(
+            choice_flag="moon_bounty_accept",
+            moral_delta=-4,
+            consequences=self._build_moon_chain(
+                route="accept",
+                shop_effect="black_market_discount",
+                shop_ratio=0.74,
+                hunter_name="野狼",
+                shop_message="你拿出的通缉印章被商人认出，货架立刻给出猎手折扣。",
+            ),
+        )
+        self.add_message("你把通缉令折进袖口。有人在暗处轻轻点头，像是在确认你的身份。")
+        return "Event Completed"
+
+    def protect_target(self):
+        self.register_story_choice(
+            choice_flag="moon_bounty_protect",
+            moral_delta=6,
+            consequences=self._build_moon_chain(
+                route="protect",
+                shop_effect="black_market_markup",
+                shop_ratio=1.32,
+                hunter_name="死亡骑士",
+                shop_message="你坏了悬赏行会的规矩，商人把你列成高风险客户。",
+            ),
+        )
+        self.add_message("你把通缉令撕成两半。风里传来一句低语：'那你就替他付账。'")
+        return "Event Completed"
+
+    def double_cross(self):
+        self.register_story_choice(
+            choice_flag="moon_bounty_double",
+            moral_delta=-1,
+            consequences=self._build_moon_chain(
+                route="double",
+                shop_effect="black_market_discount",
+                shop_ratio=0.82,
+                hunter_name="暗影刺客",
+                shop_message="你放出的假线索搅乱了盘口，黑市一时分不清该杀你还是拉拢你。",
+            ),
+        )
+        self.get_player().gold += 18
+        self.add_message("你把真假线索分别卖给两边，先赚到了 18G。")
+        return "Event Completed"
+
+    def _build_moon_chain(self, route, shop_effect, shop_ratio, hunter_name, shop_message):
+        return [
+            {
+                "consequence_id": f"moon_chain_{route}_hunter",
+                "effect_key": "revenge_ambush",
+                "chance": 1.0,
+                "priority": 10,
+                "trigger_door_types": ["EVENT", "MONSTER"],
+                "payload": {
+                    "force_hunter": True,
+                    "consume_on_defeat": True,
+                    "hunter_name": hunter_name,
+                    "message": "你刚迈过门槛，追猎令就被激活了，脚步声在你背后同步响起。",
+                    "hunter_hint": "猎杀钟摆开始摆动，你在它的节奏里。",
+                    "chain_followups": [
+                        {
+                            "consequence_id": f"moon_chain_{route}_shop",
+                            "effect_key": shop_effect,
+                            "chance": 1.0,
+                            "trigger_door_types": ["SHOP"],
+                            "payload": {
+                                "ratio": shop_ratio,
+                                "message": shop_message,
+                                "chain_followups": [
+                                    {
+                                        "consequence_id": f"moon_chain_{route}_force_verdict",
+                                        "effect_key": "force_story_event",
+                                        "chance": 1.0,
+                                        "trigger_door_types": ["EVENT"],
+                                        "payload": {
+                                            "event_key": "moon_verdict_event",
+                                            "hint": "审判庭在等你签最后一笔账",
+                                            "message": "你发现一扇门后坐着记账人：'该结案了。'",
+                                        },
+                                    }
+                                ],
+                            },
+                        }
+                    ],
+                },
+            }
+        ]
+
+
+class MoonVerdictEvent(Event):
+    """月蚀链中继：决定宝物门与后续余波。"""
+
+    def __init__(self, controller):
+        super().__init__(controller)
+        self.title = "Moon Verdict"
+        self.description = "审判席上的书记官推来三份结案文书，每一份都要你签名。"
+        self.choices = [
+            EventChoice("按规矩结案", self.file_clean),
+            EventChoice("销毁证物", self.burn_records),
+            EventChoice("反向勒索审判庭", self.extort_court),
+        ]
+
+    def file_clean(self):
+        self.register_story_choice(
+            choice_flag="moon_verdict_clean",
+            moral_delta=4,
+            consequences=[
+                {
+                    "consequence_id": "moon_verdict_clean_treasure",
+                    "effect_key": "treasure_marked_item",
+                    "chance": 1.0,
+                    "trigger_door_types": ["REWARD"],
+                    "payload": {
+                        "item_key": "revive_scroll",
+                        "gold_bonus": 35,
+                        "message": "你打开宝物门时，最上层放着盖过公章的复活卷轴。",
+                        "chain_followups": [
+                            {
+                                "consequence_id": "moon_verdict_clean_aftercare",
+                                "effect_key": "guard_reward",
+                                "chance": 1.0,
+                                "trigger_door_types": ["EVENT", "SHOP"],
+                                "payload": {"gold": 25, "heal": 12, "message": "审判庭没有再追责，甚至给了你一笔办案补贴。"},
+                            }
+                        ],
+                    },
+                }
+            ],
+        )
+        self.add_message("你签了字。书记官把印泥按在卷轴边缘，像是在给你留后路。")
+        return "Event Completed"
+
+    def burn_records(self):
+        self.register_story_choice(
+            choice_flag="moon_verdict_burned",
+            moral_delta=-5,
+            consequences=[
+                {
+                    "consequence_id": "moon_verdict_burn_treasure_void",
+                    "effect_key": "treasure_vanish",
+                    "chance": 1.0,
+                    "trigger_door_types": ["REWARD"],
+                    "payload": {
+                        "fake_gold": 9,
+                        "message": "你推开宝物门，只剩一张纸条：'证物已焚，奖励也一并焚毁。'",
+                        "chain_followups": [
+                            {
+                                "consequence_id": "moon_verdict_burn_retribution",
+                                "effect_key": "revenge_ambush",
+                                "chance": 1.0,
+                                "trigger_door_types": ["EVENT", "MONSTER"],
+                                "payload": {
+                                    "force_hunter": True,
+                                    "hunter_name": "冥界使者",
+                                    "hp_ratio": 1.16,
+                                    "atk_ratio": 1.16,
+                                    "message": "你焚卷的烟味还没散，执法者已经追到门后。",
+                                },
+                            }
+                        ],
+                    },
+                }
+            ],
+        )
+        self.add_message("火焰吞掉了档案，也吞掉了你的一部分退路。")
+        return "Event Completed"
+
+    def extort_court(self):
+        self.register_story_choice(
+            choice_flag="moon_verdict_extorted",
+            moral_delta=-2,
+            consequences=[
+                {
+                    "consequence_id": "moon_verdict_extort_treasure",
+                    "effect_key": "treasure_marked_item",
+                    "chance": 1.0,
+                    "trigger_door_types": ["REWARD"],
+                    "payload": {
+                        "item_key": "giant_scroll",
+                        "keep_gold": False,
+                        "message": "宝物门里只留下一卷被红蜡封死的巨大卷轴。",
+                        "chain_followups": [
+                            {
+                                "consequence_id": "moon_verdict_extort_tax",
+                                "effect_key": "black_market_markup",
+                                "chance": 1.0,
+                                "trigger_door_types": ["SHOP"],
+                                "payload": {"ratio": 1.28, "message": "你勒索审判庭的传闻传开，商人都想先从你身上捞一层。"},
+                            }
+                        ],
+                    },
+                }
+            ],
+        )
+        self.add_message("你把谈判变成了敲诈。书记官笑得很轻，像记下了你的名字。")
+        return "Event Completed"
+
+
+class ClockworkBazaarEvent(Event):
+    """长链2：齿轮黑市"""
+
+    def __init__(self, controller):
+        super().__init__(controller)
+        self.title = "Clockwork Bazaar"
+        self.description = "移动黑市停在岔路口，主持人说今天只收'会动的故事'。"
+        self.choices = [
+            EventChoice("校准摊位机械，换取信誉", self.calibrate),
+            EventChoice("偷改优惠码", self.hack_coupon),
+            EventChoice("破坏竞品摊位", self.sabotage),
+        ]
+
+    def calibrate(self):
+        self.register_story_choice(
+            choice_flag="clockwork_calibrated",
+            moral_delta=5,
+            consequences=self._build_clockwork_chain(
+                route="calibrate",
+                shop_effect="black_market_discount",
+                ratio=0.68,
+                hunter_name="食人魔",
+                shop_message="机械账本认可了你的调校记录，后续商店对你亮起绿灯。",
+            ),
+        )
+        self.add_message("你修好了计价机关，黑市主持人把一枚齿轮徽章别在你肩上。")
+        return "Event Completed"
+
+    def hack_coupon(self):
+        self.register_story_choice(
+            choice_flag="clockwork_hacked",
+            moral_delta=-6,
+            consequences=self._build_clockwork_chain(
+                route="hack",
+                shop_effect="black_market_discount",
+                ratio=0.8,
+                hunter_name="狼人",
+                shop_message="第一家店没识破你的优惠码，给了你离谱折扣。",
+            ),
+        )
+        self.add_message("你改了校验齿轮，券码短暂有效。倒计时已经开始。")
+        return "Event Completed"
+
+    def sabotage(self):
+        self.register_story_choice(
+            choice_flag="clockwork_sabotaged",
+            moral_delta=-8,
+            consequences=self._build_clockwork_chain(
+                route="sabotage",
+                shop_effect="black_market_markup",
+                ratio=1.35,
+                hunter_name="死亡骑士",
+                shop_message="你砸摊的录像被同步给全市场，几乎所有店都给你涨价。",
+            ),
+        )
+        self.add_message("你踢翻了对面摊位，满地零件像雨点一样乱响。")
+        return "Event Completed"
+
+    def _build_clockwork_chain(self, route, shop_effect, ratio, hunter_name, shop_message):
+        if route == "calibrate":
+            return [
+                {
+                    "consequence_id": "clock_chain_calibrate_shop_open",
+                    "effect_key": shop_effect,
+                    "chance": 1.0,
+                    "priority": 9,
+                    "trigger_door_types": ["SHOP"],
+                    "payload": {
+                        "ratio": ratio,
+                        "message": shop_message,
+                        "chain_followups": [
+                            {
+                                "consequence_id": "clock_chain_calibrate_force_audit",
+                                "effect_key": "force_story_event",
+                                "chance": 1.0,
+                                "trigger_door_types": ["EVENT"],
+                                "payload": {
+                                    "event_key": "cog_audit_event",
+                                    "hint": "门后摆着一台审计机关",
+                                    "message": "你刚离开柜台，门后就传来齿轮审计员的敲桌声。",
+                                },
+                            }
+                        ],
+                    },
+                },
+                {
+                    "consequence_id": "clock_chain_calibrate_combat_tuning",
+                    "effect_key": "atk_training",
+                    "chance": 1.0,
+                    "priority": 7,
+                    "trigger_door_types": ["MONSTER"],
+                    "payload": {
+                        "delta": 1,
+                        "message": "你调过的机械节奏帮你看清了敌人的出招空档。",
+                        "chain_followups": [
+                            {
+                                "consequence_id": "clock_chain_calibrate_reward_cache",
+                                "effect_key": "treasure_marked_item",
+                                "chance": 1.0,
+                                "trigger_door_types": ["REWARD"],
+                                "payload": {
+                                    "item_key": "barrier",
+                                    "gold_bonus": 15,
+                                    "message": "你按调校协议领取了技术红利，宝物门里是结界发生器。",
+                                },
+                            }
+                        ],
+                    },
+                },
+            ]
+
+        if route == "hack":
+            return [
+                {
+                    "consequence_id": "clock_chain_hack_shop_discount",
+                    "effect_key": shop_effect,
+                    "chance": 1.0,
+                    "priority": 9,
+                    "trigger_door_types": ["SHOP"],
+                    "payload": {
+                        "ratio": ratio,
+                        "message": shop_message,
+                        "chain_followups": [
+                            {
+                                "consequence_id": "clock_chain_hack_chargeback",
+                                "effect_key": "lose_gold",
+                                "chance": 1.0,
+                                "trigger_door_types": ["EVENT", "SHOP"],
+                                "payload": {
+                                    "amount": 22,
+                                    "message": "优惠码被追溯后触发了回滚扣款，你被系统追缴了差价。",
+                                    "chain_followups": [
+                                        {
+                                            "consequence_id": "clock_chain_hack_force_audit",
+                                            "effect_key": "force_story_event",
+                                            "chance": 1.0,
+                                            "trigger_door_types": ["EVENT"],
+                                            "payload": {
+                                                "event_key": "cog_audit_event",
+                                                "hint": "伪码异常，请到审计门复核",
+                                                "message": "你以为躲过了，审计门却自动在前方亮起。",
+                                            },
+                                        },
+                                        {
+                                            "consequence_id": "clock_chain_hack_reward_frozen",
+                                            "effect_key": "treasure_vanish",
+                                            "chance": 1.0,
+                                            "trigger_door_types": ["REWARD"],
+                                            "payload": {
+                                                "fake_gold": 12,
+                                                "message": "库存冻结把宝物门清空了，只给你留了点找零。",
+                                            },
+                                        },
+                                    ],
+                                },
+                            }
+                        ],
+                    },
+                }
+            ]
+
+        return [
+            {
+                "consequence_id": "clock_chain_sabotage_hunter",
+                "effect_key": "revenge_ambush",
+                "chance": 1.0,
+                "priority": 10,
+                "trigger_door_types": ["EVENT", "MONSTER"],
+                "payload": {
+                    "force_hunter": True,
+                    "consume_on_defeat": True,
+                    "hunter_name": hunter_name,
+                    "message": "你砸摊的碎片还在地上转，清算队已经顺着标记追来了。",
+                    "chain_followups": [
+                        {
+                            "consequence_id": "clock_chain_sabotage_trap_backfire",
+                            "effect_key": "shrine_curse",
+                            "chance": 1.0,
+                            "trigger_door_types": ["TRAP", "MONSTER"],
+                            "payload": {"duration": 2, "message": "你破坏的机关反向写入了你的战斗节奏，行动开始迟滞。"},
+                        },
+                        {
+                            "consequence_id": "clock_chain_sabotage_reward_confiscated",
+                            "effect_key": "treasure_vanish",
+                            "chance": 1.0,
+                            "trigger_door_types": ["REWARD"],
+                            "payload": {"message": "市场执法先一步扣押了你的奖励，宝物门只剩封条。"},
+                        },
+                    ],
+                },
+            }
+        ]
+
+
+class CogAuditEvent(Event):
+    """齿轮链中继：宝物门被审计。"""
+
+    def __init__(self, controller):
+        super().__init__(controller)
+        self.title = "Cog Audit"
+        self.description = "审计员递给你三种结算方式：补税、做假账，或者买断风声。"
+        self.choices = [
+            EventChoice("补税结清", self.pay_tax),
+            EventChoice("做假账", self.fake_ledger),
+            EventChoice("买断风声", self.buy_silence),
+        ]
+
+    def pay_tax(self):
+        self.register_story_choice(
+            choice_flag="cog_audit_tax_paid",
+            moral_delta=3,
+            consequences=[
+                {
+                    "consequence_id": "cog_audit_tax_treasure",
+                    "effect_key": "treasure_marked_item",
+                    "chance": 1.0,
+                    "trigger_door_types": ["REWARD"],
+                    "payload": {
+                        "item_key": "healing_scroll",
+                        "gold_bonus": 22,
+                        "message": "补税凭证换来一份正式补给：恢复卷轴和一小袋金币。",
+                        "chain_followups": [
+                            {
+                                "consequence_id": "cog_audit_tax_rebate",
+                                "effect_key": "black_market_discount",
+                                "chance": 1.0,
+                                "trigger_door_types": ["SHOP"],
+                                "payload": {"ratio": 0.84, "message": "你被记成合规客户，后续成交价更友好。"},
+                            }
+                        ],
+                    },
+                }
+            ],
+        )
+        self.add_message("你按章付款。审计员在你通行证上盖了一个'已清算'。")
+        return "Event Completed"
+
+    def fake_ledger(self):
+        self.register_story_choice(
+            choice_flag="cog_audit_faked",
+            moral_delta=-4,
+            consequences=[
+                {
+                    "consequence_id": "cog_audit_fake_treasure_void",
+                    "effect_key": "treasure_vanish",
+                    "chance": 1.0,
+                    "trigger_door_types": ["REWARD"],
+                    "payload": {
+                        "message": "假账生效了，但你的宝物门也被系统判定为'异常库存'并清空。",
+                        "chain_followups": [
+                            {
+                                "consequence_id": "cog_audit_fake_fine",
+                                "effect_key": "lose_gold",
+                                "chance": 1.0,
+                                "trigger_door_types": ["EVENT", "SHOP"],
+                                "payload": {"amount": 35, "message": "延迟罚款追到了你，金币被直接划扣。"},
+                            }
+                        ],
+                    },
+                }
+            ],
+        )
+        self.add_message("你在账本里塞进了假齿轮。它转得很顺，但声音很假。")
+        return "Event Completed"
+
+    def buy_silence(self):
+        self.register_story_choice(
+            choice_flag="cog_audit_silenced",
+            moral_delta=-1,
+            consequences=[
+                {
+                    "consequence_id": "cog_audit_silence_treasure",
+                    "effect_key": "treasure_marked_item",
+                    "chance": 1.0,
+                    "trigger_door_types": ["REWARD"],
+                    "payload": {
+                        "item_key": "barrier",
+                        "gold_bonus": 10,
+                        "message": "对方收了封口费，回赠你一枚战斗结界发生器。",
+                        "chain_followups": [
+                            {
+                                "consequence_id": "cog_audit_silence_hunt",
+                                "effect_key": "revenge_ambush",
+                                "chance": 1.0,
+                                "trigger_door_types": ["EVENT", "MONSTER"],
+                                "payload": {
+                                    "force_hunter": True,
+                                    "hunter_name": "暗影刺客",
+                                    "hp_ratio": 1.14,
+                                    "atk_ratio": 1.15,
+                                    "message": "买断风声只挡住了台面，补丁猎手从后台追上来了。",
+                                },
+                            }
+                        ],
+                    },
+                }
+            ],
+        )
+        self.get_player().gold = max(0, self.get_player().gold - 20)
+        self.add_message("你先花了 20G 封口。审计员收钱很快，收尾更快。")
+        return "Event Completed"
+
+
+class DreamWellEvent(Event):
+    """长链3：梦井回声"""
+
+    def __init__(self, controller):
+        super().__init__(controller)
+        self.title = "Dream Well"
+        self.description = "井里映出的不是你的脸，而是三种未来：喝下、封井、或把梦卖掉。"
+        self.choices = [
+            EventChoice("喝下梦井水", self.drink_dream),
+            EventChoice("封住井口", self.seal_well),
+            EventChoice("把梦卖给行脚商", self.sell_dream),
+        ]
+
+    def drink_dream(self):
+        self.register_story_choice(
+            choice_flag="dream_well_drank",
+            moral_delta=-2,
+            consequences=self._build_dream_chain(
+                route="drink",
+                shop_effect="black_market_discount",
+                ratio=0.79,
+                hunter_name="幽灵",
+                shop_message="你描述的梦境太精准，商人把你当成'消息源'，先给了折扣。",
+            ),
+        )
+        self.get_player().heal(12)
+        self.add_message("梦井水让你清醒得发冷，恢复了 12 点生命。")
+        return "Event Completed"
+
+    def seal_well(self):
+        self.register_story_choice(
+            choice_flag="dream_well_sealed",
+            moral_delta=7,
+            consequences=self._build_dream_chain(
+                route="seal",
+                shop_effect="black_market_markup",
+                ratio=1.22,
+                hunter_name="美杜莎",
+                shop_message="你封井断了很多人的生意，商人们把这笔账算在你头上。",
+            ),
+        )
+        self.add_message("你用石板封住了井口，水面最后一次映出你的背影。")
+        return "Event Completed"
+
+    def sell_dream(self):
+        self.register_story_choice(
+            choice_flag="dream_well_sold",
+            moral_delta=-5,
+            consequences=self._build_dream_chain(
+                route="sell",
+                shop_effect="black_market_discount",
+                ratio=0.7,
+                hunter_name="冥界使者",
+                shop_message="你把梦卖成货币，黑市把你列为优先交易对象。",
+            ),
+        )
+        self.get_player().gold += 26
+        self.add_message("你卖掉了一个关于胜利的梦，立刻拿到 26G。")
+        return "Event Completed"
+
+    def _build_dream_chain(self, route, shop_effect, ratio, hunter_name, shop_message):
+        if route == "drink":
+            return [
+                {
+                    "consequence_id": "dream_chain_drink_force_court",
+                    "effect_key": "force_story_event",
+                    "chance": 1.0,
+                    "priority": 10,
+                    "trigger_door_types": ["EVENT"],
+                    "payload": {
+                        "event_key": "echo_court_event",
+                        "hint": "你听到回声法庭正在点名",
+                        "message": "你刚靠近事件门，法槌回声就把门后的剧情改写成了庭审。",
+                        "chain_followups": [
+                            {
+                                "consequence_id": "dream_chain_drink_bless",
+                                "effect_key": "shrine_blessing",
+                                "chance": 1.0,
+                                "trigger_door_types": ["TRAP", "MONSTER"],
+                                "payload": {"message": "梦井水的余温仍在，你对危险的直觉短暂提升。"},
+                            }
+                        ],
+                    },
+                }
+            ]
+
+        if route == "seal":
+            return [
+                {
+                    "consequence_id": "dream_chain_seal_echo_weight",
+                    "effect_key": "shrine_curse",
+                    "chance": 1.0,
+                    "priority": 8,
+                    "trigger_door_types": ["MONSTER", "TRAP", "EVENT"],
+                    "payload": {
+                        "duration": 1,
+                        "message": "封井后，未散的回声压在你身上，动作变得沉重。",
+                        "chain_followups": [
+                            {
+                                "consequence_id": "dream_chain_seal_relic_cache",
+                                "effect_key": "treasure_marked_item",
+                                "chance": 1.0,
+                                "trigger_door_types": ["REWARD"],
+                                "payload": {
+                                    "item_key": "immune_scroll",
+                                    "gold_bonus": 14,
+                                    "message": "封井守望者在宝物门里留了免疫卷轴作为报酬。",
+                                    "chain_followups": [
+                                        {
+                                            "consequence_id": "dream_chain_seal_trade_penalty",
+                                            "effect_key": "black_market_markup",
+                                            "chance": 1.0,
+                                            "trigger_door_types": ["SHOP"],
+                                            "payload": {"ratio": 1.2, "message": "你断了梦井生意，商人把利润损失全摊到你身上。"},
+                                        }
+                                    ],
+                                },
+                            }
+                        ],
+                    },
+                }
+            ]
+
+        return [
+            {
+                "consequence_id": "dream_chain_sell_shop_boom",
+                "effect_key": shop_effect,
+                "chance": 1.0,
+                "priority": 9,
+                "trigger_door_types": ["SHOP"],
+                "payload": {
+                    "ratio": ratio,
+                    "message": shop_message,
+                    "chain_followups": [
+                        {
+                            "consequence_id": "dream_chain_sell_treasure_contract",
+                            "effect_key": "treasure_marked_item",
+                            "chance": 1.0,
+                            "trigger_door_types": ["REWARD"],
+                            "payload": {
+                                "item_key": "attack_up_scroll",
+                                "keep_gold": False,
+                                "message": "你把梦境债券兑成了攻击卷轴，宝物门里只剩这一件硬货。",
+                                "chain_followups": [
+                                    {
+                                        "consequence_id": "dream_chain_sell_hunter",
+                                        "effect_key": "revenge_ambush",
+                                        "chance": 1.0,
+                                        "trigger_door_types": ["EVENT", "MONSTER"],
+                                        "payload": {
+                                            "force_hunter": True,
+                                            "consume_on_defeat": True,
+                                            "hunter_name": hunter_name,
+                                            "message": "你越卖越顺手，梦税征收官也越追越近。",
+                                        },
+                                    }
+                                ],
+                            },
+                        }
+                    ],
+                },
+            }
+        ]
+
+
+class EchoCourtEvent(Event):
+    """梦井链中继：根据庭审抉择改写宝物门。"""
+
+    def __init__(self, controller):
+        super().__init__(controller)
+        self.title = "Echo Court"
+        self.description = "回声法庭只问一个问题：你要赎回梦、上缴梦，还是继续交易？"
+        self.choices = [
+            EventChoice("赎回梦境记忆", self.redeem_dream),
+            EventChoice("上缴梦境税", self.pay_dream_tax),
+            EventChoice("继续倒卖梦境", self.keep_trading),
+        ]
+
+    def redeem_dream(self):
+        self.register_story_choice(
+            choice_flag="echo_court_redeemed",
+            moral_delta=5,
+            consequences=[
+                {
+                    "consequence_id": "echo_redeem_treasure",
+                    "effect_key": "treasure_marked_item",
+                    "chance": 1.0,
+                    "trigger_door_types": ["REWARD"],
+                    "payload": {
+                        "item_key": "immune_scroll",
+                        "gold_bonus": 18,
+                        "message": "你赎回的梦凝成了一张免疫卷轴，安静地躺在宝箱里。",
+                        "chain_followups": [
+                            {
+                                "consequence_id": "echo_redeem_recovery",
+                                "effect_key": "guard_reward",
+                                "chance": 1.0,
+                                "trigger_door_types": ["EVENT", "SHOP"],
+                                "payload": {"gold": 18, "heal": 10, "message": "法庭判你补救有诚意，后续旅途得到额外补给。"},
+                            }
+                        ],
+                    },
+                }
+            ],
+        )
+        self.add_message("你把梦赎了回来，耳边的低语终于安静了一瞬。")
+        return "Event Completed"
+
+    def pay_dream_tax(self):
+        self.register_story_choice(
+            choice_flag="echo_court_taxed",
+            moral_delta=1,
+            consequences=[
+                {
+                    "consequence_id": "echo_tax_treasure_void",
+                    "effect_key": "treasure_vanish",
+                    "chance": 1.0,
+                    "trigger_door_types": ["REWARD"],
+                    "payload": {
+                        "fake_gold": 5,
+                        "message": "税官先你一步打开了宝物门，只给你留了 5G 手续费找零。",
+                        "chain_followups": [
+                            {
+                                "consequence_id": "echo_tax_discount",
+                                "effect_key": "black_market_discount",
+                                "chance": 1.0,
+                                "trigger_door_types": ["SHOP"],
+                                "payload": {"ratio": 0.88, "message": "你按时纳税后，部分商人愿意给你一点面子。"},
+                            }
+                        ],
+                    },
+                }
+            ],
+        )
+        self.add_message("你把梦税一次交清，法槌不再追着你敲。")
+        return "Event Completed"
+
+    def keep_trading(self):
+        self.register_story_choice(
+            choice_flag="echo_court_trading",
+            moral_delta=-4,
+            consequences=[
+                {
+                    "consequence_id": "echo_trade_treasure",
+                    "effect_key": "treasure_marked_item",
+                    "chance": 1.0,
+                    "trigger_door_types": ["REWARD"],
+                    "payload": {
+                        "item_key": "attack_up_scroll",
+                        "keep_gold": False,
+                        "message": "你继续交易梦境，宝物门只剩下一张攻击卷轴和一张赊账单。",
+                        "chain_followups": [
+                            {
+                                "consequence_id": "echo_trade_hunt",
+                                "effect_key": "revenge_ambush",
+                                "chance": 1.0,
+                                "trigger_door_types": ["EVENT", "MONSTER"],
+                                "payload": {
+                                    "force_hunter": True,
+                                    "hunter_name": "暗影刺客",
+                                    "hp_ratio": 1.2,
+                                    "atk_ratio": 1.19,
+                                    "message": "你继续倒卖梦境，收割者自然也继续追你。",
+                                },
+                            }
+                        ],
+                    },
+                }
+            ],
+        )
+        self.add_message("你选择把梦继续当货币。法庭书记在卷宗边写下：'可持续追缴。'")
+        return "Event Completed"
+
+
+def get_story_event_by_key(event_key, controller):
+    event_map = {
+        "moon_verdict_event": MoonVerdictEvent,
+        "cog_audit_event": CogAuditEvent,
+        "echo_court_event": EchoCourtEvent,
+    }
+    event_cls = event_map.get(event_key)
+    return event_cls(controller) if event_cls else None
+
+
 def get_random_event(controller):
     events = [
         StrangerEvent, SmugglerEvent, AncientShrineEvent, 
         GamblerEvent, LostChildEvent, CursedChestEvent, WiseSageEvent,
         RefugeeCaravanEvent, FallenKnightEvent,
+        MoonBountyEvent, ClockworkBazaarEvent, DreamWellEvent,
     ]
     event_cls = random.choice(events)
     return event_cls(controller)

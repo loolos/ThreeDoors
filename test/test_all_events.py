@@ -4,7 +4,10 @@ import unittest.mock
 from test.test_base import BaseTest
 from models.events import (
     StrangerEvent, SmugglerEvent, AncientShrineEvent, 
-    GamblerEvent, LostChildEvent, CursedChestEvent, WiseSageEvent
+    GamblerEvent, LostChildEvent, CursedChestEvent, WiseSageEvent,
+    MoonBountyEvent, MoonVerdictEvent,
+    ClockworkBazaarEvent, CogAuditEvent,
+    DreamWellEvent, EchoCourtEvent,
 )
 from models.items import FlyingHammer
 
@@ -208,3 +211,31 @@ class TestAllEvents(BaseTest):
         with unittest.mock.patch('models.events.random.random', return_value=0.8):
             self._run_choice(WiseSageEvent, 2)
             self.assertTrue(self.player.has_status(StatusName.FIELD_POISON))
+
+    def test_new_long_chain_starter_event_choices(self):
+        self.player.gold = 300
+        self._run_choice(MoonBountyEvent, 0)
+        self._run_choice(MoonBountyEvent, 1)
+        self._run_choice(MoonBountyEvent, 2)
+
+        self._run_choice(ClockworkBazaarEvent, 0)
+        self._run_choice(ClockworkBazaarEvent, 1)
+        self._run_choice(ClockworkBazaarEvent, 2)
+
+        self._run_choice(DreamWellEvent, 0)
+        self._run_choice(DreamWellEvent, 1)
+        self._run_choice(DreamWellEvent, 2)
+
+    def test_new_long_chain_followup_event_choices(self):
+        self.player.gold = 300
+        self._run_choice(MoonVerdictEvent, 0)
+        self._run_choice(MoonVerdictEvent, 1)
+        self._run_choice(MoonVerdictEvent, 2)
+
+        self._run_choice(CogAuditEvent, 0)
+        self._run_choice(CogAuditEvent, 1)
+        self._run_choice(CogAuditEvent, 2)
+
+        self._run_choice(EchoCourtEvent, 0)
+        self._run_choice(EchoCourtEvent, 1)
+        self._run_choice(EchoCourtEvent, 2)
