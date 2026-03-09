@@ -9,6 +9,8 @@ class EventChoice:
         self.callback = callback
 
 class Event:
+    TRIGGER_BASE_PROBABILITY = 0.1
+
     def __init__(self, controller):
         self.controller = controller
         self.title = "Event"
@@ -39,9 +41,19 @@ class Event:
             consequences=consequences or [],
         )
 
+    @classmethod
+    def is_trigger_condition_met(cls, controller):
+        return True
+
+    @classmethod
+    def get_trigger_probability(cls, controller):
+        return cls.TRIGGER_BASE_PROBABILITY
+
 
 # 1. Injured Stranger
 class StrangerEvent(Event):
+    TRIGGER_BASE_PROBABILITY = 0.12
+
     def __init__(self, controller):
         super().__init__(controller)
         self.title = "Injured Stranger"
@@ -157,6 +169,14 @@ class StrangerEvent(Event):
 
 # 2. Smuggler
 class SmugglerEvent(Event):
+    TRIGGER_BASE_PROBABILITY = 0.1
+
+    @classmethod
+    def get_trigger_probability(cls, controller):
+        round_bonus = min(0.1, max(0, getattr(controller, "round_count", 0)) * 0.004)
+        rich_bonus = 0.03 if getattr(controller.player, "gold", 0) >= 60 else 0.0
+        return min(0.26, cls.TRIGGER_BASE_PROBABILITY + round_bonus + rich_bonus)
+
     def __init__(self, controller):
         super().__init__(controller)
         self.title = "Smuggler"
@@ -292,6 +312,18 @@ class SmugglerEvent(Event):
 
 # 3. Ancient Shrine
 class AncientShrineEvent(Event):
+    TRIGGER_BASE_PROBABILITY = 0.1
+
+    @classmethod
+    def get_trigger_probability(cls, controller):
+        p = getattr(controller, "player", None)
+        if not p:
+            return cls.TRIGGER_BASE_PROBABILITY
+        hp_cap = max(1, getattr(p, "hp", 1))
+        # 以初始生命 100 作为参考上限，低血时更容易触发祭坛事件
+        hp_rate = p.hp / max(100, hp_cap)
+        return min(0.25, cls.TRIGGER_BASE_PROBABILITY + (0.12 if hp_rate < 0.5 else 0.0))
+
     def __init__(self, controller):
         super().__init__(controller)
         self.title = "Ancient Shrine"
@@ -394,6 +426,13 @@ class AncientShrineEvent(Event):
 
 # 4. Gambler Event
 class GamblerEvent(Event):
+    TRIGGER_BASE_PROBABILITY = 0.08
+
+    @classmethod
+    def get_trigger_probability(cls, controller):
+        gold = max(0, getattr(controller.player, "gold", 0))
+        return min(0.22, cls.TRIGGER_BASE_PROBABILITY + min(0.14, gold / 1000))
+
     def __init__(self, controller):
         super().__init__(controller)
         self.title = "The Gambler"
@@ -505,6 +544,8 @@ class GamblerEvent(Event):
 
 # 5. Lost Child Event
 class LostChildEvent(Event):
+    TRIGGER_BASE_PROBABILITY = 0.11
+
     def __init__(self, controller):
         super().__init__(controller)
         self.title = "Lost Child"
@@ -640,6 +681,8 @@ class LostChildEvent(Event):
 
 # 6. Cursed Chest
 class CursedChestEvent(Event):
+    TRIGGER_BASE_PROBABILITY = 0.09
+
     def __init__(self, controller):
         super().__init__(controller)
         self.title = "Cursed Chest"
@@ -722,6 +765,13 @@ class CursedChestEvent(Event):
 
 # 7. Wise Sage
 class WiseSageEvent(Event):
+    TRIGGER_BASE_PROBABILITY = 0.09
+
+    @classmethod
+    def get_trigger_probability(cls, controller):
+        round_count = max(0, getattr(controller, "round_count", 0))
+        return min(0.2, cls.TRIGGER_BASE_PROBABILITY + min(0.11, round_count * 0.005))
+
     def __init__(self, controller):
         super().__init__(controller)
         self.title = "Wise Sage"
@@ -828,6 +878,8 @@ class WiseSageEvent(Event):
 
 
 class RefugeeCaravanEvent(Event):
+    TRIGGER_BASE_PROBABILITY = 0.08
+
     def __init__(self, controller):
         super().__init__(controller)
         self.title = "Refugee Caravan"
@@ -921,6 +973,13 @@ class RefugeeCaravanEvent(Event):
 
 
 class FallenKnightEvent(Event):
+    TRIGGER_BASE_PROBABILITY = 0.08
+
+    @classmethod
+    def get_trigger_probability(cls, controller):
+        round_count = getattr(controller, "round_count", 0)
+        return min(0.18, cls.TRIGGER_BASE_PROBABILITY + (0.05 if round_count >= 12 else 0.0))
+
     def __init__(self, controller):
         super().__init__(controller)
         self.title = "Fallen Knight"
@@ -1015,6 +1074,7 @@ class FallenKnightEvent(Event):
 
 class MoonBountyEvent(Event):
     """长链1：月蚀通缉令"""
+    TRIGGER_BASE_PROBABILITY = 0.07
 
     def __init__(self, controller):
         super().__init__(controller)
@@ -1118,6 +1178,11 @@ class MoonBountyEvent(Event):
 
 class MoonVerdictEvent(Event):
     """月蚀链中继：决定宝物门与后续余波。"""
+    TRIGGER_BASE_PROBABILITY = 0.0
+
+    @classmethod
+    def is_trigger_condition_met(cls, controller):
+        return False
 
     def __init__(self, controller):
         super().__init__(controller)
@@ -1227,6 +1292,12 @@ class MoonVerdictEvent(Event):
 
 class ClockworkBazaarEvent(Event):
     """长链2：齿轮黑市"""
+    TRIGGER_BASE_PROBABILITY = 0.06
+
+    @classmethod
+    def get_trigger_probability(cls, controller):
+        round_count = max(0, getattr(controller, "round_count", 0))
+        return min(0.17, cls.TRIGGER_BASE_PROBABILITY + min(0.11, round_count * 0.004))
 
     def __init__(self, controller):
         super().__init__(controller)
@@ -1421,6 +1492,11 @@ class ClockworkBazaarEvent(Event):
 
 class CogAuditEvent(Event):
     """齿轮链中继：宝物门被审计。"""
+    TRIGGER_BASE_PROBABILITY = 0.0
+
+    @classmethod
+    def is_trigger_condition_met(cls, controller):
+        return False
 
     def __init__(self, controller):
         super().__init__(controller)
@@ -1530,6 +1606,12 @@ class CogAuditEvent(Event):
 
 class DreamWellEvent(Event):
     """长链3：梦井回声"""
+    TRIGGER_BASE_PROBABILITY = 0.06
+
+    @classmethod
+    def get_trigger_probability(cls, controller):
+        moral = abs(getattr(getattr(controller, "story", None), "moral_score", 0))
+        return min(0.18, cls.TRIGGER_BASE_PROBABILITY + min(0.12, moral / 500))
 
     def __init__(self, controller):
         super().__init__(controller)
@@ -1695,6 +1777,11 @@ class DreamWellEvent(Event):
 
 class EchoCourtEvent(Event):
     """梦井链中继：根据庭审抉择改写宝物门。"""
+    TRIGGER_BASE_PROBABILITY = 0.0
+
+    @classmethod
+    def is_trigger_condition_met(cls, controller):
+        return False
 
     def __init__(self, controller):
         super().__init__(controller)
@@ -1812,12 +1899,64 @@ def get_story_event_by_key(event_key, controller):
     return event_cls(controller) if event_cls else None
 
 
+STARTER_EVENT_POOL = [
+    StrangerEvent,
+    SmugglerEvent,
+    AncientShrineEvent,
+    GamblerEvent,
+    LostChildEvent,
+    CursedChestEvent,
+    WiseSageEvent,
+    RefugeeCaravanEvent,
+    FallenKnightEvent,
+    MoonBountyEvent,
+    ClockworkBazaarEvent,
+    DreamWellEvent,
+]
+
+
+def _clamp_probability(value):
+    try:
+        return max(0.0, min(1.0, float(value)))
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _weighted_pick(event_classes, weights):
+    if not event_classes:
+        return None
+    safe_weights = [max(0.0, float(w)) for w in weights]
+    total = sum(safe_weights)
+    if total <= 0:
+        return random.choice(event_classes)
+    roll = random.uniform(0, total)
+    acc = 0.0
+    for event_cls, weight in zip(event_classes, safe_weights):
+        acc += weight
+        if roll <= acc:
+            return event_cls
+    return event_classes[-1]
+
+
 def get_random_event(controller):
-    events = [
-        StrangerEvent, SmugglerEvent, AncientShrineEvent, 
-        GamblerEvent, LostChildEvent, CursedChestEvent, WiseSageEvent,
-        RefugeeCaravanEvent, FallenKnightEvent,
-        MoonBountyEvent, ClockworkBazaarEvent, DreamWellEvent,
-    ]
-    event_cls = random.choice(events)
-    return event_cls(controller)
+    candidates = [event_cls for event_cls in STARTER_EVENT_POOL if event_cls.is_trigger_condition_met(controller)]
+    if not candidates:
+        candidates = list(STARTER_EVENT_POOL)
+
+    passed = []
+    candidate_probs = []
+    for event_cls in candidates:
+        trigger_prob = _clamp_probability(event_cls.get_trigger_probability(controller))
+        candidate_probs.append(trigger_prob)
+        if random.random() <= trigger_prob:
+            passed.append((event_cls, trigger_prob))
+
+    if passed:
+        event_cls = _weighted_pick(
+            [event_cls for event_cls, _ in passed],
+            [prob for _, prob in passed],
+        )
+        return event_cls(controller)
+
+    fallback_cls = _weighted_pick(candidates, candidate_probs)
+    return fallback_cls(controller)

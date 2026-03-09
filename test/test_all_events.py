@@ -2,6 +2,7 @@
 import unittest
 import unittest.mock
 from test.test_base import BaseTest
+import models.events as events_module
 from models.events import (
     StrangerEvent, SmugglerEvent, AncientShrineEvent, 
     GamblerEvent, LostChildEvent, CursedChestEvent, WiseSageEvent,
@@ -239,3 +240,21 @@ class TestAllEvents(BaseTest):
         self._run_choice(EchoCourtEvent, 0)
         self._run_choice(EchoCourtEvent, 1)
         self._run_choice(EchoCourtEvent, 2)
+
+    def test_get_random_event_checks_condition_then_probability(self):
+        with unittest.mock.patch.object(events_module, "STARTER_EVENT_POOL", [StrangerEvent, SmugglerEvent]):
+            with unittest.mock.patch.object(StrangerEvent, "is_trigger_condition_met", return_value=True):
+                with unittest.mock.patch.object(SmugglerEvent, "is_trigger_condition_met", return_value=False):
+                    with unittest.mock.patch.object(StrangerEvent, "get_trigger_probability", return_value=0.9):
+                        with unittest.mock.patch("models.events.random.random", return_value=0.1):
+                            event = events_module.get_random_event(self.controller)
+        self.assertIsInstance(event, StrangerEvent)
+
+    def test_get_random_event_probability_formula_can_increase_with_state(self):
+        self.controller.round_count = 0
+        self.player.gold = 0
+        low = SmugglerEvent.get_trigger_probability(self.controller)
+        self.controller.round_count = 20
+        self.player.gold = 100
+        high = SmugglerEvent.get_trigger_probability(self.controller)
+        self.assertGreater(high, low)
