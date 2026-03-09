@@ -1,16 +1,31 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh">
 
 <head>
   <meta charset="UTF-8">
-  <title>三选一冒险游戏</title>
+  <title>三扇门大冒险 | ThreeDoors</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 
 <body>
+  <!-- 开始界面：Tone.js 生成音乐 + 视频 + 开始按钮 -->
+  <div id="start-screen">
+    <video id="opening-video" playsinline preload="auto" muted autoplay loop>
+      <source src="{{ url_for('static', filename='video/opening.mp4') }}" type="video/mp4">
+    </video>
+    <div id="start-screen-overlay">
+      <h1 id="start-title">三扇门大冒险</h1>
+      <p id="start-subtitle">ThreeDoors</p>
+      <p id="start-hint">点击任意处开始</p>
+      <button id="start-adventure-btn" class="start-btn">开始冒险</button>
+    </div>
+  </div>
+
+  <!-- 游戏主内容 -->
+  <div id="game-container" style="display: none;">
   <div class="container">
-    <h1>三选一冒险</h1>
+    <h1>三扇门大冒险</h1>
     <div id="scene-area">
       <div id="scene-emoji">🚪</div>
     </div>
@@ -36,6 +51,8 @@
       <button id="exitGameBtn">关闭游戏</button>
     </div>
   </div>
+  </div>
+  <script src="https://cdn.jsdelivr.net/npm/tone@14.8.49/build/Tone.js"></script>
   <script src="{{ url_for('static', filename='main.js') }}"></script>
 </body>
 

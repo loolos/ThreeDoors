@@ -20,7 +20,7 @@ function getFrontDoorStyle(textureKey) {
 
 document.addEventListener("DOMContentLoaded", () => {
   initUI();
-  getStateAndRender();
+  initStartScreen();
   document.getElementById("startOverBtn").addEventListener("click", startOver);
   document.getElementById("exitGameBtn").addEventListener("click", exitGame);
 });
@@ -28,6 +28,62 @@ document.addEventListener("DOMContentLoaded", () => {
 function initUI() {
   // Clear old button listeners if any (relying on dynamic binding now)
   // We will dynamic bind events in renderState
+}
+
+function playStartFanfare() {
+  if (typeof Tone === "undefined") return;
+  try {
+    Tone.start().then(() => {
+      const synth = new Tone.PolySynth(Tone.Synth, {
+        oscillator: { type: "triangle" },
+        envelope: { attack: 0.05, decay: 0.2, sustain: 0.3, release: 0.4 },
+      }).toDestination();
+      synth.volume.value = -6;
+      const notes = ["G3", "C4", "E4", "G4", "C5"];
+      const now = Tone.now();
+      notes.forEach((n, i) => {
+        synth.triggerAttackRelease(n, "8n", now + i * 0.15);
+      });
+      setTimeout(() => synth.dispose(), 1200);
+    }).catch(() => {});
+  } catch (e) {}
+}
+
+function initStartScreen() {
+  const startScreen = document.getElementById("start-screen");
+  const overlay = document.getElementById("start-screen-overlay");
+  const startBtn = document.getElementById("start-adventure-btn");
+  const hint = document.getElementById("start-hint");
+  const video = document.getElementById("opening-video");
+  const gameContainer = document.getElementById("game-container");
+
+  let mediaStarted = false;
+  function tryStartMedia() {
+    if (mediaStarted) return;
+    mediaStarted = true;
+    try {
+      video.muted = false;
+      video.play().catch(() => {});
+      if (hint) hint.style.display = "none";
+    } catch (e) {}
+  }
+
+  overlay.addEventListener("click", (e) => {
+    if (e.target === startBtn) return;
+    tryStartMedia();
+  });
+
+  startBtn.addEventListener("click", () => {
+    tryStartMedia();
+    playStartFanfare();
+    video.pause();
+    startScreen.classList.add("hidden");
+    gameContainer.style.display = "block";
+    setTimeout(() => {
+      startScreen.style.display = "none";
+      getStateAndRender();
+    }, 650);
+  });
 }
 
 // Map logic for result emoji
