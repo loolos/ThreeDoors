@@ -61,6 +61,9 @@ function initStartScreen() {
     overlay.classList.add("ready");
   }
   video.addEventListener("ended", onVideoEnded);
+  video.addEventListener("error", () => {
+    onVideoEnded();
+  });
   if (video.ended) onVideoEnded();
 
   overlay.addEventListener("click", () => {

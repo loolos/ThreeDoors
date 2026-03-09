@@ -39,6 +39,7 @@ class GameController:
         self.current_event = None
         self.round_count = 0
         self.messages = []
+        self.recent_event_classes = []  # 最近触发的事件类名，用于非后续事件门去重
         self.player = Player(self)
         self.player.reset()  # 重置玩家状态
         self.story = StorySystem(self)

@@ -2266,10 +2266,19 @@ def _weighted_pick(event_classes, weights):
     return event_classes[-1]
 
 
+RECENT_EVENT_WINDOW = 6  # 最近 N 次事件门内尽量不重复
+
+
 def get_random_event(controller):
     candidates = [event_cls for event_cls in STARTER_EVENT_POOL if event_cls.is_trigger_condition_met(controller)]
     if not candidates:
         candidates = list(STARTER_EVENT_POOL)
+
+    # 非后续事件门：优先排除最近出现过的类型
+    recent = set(getattr(controller, "recent_event_classes", []))
+    fresh = [c for c in candidates if c.__name__ not in recent]
+    if fresh:
+        candidates = fresh
 
     passed = []
     candidate_probs = []

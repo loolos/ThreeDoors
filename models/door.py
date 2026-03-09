@@ -256,6 +256,13 @@ class EventDoor(Door):
         else:
             event = get_random_event(self.controller)
         self.controller.current_event = event
+        # 记录本次事件类型，供后续非后续事件门去重
+        if event and hasattr(self.controller, "recent_event_classes"):
+            recents = self.controller.recent_event_classes
+            recents.append(event.__class__.__name__)
+            from models.events import RECENT_EVENT_WINDOW
+            if len(recents) > RECENT_EVENT_WINDOW:
+                self.controller.recent_event_classes = recents[-RECENT_EVENT_WINDOW:]
         self.controller.scene_manager.go_to("event_scene")
         return True
 
