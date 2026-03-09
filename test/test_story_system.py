@@ -184,7 +184,7 @@ class TestStorySystem(BaseTest):
         self.assertTrue(marker["called"])
         self.assertIn("custom_id", story.consumed_consequences)
 
-    def test_revenge_ambush_converts_selected_door_to_hunter_monster(self):
+    def test_revenge_ambush_from_event_door_waits_for_defeat_to_consume(self):
         story = self.controller.story
         story.register_consequence(
             choice_flag="revenge_case",
@@ -203,7 +203,9 @@ class TestStorySystem(BaseTest):
         hunter_names = {"土匪", "野狼", "蝙蝠", "小哥布林", "狼人", "食人魔", "美杜莎", "幽灵", "吸血鬼",
                        "暗影刺客", "死亡骑士", "冥界使者", "海妖", "雷鸟"}
         self.assertIn(changed_door.monster.name, hunter_names)
-        self.assertIn("revenge_hunter_case", story.consumed_consequences)
+        self.assertIn("revenge_hunter_case", story.pending_consequences)
+        self.assertNotIn("revenge_hunter_case", story.consumed_consequences)
+        self.assertTrue(getattr(changed_door.monster, "story_consume_on_defeat", False))
 
     def test_shop_discount_applies_to_selected_shop_door(self):
         story = self.controller.story

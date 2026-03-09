@@ -104,3 +104,41 @@ class TestSceneSystem(BaseTest):
         self.controller.scene_manager.go_to("battle_scene")
         texts = self.controller.scene_manager.current_scene.get_button_texts()
         self.assertEqual(texts, ["攻击", "使用道具", "逃跑"])
+
+    def test_event_ambush_retriggers_after_escape_until_monster_is_defeated(self):
+        """事件门引出的伏击：逃跑不结算，击倒后才结算。"""
+        story = self.controller.story
+        consequence_id = "event_hunter_repeat"
+        story.register_consequence(
+            choice_flag="repeat_case",
+            consequence_id=consequence_id,
+            effect_key="revenge_ambush",
+            chance=1.0,
+            trigger_door_types=["EVENT"],
+            payload={"force_hunter": True},
+        )
+
+        door_scene = self.controller.scene_manager.current_scene
+        door_scene.generate_doors([DoorEnum.EVENT, DoorEnum.MONSTER, DoorEnum.TRAP])
+
+        with mock.patch("models.story_system.random.random", return_value=0.0):
+            door_scene.handle_choice(0)
+        self.assertIsInstance(self.controller.scene_manager.current_scene, BattleScene)
+
+        with mock.patch("models.player.random.random", return_value=0.0):
+            self.controller.scene_manager.current_scene.handle_choice(2)
+        self.assertIsInstance(self.controller.scene_manager.current_scene, DoorScene)
+        self.assertIn(consequence_id, story.pending_consequences)
+        self.assertNotIn(consequence_id, story.consumed_consequences)
+
+        door_scene = self.controller.scene_manager.current_scene
+        door_scene.generate_doors([DoorEnum.EVENT, DoorEnum.MONSTER, DoorEnum.TRAP])
+        with mock.patch("models.story_system.random.random", return_value=0.0):
+            door_scene.handle_choice(0)
+        self.assertIsInstance(self.controller.scene_manager.current_scene, BattleScene)
+
+        self.player.atk = 999
+        self.controller.current_monster.hp = 1
+        self.controller.scene_manager.current_scene.handle_choice(0)
+        self.assertIn(consequence_id, story.consumed_consequences)
+        self.assertNotIn(consequence_id, story.pending_consequences)

@@ -150,13 +150,42 @@ class StorySystem:
             self.controller.add_message(self._build_trigger_message(consequence))
             applied, new_door = self._apply_effect(consequence, current_door)
             if applied:
-                self.consumed_consequences.add(consequence.consequence_id)
-                self.story_tags.add(f"consumed:{consequence.consequence_id}")
-                del self.pending_consequences[consequence.consequence_id]
-                self._queue_chain_followups(consequence)
+                if not self._should_defer_consumption(consequence, new_door):
+                    self._consume_consequence(consequence)
                 current_door = new_door
                 applied_any = True
         return current_door if applied_any else door
+
+    def _consume_consequence(self, consequence: PendingConsequence) -> None:
+        cid = consequence.consequence_id
+        self.consumed_consequences.add(cid)
+        self.story_tags.add(f"consumed:{cid}")
+        self.pending_consequences.pop(cid, None)
+        self._queue_chain_followups(consequence)
+
+    def _should_defer_consumption(self, consequence: PendingConsequence, door: Any) -> bool:
+        if consequence.effect_key != "revenge_ambush":
+            return False
+        monster = getattr(door, "monster", None)
+        if not monster:
+            return False
+        return bool(getattr(monster, "story_consume_on_defeat", False))
+
+    def resolve_battle_consequence(self, monster: Any, defeated: bool) -> None:
+        """战斗收尾：仅在击倒目标时结算特定后续影响。"""
+        if not monster:
+            return
+        cid = getattr(monster, "story_consequence_id", None)
+        if not cid:
+            return
+        if not bool(getattr(monster, "story_consume_on_defeat", False)):
+            return
+        if not defeated:
+            return
+        consequence = self.pending_consequences.get(cid)
+        if not consequence:
+            return
+        self._consume_consequence(consequence)
 
     def _trigger_moral_influence(self, door: Any) -> Any:
         monster = getattr(door, "monster", None)
@@ -223,6 +252,7 @@ class StorySystem:
             force_hunter = payload.get("force_hunter", True)
             convert_to_hunter = payload.get("convert_to_hunter", True)
             hunter_name = payload.get("hunter_name")
+            source_door_type = getattr(getattr(door, "enum", None), "name", "")
             monster = getattr(door, "monster", None)
             if force_hunter or (monster is None and convert_to_hunter):
                 hunter = self._create_hunter_monster(preferred_name=hunter_name)
@@ -241,6 +271,11 @@ class StorySystem:
                 from models.door import DoorEnum
 
                 hunter_hint = payload.get("hunter_hint", "脚步声不是偶然，那是追猎者在校准你的呼吸。")
+                hunter.story_consequence_id = consequence.consequence_id
+                # 由非怪物门引出的追猎战，只有击倒才算真正了结。
+                hunter.story_consume_on_defeat = bool(
+                    payload.get("consume_on_defeat", source_door_type != "MONSTER")
+                )
                 hunter_door = DoorEnum.MONSTER.create_instance(
                     controller=self.controller,
                     monster=hunter,
