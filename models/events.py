@@ -1144,8 +1144,8 @@ class MoonBountyEvent(Event):
                     "force_hunter": True,
                     "consume_on_defeat": True,
                     "hunter_name": hunter_name,
-                    "message": "你刚迈过门槛，追猎令就被激活了，脚步声在你背后同步响起。",
-                    "hunter_hint": "猎杀钟摆开始摆动，你在它的节奏里。",
+                    "message": "前情：你刚在月蚀通缉令里做了站队选择。你刚迈过门槛，追猎令就被激活了，脚步声在你背后同步响起。",
+                    "hunter_hint": "前情：你的月蚀选择已被记档。猎杀钟摆开始摆动，你被迫跟着它的节奏走。",
                     "chain_followups": [
                         {
                             "consequence_id": f"moon_chain_{route}_shop",
@@ -1163,8 +1163,8 @@ class MoonBountyEvent(Event):
                                         "trigger_door_types": ["EVENT"],
                                         "payload": {
                                             "event_key": "moon_verdict_event",
-                                            "hint": "审判庭在等你签最后一笔账",
-                                            "message": "你发现一扇门后坐着记账人：'该结案了。'",
+                                            "hint": "前情：你已经历追猎与黑市结算，审判庭在等你签最后一笔账",
+                                            "message": "前情：你的通缉案已进入结算阶段。你发现一扇门后坐着记账人：'该结案了。'",
                                         },
                                     }
                                 ],
@@ -1187,7 +1187,7 @@ class MoonVerdictEvent(Event):
     def __init__(self, controller):
         super().__init__(controller)
         self.title = "Moon Verdict"
-        self.description = "审判席上的书记官推来三份结案文书，每一份都要你签名。"
+        self.description = "你在月蚀通缉链里一路追到这里，审判席上的书记官推来三份结案文书，每一份都要你签名。"
         self.choices = [
             EventChoice("按规矩结案", self.file_clean),
             EventChoice("销毁证物", self.burn_records),
@@ -1207,14 +1207,18 @@ class MoonVerdictEvent(Event):
                     "payload": {
                         "item_key": "revive_scroll",
                         "gold_bonus": 35,
-                        "message": "你打开宝物门时，最上层放着盖过公章的复活卷轴。",
+                        "message": "前情：你在审判庭按规矩签字结案。你打开宝物门时，最上层放着盖过公章的复活卷轴。",
                         "chain_followups": [
                             {
                                 "consequence_id": "moon_verdict_clean_aftercare",
                                 "effect_key": "guard_reward",
                                 "chance": 1.0,
                                 "trigger_door_types": ["EVENT", "SHOP"],
-                                "payload": {"gold": 25, "heal": 12, "message": "审判庭没有再追责，甚至给了你一笔办案补贴。"},
+                                "payload": {
+                                    "gold": 25,
+                                    "heal": 12,
+                                    "message": "前情：你选择了规范结案并留档。审判庭没有再追责，甚至给了你一笔办案补贴。",
+                                },
                             }
                         ],
                     },
@@ -1236,7 +1240,7 @@ class MoonVerdictEvent(Event):
                     "trigger_door_types": ["REWARD"],
                     "payload": {
                         "fake_gold": 9,
-                        "message": "你推开宝物门，只剩一张纸条：'证物已焚，奖励也一并焚毁。'",
+                        "message": "前情：你刚亲手焚毁了审判档案。你推开宝物门，只剩一张纸条：'证物已焚，奖励也一并焚毁。'",
                         "chain_followups": [
                             {
                                 "consequence_id": "moon_verdict_burn_retribution",
@@ -1248,7 +1252,7 @@ class MoonVerdictEvent(Event):
                                     "hunter_name": "冥界使者",
                                     "hp_ratio": 1.16,
                                     "atk_ratio": 1.16,
-                                    "message": "你焚卷的烟味还没散，执法者已经追到门后。",
+                                    "message": "前情：你烧掉了关键卷宗并切断证据链。焚卷的烟味还没散，执法者已经追到门后。",
                                 },
                             }
                         ],
@@ -1272,14 +1276,17 @@ class MoonVerdictEvent(Event):
                     "payload": {
                         "item_key": "giant_scroll",
                         "keep_gold": False,
-                        "message": "宝物门里只留下一卷被红蜡封死的巨大卷轴。",
+                        "message": "前情：你把结案谈判变成了勒索。宝物门里只留下一卷被红蜡封死的巨大卷轴。",
                         "chain_followups": [
                             {
                                 "consequence_id": "moon_verdict_extort_tax",
                                 "effect_key": "black_market_markup",
                                 "chance": 1.0,
                                 "trigger_door_types": ["SHOP"],
-                                "payload": {"ratio": 1.28, "message": "你勒索审判庭的传闻传开，商人都想先从你身上捞一层。"},
+                                "payload": {
+                                    "ratio": 1.28,
+                                    "message": "前情：你勒索审判庭的传闻已经传开。商人都想先从你身上捞一层。",
+                                },
                             }
                         ],
                     },
@@ -1374,8 +1381,8 @@ class ClockworkBazaarEvent(Event):
                                 "trigger_door_types": ["EVENT"],
                                 "payload": {
                                     "event_key": "cog_audit_event",
-                                    "hint": "门后摆着一台审计机关",
-                                    "message": "你刚离开柜台，门后就传来齿轮审计员的敲桌声。",
+                                    "hint": "前情：你已在黑市留下调校记录，门后摆着一台审计机关",
+                                    "message": "前情：你刚靠调校机械换到信誉。你刚离开柜台，门后就传来齿轮审计员的敲桌声。",
                                 },
                             }
                         ],
@@ -1389,7 +1396,7 @@ class ClockworkBazaarEvent(Event):
                     "trigger_door_types": ["MONSTER"],
                     "payload": {
                         "delta": 1,
-                        "message": "你调过的机械节奏帮你看清了敌人的出招空档。",
+                        "message": "前情：你在黑市调校过计价机关。你调过的机械节奏帮你看清了敌人的出招空档。",
                         "chain_followups": [
                             {
                                 "consequence_id": "clock_chain_calibrate_reward_cache",
@@ -1399,7 +1406,7 @@ class ClockworkBazaarEvent(Event):
                                 "payload": {
                                     "item_key": "barrier",
                                     "gold_bonus": 15,
-                                    "message": "你按调校协议领取了技术红利，宝物门里是结界发生器。",
+                                    "message": "前情：你的调校记录通过了对账。你按协议领取技术红利，宝物门里是结界发生器。",
                                 },
                             }
                         ],
@@ -1426,7 +1433,7 @@ class ClockworkBazaarEvent(Event):
                                 "trigger_door_types": ["EVENT", "SHOP"],
                                 "payload": {
                                     "amount": 22,
-                                    "message": "优惠码被追溯后触发了回滚扣款，你被系统追缴了差价。",
+                                    "message": "前情：你先前偷改了优惠码并拿过折扣。优惠码被追溯后触发回滚扣款，你被系统追缴了差价。",
                                     "chain_followups": [
                                         {
                                             "consequence_id": "clock_chain_hack_force_audit",
@@ -1435,8 +1442,8 @@ class ClockworkBazaarEvent(Event):
                                             "trigger_door_types": ["EVENT"],
                                             "payload": {
                                                 "event_key": "cog_audit_event",
-                                                "hint": "伪码异常，请到审计门复核",
-                                                "message": "你以为躲过了，审计门却自动在前方亮起。",
+                                                "hint": "前情：伪造优惠码已被锁定，审计门要求你复核",
+                                                "message": "前情：你的伪码交易已进入追责流程。你以为躲过了，审计门却自动在前方亮起。",
                                             },
                                         },
                                         {
@@ -1446,7 +1453,7 @@ class ClockworkBazaarEvent(Event):
                                             "trigger_door_types": ["REWARD"],
                                             "payload": {
                                                 "fake_gold": 12,
-                                                "message": "库存冻结把宝物门清空了，只给你留了点找零。",
+                                                "message": "前情：伪码触发了系统回滚与风控。库存冻结把宝物门清空了，只给你留了点找零。",
                                             },
                                         },
                                     ],
@@ -1468,21 +1475,26 @@ class ClockworkBazaarEvent(Event):
                     "force_hunter": True,
                     "consume_on_defeat": True,
                     "hunter_name": hunter_name,
-                    "message": "你砸摊的碎片还在地上转，清算队已经顺着标记追来了。",
+                    "message": "前情：你刚公开破坏了竞品摊位。碎片还在地上转，清算队已经顺着标记追来了。",
                     "chain_followups": [
                         {
                             "consequence_id": "clock_chain_sabotage_trap_backfire",
                             "effect_key": "shrine_curse",
                             "chance": 1.0,
                             "trigger_door_types": ["TRAP", "MONSTER"],
-                            "payload": {"duration": 2, "message": "你破坏的机关反向写入了你的战斗节奏，行动开始迟滞。"},
+                            "payload": {
+                                "duration": 2,
+                                "message": "前情：你先前改坏了黑市机关。现在机关反向写入你的战斗节奏，行动开始迟滞。",
+                            },
                         },
                         {
                             "consequence_id": "clock_chain_sabotage_reward_confiscated",
                             "effect_key": "treasure_vanish",
                             "chance": 1.0,
                             "trigger_door_types": ["REWARD"],
-                            "payload": {"message": "市场执法先一步扣押了你的奖励，宝物门只剩封条。"},
+                            "payload": {
+                                "message": "前情：你破坏摊位后被列入重点清算名单。市场执法先一步扣押了你的奖励，宝物门只剩封条。",
+                            },
                         },
                     ],
                 },
@@ -1501,7 +1513,7 @@ class CogAuditEvent(Event):
     def __init__(self, controller):
         super().__init__(controller)
         self.title = "Cog Audit"
-        self.description = "审计员递给你三种结算方式：补税、做假账，或者买断风声。"
+        self.description = "你在齿轮黑市留下的操作记录已经触发审计。审计员递给你三种结算方式：补税、做假账，或者买断风声。"
         self.choices = [
             EventChoice("补税结清", self.pay_tax),
             EventChoice("做假账", self.fake_ledger),
@@ -1521,14 +1533,17 @@ class CogAuditEvent(Event):
                     "payload": {
                         "item_key": "healing_scroll",
                         "gold_bonus": 22,
-                        "message": "补税凭证换来一份正式补给：恢复卷轴和一小袋金币。",
+                        "message": "前情：你接受了审计并选择补税。补税凭证换来一份正式补给：恢复卷轴和一小袋金币。",
                         "chain_followups": [
                             {
                                 "consequence_id": "cog_audit_tax_rebate",
                                 "effect_key": "black_market_discount",
                                 "chance": 1.0,
                                 "trigger_door_types": ["SHOP"],
-                                "payload": {"ratio": 0.84, "message": "你被记成合规客户，后续成交价更友好。"},
+                                "payload": {
+                                    "ratio": 0.84,
+                                    "message": "前情：你在审计里按章补税并清账。你被记成合规客户，后续成交价更友好。",
+                                },
                             }
                         ],
                     },
@@ -1549,14 +1564,17 @@ class CogAuditEvent(Event):
                     "chance": 1.0,
                     "trigger_door_types": ["REWARD"],
                     "payload": {
-                        "message": "假账生效了，但你的宝物门也被系统判定为'异常库存'并清空。",
+                        "message": "前情：你在审计环节选择做假账。假账生效了，但你的宝物门也被系统判定为'异常库存'并清空。",
                         "chain_followups": [
                             {
                                 "consequence_id": "cog_audit_fake_fine",
                                 "effect_key": "lose_gold",
                                 "chance": 1.0,
                                 "trigger_door_types": ["EVENT", "SHOP"],
-                                "payload": {"amount": 35, "message": "延迟罚款追到了你，金币被直接划扣。"},
+                                "payload": {
+                                    "amount": 35,
+                                    "message": "前情：你的假账被系统标记并进入追缴。延迟罚款追到了你，金币被直接划扣。",
+                                },
                             }
                         ],
                     },
@@ -1579,7 +1597,7 @@ class CogAuditEvent(Event):
                     "payload": {
                         "item_key": "barrier",
                         "gold_bonus": 10,
-                        "message": "对方收了封口费，回赠你一枚战斗结界发生器。",
+                        "message": "前情：你在审计桌上选择买断风声。对方收了封口费，回赠你一枚战斗结界发生器。",
                         "chain_followups": [
                             {
                                 "consequence_id": "cog_audit_silence_hunt",
@@ -1591,7 +1609,7 @@ class CogAuditEvent(Event):
                                     "hunter_name": "暗影刺客",
                                     "hp_ratio": 1.14,
                                     "atk_ratio": 1.15,
-                                    "message": "买断风声只挡住了台面，补丁猎手从后台追上来了。",
+                                    "message": "前情：你用封口费压住了明面审计。买断风声只挡住台面，补丁猎手从后台追上来了。",
                                 },
                             }
                         ],
@@ -1681,15 +1699,17 @@ class DreamWellEvent(Event):
                     "trigger_door_types": ["EVENT"],
                     "payload": {
                         "event_key": "echo_court_event",
-                        "hint": "你听到回声法庭正在点名",
-                        "message": "你刚靠近事件门，法槌回声就把门后的剧情改写成了庭审。",
+                        "hint": "前情：你刚喝下梦井水，回声法庭正在点名",
+                        "message": "前情：你先前喝了梦井水。你刚靠近事件门，法槌回声就把门后的剧情改写成了庭审。",
                         "chain_followups": [
                             {
                                 "consequence_id": "dream_chain_drink_bless",
                                 "effect_key": "shrine_blessing",
                                 "chance": 1.0,
                                 "trigger_door_types": ["TRAP", "MONSTER"],
-                                "payload": {"message": "梦井水的余温仍在，你对危险的直觉短暂提升。"},
+                                "payload": {
+                                    "message": "前情：梦井水仍在你体内回响。你对危险的直觉短暂提升。",
+                                },
                             }
                         ],
                     },
@@ -1706,7 +1726,7 @@ class DreamWellEvent(Event):
                     "trigger_door_types": ["MONSTER", "TRAP", "EVENT"],
                     "payload": {
                         "duration": 1,
-                        "message": "封井后，未散的回声压在你身上，动作变得沉重。",
+                        "message": "前情：你刚亲手封住梦井井口。未散的回声压在你身上，动作变得沉重。",
                         "chain_followups": [
                             {
                                 "consequence_id": "dream_chain_seal_relic_cache",
@@ -1716,14 +1736,17 @@ class DreamWellEvent(Event):
                                 "payload": {
                                     "item_key": "immune_scroll",
                                     "gold_bonus": 14,
-                                    "message": "封井守望者在宝物门里留了免疫卷轴作为报酬。",
+                                    "message": "前情：你选择了封井并承担了回声反噬。封井守望者在宝物门里留了免疫卷轴作为报酬。",
                                     "chain_followups": [
                                         {
                                             "consequence_id": "dream_chain_seal_trade_penalty",
                                             "effect_key": "black_market_markup",
                                             "chance": 1.0,
                                             "trigger_door_types": ["SHOP"],
-                                            "payload": {"ratio": 1.2, "message": "你断了梦井生意，商人把利润损失全摊到你身上。"},
+                                            "payload": {
+                                                "ratio": 1.2,
+                                                "message": "前情：你封井后切断了梦境交易链。商人把利润损失全摊到你身上。",
+                                            },
                                         }
                                     ],
                                 },
@@ -1752,7 +1775,7 @@ class DreamWellEvent(Event):
                             "payload": {
                                 "item_key": "attack_up_scroll",
                                 "keep_gold": False,
-                                "message": "你把梦境债券兑成了攻击卷轴，宝物门里只剩这一件硬货。",
+                                "message": "前情：你先把梦卖给行脚商，再继续滚动交易。你把梦境债券兑成攻击卷轴，宝物门里只剩这一件硬货。",
                                 "chain_followups": [
                                     {
                                         "consequence_id": "dream_chain_sell_hunter",
@@ -1763,7 +1786,7 @@ class DreamWellEvent(Event):
                                             "force_hunter": True,
                                             "consume_on_defeat": True,
                                             "hunter_name": hunter_name,
-                                            "message": "你越卖越顺手，梦税征收官也越追越近。",
+                                            "message": "前情：你持续倒卖梦境并扩大交易。你越卖越顺手，梦税征收官也越追越近。",
                                         },
                                     }
                                 ],
@@ -1786,7 +1809,7 @@ class EchoCourtEvent(Event):
     def __init__(self, controller):
         super().__init__(controller)
         self.title = "Echo Court"
-        self.description = "回声法庭只问一个问题：你要赎回梦、上缴梦，还是继续交易？"
+        self.description = "你与梦井相关的交易已被回声法庭立案。法庭只问一个问题：你要赎回梦、上缴梦，还是继续交易？"
         self.choices = [
             EventChoice("赎回梦境记忆", self.redeem_dream),
             EventChoice("上缴梦境税", self.pay_dream_tax),
@@ -1806,14 +1829,18 @@ class EchoCourtEvent(Event):
                     "payload": {
                         "item_key": "immune_scroll",
                         "gold_bonus": 18,
-                        "message": "你赎回的梦凝成了一张免疫卷轴，安静地躺在宝箱里。",
+                        "message": "前情：你在回声法庭选择赎回梦境记忆。你赎回的梦凝成了一张免疫卷轴，安静地躺在宝箱里。",
                         "chain_followups": [
                             {
                                 "consequence_id": "echo_redeem_recovery",
                                 "effect_key": "guard_reward",
                                 "chance": 1.0,
                                 "trigger_door_types": ["EVENT", "SHOP"],
-                                "payload": {"gold": 18, "heal": 10, "message": "法庭判你补救有诚意，后续旅途得到额外补给。"},
+                                "payload": {
+                                    "gold": 18,
+                                    "heal": 10,
+                                    "message": "前情：你已在法庭完成赎回并接受补救。法庭判你有诚意，后续旅途得到额外补给。",
+                                },
                             }
                         ],
                     },
@@ -1835,14 +1862,17 @@ class EchoCourtEvent(Event):
                     "trigger_door_types": ["REWARD"],
                     "payload": {
                         "fake_gold": 5,
-                        "message": "税官先你一步打开了宝物门，只给你留了 5G 手续费找零。",
+                        "message": "前情：你在回声法庭选择上缴梦境税。税官先你一步打开了宝物门，只给你留了 5G 手续费找零。",
                         "chain_followups": [
                             {
                                 "consequence_id": "echo_tax_discount",
                                 "effect_key": "black_market_discount",
                                 "chance": 1.0,
                                 "trigger_door_types": ["SHOP"],
-                                "payload": {"ratio": 0.88, "message": "你按时纳税后，部分商人愿意给你一点面子。"},
+                                "payload": {
+                                    "ratio": 0.88,
+                                    "message": "前情：你已按法庭裁定补齐梦税。部分商人愿意给你一点面子。",
+                                },
                             }
                         ],
                     },
@@ -1865,7 +1895,7 @@ class EchoCourtEvent(Event):
                     "payload": {
                         "item_key": "attack_up_scroll",
                         "keep_gold": False,
-                        "message": "你继续交易梦境，宝物门只剩下一张攻击卷轴和一张赊账单。",
+                        "message": "前情：你当庭决定继续倒卖梦境。你继续交易梦境，宝物门只剩下一张攻击卷轴和一张赊账单。",
                         "chain_followups": [
                             {
                                 "consequence_id": "echo_trade_hunt",
@@ -1877,7 +1907,7 @@ class EchoCourtEvent(Event):
                                     "hunter_name": "暗影刺客",
                                     "hp_ratio": 1.2,
                                     "atk_ratio": 1.19,
-                                    "message": "你继续倒卖梦境，收割者自然也继续追你。",
+                                    "message": "前情：你无视法庭警告继续交易梦境。收割者自然也继续追你。",
                                 },
                             }
                         ],
