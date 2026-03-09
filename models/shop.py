@@ -11,6 +11,8 @@ class Shop:
     def __init__(self, player):
         self.player = player
         self.shop_items = []
+        # 一次性价格修正：由剧情后续效果挂入，在下一次刷新商品时生效。
+        self.pending_price_ratio = 1.0
         self.generate_items()
 
     @staticmethod
@@ -145,6 +147,36 @@ class Shop:
                 cheapest_item.cost = self.player.gold
                 # 可选：标记一下是打折商品
                 cheapest_item.name = f"{cheapest_item.name} (促销)"
+
+        # 将剧情挂入的下一次价格倍率应用到真正上架的商品。
+        if self.pending_price_ratio != 1.0:
+            self._apply_price_ratio_to_items(self.pending_price_ratio)
+            self.pending_price_ratio = 1.0
+
+    def queue_next_price_ratio(self, ratio):
+        """将价格倍率挂到下一次刷新（可叠乘）。"""
+        try:
+            safe_ratio = float(ratio)
+        except (TypeError, ValueError):
+            return
+        if safe_ratio <= 0:
+            return
+        self.pending_price_ratio *= safe_ratio
+
+    def _apply_price_ratio_to_items(self, ratio):
+        for item in self.shop_items:
+            original = item.cost
+            if ratio > 1:
+                new_cost = max(1, int(original * ratio + 0.9999))
+                if new_cost == original:
+                    new_cost = original + 1
+            elif ratio < 1:
+                new_cost = max(1, int(original * ratio))
+                if new_cost == original and original > 1:
+                    new_cost = original - 1
+            else:
+                new_cost = original
+            item.cost = max(1, new_cost)
             
     def purchase_item(self, idx):
         if idx < 0 or idx >= len(self.shop_items):
