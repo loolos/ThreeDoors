@@ -2,8 +2,265 @@
 
 let lastSceneKey = ""; // 用于防止重复记录日志
 let actionInProgress = false; // 防止战斗等场景下双击导致连续请求被误解析为选门
+let currentSceneType = "UNKNOWN";
+let currentChoices = [];
+let hasRenderedState = false;
 
 const delay = ms => new Promise(res => setTimeout(res, ms));
+
+const SOUND_STORAGE_KEY = "three_doors_sound_enabled";
+const SoundSystem = {
+  enabled: true,
+  unlocked: false,
+  lastTriggerAt: {},
+
+  canTrigger(key, gap = 120) {
+    const now = Date.now();
+    if (!this.lastTriggerAt[key] || now - this.lastTriggerAt[key] > gap) {
+      this.lastTriggerAt[key] = now;
+      return true;
+    }
+    return false;
+  },
+
+  ensureReady() {
+    if (!this.enabled || typeof Tone === "undefined") return false;
+    if (this.unlocked) return true;
+    try {
+      Tone.start().then(() => {
+        this.unlocked = true;
+      }).catch(() => {});
+      return true;
+    } catch (e) {
+      return false;
+    }
+  },
+
+  withSynth(SynthClass, options, playFn, disposeAfter = 1000) {
+    if (!this.enabled || typeof Tone === "undefined") return;
+    try {
+      this.ensureReady();
+      const synth = new SynthClass(options).toDestination();
+      playFn(synth, Tone.now());
+      setTimeout(() => synth.dispose(), disposeAfter);
+    } catch (e) {}
+  },
+
+  withPolySynth(options, playFn, disposeAfter = 1000) {
+    if (!this.enabled || typeof Tone === "undefined") return;
+    try {
+      this.ensureReady();
+      const synth = new Tone.PolySynth(Tone.Synth, options).toDestination();
+      playFn(synth, Tone.now());
+      setTimeout(() => synth.dispose(), disposeAfter);
+    } catch (e) {}
+  },
+
+  playStartFanfare() {
+    if (!this.canTrigger("start_fanfare", 1000)) return;
+    this.withPolySynth({
+      oscillator: { type: "triangle" },
+      envelope: { attack: 0.05, decay: 0.2, sustain: 0.3, release: 0.4 },
+      volume: -6,
+    }, (synth, now) => {
+      ["G3", "C4", "E4", "G4", "C5"].forEach((n, i) => {
+        synth.triggerAttackRelease(n, "8n", now + i * 0.15);
+      });
+    }, 1200);
+  },
+
+  playDoorOpen(textureKey) {
+    if (!this.canTrigger("door_open", 130)) return;
+    const profile = {
+      door_oak: { osc: "triangle", notes: ["C3", "G3"], vol: -8 },
+      door_obsidian: { osc: "sawtooth", notes: ["D2", "A2"], vol: -10 },
+      door_vine: { osc: "sine", notes: ["E4", "B4"], vol: -13 },
+      door_rune: { osc: "triangle", notes: ["G4", "C5"], vol: -12 },
+      door_iron: { osc: "square", notes: ["B2", "F#3"], vol: -9 },
+      door_bone: { osc: "fatsawtooth", notes: ["A2", "C3"], vol: -12 },
+    }[textureKey] || { osc: "triangle", notes: ["C3", "G3"], vol: -10 };
+    this.withSynth(Tone.Synth, {
+      oscillator: { type: profile.osc },
+      envelope: { attack: 0.005, decay: 0.14, sustain: 0.12, release: 0.2 },
+      volume: profile.vol,
+    }, (synth, now) => {
+      synth.triggerAttackRelease(profile.notes[0], "16n", now);
+      synth.triggerAttackRelease(profile.notes[1], "16n", now + 0.08);
+    }, 500);
+  },
+
+  playDoorOutcome(outcome) {
+    if (!outcome) return;
+    if (outcome === "TRAP") return this.playTrap();
+    if (outcome === "REWARD") return this.playReward();
+    if (outcome === "SHOP") return this.playShop();
+    if (outcome === "EVENT") return this.playEventChoice();
+    if (outcome === "MONSTER") return this.playBattleEnter();
+  },
+
+  playTrap() {
+    if (!this.canTrigger("trap", 150)) return;
+    this.withSynth(Tone.NoiseSynth, {
+      noise: { type: "brown" },
+      envelope: { attack: 0.001, decay: 0.2, sustain: 0.02, release: 0.08 },
+      volume: -8,
+    }, (synth) => {
+      synth.triggerAttackRelease("16n");
+    }, 400);
+  },
+
+  playReward() {
+    if (!this.canTrigger("reward", 150)) return;
+    this.withPolySynth({
+      oscillator: { type: "sine" },
+      envelope: { attack: 0.01, decay: 0.15, sustain: 0.2, release: 0.25 },
+      volume: -10,
+    }, (synth, now) => {
+      ["E5", "G5", "B5"].forEach((note, i) => synth.triggerAttackRelease(note, "16n", now + i * 0.08));
+    }, 600);
+  },
+
+  playShop() {
+    if (!this.canTrigger("shop", 120)) return;
+    this.withSynth(Tone.MembraneSynth, {
+      pitchDecay: 0.01,
+      octaves: 2,
+      envelope: { attack: 0.001, decay: 0.15, sustain: 0, release: 0.05 },
+      volume: -14,
+    }, (synth, now) => {
+      synth.triggerAttackRelease("C4", "32n", now);
+      synth.triggerAttackRelease("E4", "32n", now + 0.08);
+    }, 400);
+  },
+
+  playEventChoice() {
+    if (!this.canTrigger("event_choice", 120)) return;
+    this.withSynth(Tone.FMSynth, {
+      harmonicity: 2,
+      modulationIndex: 6,
+      oscillator: { type: "triangle" },
+      envelope: { attack: 0.01, decay: 0.1, sustain: 0.08, release: 0.15 },
+      modulation: { type: "square" },
+      modulationEnvelope: { attack: 0.01, decay: 0.1, sustain: 0, release: 0.1 },
+      volume: -12,
+    }, (synth, now) => {
+      synth.triggerAttackRelease("D5", "16n", now);
+      synth.triggerAttackRelease("A4", "16n", now + 0.08);
+    }, 500);
+  },
+
+  playUseItem() {
+    if (!this.canTrigger("use_item", 120)) return;
+    this.withSynth(Tone.Synth, {
+      oscillator: { type: "triangle" },
+      envelope: { attack: 0.01, decay: 0.08, sustain: 0.1, release: 0.12 },
+      volume: -10,
+    }, (synth, now) => {
+      synth.triggerAttackRelease("A4", "32n", now);
+      synth.triggerAttackRelease("E5", "16n", now + 0.05);
+    }, 450);
+  },
+
+  playPlayerAttack() {
+    if (!this.canTrigger("player_attack", 100)) return;
+    this.withSynth(Tone.MetalSynth, {
+      frequency: 250,
+      envelope: { attack: 0.001, decay: 0.12, release: 0.06 },
+      harmonicity: 5.1,
+      modulationIndex: 20,
+      resonance: 1800,
+      octaves: 1.2,
+      volume: -20,
+    }, (synth, now) => {
+      synth.triggerAttackRelease("16n", now);
+    }, 400);
+  },
+
+  playMonsterAttack() {
+    if (!this.canTrigger("monster_attack", 120)) return;
+    this.withSynth(Tone.MonoSynth, {
+      oscillator: { type: "sawtooth" },
+      filter: { Q: 2, type: "lowpass", rolloff: -24 },
+      envelope: { attack: 0.01, decay: 0.2, sustain: 0.1, release: 0.15 },
+      filterEnvelope: { attack: 0.001, decay: 0.15, sustain: 0.05, release: 0.15, baseFrequency: 120, octaves: 3 },
+      volume: -10,
+    }, (synth, now) => {
+      synth.triggerAttackRelease("A2", "16n", now);
+      synth.triggerAttackRelease("F2", "16n", now + 0.09);
+    }, 550);
+  },
+
+  playBattleEnter() {
+    if (!this.canTrigger("battle_enter", 250)) return;
+    this.withSynth(Tone.MonoSynth, {
+      oscillator: { type: "fatsawtooth" },
+      envelope: { attack: 0.01, decay: 0.25, sustain: 0.2, release: 0.2 },
+      volume: -11,
+    }, (synth, now) => {
+      synth.triggerAttackRelease("D2", "8n", now);
+      synth.triggerAttackRelease("G1", "8n", now + 0.15);
+    }, 800);
+  },
+
+  playSceneEnter(sceneType) {
+    if (sceneType === "BATTLE") return this.playBattleEnter();
+    if (sceneType === "SHOP") return this.playShop();
+    if (sceneType === "EVENT") return this.playEventChoice();
+    if (sceneType === "USE_ITEM") return this.playUseItem();
+    if (sceneType === "GAME_OVER") return this.playTrap();
+  },
+
+  playUiClick() {
+    if (!this.canTrigger("ui_click", 60)) return;
+    this.withSynth(Tone.Synth, {
+      oscillator: { type: "sine" },
+      envelope: { attack: 0.001, decay: 0.05, sustain: 0, release: 0.05 },
+      volume: -18,
+    }, (synth, now) => {
+      synth.triggerAttackRelease("C5", "64n", now);
+    }, 250);
+  },
+
+  scanLogAndPlay(msg) {
+    if (!msg || !this.enabled) return;
+    const text = String(msg);
+    if (/触发了机关|尖刺|中毒|虚弱诅咒|伏击|诅咒/.test(text)) this.playTrap();
+    if (/你受到了\s*\d+\s*点伤害|揍了一顿|被击败了/.test(text)) this.playMonsterAttack();
+    if (/你攻击|你击败了/.test(text)) this.playPlayerAttack();
+    if (/购买了|花费\s*\d+\s*金币/.test(text)) this.playShop();
+    if (/进入使用道具界面|飞锤|结界|卷轴|恢复\s*\d+\s*HP/.test(text)) this.playUseItem();
+    if (/获得了?\s*\d+\s*金币|获得道具|掉落：/.test(text)) this.playReward();
+  },
+};
+
+function updateSoundToggleBtn() {
+  const soundBtn = document.getElementById("soundToggleBtn");
+  if (!soundBtn) return;
+  soundBtn.textContent = SoundSystem.enabled ? "音效：开" : "音效：关";
+}
+
+function initSoundControls() {
+  const stored = localStorage.getItem(SOUND_STORAGE_KEY);
+  SoundSystem.enabled = stored !== "0";
+  updateSoundToggleBtn();
+
+  const soundBtn = document.getElementById("soundToggleBtn");
+  if (soundBtn) {
+    soundBtn.addEventListener("click", () => {
+      SoundSystem.enabled = !SoundSystem.enabled;
+      localStorage.setItem(SOUND_STORAGE_KEY, SoundSystem.enabled ? "1" : "0");
+      updateSoundToggleBtn();
+      if (SoundSystem.enabled) {
+        SoundSystem.ensureReady();
+        SoundSystem.playUiClick();
+      }
+    });
+  }
+
+  document.addEventListener("pointerdown", () => {
+    SoundSystem.ensureReady();
+  }, { passive: true });
+}
 
 function getFrontDoorStyle(textureKey) {
   // 主体始终是门，差异只通过小装饰体现
@@ -20,6 +277,7 @@ function getFrontDoorStyle(textureKey) {
 
 document.addEventListener("DOMContentLoaded", () => {
   initUI();
+  initSoundControls();
   initStartScreen();
   document.getElementById("startOverBtn").addEventListener("click", startOver);
   document.getElementById("exitGameBtn").addEventListener("click", exitGame);
@@ -31,22 +289,7 @@ function initUI() {
 }
 
 function playStartFanfare() {
-  if (typeof Tone === "undefined") return;
-  try {
-    Tone.start().then(() => {
-      const synth = new Tone.PolySynth(Tone.Synth, {
-        oscillator: { type: "triangle" },
-        envelope: { attack: 0.05, decay: 0.2, sustain: 0.3, release: 0.4 },
-      }).toDestination();
-      synth.volume.value = -6;
-      const notes = ["G3", "C4", "E4", "G4", "C5"];
-      const now = Tone.now();
-      notes.forEach((n, i) => {
-        synth.triggerAttackRelease(n, "8n", now + i * 0.15);
-      });
-      setTimeout(() => synth.dispose(), 1200);
-    }).catch(() => {});
-  } catch (e) {}
+  SoundSystem.playStartFanfare();
 }
 
 function initStartScreen() {
@@ -93,6 +336,7 @@ async function handleDoorClick(index, card) {
   // Disable all doors immediately
   const doorArea = document.getElementById("door-area");
   doorArea.style.pointerEvents = "none";
+  SoundSystem.playDoorOpen(card && card.dataset ? card.dataset.textureKey : "");
 
   try {
     // 1. Commit Action
@@ -128,6 +372,7 @@ async function handleDoorClick(index, card) {
     }
     backFace.textContent = revealEmoji;
     targetCard.classList.add('flipped');
+    SoundSystem.playDoorOutcome(actionData.outcome);
 
     // 4. Wait for flip
     await delay(1000);
@@ -147,6 +392,22 @@ async function handleDoorClick(index, card) {
 async function buttonAction(index) {
   if (actionInProgress) return;
   actionInProgress = true;
+  const sceneTypeBefore = currentSceneType;
+  const selectedText = currentChoices[index] || "";
+
+  if (sceneTypeBefore === "BATTLE" && index === 0) {
+    SoundSystem.playPlayerAttack();
+  } else if (sceneTypeBefore === "BATTLE" && index === 1) {
+    SoundSystem.playUseItem();
+  } else if (sceneTypeBefore === "EVENT") {
+    SoundSystem.playEventChoice();
+  } else if (sceneTypeBefore === "USE_ITEM" && selectedText && selectedText !== "返回") {
+    SoundSystem.playUseItem();
+  } else if (sceneTypeBefore === "SHOP") {
+    SoundSystem.playShop();
+  } else {
+    SoundSystem.playUiClick();
+  }
   const buttonArea = document.getElementById("buttons");
   if (buttonArea) buttonArea.style.pointerEvents = "none";
 
@@ -231,6 +492,13 @@ function renderState(state) {
 
   // 2. Scene Rendering
   const sceneInfo = state.scene_info || {};
+  const prevSceneType = currentSceneType;
+  currentSceneType = sceneInfo.type || "UNKNOWN";
+  currentChoices = sceneInfo.choices || [];
+  if (hasRenderedState && prevSceneType && prevSceneType !== currentSceneType) {
+    SoundSystem.playSceneEnter(currentSceneType);
+  }
+  hasRenderedState = true;
   const sceneEmojiDiv = document.getElementById("scene-emoji");
   const doorArea = document.getElementById("door-area");
   const buttonArea = document.getElementById("buttons");
@@ -264,6 +532,7 @@ function renderState(state) {
 
       const card = document.createElement('div');
       card.className = 'door-card';
+      card.dataset.textureKey = textureKey;
       card.innerHTML = `
             <div class="door-card-inner">
                 <div class="door-face front">
@@ -361,7 +630,7 @@ function renderState(state) {
   const btn2 = document.getElementById("btn2");
   const btn3 = document.getElementById("btn3");
 
-  if (state.button_texts) {
+  if (state.button_texts && btn1 && btn2 && btn3) {
     btn1.textContent = state.button_texts[0] || "-";
     btn2.textContent = state.button_texts[1] || "-";
     btn3.textContent = state.button_texts[2] || "-";
@@ -429,6 +698,7 @@ function getEventEmoji(title) {
 
 function addLog(msg) {
   if (!msg) return;
+  SoundSystem.scanLogAndPlay(msg);
   const logArea = document.getElementById("log-area");
 
   // 支持多行文本

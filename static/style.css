@@ -350,6 +350,7 @@ h1 {
 }
 
 #startOverBtn,
+#soundToggleBtn,
 #exitGameBtn {
   font-size: 0.9rem;
   padding: 8px 16px;
@@ -364,6 +365,15 @@ h1 {
 
 #startOverBtn:hover {
   background: #b0bec5;
+}
+
+#soundToggleBtn {
+  background: #e1f5fe;
+  color: #01579b;
+}
+
+#soundToggleBtn:hover {
+  background: #b3e5fc;
 }
 
 #exitGameBtn {
