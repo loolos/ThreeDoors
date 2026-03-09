@@ -468,10 +468,7 @@ class StorySystem:
             self.controller.add_message(
                 self._resolve_message(payload, "message", "命运突然偏转，下一扇事件门被写上了你的名字。")
             )
-            self._log_effect_result(
-                consequence,
-                f"后续事件被固定为 {door.story_forced_event_key}",
-            )
+            self._log_effect_result(consequence, "")
             return True, door
 
         if effect == "treasure_marked_item":
@@ -623,7 +620,6 @@ class StorySystem:
             self.controller.add_message(f"这笔旧账终究要还：{detail}。")
             return
         if effect == "force_story_event":
-            self.controller.add_message(f"接下来的遭遇被强行改写：{detail}。")
             return
         if effect == "treasure_marked_item":
             self.controller.add_message(f"宝物门里的陈设明显被提前动过手脚：{detail}。")
