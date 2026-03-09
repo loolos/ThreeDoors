@@ -51,18 +51,21 @@ function playStartFanfare() {
 
 function initStartScreen() {
   const startScreen = document.getElementById("start-screen");
-  const hint = document.getElementById("start-hint");
+  const overlay = document.getElementById("start-screen-overlay");
   const video = document.getElementById("opening-video");
   const gameContainer = document.getElementById("game-container");
+  let videoEnded = false;
 
-  startScreen.addEventListener("click", () => {
-    try {
-      video.muted = false;
-      video.play().catch(() => {});
-      if (hint) hint.style.display = "none";
-    } catch (e) {}
+  function onVideoEnded() {
+    videoEnded = true;
+    overlay.classList.add("ready");
+  }
+  video.addEventListener("ended", onVideoEnded);
+  if (video.ended) onVideoEnded();
+
+  overlay.addEventListener("click", () => {
+    if (!videoEnded) return;
     playStartFanfare();
-    video.pause();
     startScreen.classList.add("hidden");
     gameContainer.style.display = "block";
     setTimeout(() => {

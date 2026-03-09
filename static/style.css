@@ -29,7 +29,26 @@
   align-items: center;
   justify-content: center;
   padding: 2rem;
+  cursor: default;
+  pointer-events: none;
+}
+
+#start-screen-overlay.ready {
   cursor: pointer;
+  pointer-events: auto;
+}
+
+#start-screen-overlay #start-title,
+#start-screen-overlay #start-subtitle,
+#start-screen-overlay #start-hint {
+  opacity: 0;
+  transition: opacity 0.5s ease;
+}
+
+#start-screen-overlay.ready #start-title,
+#start-screen-overlay.ready #start-subtitle,
+#start-screen-overlay.ready #start-hint {
+  opacity: 1;
 }
 
 #start-screen-overlay #start-title {
