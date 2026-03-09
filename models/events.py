@@ -1072,6 +1072,262 @@ class FallenKnightEvent(Event):
         return "Event Completed"
 
 
+class TimePawnshopEvent(Event):
+    """新事件：时间当铺"""
+    TRIGGER_BASE_PROBABILITY = 0.07
+
+    @classmethod
+    def get_trigger_probability(cls, controller):
+        round_count = max(0, getattr(controller, "round_count", 0))
+        return min(0.16, cls.TRIGGER_BASE_PROBABILITY + min(0.09, round_count * 0.004))
+
+    def __init__(self, controller):
+        super().__init__(controller)
+        self.title = "Time Pawnshop"
+        self.description = "巷口出现一家只在黄昏开门的当铺，掌柜说：'我们收今天，押明天。'"
+        self.choices = [
+            EventChoice("抵押明天，立刻拿钱", self.pawn_tomorrow),
+            EventChoice("赎回旧债，清掉利息", self.redeem_debt),
+            EventChoice("砸碎沙漏柜台", self.break_hourglass),
+        ]
+
+    def pawn_tomorrow(self):
+        p = self.get_player()
+        self.register_story_choice(
+            choice_flag="time_pawned_future",
+            moral_delta=-3,
+            consequences=[
+                {
+                    "consequence_id": "time_pawn_quick_cash",
+                    "effect_key": "guard_reward",
+                    "chance": 1.0,
+                    "priority": 9,
+                    "trigger_door_types": ["EVENT", "SHOP"],
+                    "payload": {
+                        "gold": 30,
+                        "message": "前情：你把明天的份额押给了时间当铺。掌柜按约给了你一袋现钱。",
+                        "chain_followups": [
+                            {
+                                "consequence_id": "time_pawn_interest_collection",
+                                "effect_key": "lose_gold",
+                                "chance": 1.0,
+                                "trigger_door_types": ["EVENT", "SHOP"],
+                                "payload": {
+                                    "amount": 24,
+                                    "message": "前情：你之前抵押了明天。利息到期后，当铺伙计追上来从你身上划走了一笔。",
+                                },
+                            }
+                        ],
+                    },
+                }
+            ],
+        )
+        gain = 28
+        p.gold += gain
+        self.add_message(f"你在契约上按下手印，先拿到 {gain}G。掌柜提醒你：'到期我们自己来取。'")
+        return "Event Completed"
+
+    def redeem_debt(self):
+        p = self.get_player()
+        self.register_story_choice(
+            choice_flag="time_redeemed_debt",
+            moral_delta=4,
+            consequences=[
+                {
+                    "consequence_id": "time_redeem_discount",
+                    "effect_key": "black_market_discount",
+                    "chance": 0.34,
+                    "trigger_door_types": ["SHOP"],
+                    "payload": {
+                        "ratio": 0.78,
+                        "message": "前情：你在时间当铺主动结清旧债。商人把你标记为守约客户，愿意给你折扣。",
+                    },
+                },
+                {
+                    "consequence_id": "time_redeem_focus_training",
+                    "effect_key": "atk_training",
+                    "chance": 0.26,
+                    "trigger_door_types": ["MONSTER", "EVENT"],
+                    "payload": {
+                        "delta": 1,
+                        "message": "前情：你赎回了欠下的时间。你的节奏重新稳定，出手更果断了。",
+                    },
+                },
+            ],
+        )
+        fee = 20
+        if p.gold >= fee:
+            p.gold -= fee
+            healed = p.heal(10)
+            self.add_message(f"你付了 {fee}G 利息，账本上你的名字被划掉，恢复了 {healed} 点生命。")
+        else:
+            self.add_message("你想赎债，但钱不够。掌柜把账页翻到下一行，笑而不语。")
+        return "Event Completed"
+
+    def break_hourglass(self):
+        p = self.get_player()
+        self.register_story_choice(
+            choice_flag="time_broke_hourglass",
+            moral_delta=-7,
+            consequences=[
+                {
+                    "consequence_id": "time_break_hunter",
+                    "effect_key": "revenge_ambush",
+                    "chance": 1.0,
+                    "priority": 10,
+                    "trigger_door_types": ["EVENT", "MONSTER"],
+                    "payload": {
+                        "force_hunter": True,
+                        "hunter_name": "暗影刺客",
+                        "consume_on_defeat": True,
+                        "message": "前情：你砸了时间当铺的沙漏。清算人沿着碎砂的痕迹追了上来。",
+                        "hunter_hint": "前情：你破坏了当铺契约。门后有清算人在等你。",
+                    },
+                },
+                {
+                    "consequence_id": "time_break_reward_confiscated",
+                    "effect_key": "treasure_vanish",
+                    "chance": 0.45,
+                    "trigger_door_types": ["REWARD"],
+                    "payload": {
+                        "fake_gold": 8,
+                        "message": "前情：你砸柜台后被全行记名。宝物门已被提前冻结，只剩手续找零。",
+                    },
+                },
+            ],
+        )
+        loot = random.randint(18, 35)
+        p.gold += loot
+        self.add_message(f"你踢碎沙漏柜台抢出 {loot}G。墙上的钟同时停了一秒。")
+        return "Event Completed"
+
+
+class MirrorTheaterEvent(Event):
+    """新事件：镜剧场"""
+    TRIGGER_BASE_PROBABILITY = 0.07
+
+    @classmethod
+    def get_trigger_probability(cls, controller):
+        moral = abs(getattr(getattr(controller, "story", None), "moral_score", 0))
+        return min(0.17, cls.TRIGGER_BASE_PROBABILITY + min(0.1, moral / 600))
+
+    def __init__(self, controller):
+        super().__init__(controller)
+        self.title = "Mirror Theater"
+        self.description = "废墟里有一座镜面剧场，导演递来三张面具：英雄、恶徒、或观众。"
+        self.choices = [
+            EventChoice("戴上英雄面具", self.play_hero),
+            EventChoice("戴上恶徒面具", self.play_villain),
+            EventChoice("撕掉剧本离场", self.tear_script),
+        ]
+
+    def play_hero(self):
+        p = self.get_player()
+        self.register_story_choice(
+            choice_flag="mirror_played_hero",
+            moral_delta=6,
+            consequences=[
+                {
+                    "consequence_id": "mirror_hero_support",
+                    "effect_key": "guard_reward",
+                    "chance": 0.34,
+                    "trigger_door_types": ["EVENT", "SHOP"],
+                    "payload": {
+                        "gold": random.randint(18, 36),
+                        "heal": 8,
+                        "message": "前情：你在镜剧场演了英雄。后续路人愿意给你补给和消息。",
+                    },
+                },
+                {
+                    "consequence_id": "mirror_hero_bless",
+                    "effect_key": "shrine_blessing",
+                    "chance": 0.28,
+                    "trigger_door_types": ["TRAP", "MONSTER"],
+                    "payload": {
+                        "message": "前情：你选择了英雄剧本。临门一脚时，那份信念帮你压住了危险。",
+                    },
+                },
+            ],
+        )
+        healed = p.heal(12)
+        self.add_message(f"掌声从空剧场里响起，你从角色里抽离时恢复了 {healed} 点生命。")
+        return "Event Completed"
+
+    def play_villain(self):
+        p = self.get_player()
+        self.register_story_choice(
+            choice_flag="mirror_played_villain",
+            moral_delta=-6,
+            consequences=[
+                {
+                    "consequence_id": "mirror_villain_discount",
+                    "effect_key": "black_market_discount",
+                    "chance": 0.3,
+                    "trigger_door_types": ["SHOP"],
+                    "payload": {
+                        "ratio": 0.74,
+                        "message": "前情：你在镜剧场演了恶徒。黑市把你当成同类，先给了交易甜头。",
+                    },
+                },
+                {
+                    "consequence_id": "mirror_villain_hunt",
+                    "effect_key": "revenge_ambush",
+                    "chance": 0.32,
+                    "trigger_door_types": ["EVENT", "MONSTER"],
+                    "payload": {
+                        "force_hunter": True,
+                        "hunter_name": "冥界使者",
+                        "message": "前情：你在舞台上选了恶徒结局。想要你人头的人很快循着剧评找到了你。",
+                    },
+                },
+            ],
+        )
+        gain = random.randint(22, 42)
+        p.gold += gain
+        self.add_message(f"导演把反派分成递给你，你拿到 {gain}G。谢幕时你听见观众席有人记下了你的脸。")
+        return "Event Completed"
+
+    def tear_script(self):
+        p = self.get_player()
+        self.register_story_choice(
+            choice_flag="mirror_tore_script",
+            moral_delta=0,
+            consequences=[
+                {
+                    "consequence_id": "mirror_script_force_echo_court",
+                    "effect_key": "force_story_event",
+                    "chance": 1.0,
+                    "priority": 9,
+                    "trigger_door_types": ["EVENT"],
+                    "payload": {
+                        "event_key": "echo_court_event",
+                        "hint": "前情：你撕了镜剧场剧本，回声法庭要你解释",
+                        "message": "前情：你拒绝在镜剧场扮演任何角色。下一扇事件门被改写成回声法庭。",
+                    },
+                },
+                {
+                    "consequence_id": "mirror_script_aftershock",
+                    "effect_key": "shrine_curse",
+                    "chance": 0.25,
+                    "trigger_door_types": ["MONSTER", "TRAP", "EVENT"],
+                    "payload": {
+                        "duration": 1,
+                        "message": "前情：你撕碎剧本后强行离场。余震般的回声让你短暂失衡。",
+                    },
+                },
+            ],
+        )
+        if random.random() < 0.6:
+            item = create_random_item()
+            item.acquire(player=p)
+            self.add_message(f"你把剧本撕成碎片，幕后人竟鼓掌离席，留下了 {item.name}。")
+        else:
+            dmg = 10
+            p.take_damage(dmg)
+            self.add_message(f"你撕剧本时镜面反噬，碎光割伤了你，受到 {dmg} 点伤害。")
+        return "Event Completed"
+
+
 class MoonBountyEvent(Event):
     """长链1：月蚀通缉令"""
     TRIGGER_BASE_PROBABILITY = 0.07
@@ -1939,6 +2195,8 @@ STARTER_EVENT_POOL = [
     WiseSageEvent,
     RefugeeCaravanEvent,
     FallenKnightEvent,
+    TimePawnshopEvent,
+    MirrorTheaterEvent,
     MoonBountyEvent,
     ClockworkBazaarEvent,
     DreamWellEvent,

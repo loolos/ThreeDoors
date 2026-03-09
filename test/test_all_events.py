@@ -6,6 +6,7 @@ import models.events as events_module
 from models.events import (
     StrangerEvent, SmugglerEvent, AncientShrineEvent, 
     GamblerEvent, LostChildEvent, CursedChestEvent, WiseSageEvent,
+    TimePawnshopEvent, MirrorTheaterEvent,
     MoonBountyEvent, MoonVerdictEvent,
     ClockworkBazaarEvent, CogAuditEvent,
     DreamWellEvent, EchoCourtEvent,
@@ -215,6 +216,14 @@ class TestAllEvents(BaseTest):
 
     def test_new_long_chain_starter_event_choices(self):
         self.player.gold = 300
+        self._run_choice(TimePawnshopEvent, 0)
+        self._run_choice(TimePawnshopEvent, 1)
+        self._run_choice(TimePawnshopEvent, 2)
+
+        self._run_choice(MirrorTheaterEvent, 0)
+        self._run_choice(MirrorTheaterEvent, 1)
+        self._run_choice(MirrorTheaterEvent, 2)
+
         self._run_choice(MoonBountyEvent, 0)
         self._run_choice(MoonBountyEvent, 1)
         self._run_choice(MoonBountyEvent, 2)
