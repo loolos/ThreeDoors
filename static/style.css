@@ -21,7 +21,8 @@
 }
 
 #start-screen-overlay {
-  position: relative;
+  position: absolute;
+  inset: 0;
   z-index: 2;
   display: flex;
   flex-direction: column;
@@ -49,28 +50,6 @@
 #start-screen-overlay #start-hint {
   font-size: 0.95rem;
   color: rgba(245,230,211,0.7);
-  margin-bottom: 1.5rem;
-}
-
-.start-btn {
-  font-size: 1.2rem;
-  padding: 14px 36px;
-  background: linear-gradient(180deg, #8b4513 0%, #5d2e0c 100%);
-  color: #f5e6d3;
-  border: 2px solid #c4a574;
-  border-radius: 8px;
-  cursor: pointer;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
-  transition: transform 0.15s, box-shadow 0.15s;
-}
-
-.start-btn:hover {
-  transform: scale(1.05);
-  box-shadow: 0 6px 16px rgba(139,69,19,0.5);
-}
-
-.start-btn:active {
-  transform: scale(0.98);
 }
 
 #start-screen.hidden {

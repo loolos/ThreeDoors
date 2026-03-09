@@ -9,7 +9,7 @@
 </head>
 
 <body>
-  <!-- 开始界面：Tone.js 生成音乐 + 视频 + 开始按钮 -->
+  <!-- 开始界面：视频 + 点击任意处开始 -->
   <div id="start-screen">
     <video id="opening-video" playsinline preload="auto" muted autoplay loop>
       <source src="{{ url_for('static', filename='video/opening.mp4') }}" type="video/mp4">
@@ -18,7 +18,6 @@
       <h1 id="start-title">三扇门大冒险</h1>
       <p id="start-subtitle">ThreeDoors</p>
       <p id="start-hint">点击任意处开始</p>
-      <button id="start-adventure-btn" class="start-btn">开始冒险</button>
     </div>
   </div>
 
