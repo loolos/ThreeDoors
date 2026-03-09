@@ -82,13 +82,13 @@
   max-width: 600px;
   margin: 0 auto;
   text-align: center;
-  padding: 10px;
+  padding: 8px 10px 10px;
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
 h1 {
-  margin-bottom: 20px;
-  font-size: 1.8rem;
+  margin-bottom: 10px;
+  font-size: 1.55rem;
   color: #333;
 }
 
@@ -96,7 +96,7 @@ h1 {
   display: flex;
   justify-content: center;
   gap: 8px;
-  margin: 15px 0;
+  margin: 8px 0;
   flex-wrap: wrap;
 }
 
@@ -129,10 +129,13 @@ h1 {
 
 /* Log Area */
 #log-area {
-  margin-top: 15px;
+  margin-top: 8px;
   padding: 10px;
-  height: 200px;
+  height: clamp(220px, 28vh, 300px);
+  min-height: 170px;
+  max-height: 42vh;
   overflow-y: auto;
+  resize: vertical;
   background: #fafafa;
   border: 1px solid #e0e0e0;
   border-radius: 5px;
@@ -148,12 +151,12 @@ h1 {
 
 
 #scene-area {
-  margin: 10px 0;
-  padding: 15px;
+  margin: 6px 0;
+  padding: 8px;
   background-color: #f0f4f8;
   border-radius: 8px;
   border: 1px dashed #b0bec5;
-  min-height: 120px;
+  min-height: 84px;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -161,10 +164,9 @@ h1 {
 }
 
 #scene-emoji {
-  font-size: clamp(6rem, 20vw, 12rem);
-  /* Massive responsive size */
+  font-size: clamp(3.8rem, 12vw, 7rem);
   line-height: 1.1;
-  margin: 10px 0;
+  margin: 2px 0;
   text-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
   animation: float 3s ease-in-out infinite;
 }
@@ -194,7 +196,8 @@ h1 {
 #door-area {
   display: flex;
   justify-content: space-around;
-  margin-top: 20px;
+  margin-top: 8px;
+  gap: 8px;
 }
 
 .door-wrapper {
@@ -213,12 +216,11 @@ h1 {
 }
 
 .door-hint {
-  font-size: 0.7rem;
+  font-size: 0.88rem;
   color: #888;
-  line-height: 1.3;
+  line-height: 1.45;
   text-align: center;
-  max-height: 4.2em;
-  overflow: hidden;
+  min-height: 4.4em;
   word-break: break-all;
 }
 
@@ -285,9 +287,9 @@ h1 {
 
 /* Scene Area */
 #status-area {
-  margin-bottom: 15px;
+  margin-bottom: 8px;
   background: #fff;
-  padding: 15px;
+  padding: 10px;
   border-radius: 8px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
@@ -343,7 +345,7 @@ h1 {
 
 #inventory-area {
   font-size: 0.9rem;
-  margin-bottom: 10px;
+  margin-bottom: 6px;
   color: #666;
 }
 
@@ -415,14 +417,14 @@ h1 {
   }
 
   h1 {
-    font-size: 1.5rem;
-    margin-bottom: 15px;
+    font-size: 1.25rem;
+    margin-bottom: 8px;
   }
 
 
   #buttons {
     gap: 5px;
-    margin: 10px 0;
+    margin: 6px 0;
   }
 
   .main-btn {
@@ -433,12 +435,29 @@ h1 {
   }
 
   #log-area {
-    height: 150px;
+    height: clamp(180px, 26vh, 240px);
+    min-height: 140px;
+    max-height: 45vh;
     font-size: 0.85rem;
   }
 
   #status-area,
   #inventory-area {
     font-size: 0.85rem;
+  }
+
+  #scene-area {
+    min-height: 70px;
+    padding: 6px;
+  }
+
+  #scene-emoji {
+    font-size: clamp(3rem, 10vw, 5rem);
+    margin: 0;
+  }
+
+  .door-hint {
+    font-size: 0.8rem;
+    min-height: 4em;
   }
 }
