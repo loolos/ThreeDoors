@@ -3,6 +3,7 @@ import unittest
 import unittest.mock
 from test.test_base import BaseTest
 import models.events as events_module
+from server import GameController
 from models.events import (
     StrangerEvent, SmugglerEvent, AncientShrineEvent, 
     GamblerEvent, LostChildEvent, CursedChestEvent, WiseSageEvent,
@@ -249,6 +250,107 @@ class TestAllEvents(BaseTest):
         self._run_choice(EchoCourtEvent, 0)
         self._run_choice(EchoCourtEvent, 1)
         self._run_choice(EchoCourtEvent, 2)
+
+    def test_long_chain_choices_have_immediate_impact(self):
+        c = GameController()
+        c.player.gold = 100
+        MoonBountyEvent(c).resolve_choice(0)
+        self.assertEqual(c.player.gold, 92)
+
+        c = GameController()
+        c.player.hp = 60
+        MoonBountyEvent(c).resolve_choice(1)
+        self.assertEqual(c.player.hp, 70)
+
+        c = GameController()
+        c.player.gold = 100
+        c.player.hp = 100
+        MoonBountyEvent(c).resolve_choice(2)
+        self.assertEqual(c.player.gold, 118)
+        self.assertEqual(c.player.hp, 94)
+
+        c = GameController()
+        c.player.gold = 80
+        c.player.hp = 70
+        MoonVerdictEvent(c).resolve_choice(0)
+        self.assertEqual(c.player.gold, 92)
+        self.assertEqual(c.player.hp, 76)
+
+        c = GameController()
+        c.player.hp = 100
+        MoonVerdictEvent(c).resolve_choice(1)
+        self.assertEqual(c.player.hp, 88)
+
+        c = GameController()
+        c.player.gold = 50
+        MoonVerdictEvent(c).resolve_choice(2)
+        self.assertEqual(c.player.gold, 72)
+
+        c = GameController()
+        c.player.gold = 30
+        ClockworkBazaarEvent(c).resolve_choice(0)
+        self.assertEqual(c.player.gold, 42)
+
+        c = GameController()
+        c.player.gold = 30
+        ClockworkBazaarEvent(c).resolve_choice(1)
+        self.assertEqual(c.player.gold, 46)
+
+        c = GameController()
+        c.player.gold = 30
+        c.player.hp = 100
+        ClockworkBazaarEvent(c).resolve_choice(2)
+        self.assertEqual(c.player.gold, 50)
+        self.assertEqual(c.player.hp, 92)
+
+        c = GameController()
+        c.player.gold = 100
+        CogAuditEvent(c).resolve_choice(0)
+        self.assertEqual(c.player.gold, 82)
+
+        c = GameController()
+        c.player.gold = 100
+        CogAuditEvent(c).resolve_choice(1)
+        self.assertEqual(c.player.gold, 124)
+
+        c = GameController()
+        c.player.gold = 100
+        CogAuditEvent(c).resolve_choice(2)
+        self.assertEqual(c.player.gold, 80)
+
+        c = GameController()
+        c.player.hp = 60
+        DreamWellEvent(c).resolve_choice(0)
+        self.assertEqual(c.player.hp, 72)
+
+        c = GameController()
+        c.player.hp = 60
+        DreamWellEvent(c).resolve_choice(1)
+        self.assertEqual(c.player.hp, 68)
+
+        c = GameController()
+        c.player.gold = 100
+        c.player.hp = 100
+        DreamWellEvent(c).resolve_choice(2)
+        self.assertEqual(c.player.gold, 126)
+        self.assertEqual(c.player.hp, 94)
+
+        c = GameController()
+        c.player.hp = 60
+        EchoCourtEvent(c).resolve_choice(0)
+        self.assertEqual(c.player.hp, 70)
+
+        c = GameController()
+        c.player.gold = 100
+        EchoCourtEvent(c).resolve_choice(1)
+        self.assertEqual(c.player.gold, 85)
+
+        c = GameController()
+        c.player.gold = 100
+        c.player.hp = 100
+        EchoCourtEvent(c).resolve_choice(2)
+        self.assertEqual(c.player.gold, 120)
+        self.assertEqual(c.player.hp, 92)
 
     def test_get_random_event_checks_condition_then_probability(self):
         with unittest.mock.patch.object(events_module, "STARTER_EVENT_POOL", [StrangerEvent, SmugglerEvent]):

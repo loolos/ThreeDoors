@@ -1354,7 +1354,13 @@ class MoonBountyEvent(Event):
                 shop_message="你拿出的通缉印章被商人认出，货架立刻给出猎手折扣。",
             ),
         )
-        self.add_message("你把通缉令折进袖口。有人在暗处轻轻点头，像是在确认你的身份。")
+        p = self.get_player()
+        prep_cost = min(p.gold, 8)
+        p.gold -= prep_cost
+        if prep_cost > 0:
+            self.add_message(f"你先花了 {prep_cost}G 买线人情报，把通缉令折进袖口。有人在暗处轻轻点头，像是在确认你的身份。")
+        else:
+            self.add_message("你把通缉令折进袖口，但没钱买情报，只能硬着头皮追猎。")
         return "Event Completed"
 
     def protect_target(self):
@@ -1369,7 +1375,8 @@ class MoonBountyEvent(Event):
                 shop_message="你坏了悬赏行会的规矩，商人把你列成高风险客户。",
             ),
         )
-        self.add_message("你把通缉令撕成两半。风里传来一句低语：'那你就替他付账。'")
+        healed = self.get_player().heal(10)
+        self.add_message(f"你把通缉令撕成两半，护送行动让你重整呼吸，恢复 {healed} 点生命。风里传来一句低语：'那你就替他付账。'")
         return "Event Completed"
 
     def double_cross(self):
@@ -1384,8 +1391,10 @@ class MoonBountyEvent(Event):
                 shop_message="你放出的假线索搅乱了盘口，黑市一时分不清该杀你还是拉拢你。",
             ),
         )
-        self.get_player().gold += 18
-        self.add_message("你把真假线索分别卖给两边，先赚到了 18G。")
+        p = self.get_player()
+        p.gold += 18
+        p.take_damage(6)
+        self.add_message("你把真假线索分别卖给两边，先赚到 18G；但双方都在试探你，你在撤离时受了 6 点伤害。")
         return "Event Completed"
 
     def _build_moon_chain(self, route, shop_effect, shop_ratio, hunter_name, shop_message):
@@ -1481,7 +1490,10 @@ class MoonVerdictEvent(Event):
                 }
             ],
         )
-        self.add_message("你签了字。书记官把印泥按在卷轴边缘，像是在给你留后路。")
+        p = self.get_player()
+        p.gold += 12
+        healed = p.heal(6)
+        self.add_message(f"你签了字。书记官把印泥按在卷轴边缘，先发了 12G 办案费，你也恢复了 {healed} 点生命。")
         return "Event Completed"
 
     def burn_records(self):
@@ -1516,7 +1528,9 @@ class MoonVerdictEvent(Event):
                 }
             ],
         )
-        self.add_message("火焰吞掉了档案，也吞掉了你的一部分退路。")
+        dmg = 12
+        self.get_player().take_damage(dmg)
+        self.add_message(f"火焰吞掉了档案，也吞掉了你的一部分退路。你在浓烟中受了 {dmg} 点伤害。")
         return "Event Completed"
 
     def extort_court(self):
@@ -1549,7 +1563,9 @@ class MoonVerdictEvent(Event):
                 }
             ],
         )
-        self.add_message("你把谈判变成了敲诈。书记官笑得很轻，像记下了你的名字。")
+        gain = 22
+        self.get_player().gold += gain
+        self.add_message(f"你把谈判变成了敲诈，当场卷走 {gain}G。书记官笑得很轻，像记下了你的名字。")
         return "Event Completed"
 
 
@@ -1584,7 +1600,9 @@ class ClockworkBazaarEvent(Event):
                 shop_message="机械账本认可了你的调校记录，后续商店对你亮起绿灯。",
             ),
         )
-        self.add_message("你修好了计价机关，黑市主持人把一枚齿轮徽章别在你肩上。")
+        tip = 12
+        self.get_player().gold += tip
+        self.add_message(f"你修好了计价机关，黑市主持人把一枚齿轮徽章别在你肩上，并付给你 {tip}G 调校费。")
         return "Event Completed"
 
     def hack_coupon(self):
@@ -1599,7 +1617,9 @@ class ClockworkBazaarEvent(Event):
                 shop_message="第一家店没识破你的优惠码，给了你离谱折扣。",
             ),
         )
-        self.add_message("你改了校验齿轮，券码短暂有效。倒计时已经开始。")
+        gain = 16
+        self.get_player().gold += gain
+        self.add_message(f"你改了校验齿轮，券码短暂有效，先白赚了 {gain}G。倒计时已经开始。")
         return "Event Completed"
 
     def sabotage(self):
@@ -1614,7 +1634,10 @@ class ClockworkBazaarEvent(Event):
                 shop_message="你砸摊的录像被同步给全市场，几乎所有店都给你涨价。",
             ),
         )
-        self.add_message("你踢翻了对面摊位，满地零件像雨点一样乱响。")
+        p = self.get_player()
+        p.gold += 20
+        p.take_damage(8)
+        self.add_message("你踢翻了对面摊位，抢到 20G 材料费，但飞溅零件划伤了你，受到 8 点伤害。")
         return "Event Completed"
 
     def _build_clockwork_chain(self, route, shop_effect, ratio, hunter_name, shop_message):
@@ -1806,7 +1829,10 @@ class CogAuditEvent(Event):
                 }
             ],
         )
-        self.add_message("你按章付款。审计员在你通行证上盖了一个'已清算'。")
+        p = self.get_player()
+        paid = min(p.gold, 18)
+        p.gold -= paid
+        self.add_message(f"你先按章补缴了 {paid}G。审计员在你通行证上盖了一个'已清算'。")
         return "Event Completed"
 
     def fake_ledger(self):
@@ -1837,7 +1863,9 @@ class CogAuditEvent(Event):
                 }
             ],
         )
-        self.add_message("你在账本里塞进了假齿轮。它转得很顺，但声音很假。")
+        gain = 24
+        self.get_player().gold += gain
+        self.add_message(f"你在账本里塞进了假齿轮。它转得很顺，但声音很假——你先套走了 {gain}G。")
         return "Event Completed"
 
     def buy_silence(self):
@@ -1873,8 +1901,10 @@ class CogAuditEvent(Event):
                 }
             ],
         )
-        self.get_player().gold = max(0, self.get_player().gold - 20)
-        self.add_message("你先花了 20G 封口。审计员收钱很快，收尾更快。")
+        p = self.get_player()
+        paid = min(p.gold, 20)
+        p.gold -= paid
+        self.add_message(f"你先花了 {paid}G 封口。审计员收钱很快，收尾更快。")
         return "Event Completed"
 
 
@@ -1909,8 +1939,8 @@ class DreamWellEvent(Event):
                 shop_message="你描述的梦境太精准，商人把你当成'消息源'，先给了折扣。",
             ),
         )
-        self.get_player().heal(12)
-        self.add_message("梦井水让你清醒得发冷，恢复了 12 点生命。")
+        healed = self.get_player().heal(12)
+        self.add_message(f"梦井水让你清醒得发冷，恢复了 {healed} 点生命。")
         return "Event Completed"
 
     def seal_well(self):
@@ -1925,7 +1955,8 @@ class DreamWellEvent(Event):
                 shop_message="你封井断了很多人的生意，商人们把这笔账算在你头上。",
             ),
         )
-        self.add_message("你用石板封住了井口，水面最后一次映出你的背影。")
+        healed = self.get_player().heal(8)
+        self.add_message(f"你用石板封住了井口，紧绷的神经终于放松，恢复了 {healed} 点生命。")
         return "Event Completed"
 
     def sell_dream(self):
@@ -1940,8 +1971,10 @@ class DreamWellEvent(Event):
                 shop_message="你把梦卖成货币，黑市把你列为优先交易对象。",
             ),
         )
-        self.get_player().gold += 26
-        self.add_message("你卖掉了一个关于胜利的梦，立刻拿到 26G。")
+        p = self.get_player()
+        p.gold += 26
+        p.take_damage(6)
+        self.add_message("你卖掉了一个关于胜利的梦，立刻拿到 26G；但精神被抽走一截，受到 6 点伤害。")
         return "Event Completed"
 
     def _build_dream_chain(self, route, shop_effect, ratio, hunter_name, shop_message):
@@ -2103,7 +2136,8 @@ class EchoCourtEvent(Event):
                 }
             ],
         )
-        self.add_message("你把梦赎了回来，耳边的低语终于安静了一瞬。")
+        healed = self.get_player().heal(10)
+        self.add_message(f"你把梦赎了回来，耳边的低语终于安静了一瞬，恢复了 {healed} 点生命。")
         return "Event Completed"
 
     def pay_dream_tax(self):
@@ -2135,7 +2169,10 @@ class EchoCourtEvent(Event):
                 }
             ],
         )
-        self.add_message("你把梦税一次交清，法槌不再追着你敲。")
+        p = self.get_player()
+        paid = min(p.gold, 15)
+        p.gold -= paid
+        self.add_message(f"你先补交了 {paid}G 梦税，法槌暂时不再追着你敲。")
         return "Event Completed"
 
     def keep_trading(self):
@@ -2171,7 +2208,10 @@ class EchoCourtEvent(Event):
                 }
             ],
         )
-        self.add_message("你选择把梦继续当货币。法庭书记在卷宗边写下：'可持续追缴。'")
+        p = self.get_player()
+        p.gold += 20
+        p.take_damage(8)
+        self.add_message("你选择把梦继续当货币，当场多赚了 20G；但回声反噬让你受了 8 点伤害。")
         return "Event Completed"
 
 
