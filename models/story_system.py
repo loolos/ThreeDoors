@@ -258,11 +258,24 @@ class StorySystem:
             return True, reward_door
 
         if effect == "revenge_ambush":
-            force_hunter = payload.get("force_hunter", True)
+            force_hunter_config = payload.get("force_hunter", None)
             convert_to_hunter = payload.get("convert_to_hunter", True)
             hunter_name = payload.get("hunter_name")
             source_door_type = getattr(getattr(door, "enum", None), "name", "")
             monster = getattr(door, "monster", None)
+            if force_hunter_config is None:
+                # 在怪物门默认走“替换或强化”双路径；其余门默认转为追猎战。
+                if source_door_type == "MONSTER" and monster is not None:
+                    replace_chance = payload.get("monster_replace_chance", 0.35)
+                    try:
+                        replace_chance = max(0.0, min(1.0, float(replace_chance)))
+                    except (TypeError, ValueError):
+                        replace_chance = 0.35
+                    force_hunter = random.random() < replace_chance
+                else:
+                    force_hunter = bool(convert_to_hunter)
+            else:
+                force_hunter = bool(force_hunter_config)
             if force_hunter or (monster is None and convert_to_hunter):
                 hunter = self._create_hunter_monster(preferred_name=hunter_name)
                 hp_ratio = payload.get("hp_ratio", 1.25)
@@ -337,37 +350,47 @@ class StorySystem:
         if effect == "black_market_discount":
             if getattr(getattr(door, "enum", None), "name", "") != "SHOP":
                 return False, door
-            ratio = payload.get("ratio", 0.7)
+            try:
+                ratio = float(payload.get("ratio", 0.7))
+            except (TypeError, ValueError):
+                ratio = 0.7
             shop_targets = self._get_shop_targets(door)
             if not shop_targets:
                 return False, door
-            preview = self._apply_shop_ratio(shop_targets, ratio)
+            self._queue_shop_ratio(shop_targets, ratio)
+            self._apply_shop_ratio(shop_targets, ratio)
+            ratio_text = f"当前商品按约 {max(1, int(ratio * 100))}% 结算"
             self.controller.add_message(
                 self._resolve_message(
                     payload,
                     "message",
-                    f"商人认出你是熟客同路人，当前货架即时降价（如 {preview}）。",
+                    f"商人认出你是熟客同路人，{ratio_text}。",
                 )
             )
-            self._log_effect_result(consequence, preview)
+            self._log_effect_result(consequence, ratio_text)
             return True, door
 
         if effect == "black_market_markup":
             if getattr(getattr(door, "enum", None), "name", "") != "SHOP":
                 return False, door
-            ratio = payload.get("ratio", 1.4)
+            try:
+                ratio = float(payload.get("ratio", 1.4))
+            except (TypeError, ValueError):
+                ratio = 1.4
             shop_targets = self._get_shop_targets(door)
             if not shop_targets:
                 return False, door
-            preview = self._apply_shop_ratio(shop_targets, ratio)
+            self._queue_shop_ratio(shop_targets, ratio)
+            self._apply_shop_ratio(shop_targets, ratio)
+            ratio_text = f"当前商品按约 {max(1, int(ratio * 100))}% 上浮"
             self.controller.add_message(
                 self._resolve_message(
                     payload,
                     "message",
-                    f"商人认出你惹过他们的人，当前货架即时涨价（如 {preview}）。",
+                    f"商人认出你惹过他们的人，{ratio_text}。",
                 )
             )
-            self._log_effect_result(consequence, preview)
+            self._log_effect_result(consequence, ratio_text)
             return True, door
 
         if effect == "shrine_blessing":
@@ -700,3 +723,9 @@ class StorySystem:
                 after = first_item.cost
                 preview = f"{first_item.name}: {before}G→{after}G"
         return preview
+
+    def _queue_shop_ratio(self, shops, ratio: float) -> None:
+        for shop in shops:
+            queue_method = getattr(shop, "queue_next_price_ratio", None)
+            if callable(queue_method):
+                queue_method(ratio)

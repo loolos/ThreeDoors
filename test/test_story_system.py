@@ -1,4 +1,5 @@
 import unittest.mock
+import random
 
 from models.door import DoorEnum
 from models.events import MoonBountyEvent
@@ -357,3 +358,78 @@ class TestStorySystem(BaseTest):
         with unittest.mock.patch("models.story_system.random.random", return_value=0.0):
             forced_event_door = story.apply_pre_enter_checks(second_event_door)
         self.assertEqual(getattr(forced_event_door, "story_forced_event_key", ""), "moon_verdict_event")
+
+    def test_revenge_ambush_on_monster_door_can_buff_existing_monster(self):
+        story = self.controller.story
+        monster_door = DoorEnum.MONSTER.create_instance(
+            controller=self.controller,
+            monster=Monster(name="史莱姆", hp=30, atk=6, tier=1),
+        )
+        story.register_consequence(
+            choice_flag="monster_revenge_case",
+            consequence_id="monster_revenge_buff",
+            effect_key="revenge_ambush",
+            chance=1.0,
+            trigger_door_types=["MONSTER"],
+            payload={"hp_ratio": 1.5, "atk_ratio": 1.4},
+        )
+
+        with unittest.mock.patch("models.story_system.random.random", side_effect=[0.0, 0.99, 1.0]):
+            changed_door = story.apply_pre_enter_checks(monster_door)
+
+        self.assertEqual(changed_door.enum.name, "MONSTER")
+        self.assertEqual(changed_door.monster.name, "史莱姆")
+        self.assertEqual(changed_door.monster.hp, 45)
+        self.assertEqual(changed_door.monster.atk, 8)
+
+    def test_revenge_ambush_on_monster_door_can_replace_monster(self):
+        story = self.controller.story
+        monster_door = DoorEnum.MONSTER.create_instance(
+            controller=self.controller,
+            monster=Monster(name="史莱姆", hp=30, atk=6, tier=1),
+        )
+        story.register_consequence(
+            choice_flag="monster_revenge_case",
+            consequence_id="monster_revenge_replace",
+            effect_key="revenge_ambush",
+            chance=1.0,
+            trigger_door_types=["MONSTER"],
+            payload={"hp_ratio": 1.5, "atk_ratio": 1.4},
+        )
+
+        with unittest.mock.patch("models.story_system.random.random", side_effect=[0.0, 0.0, 1.0, 1.0, 1.0]):
+            changed_door = story.apply_pre_enter_checks(monster_door)
+
+        self.assertEqual(changed_door.enum.name, "MONSTER")
+        self.assertNotEqual(changed_door.monster.name, "史莱姆")
+        self.assertIn("monster_revenge_replace", story.consumed_consequences)
+
+    def test_shop_discount_persists_to_next_shop_refresh(self):
+        story = self.controller.story
+        self.player.gold = 100
+        shop = self.controller.current_shop
+
+        random.seed(20260309)
+        shop.generate_items()
+        baseline_costs = [item.cost for item in shop.shop_items]
+
+        story.register_consequence(
+            choice_flag="discount_refresh_case",
+            consequence_id="discount_refresh_once",
+            effect_key="black_market_discount",
+            chance=1.0,
+            trigger_door_types=["SHOP"],
+            payload={"ratio": 0.5},
+        )
+        shop_door = DoorEnum.SHOP.create_instance(controller=self.controller)
+
+        with unittest.mock.patch("models.story_system.random.random", return_value=0.0):
+            story.apply_pre_enter_checks(shop_door)
+
+        random.seed(20260309)
+        shop.generate_items()
+        refreshed_discount_costs = [item.cost for item in shop.shop_items]
+
+        self.assertTrue(all(new <= old for new, old in zip(refreshed_discount_costs, baseline_costs)))
+        self.assertTrue(any(new < old for new, old in zip(refreshed_discount_costs, baseline_costs)))
+        self.assertEqual(shop.pending_price_ratio, 1.0)
