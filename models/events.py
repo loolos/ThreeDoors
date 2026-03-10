@@ -10,6 +10,8 @@ class EventChoice:
 
 class Event:
     TRIGGER_BASE_PROBABILITY = 0.1
+    POSITIVE_STAGE_SCALE = (1.0, 1.12, 1.27, 1.45)
+    NEGATIVE_STAGE_SCALE = (1.0, 1.1, 1.22, 1.35)
 
     def __init__(self, controller):
         self.controller = controller
@@ -49,6 +51,40 @@ class Event:
     def get_trigger_probability(cls, controller):
         return cls.TRIGGER_BASE_PROBABILITY
 
+    @classmethod
+    def get_progress_stage(cls, controller):
+        """按回合和基础攻击力估算当前事件强度阶段。"""
+        round_count = max(0, int(getattr(controller, "round_count", 0)))
+        player = getattr(controller, "player", None)
+        base_atk = 5
+        if player is not None:
+            base_atk = max(1, int(getattr(player, "_atk", getattr(player, "atk", 5))))
+        score = round_count * 2 + base_atk * 4
+        if score >= 130:
+            return 3
+        if score >= 90:
+            return 2
+        if score >= 55:
+            return 1
+        return 0
+
+    @classmethod
+    def is_unlocked(cls, controller, min_round=0, min_stage=0):
+        round_count = max(0, int(getattr(controller, "round_count", 0)))
+        return round_count >= min_round and cls.get_progress_stage(controller) >= min_stage
+
+    def scale_value(self, base_value, positive=True, aggressive=False, minimum=1):
+        """按玩家阶段缩放事件数值。"""
+        stage = self.get_progress_stage(self.controller)
+        scales = self.POSITIVE_STAGE_SCALE if positive else self.NEGATIVE_STAGE_SCALE
+        scale = scales[min(stage, len(scales) - 1)]
+        if aggressive and stage > 0:
+            scale += stage * 0.04
+        scaled = int(round(base_value * scale))
+        if base_value >= 0:
+            return max(minimum, scaled)
+        return min(-minimum, scaled)
+
 
 # 1. Injured Stranger
 class StrangerEvent(Event):
@@ -66,6 +102,7 @@ class StrangerEvent(Event):
 
     def help_stranger(self):
         p = self.get_player()
+        help_cost = self.scale_value(10, positive=False)
         self.register_story_choice(
             choice_flag="stranger_helped",
             moral_delta=8,
@@ -93,16 +130,16 @@ class StrangerEvent(Event):
                 },
             ],
         )
-        if p.gold >= 10:
-            p.gold -= 10
+        if p.gold >= help_cost:
+            p.gold -= help_cost
             # 70% Reward, 30% Betrayal
             if random.random() < 0.7:
-                self.add_message("你花费10金币为陌生人包扎。")
+                self.add_message(f"你花费{help_cost}金币为陌生人包扎。")
                 item = create_random_item()
                 self.add_message(f"陌生人感激地给了你 {item.name} 作为回报！")
                 item.acquire(player=p)
             else:
-                dmg = 15
+                dmg = self.scale_value(15, positive=False, aggressive=True)
                 p.take_damage(dmg)
                 self.add_message("你刚为他包扎好，他突然拔刀刺向你！")
                 self.add_message(f"这个忘恩负义的家伙抢了你的钱就跑了。受到 {dmg} 点伤害。")
@@ -140,11 +177,11 @@ class StrangerEvent(Event):
         )
         # 60% Success, 40% Fail
         if random.random() < 0.6:
-            gold = random.randint(5, 20)
+            gold = self.scale_value(random.randint(5, 20), positive=True)
             p.gold += gold
             self.add_message(f"你抢走了陌生人仅剩的 {gold} 金币。你的良心受到了一点谴责。")
         else:
-            dmg = 10
+            dmg = self.scale_value(10, positive=False)
             p.take_damage(dmg)
             self.add_message(f"陌生人突然暴起反击！你受到 {dmg} 点伤害，狼狈逃跑。")
         return "Event Completed"
@@ -329,7 +366,7 @@ class AncientShrineEvent(Event):
         self.title = "Ancient Shrine"
         self.description = "一座古老的祭坛矗立在森林深处，上面刻满了神秘的符文。"
         self.choices = [
-            EventChoice("虔诚祈祷 (恢复50HP)", self.pray),
+            EventChoice("虔诚祈祷 (恢复生命)", self.pray),
             EventChoice("破坏祭坛", self.desecrate),
             EventChoice("仔细调查", self.inspect)
         ]
@@ -360,7 +397,7 @@ class AncientShrineEvent(Event):
         )
         # 70% Heal, 30% Curse
         if random.random() < 0.7:
-            healed = p.heal(50) 
+            healed = p.heal(self.scale_value(50, positive=True, aggressive=True))
             self.add_message(f"一道温暖的光芒笼罩着你，你的伤势恢复了 {healed} 点！")
         else:
             duration = 3
@@ -392,11 +429,11 @@ class AncientShrineEvent(Event):
                 },
             ],
         )
-        gold = random.randint(50, 100)
+        gold = self.scale_value(random.randint(50, 100), positive=True, aggressive=True)
         p.gold += gold
         self.add_message(f"你在祭坛下挖出了 {gold} 金币！")
         if random.random() < 0.5:
-            dmg = 10
+            dmg = self.scale_value(10, positive=False, aggressive=True)
             p.take_damage(dmg)
             self.add_message(f"但这触怒了神灵，一道闪电劈中了你！受到 {dmg} 点伤害。")
         return "Event Completed"
@@ -437,9 +474,11 @@ class GamblerEvent(Event):
         super().__init__(controller)
         self.title = "The Gambler"
         self.description = "一个流浪赌徒向你发起挑战：'想不想玩把大的？'"
+        high_bet = self.scale_value(50, positive=False, aggressive=True)
+        low_bet = self.scale_value(10, positive=False)
         self.choices = [
-            EventChoice("玩把大的 (赌50G)", self.high_stakes),
-            EventChoice("小玩一把 (赌10G)", self.low_stakes),
+            EventChoice(f"玩把大的 (赌{high_bet}G)", self.high_stakes),
+            EventChoice(f"小玩一把 (赌{low_bet}G)", self.low_stakes),
             EventChoice("拒绝", self.decline)
         ]
 
@@ -467,18 +506,18 @@ class GamblerEvent(Event):
                 },
             ],
         )
-        bet = 50
+        bet = self.scale_value(50, positive=False, aggressive=True)
         if p.gold < bet:
             self.add_message("你没有足够的金币！赌徒嘲笑了你一番。")
             return "Event Completed"
         
         p.gold -= bet
         if random.random() < 0.4: # 40% win rate
-            win = bet * 3
+            win = self.scale_value(bet * 3, positive=True, aggressive=True)
             p.gold += win
             self.add_message(f"你运气爆棚！赢了 {win} 金币！")
         else:
-            self.add_message("你输了！50金币打水漂了。")
+            self.add_message(f"你输了！{bet}金币打水漂了。")
         return "Event Completed"
 
     def low_stakes(self):
@@ -503,18 +542,18 @@ class GamblerEvent(Event):
                 },
             ],
         )
-        bet = 10
+        bet = self.scale_value(10, positive=False)
         if p.gold < bet:
-             self.add_message("你连10金币都没有？真可怜。")
+             self.add_message(f"你连{bet}金币都没有？真可怜。")
              return "Event Completed"
         
         p.gold -= bet
         if random.random() < 0.5: # 50% win rate
-            win = bet * 2
+            win = self.scale_value(bet * 2, positive=True)
             p.gold += win
             self.add_message(f"不错，赢了 {win} 金币。")
         else:
-            self.add_message("哎呀，运气不好，输了10金币。")
+            self.add_message(f"哎呀，运气不好，输了{bet}金币。")
         return "Event Completed"
 
     def decline(self):
@@ -550,9 +589,10 @@ class LostChildEvent(Event):
         super().__init__(controller)
         self.title = "Lost Child"
         self.description = "一个小女孩在森林里哭泣，看起来迷路了。"
+        donation = self.scale_value(20, positive=False)
         self.choices = [
             EventChoice("护送回家", self.guide_home),
-            EventChoice("给点金币路费 (20G)", self.give_gold),
+            EventChoice(f"给点金币路费 ({donation}G)", self.give_gold),
             EventChoice("无视", self.ignore)
         ]
 
@@ -609,15 +649,15 @@ class LostChildEvent(Event):
         # High risk (time/encounter), High reward
         if random.random() < 0.3:
             # Encounter monster logic could be complex, for now simple damage from "exhaustion"
-            dmg = 15
+            dmg = self.scale_value(15, positive=False)
             self.get_player().take_damage(dmg)
             self.add_message(f"送回家的路上遭遇了野兽袭击，你为了保护孩子受了伤 ({dmg}点伤害)，但最终把她安全送达。")
             # Reward
-            reward = 100
+            reward = self.scale_value(100, positive=True, aggressive=True)
             self.get_player().gold += reward
             self.add_message(f"孩子的父母感激涕零，给了你 {reward} 金币作为谢礼！")
         else:
-            reward = 50
+            reward = self.scale_value(50, positive=True)
             self.get_player().gold += reward
             self.add_message(f"你顺利把孩子送回了家。她父母给了你 {reward} 金币。")
         return "Event Completed"
@@ -644,12 +684,13 @@ class LostChildEvent(Event):
                 },
             ],
         )
-        if p.gold >= 20:
-            p.gold -= 20
-            self.add_message("你给了小女孩20金币让她自己打车回家（虽然森林里没有出租车）。")
+        donation = self.scale_value(20, positive=False)
+        if p.gold >= donation:
+            p.gold -= donation
+            self.add_message(f"你给了小女孩{donation}金币让她自己打车回家（虽然森林里没有出租车）。")
             # Karma reward (small heal)
-            p.heal(10)
-            self.add_message("做善事让你心情愉悦，恢复了 10 HP。")
+            healed = p.heal(self.scale_value(10, positive=True))
+            self.add_message(f"做善事让你心情愉悦，恢复了 {healed} HP。")
         else:
             self.add_message("你想帮忙但没钱，只能尴尬地安慰了几句。")
         return "Event Completed"
@@ -716,13 +757,13 @@ class CursedChestEvent(Event):
             ],
         )
         if random.random() < 0.6: # 60% bad
-            dmg = 20
+            dmg = self.scale_value(20, positive=False, aggressive=True)
             p.take_damage(dmg)
             self.add_message(f"宝箱突然咬了你一口！受到 {dmg} 点巨大伤害。里面什么也没有。")
         else:
             item = create_random_item()
             item.acquire(player=p)
-            gold = 100
+            gold = self.scale_value(100, positive=True, aggressive=True)
             p.gold += gold
             self.add_message(f"你忍受着诅咒的侵蚀打开了箱子，获得了 {item.name} 和 {gold} 金币！")
         return "Event Completed"
@@ -776,10 +817,11 @@ class WiseSageEvent(Event):
         super().__init__(controller)
         self.title = "Wise Sage"
         self.description = "一位白胡子老者拦住了去路：'年轻的勇士，为了什么而战？'"
+        heal_hint = self.scale_value(50, positive=True)
         self.choices = [
             EventChoice("为了力量 (加攻击)", self.power),
             EventChoice("为了财富 (加金币)", self.wealth),
-            EventChoice("为了生存 (恢复50HP)", self.health)
+            EventChoice(f"为了生存 (恢复{heal_hint}HP)", self.health)
         ]
 
     def power(self):
@@ -806,7 +848,7 @@ class WiseSageEvent(Event):
         )
         if random.random() < 0.7:
             self.add_message("老者点了点头：'力量是双刃剑。'")
-            p.change_base_atk(3)
+            p.change_base_atk(self.scale_value(3, positive=True))
         else:
             duration = 3
             p.apply_status(StatusName.WEAK.create_instance(duration=duration, target=p))
@@ -836,11 +878,11 @@ class WiseSageEvent(Event):
             ],
         )
         if random.random() < 0.7:
-            gold = 200
+            gold = self.scale_value(200, positive=True, aggressive=True)
             p.gold += gold
             self.add_message(f"老者叹了口气：'身外之物。' 他丢给你 {gold} 金币后消失了。")
         else:
-            lost = min(p.gold, 50)
+            lost = min(p.gold, self.scale_value(50, positive=False, aggressive=True))
             p.gold -= lost
             self.add_message(f"老者手一挥，你口袋里的 {lost} 金币变成了石头。'贪婪是原罪。'")
         return "Event Completed"
@@ -868,8 +910,8 @@ class WiseSageEvent(Event):
             ],
         )
         if random.random() < 0.7:
-            p.heal(50)
-            self.add_message("老者微笑道：'活着就有希望。' 你的生命值恢复了 50 点。")
+            healed = p.heal(self.scale_value(50, positive=True, aggressive=True))
+            self.add_message(f"老者微笑道：'活着就有希望。' 你的生命值恢复了 {healed} 点。")
         else:
             duration = 3
             p.apply_status(StatusName.FIELD_POISON.create_instance(duration=duration, target=p))
@@ -976,6 +1018,10 @@ class FallenKnightEvent(Event):
     TRIGGER_BASE_PROBABILITY = 0.08
 
     @classmethod
+    def is_trigger_condition_met(cls, controller):
+        return cls.is_unlocked(controller, min_round=6, min_stage=0)
+
+    @classmethod
     def get_trigger_probability(cls, controller):
         round_count = getattr(controller, "round_count", 0)
         return min(0.18, cls.TRIGGER_BASE_PROBABILITY + (0.05 if round_count >= 12 else 0.0))
@@ -1075,6 +1121,10 @@ class FallenKnightEvent(Event):
 class TimePawnshopEvent(Event):
     """新事件：时间当铺"""
     TRIGGER_BASE_PROBABILITY = 0.07
+
+    @classmethod
+    def is_trigger_condition_met(cls, controller):
+        return cls.is_unlocked(controller, min_round=8, min_stage=1)
 
     @classmethod
     def get_trigger_probability(cls, controller):
@@ -1207,6 +1257,10 @@ class MirrorTheaterEvent(Event):
     TRIGGER_BASE_PROBABILITY = 0.07
 
     @classmethod
+    def is_trigger_condition_met(cls, controller):
+        return cls.is_unlocked(controller, min_round=10, min_stage=1)
+
+    @classmethod
     def get_trigger_probability(cls, controller):
         moral = abs(getattr(getattr(controller, "story", None), "moral_score", 0))
         return min(0.17, cls.TRIGGER_BASE_PROBABILITY + min(0.1, moral / 600))
@@ -1331,6 +1385,10 @@ class MirrorTheaterEvent(Event):
 class MoonBountyEvent(Event):
     """长链1：月蚀通缉令"""
     TRIGGER_BASE_PROBABILITY = 0.07
+
+    @classmethod
+    def is_trigger_condition_met(cls, controller):
+        return cls.is_unlocked(controller, min_round=12, min_stage=1)
 
     def __init__(self, controller):
         super().__init__(controller)
@@ -1572,6 +1630,10 @@ class MoonVerdictEvent(Event):
 class ClockworkBazaarEvent(Event):
     """长链2：齿轮黑市"""
     TRIGGER_BASE_PROBABILITY = 0.06
+
+    @classmethod
+    def is_trigger_condition_met(cls, controller):
+        return cls.is_unlocked(controller, min_round=14, min_stage=2)
 
     @classmethod
     def get_trigger_probability(cls, controller):
@@ -1911,6 +1973,10 @@ class CogAuditEvent(Event):
 class DreamWellEvent(Event):
     """长链3：梦井回声"""
     TRIGGER_BASE_PROBABILITY = 0.06
+
+    @classmethod
+    def is_trigger_condition_met(cls, controller):
+        return cls.is_unlocked(controller, min_round=16, min_stage=2)
 
     @classmethod
     def get_trigger_probability(cls, controller):

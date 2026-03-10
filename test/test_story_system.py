@@ -110,7 +110,7 @@ class TestStorySystem(BaseTest):
         angel = Monster(name="天使", hp=80, atk=16, tier=5)
         monster_door = DoorEnum.MONSTER.create_instance(controller=self.controller, monster=angel)
 
-        with unittest.mock.patch("models.story_system.random.random", side_effect=[0.0, 0.0]):
+        with unittest.mock.patch("models.story_system.random.random", return_value=0.0):
             changed_door = story.apply_pre_enter_checks(monster_door)
 
         self.assertEqual(changed_door.enum.name, "REWARD")

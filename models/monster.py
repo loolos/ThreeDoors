@@ -7,6 +7,22 @@ if TYPE_CHECKING:
 
 import random
 
+
+def estimate_player_power(player=None, current_round=0):
+    """估算玩家当前战力，用于动态匹配怪物强度。"""
+    round_score = max(0, int(current_round or 0)) * 2
+    if player is None:
+        return float(round_score)
+
+    base_atk = getattr(player, "_atk", None)
+    if base_atk is None:
+        base_atk = getattr(player, "atk", 0)
+    hp = max(0, getattr(player, "hp", 0))
+    gold = max(0, getattr(player, "gold", 0))
+
+    # 攻击是主要战力来源；生命与金币作为次要修正
+    return float(base_atk * 11 + hp * 0.35 + min(gold, 400) * 0.08 + round_score)
+
 class Monster:
     # 怪物类型定义
     MONSTER_TYPES = {
@@ -458,24 +474,109 @@ class Monster:
         for status_name in expired:
             del self.statuses[status_name]
 
-def get_random_monster(max_tier=None, current_round=None, effect_probability=None):
+def _get_round_limited_max_tier(current_round):
+    """根据回合数给出基础怪物等级上限。"""
+    if current_round is None:
+        return 1
+    if current_round <= 5:
+        return 1  # 前5回合只出现Tier 1怪物
+    if current_round <= 10:
+        return 2  # 6-10回合可能出现Tier 2怪物
+    if current_round <= 15:
+        return 3  # 11-15回合可能出现Tier 3怪物
+    if current_round <= 20:
+        return 4  # 16-20回合可能出现Tier 4怪物
+    if current_round <= 25:
+        return 5  # 21-25回合可能出现Tier 5怪物
+    return 6  # 25回合后可能出现所有怪物
+
+
+def _roll_tier(max_tier, current_round, power_score):
+    """按权重抽取怪物等级，后期更偏向高 tier。"""
+    if max_tier <= 1:
+        return 1
+
+    weights = []
+    for tier in range(1, max_tier + 1):
+        base_weight = float(tier)
+        if current_round is not None and current_round >= 12 and tier >= max_tier - 1:
+            base_weight += 1.8
+        if power_score >= 70 and tier >= max_tier - 1:
+            base_weight += 1.5
+        elif power_score >= 45 and tier == max_tier:
+            base_weight += 1.2
+        weights.append(max(0.1, base_weight))
+
+    total = sum(weights)
+    roll = random.uniform(0, total)
+    acc = 0.0
+    for tier, weight in enumerate(weights, start=1):
+        acc += weight
+        if roll <= acc:
+            return tier
+    return max_tier
+
+
+def _apply_player_match_scaling(monster, player, current_round, power_score):
+    """根据玩家战力对怪物数值进行动态缩放。"""
+    if player is None:
+        return
+
+    round_count = max(0, int(current_round or 0))
+    if round_count <= 5 and monster.tier <= 2:
+        # 新手期保护，避免早期体验被过度拉高
+        return
+
+    player_atk = max(1, int(getattr(player, "atk", getattr(player, "_atk", 1))))
+    baseline = monster.tier * 24 + max(8, int(round_count * 1.8))
+    pressure = max(0.0, (power_score - baseline) / 120.0)
+    round_boost = min(0.2, max(0, round_count - 15) * 0.01)
+
+    hp_scale = min(2.2, 1.0 + pressure * 0.85 + round_boost)
+    atk_scale = min(1.9, 1.0 + pressure * 0.65 + round_boost * 0.8)
+
+    target_min_hp = int(player_atk * (3.8 + monster.tier * 0.5))
+    target_min_atk = int(player_atk * (0.45 + monster.tier * 0.05))
+
+    scaled_hp = max(monster.hp, int(monster.hp * hp_scale), target_min_hp)
+    scaled_atk = max(monster.atk, int(monster.atk * atk_scale), target_min_atk)
+
+    monster.hp = max(1, int(scaled_hp * random.uniform(0.95, 1.08)))
+    monster.atk = max(1, int(scaled_atk * random.uniform(0.95, 1.06)))
+    monster.effect_probability = min(
+        0.75,
+        monster.effect_probability + min(0.18, pressure * 0.12 + round_boost * 0.5),
+    )
+
+
+def get_random_monster(max_tier=None, current_round=None, effect_probability=None, player=None):
     """根据当前回合数生成随机怪物"""
-    # 根据回合数限制怪物等级
-    if max_tier is None and current_round is not None:
-        if current_round <= 5:
-            max_tier = 1  # 前5回合只出现Tier 1怪物
-        elif current_round <= 10:
-            max_tier = 2  # 6-10回合可能出现Tier 2怪物
-        elif current_round <= 15:
-            max_tier = 3  # 11-15回合可能出现Tier 3怪物
-        elif current_round <= 20:
-            max_tier = 4  # 16-20回合可能出现Tier 4怪物
-        elif current_round <= 25:
-            max_tier = 5  # 21-25回合可能出现Tier 5怪物
-        else:
-            max_tier = 6  # 25回合后可能出现所有怪物
-    elif max_tier is None:
-        max_tier = 1  # 默认使用Tier 1
-    
-    # 从对应等级的怪物池中随机选择
-    return Monster(tier=random.randint(1, max_tier), effect_probability=effect_probability) 
+    round_limited = _get_round_limited_max_tier(current_round)
+    if max_tier is None:
+        max_tier = round_limited
+    else:
+        max_tier = max(1, min(6, int(max_tier)))
+
+    power_score = estimate_player_power(player=player, current_round=current_round)
+
+    # 玩家后期战力较高时，允许在回合上限上再抬一档，避免“后期无敌”
+    bonus_tier = 0
+    if power_score >= 40:
+        bonus_tier += 1
+    if power_score >= 62:
+        bonus_tier += 1
+    if power_score >= 90:
+        bonus_tier += 1
+    if current_round is not None and current_round <= 8:
+        bonus_tier = min(bonus_tier, 1)
+    max_tier = min(6, max(max_tier, round_limited) + bonus_tier)
+
+    tier = _roll_tier(max_tier=max_tier, current_round=current_round, power_score=power_score)
+    monster = Monster(tier=tier, effect_probability=effect_probability)
+    _apply_player_match_scaling(
+        monster=monster,
+        player=player,
+        current_round=current_round,
+        power_score=power_score,
+    )
+    return monster

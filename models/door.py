@@ -66,7 +66,10 @@ class Door(BaseClass):
         fake_door_enum = random.choice([enum for enum in DoorEnum if enum != self.enum])
         self.hint = get_mixed_door_hint(frozenset([self.enum, fake_door_enum]))
         if fake_door_enum == DoorEnum.MONSTER:
-            fake_monster = get_random_monster(current_round=self.controller.round_count)
+            fake_monster = get_random_monster(
+                current_round=self.controller.round_count,
+                player=getattr(self.controller, "player", None),
+            )
             tier_hint, type_hint = fake_monster.get_hints()
             self.hint = f"{self.hint}, {tier_hint}, {type_hint}"
 
@@ -203,7 +206,10 @@ class MonsterDoor(Door):
         if 'monster' in kwargs:
             self.monster = kwargs['monster']
         else:
-            self.monster = get_random_monster(current_round=self.controller.round_count)
+            self.monster = get_random_monster(
+                current_round=self.controller.round_count,
+                player=getattr(self.controller, "player", None),
+            )
         self.generate_hint()
     
     def generate_hint(self) -> None:

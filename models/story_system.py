@@ -69,6 +69,36 @@ class StorySystem:
         self.consumed_consequences: Set[str] = set()
         self.effect_handlers: Dict[str, Callable[[PendingConsequence, Any], Tuple[bool, Any]]] = {}
 
+    def _get_progress_stage(self) -> int:
+        """按回合与玩家基础攻击估算后续影响强度阶段。"""
+        round_count = max(0, int(getattr(self.controller, "round_count", 0)))
+        player = getattr(self.controller, "player", None)
+        base_atk = 5
+        if player is not None:
+            base_atk = max(1, int(getattr(player, "_atk", getattr(player, "atk", 5))))
+        score = round_count * 2 + base_atk * 4
+        if score >= 130:
+            return 3
+        if score >= 90:
+            return 2
+        if score >= 55:
+            return 1
+        return 0
+
+    def _scale_amount(self, amount: int, *, positive: bool, aggressive: bool = False) -> int:
+        """按阶段缩放数值，保证前期与旧行为一致。"""
+        stage = self._get_progress_stage()
+        if stage <= 0:
+            return int(amount)
+        scale_steps = (1.0, 1.1, 1.22, 1.35) if positive else (1.0, 1.12, 1.25, 1.4)
+        scale = scale_steps[min(stage, len(scale_steps) - 1)]
+        if aggressive:
+            scale += stage * 0.03
+        scaled = int(round(amount * scale))
+        if amount >= 0:
+            return max(1, scaled)
+        return min(-1, scaled)
+
     def register_effect_handler(
         self,
         effect_key: str,
@@ -258,6 +288,7 @@ class StorySystem:
             return True, reward_door
 
         if effect == "revenge_ambush":
+            stage = self._get_progress_stage()
             force_hunter_config = payload.get("force_hunter", None)
             convert_to_hunter = payload.get("convert_to_hunter", True)
             hunter_name = payload.get("hunter_name")
@@ -280,6 +311,9 @@ class StorySystem:
                 hunter = self._create_hunter_monster(preferred_name=hunter_name)
                 hp_ratio = payload.get("hp_ratio", 1.25)
                 atk_ratio = payload.get("atk_ratio", 1.2)
+                if stage > 0:
+                    hp_ratio = min(2.4, hp_ratio * (1.0 + stage * 0.08))
+                    atk_ratio = min(2.2, atk_ratio * (1.0 + stage * 0.07))
                 if monster:
                     hunter.hp = max(hunter.hp, int(monster.hp * hp_ratio))
                     hunter.atk = max(hunter.atk, int(monster.atk * atk_ratio))
@@ -308,6 +342,9 @@ class StorySystem:
             if monster:
                 hp_ratio = payload.get("hp_ratio", 1.25)
                 atk_ratio = payload.get("atk_ratio", 1.2)
+                if stage > 0:
+                    hp_ratio = min(2.4, hp_ratio * (1.0 + stage * 0.08))
+                    atk_ratio = min(2.2, atk_ratio * (1.0 + stage * 0.07))
                 old_hp, old_atk = monster.hp, monster.atk
                 monster.hp = max(1, int(monster.hp * hp_ratio))
                 monster.atk = max(1, int(monster.atk * atk_ratio))
@@ -320,6 +357,7 @@ class StorySystem:
                 )
                 return True, door
             dmg = payload.get("damage", random.randint(5, 12))
+            dmg = self._scale_amount(dmg, positive=False, aggressive=True)
             old_hp = self.controller.player.hp
             self.controller.player.take_damage(dmg)
             self.controller.add_message(
@@ -334,6 +372,9 @@ class StorySystem:
         if effect == "guard_reward":
             gold = payload.get("gold", random.randint(20, 60))
             heal = payload.get("heal", 0)
+            gold = self._scale_amount(gold, positive=True, aggressive=True)
+            if heal > 0:
+                heal = self._scale_amount(heal, positive=True)
             old_gold, old_hp = self.controller.player.gold, self.controller.player.hp
             self.controller.player.gold += gold
             if heal > 0:
@@ -420,6 +461,8 @@ class StorySystem:
 
         if effect == "shrine_curse":
             duration = payload.get("duration", 2)
+            if self._get_progress_stage() >= 2:
+                duration += 1
             self.controller.player.apply_status(
                 StatusName.WEAK.create_instance(duration=duration, target=self.controller.player)
             )
@@ -431,6 +474,8 @@ class StorySystem:
 
         if effect == "atk_training":
             delta = payload.get("delta", 2)
+            if self._get_progress_stage() >= 2:
+                delta += 1
             old_atk = self.controller.player._atk
             self.controller.player.change_base_atk(delta)
             self.controller.add_message(
@@ -445,6 +490,7 @@ class StorySystem:
         if effect == "lose_gold":
             old_gold = self.controller.player.gold
             lost = min(self.controller.player.gold, payload.get("amount", random.randint(15, 45)))
+            lost = min(self.controller.player.gold, self._scale_amount(lost, positive=False))
             self.controller.player.gold -= lost
             self.controller.add_message(
                 self._resolve_message(payload, "message", f"旧账找上门来，你被迫赔了 {lost} 金币。")
@@ -673,19 +719,33 @@ class StorySystem:
         from models.monster import Monster
 
         round_count = getattr(self.controller, "round_count", 0)
+        stage = self._get_progress_stage()
         if preferred_name:
             if round_count <= 10:
-                return Monster(name=preferred_name, hp=32, atk=8, tier=2)
-            if round_count <= 20:
-                return Monster(name=preferred_name, hp=48, atk=12, tier=3)
-            return Monster(name=preferred_name, hp=62, atk=17, tier=4)
+                hunter = Monster(name=preferred_name, hp=32, atk=8, tier=2)
+            elif round_count <= 20:
+                hunter = Monster(name=preferred_name, hp=48, atk=12, tier=3)
+            else:
+                hunter = Monster(name=preferred_name, hp=62, atk=17, tier=4)
+            if stage > 0:
+                hunter.hp = max(1, int(hunter.hp * (1 + stage * 0.08)))
+                hunter.atk = max(1, int(hunter.atk * (1 + stage * 0.06)))
+            return hunter
         for max_round, pool in self.HUNTER_POOL:
             if round_count <= max_round:
                 name, base_hp, base_atk = random.choice(pool)
                 tier = 2 if max_round == 10 else (3 if max_round == 20 else 4)
-                return Monster(name=name, hp=base_hp, atk=base_atk, tier=tier)
+                hunter = Monster(name=name, hp=base_hp, atk=base_atk, tier=tier)
+                if stage > 0:
+                    hunter.hp = max(1, int(hunter.hp * (1 + stage * 0.08)))
+                    hunter.atk = max(1, int(hunter.atk * (1 + stage * 0.06)))
+                return hunter
         name, base_hp, base_atk = random.choice(self.HUNTER_POOL[-1][1])
-        return Monster(name=name, hp=base_hp, atk=base_atk, tier=4)
+        hunter = Monster(name=name, hp=base_hp, atk=base_atk, tier=4)
+        if stage > 0:
+            hunter.hp = max(1, int(hunter.hp * (1 + stage * 0.08)))
+            hunter.atk = max(1, int(hunter.atk * (1 + stage * 0.06)))
+        return hunter
 
     def _get_shop_targets(self, door: Any):
         shops = []
