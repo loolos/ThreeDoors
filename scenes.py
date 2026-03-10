@@ -112,7 +112,10 @@ class DoorScene(Scene):
             available_door_enums = [door_enum for door_enum in DoorEnum]
                 
             # 生成一扇怪物门
-            monster = get_random_monster(current_round=self.controller.round_count)
+            monster = get_random_monster(
+                current_round=self.controller.round_count,
+                player=getattr(self.controller, "player", None),
+            )
             monster_door = DoorEnum.MONSTER.create_instance(monster=monster, controller=self.controller)
             # 生成其他两扇门
             self.doors = [monster_door]

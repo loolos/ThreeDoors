@@ -369,3 +369,36 @@ class TestAllEvents(BaseTest):
         self.player.gold = 100
         high = SmugglerEvent.get_trigger_probability(self.controller)
         self.assertGreater(high, low)
+
+    @unittest.mock.patch("models.events.random.random", return_value=0.1)
+    def test_core_event_effect_can_scale_with_progression(self, _):
+        early = GameController()
+        early.player.hp = 20
+        AncientShrineEvent(early).resolve_choice(0)
+        early_healed = early.player.hp - 20
+
+        late = GameController()
+        late.round_count = 28
+        late.player.atk = 24
+        late.player.hp = 20
+        AncientShrineEvent(late).resolve_choice(0)
+        late_healed = late.player.hp - 20
+
+        self.assertGreater(late_healed, early_healed)
+
+    def test_high_intensity_events_are_progression_locked(self):
+        self.controller.round_count = 4
+        self.player.atk = 6
+        self.assertFalse(TimePawnshopEvent.is_trigger_condition_met(self.controller))
+        self.assertFalse(MirrorTheaterEvent.is_trigger_condition_met(self.controller))
+        self.assertFalse(MoonBountyEvent.is_trigger_condition_met(self.controller))
+        self.assertFalse(ClockworkBazaarEvent.is_trigger_condition_met(self.controller))
+        self.assertFalse(DreamWellEvent.is_trigger_condition_met(self.controller))
+
+        self.controller.round_count = 26
+        self.player.atk = 24
+        self.assertTrue(TimePawnshopEvent.is_trigger_condition_met(self.controller))
+        self.assertTrue(MirrorTheaterEvent.is_trigger_condition_met(self.controller))
+        self.assertTrue(MoonBountyEvent.is_trigger_condition_met(self.controller))
+        self.assertTrue(ClockworkBazaarEvent.is_trigger_condition_met(self.controller))
+        self.assertTrue(DreamWellEvent.is_trigger_condition_met(self.controller))
