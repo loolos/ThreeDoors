@@ -54,18 +54,20 @@ class TestServerAPI(unittest.TestCase):
 
     def test_all_scenes_in_whitelist(self):
         """Ensure all defined scenes are handled by server.py whitelist logic"""
-        # This is a meta-test to check server.py code
-        import server
-        import inspect
-        
-        # Read server.py source to find the whitelist
-        source = inspect.getsource(server.button_action)
-        
         from scenes import SceneType
-        expected_scenes = [s.name for s in SceneType] # DOOR, BATTLE, etc.
-        # SceneType.DOOR is DoorScene class. SceneType.DOOR.name is 'DOOR'
-        
-        # Actually, let's just check operationally
-        # We want to ensure Battle, Shop, Door, UseItem, GameOver, Event are all covered.
-        # We can't easily parse source reliably, but we can test each one.
-        pass # The specific event test above covers the immediate regression.
+        expected = {"DoorScene", "BattleScene", "ShopScene", "UseItemScene", "GameOverScene", "EventScene"}
+        scene_names = {s.__name__ for s in SceneType.get_name_scene_dict().values()}
+        for name in scene_names:
+            self.assertIn(name, expected, f"Scene {name} must be in button_action whitelist")
+
+    def test_button_action_validates_index(self):
+        """Invalid or out-of-range index should be clamped, not crash"""
+        with self.app as client:
+            client.get("/")
+            with client.session_transaction() as sess:
+                sess["game_id"] = "idx_test"
+            from server import GameController
+            games_store["idx_test"] = GameController()
+            for bad_index in [{"index": -1}, {"index": 99}, {"index": "x"}, {}]:
+                resp = client.post("/buttonAction", json=bad_index, headers={"X-Requested-With": "XMLHttpRequest"})
+                self.assertEqual(resp.status_code, 200, f"bad payload {bad_index} should not crash")

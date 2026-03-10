@@ -209,7 +209,8 @@ class Monster:
         if self.name.startswith("测试怪物"):
             self.type_hint = "未知生物的声响..."
         else:
-            self.type_hint = random.choice(self.MONSTER_TYPE_HINTS[self.name])  # 类型提示
+            hints = self.MONSTER_TYPE_HINTS.get(self.name, ["未知生物的声响..."])
+            self.type_hint = random.choice(hints) if isinstance(hints, list) else "未知生物的声响..."
 
     def _infer_sprite_key(self) -> str:
         """根据名称推断怪物贴图分组。"""

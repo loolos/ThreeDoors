@@ -60,5 +60,11 @@ class TestDoorGeneration(BaseTest):
         self.assertIsInstance(hint, str)
         self.assertNotEqual(hint, "")
 
+    def test_combo_hint_returns_string(self):
+        """双元素组合提示应正常返回字符串"""
+        hint = get_mixed_door_hint(frozenset({DoorEnum.MONSTER, DoorEnum.SHOP}))
+        self.assertIsInstance(hint, str)
+        self.assertNotEqual(hint, "")
+
 if __name__ == '__main__':
     unittest.main()

@@ -402,4 +402,8 @@ def get_mixed_door_hint(door_enums):
     selected_enums = []
     selected_enums.append(door_enums_list.pop(random.randint(0, len(door_enums_list) - 1)))
     selected_enums.append(door_enums_list.pop(random.randint(0, len(door_enums_list) - 1)))
-    return random.choice(HINT_CONFIGS["combo"][frozenset(selected_enums)])
+    key = frozenset(selected_enums)
+    hints = HINT_CONFIGS["combo"].get(key)
+    if hints:
+        return random.choice(hints)
+    return random.choice(HINT_CONFIGS["default"].get(selected_enums[0], ["空气中弥漫着神秘的气息..."]))

@@ -49,3 +49,10 @@ class TestMonsterSystem(BaseTest):
         self.assertIsNotNone(m.name)
         self.assertIsNotNone(m.hp)
         self.assertIsNotNone(m.atk)
+
+    def test_monster_custom_name_no_keyerror(self):
+        """自定义怪物名不在 MONSTER_TYPE_HINTS 时不应 KeyError"""
+        m = Monster(name="自定义未知怪", hp=20, atk=5, tier=1)
+        self.assertEqual(m.tier, 1)
+        self.assertIsInstance(m.type_hint, str)
+        self.assertTrue(len(m.type_hint) > 0)

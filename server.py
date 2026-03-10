@@ -146,8 +146,13 @@ def get_state():
 def button_action():
     g = get_game()
     scn = g.scene_manager.current_scene
-    data = request.json
-    index = data.get("index", 0)
+    data = request.json or {}
+    raw_index = data.get("index", 0)
+    try:
+        index = int(raw_index) if raw_index is not None else 0
+    except (TypeError, ValueError):
+        index = 0
+    index = max(0, min(2, index))
     
     # 获取当前场景名称
     scn_name = scn.__class__.__name__ if scn else "None"
