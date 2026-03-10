@@ -20,8 +20,8 @@ def estimate_player_power(player=None, current_round=0):
     hp = max(0, getattr(player, "hp", 0))
     gold = max(0, getattr(player, "gold", 0))
 
-    # 攻击是主要战力来源；生命与金币作为次要修正
-    return float(base_atk * 11 + hp * 0.35 + min(gold, 400) * 0.08 + round_score)
+    # 主要依据回合推进；玩家属性仅提供轻微修正
+    return float(base_atk * 3.5 + hp * 0.08 + min(gold, 400) * 0.02 + round_score)
 
 class Monster:
     # 怪物类型定义
@@ -501,10 +501,10 @@ def _roll_tier(max_tier, current_round, power_score):
         base_weight = float(tier)
         if current_round is not None and current_round >= 12 and tier >= max_tier - 1:
             base_weight += 1.8
-        if power_score >= 70 and tier >= max_tier - 1:
-            base_weight += 1.5
-        elif power_score >= 45 and tier == max_tier:
-            base_weight += 1.2
+        if power_score >= 95 and tier >= max_tier - 1:
+            base_weight += 0.7
+        elif power_score >= 70 and tier == max_tier:
+            base_weight += 0.5
         weights.append(max(0.1, base_weight))
 
     total = sum(weights)
@@ -528,15 +528,16 @@ def _apply_player_match_scaling(monster, player, current_round, power_score):
         return
 
     player_atk = max(1, int(getattr(player, "atk", getattr(player, "_atk", 1))))
-    baseline = monster.tier * 24 + max(8, int(round_count * 1.8))
-    pressure = max(0.0, (power_score - baseline) / 120.0)
-    round_boost = min(0.2, max(0, round_count - 15) * 0.01)
+    baseline = monster.tier * 30 + max(10, int(round_count * 2.2))
+    pressure = max(0.0, (power_score - baseline) / 220.0)
+    round_boost = min(0.28, max(0, round_count - 12) * 0.012)
 
-    hp_scale = min(2.2, 1.0 + pressure * 0.85 + round_boost)
-    atk_scale = min(1.9, 1.0 + pressure * 0.65 + round_boost * 0.8)
+    # 以回合增幅为主，玩家状态仅做少量平滑
+    hp_scale = min(1.65, 1.0 + round_boost + pressure * 0.22)
+    atk_scale = min(1.45, 1.0 + round_boost * 0.7 + pressure * 0.16)
 
-    target_min_hp = int(player_atk * (3.8 + monster.tier * 0.5))
-    target_min_atk = int(player_atk * (0.45 + monster.tier * 0.05))
+    target_min_hp = int(player_atk * (2.6 + monster.tier * 0.25))
+    target_min_atk = int(player_atk * (0.30 + monster.tier * 0.03))
 
     scaled_hp = max(monster.hp, int(monster.hp * hp_scale), target_min_hp)
     scaled_atk = max(monster.atk, int(monster.atk * atk_scale), target_min_atk)
@@ -545,7 +546,7 @@ def _apply_player_match_scaling(monster, player, current_round, power_score):
     monster.atk = max(1, int(scaled_atk * random.uniform(0.95, 1.06)))
     monster.effect_probability = min(
         0.75,
-        monster.effect_probability + min(0.18, pressure * 0.12 + round_boost * 0.5),
+        monster.effect_probability + min(0.10, pressure * 0.04 + round_boost * 0.22),
     )
 
 
@@ -559,16 +560,12 @@ def get_random_monster(max_tier=None, current_round=None, effect_probability=Non
 
     power_score = estimate_player_power(player=player, current_round=current_round)
 
-    # 玩家后期战力较高时，允许在回合上限上再抬一档，避免“后期无敌”
+    # 玩家后期战力较高时，允许在回合上限上轻微抬升
     bonus_tier = 0
-    if power_score >= 40:
+    if power_score >= 80:
         bonus_tier += 1
-    if power_score >= 62:
-        bonus_tier += 1
-    if power_score >= 90:
-        bonus_tier += 1
-    if current_round is not None and current_round <= 8:
-        bonus_tier = min(bonus_tier, 1)
+    if current_round is not None and current_round <= 12:
+        bonus_tier = 0
     max_tier = min(6, max(max_tier, round_limited) + bonus_tier)
 
     tier = _roll_tier(max_tier=max_tier, current_round=current_round, power_score=power_score)
