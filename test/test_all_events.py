@@ -352,6 +352,18 @@ class TestAllEvents(BaseTest):
         self.assertEqual(c.player.gold, 120)
         self.assertEqual(c.player.hp, 92)
 
+
+    def test_early_round_events_obey_min_round(self):
+        self.controller.round_count = 0
+        self.assertFalse(SmugglerEvent.is_trigger_condition_met(self.controller))
+        self.assertFalse(GamblerEvent.is_trigger_condition_met(self.controller))
+        self.assertFalse(LostChildEvent.is_trigger_condition_met(self.controller))
+
+        self.controller.round_count = 4
+        self.assertTrue(SmugglerEvent.is_trigger_condition_met(self.controller))
+        self.assertTrue(GamblerEvent.is_trigger_condition_met(self.controller))
+        self.assertTrue(LostChildEvent.is_trigger_condition_met(self.controller))
+
     def test_get_random_event_checks_condition_then_probability(self):
         with unittest.mock.patch.object(events_module, "STARTER_EVENT_POOL", [StrangerEvent, SmugglerEvent]):
             with unittest.mock.patch.object(StrangerEvent, "is_trigger_condition_met", return_value=True):

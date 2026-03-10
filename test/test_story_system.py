@@ -162,6 +162,32 @@ class TestStorySystem(BaseTest):
             story.apply_pre_enter_checks(shop_door)
         self.assertIn("chain_second", story.consumed_consequences)
 
+
+    def test_delay_rounds_defers_consequence_trigger(self):
+        story = self.controller.story
+        story.register_consequence(
+            choice_flag="delay_case",
+            consequence_id="delay_gold_loss",
+            effect_key="lose_gold",
+            chance=1.0,
+            trigger_door_types=["EVENT"],
+            delay_rounds=3,
+            payload={"amount": 15},
+        )
+        event_door = DoorEnum.EVENT.create_instance(controller=self.controller)
+        self.player.gold = 100
+
+        with unittest.mock.patch("models.story_system.random.random", return_value=0.0):
+            story.apply_pre_enter_checks(event_door)
+        self.assertEqual(self.player.gold, 100)
+        self.assertIn("delay_gold_loss", story.pending_consequences)
+
+        self.controller.round_count = 3
+        with unittest.mock.patch("models.story_system.random.random", return_value=0.0):
+            story.apply_pre_enter_checks(event_door)
+        self.assertEqual(self.player.gold, 85)
+        self.assertIn("delay_gold_loss", story.consumed_consequences)
+
     def test_can_register_custom_effect_handler(self):
         story = self.controller.story
         marker = {"called": False}
