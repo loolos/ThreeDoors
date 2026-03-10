@@ -137,6 +137,7 @@ class StorySystem:
         trigger_monsters: Optional[Iterable[str]] = None,
         min_round: Optional[int] = None,
         max_round: Optional[int] = None,
+        delay_rounds: int = 0,
         priority: int = 0,
         payload: Optional[Dict[str, Any]] = None,
         required_flags: Optional[Iterable[str]] = None,
@@ -144,6 +145,22 @@ class StorySystem:
     ) -> bool:
         if consequence_id in self.pending_consequences or consequence_id in self.consumed_consequences:
             return False
+
+        current_round = max(0, int(getattr(self.controller, "round_count", 0)))
+        try:
+            delay_rounds = max(0, int(delay_rounds))
+        except (TypeError, ValueError):
+            delay_rounds = 0
+        if delay_rounds:
+            delayed_round = current_round + delay_rounds
+            if min_round is None:
+                min_round = delayed_round
+            else:
+                try:
+                    min_round = max(int(min_round), delayed_round)
+                except (TypeError, ValueError):
+                    min_round = delayed_round
+
         self.pending_consequences[consequence_id] = PendingConsequence(
             consequence_id=consequence_id,
             source_flag=choice_flag,

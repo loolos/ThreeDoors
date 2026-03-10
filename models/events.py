@@ -10,6 +10,8 @@ class EventChoice:
 
 class Event:
     TRIGGER_BASE_PROBABILITY = 0.1
+    MIN_TRIGGER_ROUND = 0
+    MAX_TRIGGER_ROUND = None
     POSITIVE_STAGE_SCALE = (1.0, 1.12, 1.27, 1.45)
     NEGATIVE_STAGE_SCALE = (1.0, 1.1, 1.22, 1.35)
 
@@ -45,7 +47,18 @@ class Event:
 
     @classmethod
     def is_trigger_condition_met(cls, controller):
-        return True
+        return cls.is_unlocked(
+            controller,
+            min_round=getattr(cls, "MIN_TRIGGER_ROUND", 0),
+        ) and cls._is_within_round_window(controller)
+
+    @classmethod
+    def _is_within_round_window(cls, controller):
+        max_round = getattr(cls, "MAX_TRIGGER_ROUND", None)
+        if max_round is None:
+            return True
+        round_count = max(0, int(getattr(controller, "round_count", 0)))
+        return round_count <= max_round
 
     @classmethod
     def get_trigger_probability(cls, controller):
@@ -110,6 +123,7 @@ class StrangerEvent(Event):
                 {
                     "consequence_id": "stranger_help_village_gift",
                     "effect_key": "villagers_gift",
+                    "delay_rounds": 2,
                     "chance": 0.32,
                     "priority": 8,
                     "trigger_door_types": ["MONSTER"],
@@ -207,6 +221,7 @@ class StrangerEvent(Event):
 # 2. Smuggler
 class SmugglerEvent(Event):
     TRIGGER_BASE_PROBABILITY = 0.1
+    MIN_TRIGGER_ROUND = 2
 
     @classmethod
     def get_trigger_probability(cls, controller):
@@ -263,6 +278,7 @@ class SmugglerEvent(Event):
                 {
                     "consequence_id": "smuggler_buy_counterfeit_penalty",
                     "effect_key": "black_market_markup",
+                    "delay_rounds": 1,
                     "chance": 0.28,
                     "priority": 6,
                     "trigger_door_types": ["SHOP"],
@@ -318,6 +334,7 @@ class SmugglerEvent(Event):
                             {
                                 "consequence_id": "smuggler_report_aftershock",
                                 "effect_key": "black_market_markup",
+                                "delay_rounds": 2,
                                 "chance": 0.35,
                                 "trigger_door_types": ["SHOP"],
                                 "required_flags": ["consumed:smuggler_report_gang_revenge"],
@@ -464,6 +481,7 @@ class AncientShrineEvent(Event):
 # 4. Gambler Event
 class GamblerEvent(Event):
     TRIGGER_BASE_PROBABILITY = 0.08
+    MIN_TRIGGER_ROUND = 3
 
     @classmethod
     def get_trigger_probability(cls, controller):
@@ -491,6 +509,7 @@ class GamblerEvent(Event):
                 {
                     "consequence_id": "gambler_high_debtor_revenge",
                     "effect_key": "revenge_ambush",
+                    "delay_rounds": 2,
                     "chance": 0.31,
                     "priority": 7,
                     "trigger_door_types": ["MONSTER"],
@@ -584,6 +603,7 @@ class GamblerEvent(Event):
 # 5. Lost Child Event
 class LostChildEvent(Event):
     TRIGGER_BASE_PROBABILITY = 0.11
+    MIN_TRIGGER_ROUND = 4
 
     def __init__(self, controller):
         super().__init__(controller)
