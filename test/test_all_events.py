@@ -10,7 +10,7 @@ from models.events import (
     TimePawnshopEvent, MirrorTheaterEvent,
     MoonBountyEvent, MoonVerdictEvent,
     ClockworkBazaarEvent, CogAuditEvent,
-    DreamWellEvent, EchoCourtEvent,
+    DreamWellEvent, EchoCourtEvent, ElfThiefIntroEvent,
 )
 from models.items import FlyingHammer
 
@@ -228,6 +228,10 @@ class TestAllEvents(BaseTest):
         self._run_choice(MoonBountyEvent, 0)
         self._run_choice(MoonBountyEvent, 1)
         self._run_choice(MoonBountyEvent, 2)
+
+        self._run_choice(ElfThiefIntroEvent, 0)
+        self._run_choice(ElfThiefIntroEvent, 1)
+        self._run_choice(ElfThiefIntroEvent, 2)
 
         self._run_choice(ClockworkBazaarEvent, 0)
         self._run_choice(ClockworkBazaarEvent, 1)

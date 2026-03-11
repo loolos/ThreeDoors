@@ -2,13 +2,28 @@ import unittest.mock
 import random
 
 from models.door import DoorEnum
-from models.events import MoonBountyEvent
+from models.events import MoonBountyEvent, ElfThiefIntroEvent
 from models.items import FlyingHammer
 from models.monster import Monster
 from test.test_base import BaseTest
 
 
 class TestStorySystem(BaseTest):
+    def test_elf_chain_followup_is_scheduled_between_10_and_20_rounds(self):
+        story = self.controller.story
+        self.controller.round_count = 12
+        event = ElfThiefIntroEvent(self.controller)
+        event.resolve_choice(0)
+
+        self.assertTrue(getattr(story, "elf_chain_started", False))
+        pending = list(story.pending_consequences.values())
+        self.assertEqual(len(pending), 1)
+        consequence = pending[0]
+        self.assertEqual(consequence.effect_key, "force_story_event")
+        self.assertEqual(consequence.min_round, 22)
+        self.assertEqual(consequence.max_round, 32)
+        self.assertEqual(consequence.payload.get("event_key"), "elf_shadow_mark_event")
+
     def test_one_choice_can_register_multiple_consequences(self):
         story = self.controller.story
         story.register_choice(

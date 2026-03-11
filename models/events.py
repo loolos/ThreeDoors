@@ -2301,11 +2301,458 @@ class EchoCourtEvent(Event):
         return "Event Completed"
 
 
+ELF_CHAIN_EVENT_ORDER = [
+    "elf_shadow_mark_event",
+    "elf_rooftop_duel_event",
+    "elf_fake_map_event",
+    "elf_monster_stage_event",
+    "elf_night_camp_event",
+    "elf_trap_rescue_event",
+    "elf_hunter_gate_event",
+    "elf_final_heist_event",
+    "elf_epilogue_event",
+]
+
+
+def _get_elf_chain_state(controller):
+    story = getattr(controller, "story", None)
+    if story is None:
+        return None
+    if not hasattr(story, "elf_relation"):
+        story.elf_relation = 0
+    if not hasattr(story, "elf_chain_started"):
+        story.elf_chain_started = False
+    if not hasattr(story, "elf_middle_queue"):
+        story.elf_middle_queue = []
+    return story
+
+
+def _adjust_elf_relation(controller, delta):
+    story = _get_elf_chain_state(controller)
+    if story is None:
+        return 0
+    story.elf_relation = max(-6, min(6, int(story.elf_relation) + int(delta)))
+    return story.elf_relation
+
+
+def _schedule_next_elf_event(controller, completed_key):
+    story = _get_elf_chain_state(controller)
+    if story is None:
+        return
+
+    if completed_key == "elf_shadow_mark_event" and not story.elf_middle_queue:
+        story.elf_middle_queue = [
+            "elf_rooftop_duel_event",
+            "elf_fake_map_event",
+            "elf_monster_stage_event",
+        ]
+        random.shuffle(story.elf_middle_queue)
+
+    if completed_key == "elf_intro":
+        next_key = "elf_shadow_mark_event"
+    elif completed_key == "elf_shadow_mark_event":
+        next_key = story.elf_middle_queue.pop(0)
+    elif completed_key in {
+        "elf_rooftop_duel_event",
+        "elf_fake_map_event",
+        "elf_monster_stage_event",
+    }:
+        next_key = story.elf_middle_queue.pop(0) if story.elf_middle_queue else "elf_night_camp_event"
+    else:
+        try:
+            idx = ELF_CHAIN_EVENT_ORDER.index(completed_key)
+            next_key = ELF_CHAIN_EVENT_ORDER[idx + 1]
+        except (ValueError, IndexError):
+            return
+
+    current_round = max(0, int(getattr(controller, "round_count", 0)))
+    min_round = current_round + 10
+    max_round = current_round + 20
+    consequence_id = f"elf_chain_force_{next_key}_{current_round}_{random.randint(1, 9999)}"
+    story.register_consequence(
+        choice_flag=f"elf_chain:{completed_key}",
+        consequence_id=consequence_id,
+        effect_key="force_story_event",
+        chance=1.0,
+        min_round=min_round,
+        max_round=max_round,
+        priority=99,
+        trigger_door_types=["EVENT"],
+        payload={
+            "event_key": next_key,
+            "hint": "墙上的银色箭羽指向下一次相遇。",
+            "message": f"你想起精灵飞贼留下的暗号：大约 {min_round}-{max_round} 回合后再见。",
+        },
+    )
+
+
+class ElfThiefIntroEvent(Event):
+    TRIGGER_BASE_PROBABILITY = 0.08
+    MIN_TRIGGER_ROUND = 6
+
+    @classmethod
+    def is_trigger_condition_met(cls, controller):
+        story = _get_elf_chain_state(controller)
+        if story is not None and bool(getattr(story, "elf_chain_started", False)):
+            return False
+        return super().is_trigger_condition_met(controller)
+
+    def __init__(self, controller):
+        super().__init__(controller)
+        self.title = "银羽飞贼"
+        self.description = "你在烛火暗巷里撞见一名精灵飞贼。她指尖转着匕首，笑着说：'要不要做个长期交易？'"
+        self.choices = [
+            EventChoice("递上口粮，表示愿意合作", self.offer_food),
+            EventChoice("拔刀试探，先打一场再说", self.challenge_duel),
+            EventChoice("谎称你是守卫，逼她交赃", self.fake_guard),
+        ]
+
+    def _start_chain(self):
+        story = _get_elf_chain_state(self.controller)
+        if story is None or story.elf_chain_started:
+            return
+        story.elf_chain_started = True
+        _schedule_next_elf_event(self.controller, "elf_intro")
+
+    def offer_food(self):
+        self.get_player().gold = max(0, self.get_player().gold - 8)
+        _adjust_elf_relation(self.controller, 2)
+        self.add_message("她毫不客气地抢走干粮，随后把一枚银羽徽记抛给你：'别死太早。'")
+        self._start_chain()
+        return "Event Completed"
+
+    def challenge_duel(self):
+        dmg = self.scale_value(9, positive=False)
+        self.get_player().take_damage(dmg)
+        _adjust_elf_relation(self.controller, 1)
+        self.add_message(f"你们点到为止地过了几招，你吃了 {dmg} 点伤害，她却笑得更开心。")
+        self._start_chain()
+        return "Event Completed"
+
+    def fake_guard(self):
+        lost = min(self.get_player().gold, 12)
+        self.get_player().gold -= lost
+        _adjust_elf_relation(self.controller, -2)
+        self.add_message(f"她反手把你的钱袋顺走 {lost}G：'冒充守卫前，先把靴子擦亮。'")
+        self._start_chain()
+        return "Event Completed"
+
+
+class ElfShadowMarkEvent(Event):
+    def __init__(self, controller):
+        super().__init__(controller)
+        self.title = "银羽暗号"
+        self.description = "第十几回合后，你在门框背面看见熟悉的银羽刻痕：'今晚不偷你，聊聊。'"
+        self.choices = [
+            EventChoice("交换情报", self.share_info),
+            EventChoice("追问她真实目的", self.ask_intent),
+            EventChoice("放冷话：再见就算账", self.threaten),
+        ]
+
+    def share_info(self):
+        self.get_player().gold += 10
+        _adjust_elf_relation(self.controller, 2)
+        self.add_message("你们互通了怪物巢穴路线，她提醒你绕开最毒的陷阱层。")
+        _schedule_next_elf_event(self.controller, "elf_shadow_mark_event")
+        return "Event Completed"
+
+    def ask_intent(self):
+        self.get_player().hp = min(100, self.get_player().hp + 8)
+        _adjust_elf_relation(self.controller, 1)
+        self.add_message("她丢来药包：'目的？先活下来，才配知道目的。'")
+        _schedule_next_elf_event(self.controller, "elf_shadow_mark_event")
+        return "Event Completed"
+
+    def threaten(self):
+        _adjust_elf_relation(self.controller, -2)
+        self.add_message("她耸耸肩：'那就看谁账本记得久。'转身消失在火把后。")
+        _schedule_next_elf_event(self.controller, "elf_shadow_mark_event")
+        return "Event Completed"
+
+
+class ElfRooftopDuelEvent(Event):
+    def __init__(self, controller):
+        super().__init__(controller)
+        self.title = "屋脊切磋"
+        self.description = "又过了十几回合，她在怪物门前等你：'三招，谁掉下屋脊谁请客。'"
+        self.choices = [
+            EventChoice("认真比试", self.train_hard),
+            EventChoice("故意放水", self.go_easy),
+            EventChoice("趁机偷袭", self.cheap_shot),
+        ]
+
+    def train_hard(self):
+        self.get_player().change_base_atk(1)
+        _adjust_elf_relation(self.controller, 2)
+        self.add_message("你学会了她的转腕技巧，基础攻击 +1。")
+        _schedule_next_elf_event(self.controller, "elf_rooftop_duel_event")
+        return "Event Completed"
+
+    def go_easy(self):
+        self.get_player().hp = min(100, self.get_player().hp + 6)
+        _adjust_elf_relation(self.controller, 1)
+        self.add_message("她看穿你在放水，却还是把跌打药塞进你怀里。")
+        _schedule_next_elf_event(self.controller, "elf_rooftop_duel_event")
+        return "Event Completed"
+
+    def cheap_shot(self):
+        self.get_player().take_damage(10)
+        _adjust_elf_relation(self.controller, -3)
+        self.add_message("偷袭差点得手，但她反手把你按进瓦片里。")
+        _schedule_next_elf_event(self.controller, "elf_rooftop_duel_event")
+        return "Event Completed"
+
+
+class ElfFakeMapEvent(Event):
+    def __init__(self, controller):
+        super().__init__(controller)
+        self.title = "假地图与真考验"
+        self.description = "她丢来两份地图：一真一假。'选吧，看看你到底信我还是信自己。'"
+        self.choices = [
+            EventChoice("信她指的那份", self.trust_map),
+            EventChoice("自己重新标记路径", self.remap),
+            EventChoice("把两份都卖了", self.sell_both),
+        ]
+
+    def trust_map(self):
+        self.get_player().gold += 14
+        _adjust_elf_relation(self.controller, 1)
+        self.add_message("你选中了真图，顺路摸到一处被忽视的补给箱（+14G）。")
+        _schedule_next_elf_event(self.controller, "elf_fake_map_event")
+        return "Event Completed"
+
+    def remap(self):
+        self.get_player().change_base_atk(1)
+        _adjust_elf_relation(self.controller, 0)
+        self.add_message("你凭经验修正了路径，虽然慢，但战斗节奏更稳（基础攻击 +1）。")
+        _schedule_next_elf_event(self.controller, "elf_fake_map_event")
+        return "Event Completed"
+
+    def sell_both(self):
+        self.get_player().gold += 20
+        _adjust_elf_relation(self.controller, -2)
+        self.add_message("你把两份图都卖给路人，赚了 20G，也让她记下你这笔坏账。")
+        _schedule_next_elf_event(self.controller, "elf_fake_map_event")
+        return "Event Completed"
+
+
+class ElfMonsterStageEvent(Event):
+    def __init__(self, controller):
+        super().__init__(controller)
+        self.title = "怪物门前的演武"
+        self.description = "她从怪物门里拖出木制假人：'来，练一套拆招。真怪物待会儿再说。'"
+        self.choices = [
+            EventChoice("专注练闪避", self.train_dodge),
+            EventChoice("专注练反击", self.train_counter),
+            EventChoice("嫌麻烦直接走", self.refuse),
+        ]
+
+    def train_dodge(self):
+        self.get_player().hp = min(100, self.get_player().hp + 10)
+        _adjust_elf_relation(self.controller, 1)
+        self.add_message("你学会了借门框卸力，体力恢复了 10 点。")
+        _schedule_next_elf_event(self.controller, "elf_monster_stage_event")
+        return "Event Completed"
+
+    def train_counter(self):
+        self.get_player().change_base_atk(2)
+        _adjust_elf_relation(self.controller, 1)
+        self.add_message("她教你抓怪物抬肩的破绽，基础攻击 +2。")
+        _schedule_next_elf_event(self.controller, "elf_monster_stage_event")
+        return "Event Completed"
+
+    def refuse(self):
+        _adjust_elf_relation(self.controller, -1)
+        self.add_message("她把假人踢回门后：'行，别怪我以后不救场。'")
+        _schedule_next_elf_event(self.controller, "elf_monster_stage_event")
+        return "Event Completed"
+
+
+class ElfNightCampEvent(Event):
+    def __init__(self, controller):
+        super().__init__(controller)
+        self.title = "夜营火谈"
+        self.description = "十几回合后，你们在坍塌神像下同烤一只蘑菇鸡。她第一次谈起自己的追兵。"
+        self.choices = [
+            EventChoice("答应帮她断后", self.promise_help),
+            EventChoice("要求先付定金", self.ask_payment),
+            EventChoice("记下情报，准备单飞", self.prepare_solo),
+        ]
+
+    def promise_help(self):
+        _adjust_elf_relation(self.controller, 2)
+        self.add_message("她难得正经地点头：'好，我也记你一份人情。'")
+        _schedule_next_elf_event(self.controller, "elf_night_camp_event")
+        return "Event Completed"
+
+    def ask_payment(self):
+        self.get_player().gold += 16
+        _adjust_elf_relation(self.controller, -1)
+        self.add_message("她扔来 16G：'佣兵价，童叟无欺。'语气却冷了半分。")
+        _schedule_next_elf_event(self.controller, "elf_night_camp_event")
+        return "Event Completed"
+
+    def prepare_solo(self):
+        self.get_player().change_base_atk(1)
+        _adjust_elf_relation(self.controller, -2)
+        self.add_message("你决定把主动权握在自己手里，基础攻击 +1。")
+        _schedule_next_elf_event(self.controller, "elf_night_camp_event")
+        return "Event Completed"
+
+
+class ElfTrapRescueEvent(Event):
+    def __init__(self, controller):
+        super().__init__(controller)
+        self.title = "陷阱回廊"
+        self.description = "你踩进连环陷阱，绞索正收紧。飞贼从梁上倒挂下来：'关系好坏，决定我割哪根绳。'"
+        self.choices = [
+            EventChoice("承认此前的过错", self.apologize),
+            EventChoice("命令她立刻救人", self.order_her),
+            EventChoice("自己挣脱，不求她", self.break_free),
+        ]
+
+    def _rescue_outcome(self):
+        rel = getattr(_get_elf_chain_state(self.controller), "elf_relation", 0)
+        if rel >= 2:
+            self.get_player().hp = min(100, self.get_player().hp + 14)
+            self.add_message("她精准切断绞索，还顺手包扎了你的手腕（+14HP）。")
+        elif rel <= -2:
+            self.get_player().take_damage(12)
+            self.add_message("她慢了半拍才出手，你被机关刮得遍体鳞伤（-12HP）。")
+        else:
+            self.get_player().take_damage(4)
+            self.add_message("她把你拉出陷阱，但你还是被铁刺擦伤（-4HP）。")
+
+    def apologize(self):
+        _adjust_elf_relation(self.controller, 2)
+        self._rescue_outcome()
+        _schedule_next_elf_event(self.controller, "elf_trap_rescue_event")
+        return "Event Completed"
+
+    def order_her(self):
+        _adjust_elf_relation(self.controller, -2)
+        self._rescue_outcome()
+        _schedule_next_elf_event(self.controller, "elf_trap_rescue_event")
+        return "Event Completed"
+
+    def break_free(self):
+        self.get_player().take_damage(8)
+        _adjust_elf_relation(self.controller, -1)
+        self.add_message("你硬扯绞索脱身，肩膀脱臼般剧痛（-8HP）。")
+        _schedule_next_elf_event(self.controller, "elf_trap_rescue_event")
+        return "Event Completed"
+
+
+class ElfHunterGateEvent(Event):
+    def __init__(self, controller):
+        super().__init__(controller)
+        self.title = "猎门同调"
+        self.description = "她从怪物门里跃出，身后跟着追兵：'来场真格切磋，顺便把他们清掉。'"
+        self.choices = [
+            EventChoice("并肩作战", self.team_up),
+            EventChoice("只顾自己输出", self.selfish_fight),
+            EventChoice("借机跑路", self.run_away),
+        ]
+
+    def team_up(self):
+        self.get_player().change_base_atk(2)
+        _adjust_elf_relation(self.controller, 2)
+        self.add_message("你们配合默契，斩落追兵后她给你纠正了两处发力错误（基础攻击 +2）。")
+        _schedule_next_elf_event(self.controller, "elf_hunter_gate_event")
+        return "Event Completed"
+
+    def selfish_fight(self):
+        self.get_player().gold += 18
+        _adjust_elf_relation(self.controller, -1)
+        self.add_message("你抢下战利品 18G，她虽然没说什么，但眼神变冷。")
+        _schedule_next_elf_event(self.controller, "elf_hunter_gate_event")
+        return "Event Completed"
+
+    def run_away(self):
+        self.get_player().take_damage(10)
+        _adjust_elf_relation(self.controller, -3)
+        self.add_message("你撤得太急，背后中箭（-10HP）。她在远处骂你胆小鬼。")
+        _schedule_next_elf_event(self.controller, "elf_hunter_gate_event")
+        return "Event Completed"
+
+
+class ElfFinalHeistEvent(Event):
+    def __init__(self, controller):
+        super().__init__(controller)
+        self.title = "双人盗案"
+        self.description = "最后一次暗号将你引到钟塔金库。她说：'今晚之后，我们要么成传说，要么成通缉令。'"
+        self.choices = [
+            EventChoice("按计划潜入", self.follow_plan),
+            EventChoice("临时改计划", self.change_plan),
+            EventChoice("把她卖给守卫", self.betray),
+        ]
+
+    def follow_plan(self):
+        self.get_player().gold += 30
+        _adjust_elf_relation(self.controller, 2)
+        self.add_message("行动顺利，你分到 30G。她笑说：'你终于像个靠谱同伙了。'")
+        _schedule_next_elf_event(self.controller, "elf_final_heist_event")
+        return "Event Completed"
+
+    def change_plan(self):
+        self.get_player().gold += 20
+        self.get_player().take_damage(6)
+        _adjust_elf_relation(self.controller, 0)
+        self.add_message("你临场改线，多捞了些钱但也被弩箭擦伤（+20G，-6HP）。")
+        _schedule_next_elf_event(self.controller, "elf_final_heist_event")
+        return "Event Completed"
+
+    def betray(self):
+        self.get_player().gold += 40
+        _adjust_elf_relation(self.controller, -4)
+        self.add_message("你拿了悬赏 40G。她被押走前只留下一句：'你最好永远别落单。'")
+        _schedule_next_elf_event(self.controller, "elf_final_heist_event")
+        return "Event Completed"
+
+
+class ElfEpilogueEvent(Event):
+    def __init__(self, controller):
+        super().__init__(controller)
+        self.title = "银羽余响"
+        rel = getattr(_get_elf_chain_state(controller), "elf_relation", 0)
+        if rel >= 2:
+            self.description = "她在晨雾里向你抛来半枚徽章：'以后你喊一声，我就来。'"
+        elif rel <= -2:
+            self.description = "你在墙上看见新涂鸦：一支折断的银羽，旁边写着你的名字。"
+        else:
+            self.description = "她没有现身，只留下一袋补给和一张字条：'下次见面，再分胜负。'"
+        self.choices = [
+            EventChoice("收下结局，继续前进", self.finish),
+        ]
+
+    def finish(self):
+        rel = getattr(_get_elf_chain_state(self.controller), "elf_relation", 0)
+        if rel >= 2:
+            self.get_player().change_base_atk(2)
+            self.add_message("你们成了亦敌亦友的固定搭子，基础攻击 +2。")
+        elif rel <= -2:
+            self.get_player().take_damage(10)
+            self.add_message("她的报复来得又快又准，你在余波中受伤（-10HP）。")
+        else:
+            self.get_player().gold += 15
+            self.add_message("这段关系停在模糊地带，但她还是留了 15G 作为'平手礼'。")
+        return "Event Completed"
+
+
 def get_story_event_by_key(event_key, controller):
     event_map = {
         "moon_verdict_event": MoonVerdictEvent,
         "cog_audit_event": CogAuditEvent,
         "echo_court_event": EchoCourtEvent,
+        "elf_shadow_mark_event": ElfShadowMarkEvent,
+        "elf_rooftop_duel_event": ElfRooftopDuelEvent,
+        "elf_fake_map_event": ElfFakeMapEvent,
+        "elf_monster_stage_event": ElfMonsterStageEvent,
+        "elf_night_camp_event": ElfNightCampEvent,
+        "elf_trap_rescue_event": ElfTrapRescueEvent,
+        "elf_hunter_gate_event": ElfHunterGateEvent,
+        "elf_final_heist_event": ElfFinalHeistEvent,
+        "elf_epilogue_event": ElfEpilogueEvent,
     }
     event_cls = event_map.get(event_key)
     return event_cls(controller) if event_cls else None
@@ -2324,6 +2771,7 @@ STARTER_EVENT_POOL = [
     TimePawnshopEvent,
     MirrorTheaterEvent,
     MoonBountyEvent,
+    ElfThiefIntroEvent,
     ClockworkBazaarEvent,
     DreamWellEvent,
 ]
