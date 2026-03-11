@@ -21,7 +21,7 @@ def estimate_player_power(player=None, current_round=0):
     gold = max(0, getattr(player, "gold", 0))
 
     # 主要依据回合推进；玩家属性仅提供轻微修正
-    return float(base_atk * 3.5 + hp * 0.08 + min(gold, 400) * 0.02 + round_score)
+    return float(base_atk * 0.1 + hp * 0.08 + min(gold, 400) * 0.02 + round_score)
 
 class Monster:
     # 怪物类型定义
@@ -501,10 +501,11 @@ def _roll_tier(max_tier, current_round, power_score):
         base_weight = float(tier)
         if current_round is not None and current_round >= 12 and tier >= max_tier - 1:
             base_weight += 1.8
-        if power_score >= 95 and tier >= max_tier - 1:
-            base_weight += 0.7
-        elif power_score >= 70 and tier == max_tier:
-            base_weight += 0.5
+        if current_round is not None and current_round >= 40:
+            if power_score >= 95 and tier >= max_tier - 1:
+                base_weight += 0.7
+            elif power_score >= 70 and tier == max_tier:
+                base_weight += 0.5
         weights.append(max(0.1, base_weight))
 
     total = sum(weights)
