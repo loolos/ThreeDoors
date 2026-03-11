@@ -192,12 +192,26 @@ class StorySystem:
             for c in self.pending_consequences.values()
             if c.matches(door=door, round_count=round_count, story_flags=story_flags)
         ]
+        door_type = getattr(getattr(door, "enum", None), "name", "")
+        prefer_followup_event = False
+        if door_type == "EVENT" and len(candidates) >= 5:
+            prefer_followup_event = True
+
         if not candidates:
             return door
 
         # 高优先级先尝试，同优先级随机化。
         random.shuffle(candidates)
-        candidates.sort(key=lambda c: c.priority, reverse=True)
+        if prefer_followup_event:
+            candidates.sort(
+                key=lambda c: (
+                    c.effect_key == "force_story_event",
+                    c.priority,
+                ),
+                reverse=True,
+            )
+        else:
+            candidates.sort(key=lambda c: c.priority, reverse=True)
         current_door = door
         applied_any = False
         for consequence in candidates:
