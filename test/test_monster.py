@@ -60,7 +60,7 @@ class TestMonsterSystem(BaseTest):
         self.assertTrue(len(m.type_hint) > 0)
 
     def test_random_monster_scales_with_player_power(self):
-        """同回合下，高战力玩家应遭遇更强怪物。"""
+        """玩家属性导致的怪物增强应从40回合后才生效。"""
         weak_player = SimpleNamespace(_atk=8, atk=8, hp=60, gold=20)
         strong_player = SimpleNamespace(_atk=24, atk=24, hp=160, gold=300)
 
@@ -73,5 +73,19 @@ class TestMonsterSystem(BaseTest):
         strong_avg_hp = sum(m.hp for m in strong_pack) / len(strong_pack)
         weak_avg_atk = sum(m.atk for m in weak_pack) / len(weak_pack)
         strong_avg_atk = sum(m.atk for m in strong_pack) / len(strong_pack)
-        self.assertGreater(strong_avg_hp, weak_avg_hp)
-        self.assertGreater(strong_avg_atk, weak_avg_atk)
+        # 40回合前不应因玩家属性差异出现额外强化
+        self.assertEqual(strong_avg_hp, weak_avg_hp)
+        self.assertEqual(strong_avg_atk, weak_avg_atk)
+
+        random.seed(20260310)
+        weak_pack_late = [get_random_monster(current_round=45, player=weak_player) for _ in range(40)]
+        random.seed(20260310)
+        strong_pack_late = [get_random_monster(current_round=45, player=strong_player) for _ in range(40)]
+
+        weak_avg_hp_late = sum(m.hp for m in weak_pack_late) / len(weak_pack_late)
+        strong_avg_hp_late = sum(m.hp for m in strong_pack_late) / len(strong_pack_late)
+        weak_avg_atk_late = sum(m.atk for m in weak_pack_late) / len(weak_pack_late)
+        strong_avg_atk_late = sum(m.atk for m in strong_pack_late) / len(strong_pack_late)
+
+        self.assertGreater(strong_avg_hp_late, weak_avg_hp_late)
+        self.assertGreater(strong_avg_atk_late, weak_avg_atk_late)

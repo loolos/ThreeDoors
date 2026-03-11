@@ -523,8 +523,8 @@ def _apply_player_match_scaling(monster, player, current_round, power_score):
         return
 
     round_count = max(0, int(current_round or 0))
-    if round_count <= 5 and monster.tier <= 2:
-        # 新手期保护，避免早期体验被过度拉高
+    if round_count < 40:
+        # 玩家属性带来的额外怪物强化仅在40回合后启用
         return
 
     player_atk = max(1, int(getattr(player, "atk", getattr(player, "_atk", 1))))
@@ -562,7 +562,7 @@ def get_random_monster(max_tier=None, current_round=None, effect_probability=Non
 
     # 玩家后期战力较高时，允许在回合上限上轻微抬升
     bonus_tier = 0
-    if power_score >= 80:
+    if current_round is not None and current_round >= 40 and power_score >= 80:
         bonus_tier += 1
     if current_round is not None and current_round <= 12:
         bonus_tier = 0
