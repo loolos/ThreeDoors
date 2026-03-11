@@ -537,14 +537,11 @@ def _apply_player_match_scaling(monster, player, current_round, power_score):
     hp_scale = min(1.65, 1.0 + round_boost + pressure * 0.22)
     atk_scale = min(1.45, 1.0 + round_boost * 0.7 + pressure * 0.16)
 
-    target_min_hp = int(player_atk * (2.6 + monster.tier * 0.25))
-    target_min_atk = int(player_atk * (0.30 + monster.tier * 0.03))
+    scaled_hp = max(monster.hp, int(monster.hp * hp_scale))
+    scaled_atk = max(monster.atk, int(monster.atk * atk_scale))
 
-    scaled_hp = max(monster.hp, int(monster.hp * hp_scale), target_min_hp)
-    scaled_atk = max(monster.atk, int(monster.atk * atk_scale), target_min_atk)
-
-    monster.hp = max(1, int(scaled_hp * random.uniform(0.95, 1.08)))
-    monster.atk = max(1, int(scaled_atk * random.uniform(0.95, 1.06)))
+    monster.hp = max(monster.hp, int(scaled_hp * random.uniform(0.95, 1.08)))
+    monster.atk = max(monster.atk, int(scaled_atk * random.uniform(0.95, 1.06)))
     monster.effect_probability = min(
         0.75,
         monster.effect_probability + min(0.10, pressure * 0.04 + round_boost * 0.22),
