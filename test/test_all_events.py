@@ -10,7 +10,7 @@ from models.events import (
     TimePawnshopEvent, MirrorTheaterEvent,
     MoonBountyEvent, MoonVerdictEvent,
     ClockworkBazaarEvent, CogAuditEvent,
-    DreamWellEvent, EchoCourtEvent,
+    DreamWellEvent, EchoCourtEvent, ElfThiefIntroEvent,
 )
 from models.items import FlyingHammer
 
@@ -215,6 +215,10 @@ class TestAllEvents(BaseTest):
             self._run_choice(WiseSageEvent, 2)
             self.assertTrue(self.player.has_status(StatusName.FIELD_POISON))
 
+    def test_elf_thief_has_explicit_name_in_intro(self):
+        event = ElfThiefIntroEvent(self.controller)
+        self.assertIn("莱希娅", event.description)
+
     def test_new_long_chain_starter_event_choices(self):
         self.player.gold = 300
         self._run_choice(TimePawnshopEvent, 0)
@@ -228,6 +232,10 @@ class TestAllEvents(BaseTest):
         self._run_choice(MoonBountyEvent, 0)
         self._run_choice(MoonBountyEvent, 1)
         self._run_choice(MoonBountyEvent, 2)
+
+        self._run_choice(ElfThiefIntroEvent, 0)
+        self._run_choice(ElfThiefIntroEvent, 1)
+        self._run_choice(ElfThiefIntroEvent, 2)
 
         self._run_choice(ClockworkBazaarEvent, 0)
         self._run_choice(ClockworkBazaarEvent, 1)
