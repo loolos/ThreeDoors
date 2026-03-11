@@ -40,6 +40,7 @@ class GameController:
         self.round_count = 0
         self.messages = []
         self.recent_event_classes = []  # 最近触发的事件类名，用于非后续事件门去重
+        self.event_trigger_counts = {}  # 事件触发计数，用于权重衰减与单次事件控制
         self.player = Player(self)
         self.player.reset()  # 重置玩家状态
         self.story = StorySystem(self)

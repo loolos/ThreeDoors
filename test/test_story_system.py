@@ -474,3 +474,33 @@ class TestStorySystem(BaseTest):
         self.assertTrue(all(new <= old for new, old in zip(refreshed_discount_costs, baseline_costs)))
         self.assertTrue(any(new < old for new, old in zip(refreshed_discount_costs, baseline_costs)))
         self.assertEqual(shop.pending_price_ratio, 1.0)
+
+
+    def test_event_door_prefers_force_story_event_when_many_candidates(self):
+        story = self.controller.story
+        for i in range(4):
+            story.register_consequence(
+                choice_flag=f"bulk_{i}",
+                consequence_id=f"bulk_reward_{i}",
+                effect_key="guard_reward",
+                chance=1.0,
+                trigger_door_types=["EVENT"],
+                priority=99,
+                payload={"gold": 1},
+            )
+
+        story.register_consequence(
+            choice_flag="bulk_force",
+            consequence_id="bulk_force_event",
+            effect_key="force_story_event",
+            chance=1.0,
+            trigger_door_types=["EVENT"],
+            priority=1,
+            payload={"event_key": "moon_verdict_event"},
+        )
+
+        event_door = DoorEnum.EVENT.create_instance(controller=self.controller)
+        with unittest.mock.patch("models.story_system.random.random", return_value=0.0):
+            changed_door = story.apply_pre_enter_checks(event_door)
+
+        self.assertEqual(getattr(changed_door, "story_forced_event_key", ""), "moon_verdict_event")

@@ -11,6 +11,7 @@ from models.events import (
     MoonBountyEvent, MoonVerdictEvent,
     ClockworkBazaarEvent, CogAuditEvent,
     DreamWellEvent, EchoCourtEvent, ElfThiefIntroEvent,
+    get_story_event_by_key,
 )
 from models.items import FlyingHammer
 
@@ -422,3 +423,18 @@ class TestAllEvents(BaseTest):
         self.assertTrue(MoonBountyEvent.is_trigger_condition_met(self.controller))
         self.assertTrue(ClockworkBazaarEvent.is_trigger_condition_met(self.controller))
         self.assertTrue(DreamWellEvent.is_trigger_condition_met(self.controller))
+
+
+    def test_repeat_triggered_event_weight_can_decay(self):
+        with unittest.mock.patch.object(events_module, "STARTER_EVENT_POOL", [StrangerEvent]):
+            with unittest.mock.patch.object(StrangerEvent, "is_trigger_condition_met", return_value=True):
+                with unittest.mock.patch.object(StrangerEvent, "get_trigger_probability", return_value=0.9):
+                    with unittest.mock.patch("models.events.random.random", return_value=0.95):
+                        event = events_module.get_random_event(self.controller)
+        self.assertIsInstance(event, StrangerEvent)
+        self.assertEqual(self.controller.event_trigger_counts.get("StrangerEvent"), 1)
+
+    def test_long_event_is_available_only_once(self):
+        self.assertIsNotNone(get_story_event_by_key("moon_verdict_event", self.controller))
+        self.controller.event_trigger_counts["MoonVerdictEvent"] = 1
+        self.assertIsNone(get_story_event_by_key("moon_verdict_event", self.controller))

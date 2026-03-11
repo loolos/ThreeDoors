@@ -14,6 +14,7 @@ class Event:
     MAX_TRIGGER_ROUND = None
     POSITIVE_STAGE_SCALE = (1.0, 1.12, 1.27, 1.45)
     NEGATIVE_STAGE_SCALE = (1.0, 1.1, 1.22, 1.35)
+    ONLY_TRIGGER_ONCE = False
 
     def __init__(self, controller):
         self.controller = controller
@@ -2758,7 +2759,9 @@ def get_story_event_by_key(event_key, controller):
         "elf_epilogue_event": ElfEpilogueEvent,
     }
     event_cls = event_map.get(event_key)
-    return event_cls(controller) if event_cls else None
+    if not event_cls or not _is_event_available(controller, event_cls):
+        return None
+    return event_cls(controller)
 
 
 STARTER_EVENT_POOL = [
@@ -2806,10 +2809,53 @@ def _weighted_pick(event_classes, weights):
 RECENT_EVENT_WINDOW = 6  # 最近 N 次事件门内尽量不重复
 
 
+def _get_event_trigger_counts(controller):
+    counts = getattr(controller, "event_trigger_counts", None)
+    if counts is None:
+        counts = {}
+        setattr(controller, "event_trigger_counts", counts)
+    return counts
+
+
+def _get_event_trigger_count(controller, event_cls):
+    return int(_get_event_trigger_counts(controller).get(event_cls.__name__, 0))
+
+
+def _mark_event_triggered(controller, event_cls):
+    counts = _get_event_trigger_counts(controller)
+    name = event_cls.__name__
+    counts[name] = int(counts.get(name, 0)) + 1
+
+
+def _is_event_available(controller, event_cls):
+    if not getattr(event_cls, "ONLY_TRIGGER_ONCE", False):
+        return True
+    return _get_event_trigger_count(controller, event_cls) <= 0
+
+
+def _build_event_weight(controller, event_cls):
+    base = _clamp_probability(event_cls.get_trigger_probability(controller))
+    trigger_count = _get_event_trigger_count(controller, event_cls)
+    if trigger_count <= 0:
+        return base
+    # 触发次数越多，权重越低，但保留少量概率避免完全“锁死”。
+    decay = 0.6 ** trigger_count
+    return max(0.01, base * decay)
+
+
 def get_random_event(controller):
-    candidates = [event_cls for event_cls in STARTER_EVENT_POOL if event_cls.is_trigger_condition_met(controller)]
+    candidates = [
+        event_cls
+        for event_cls in STARTER_EVENT_POOL
+        if event_cls.is_trigger_condition_met(controller) and _is_event_available(controller, event_cls)
+    ]
+    if not candidates:
+        candidates = [event_cls for event_cls in STARTER_EVENT_POOL if _is_event_available(controller, event_cls)]
+
     if not candidates:
         candidates = list(STARTER_EVENT_POOL)
+
+    random.shuffle(candidates)
 
     # 非后续事件门：优先排除最近出现过的类型
     recent = set(getattr(controller, "recent_event_classes", []))
@@ -2820,7 +2866,7 @@ def get_random_event(controller):
     passed = []
     candidate_probs = []
     for event_cls in candidates:
-        trigger_prob = _clamp_probability(event_cls.get_trigger_probability(controller))
+        trigger_prob = _build_event_weight(controller, event_cls)
         candidate_probs.append(trigger_prob)
         if random.random() <= trigger_prob:
             passed.append((event_cls, trigger_prob))
@@ -2830,7 +2876,34 @@ def get_random_event(controller):
             [event_cls for event_cls, _ in passed],
             [prob for _, prob in passed],
         )
+        _mark_event_triggered(controller, event_cls)
         return event_cls(controller)
 
     fallback_cls = _weighted_pick(candidates, candidate_probs)
+    _mark_event_triggered(controller, fallback_cls)
     return fallback_cls(controller)
+
+
+LONG_EVENT_CLASSES = (
+    TimePawnshopEvent,
+    MirrorTheaterEvent,
+    MoonBountyEvent,
+    MoonVerdictEvent,
+    ClockworkBazaarEvent,
+    CogAuditEvent,
+    DreamWellEvent,
+    EchoCourtEvent,
+    ElfThiefIntroEvent,
+    ElfShadowMarkEvent,
+    ElfRooftopDuelEvent,
+    ElfFakeMapEvent,
+    ElfMonsterStageEvent,
+    ElfNightCampEvent,
+    ElfTrapRescueEvent,
+    ElfHunterGateEvent,
+    ElfFinalHeistEvent,
+    ElfEpilogueEvent,
+)
+
+for _event_cls in LONG_EVENT_CLASSES:
+    _event_cls.ONLY_TRIGGER_ONCE = True
