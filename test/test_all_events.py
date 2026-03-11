@@ -215,6 +215,10 @@ class TestAllEvents(BaseTest):
             self._run_choice(WiseSageEvent, 2)
             self.assertTrue(self.player.has_status(StatusName.FIELD_POISON))
 
+    def test_elf_thief_has_explicit_name_in_intro(self):
+        event = ElfThiefIntroEvent(self.controller)
+        self.assertIn("莱希娅", event.description)
+
     def test_new_long_chain_starter_event_choices(self):
         self.player.gold = 300
         self._run_choice(TimePawnshopEvent, 0)

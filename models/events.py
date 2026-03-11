@@ -2301,6 +2301,9 @@ class EchoCourtEvent(Event):
         return "Event Completed"
 
 
+ELF_THIEF_NAME = "莱希娅"
+
+
 ELF_CHAIN_EVENT_ORDER = [
     "elf_shadow_mark_event",
     "elf_rooftop_duel_event",
@@ -2381,7 +2384,7 @@ def _schedule_next_elf_event(controller, completed_key):
         payload={
             "event_key": next_key,
             "hint": "墙上的银色箭羽指向下一次相遇。",
-            "message": f"你想起精灵飞贼留下的暗号：大约 {min_round}-{max_round} 回合后再见。",
+            "message": f"你想起精灵飞贼{ELF_THIEF_NAME}留下的暗号：大约 {min_round}-{max_round} 回合后再见。",
         },
     )
 
@@ -2400,7 +2403,7 @@ class ElfThiefIntroEvent(Event):
     def __init__(self, controller):
         super().__init__(controller)
         self.title = "银羽飞贼"
-        self.description = "你在烛火暗巷里撞见一名精灵飞贼。她指尖转着匕首，笑着说：'要不要做个长期交易？'"
+        self.description = f"你在烛火暗巷里撞见一名精灵飞贼，她自称{ELF_THIEF_NAME}。她指尖转着匕首，笑着说：'要不要做个长期交易？'"
         self.choices = [
             EventChoice("递上口粮，表示愿意合作", self.offer_food),
             EventChoice("拔刀试探，先打一场再说", self.challenge_duel),
@@ -2417,7 +2420,7 @@ class ElfThiefIntroEvent(Event):
     def offer_food(self):
         self.get_player().gold = max(0, self.get_player().gold - 8)
         _adjust_elf_relation(self.controller, 2)
-        self.add_message("她毫不客气地抢走干粮，随后把一枚银羽徽记抛给你：'别死太早。'")
+        self.add_message(f"{ELF_THIEF_NAME}毫不客气地抢走干粮，随后把一枚银羽徽记抛给你：'别死太早。'")
         self._start_chain()
         return "Event Completed"
 
