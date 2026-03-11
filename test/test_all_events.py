@@ -438,3 +438,16 @@ class TestAllEvents(BaseTest):
         self.assertIsNotNone(get_story_event_by_key("moon_verdict_event", self.controller))
         self.controller.event_trigger_counts["MoonVerdictEvent"] = 1
         self.assertIsNone(get_story_event_by_key("moon_verdict_event", self.controller))
+
+    def test_repeatable_event_weight_divides_by_trigger_count(self):
+        with unittest.mock.patch.object(StrangerEvent, "get_trigger_probability", return_value=0.6):
+            self.assertAlmostEqual(events_module._build_event_weight(self.controller, StrangerEvent), 0.6)
+            self.controller.event_trigger_counts["StrangerEvent"] = 2
+            self.assertAlmostEqual(events_module._build_event_weight(self.controller, StrangerEvent), 0.2)
+
+    def test_unseen_long_starter_event_has_weight_bonus(self):
+        with unittest.mock.patch.object(TimePawnshopEvent, "get_trigger_probability", return_value=0.5):
+            weight = events_module._build_event_weight(self.controller, TimePawnshopEvent)
+        expected = 0.5 * events_module.LONG_EVENT_STARTER_FIRST_TIME_BONUS
+        self.assertAlmostEqual(weight, expected)
+

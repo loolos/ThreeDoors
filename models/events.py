@@ -2783,6 +2783,18 @@ STARTER_EVENT_POOL = [
 ]
 
 
+LONG_EVENT_STARTER_CLASSES = {
+    TimePawnshopEvent,
+    MirrorTheaterEvent,
+    MoonBountyEvent,
+    ClockworkBazaarEvent,
+    DreamWellEvent,
+    ElfThiefIntroEvent,
+}
+
+LONG_EVENT_STARTER_FIRST_TIME_BONUS = 1.8
+
+
 def _clamp_probability(value):
     try:
         return max(0.0, min(1.0, float(value)))
@@ -2836,11 +2848,17 @@ def _is_event_available(controller, event_cls):
 def _build_event_weight(controller, event_cls):
     base = _clamp_probability(event_cls.get_trigger_probability(controller))
     trigger_count = _get_event_trigger_count(controller, event_cls)
-    if trigger_count <= 0:
-        return base
-    # 触发次数越多，权重越低，但保留少量概率避免完全“锁死”。
-    decay = 0.6 ** trigger_count
-    return max(0.01, base * decay)
+    weight = base
+
+    # 还未触发过的长线起始事件优先级更高。
+    if event_cls in LONG_EVENT_STARTER_CLASSES and trigger_count <= 0:
+        weight *= LONG_EVENT_STARTER_FIRST_TIME_BONUS
+
+    # 可重复事件按触发次数衰减：weight / (1 + 次数)
+    if not getattr(event_cls, "ONLY_TRIGGER_ONCE", False):
+        weight /= (1 + max(0, trigger_count))
+
+    return max(0.0, weight)
 
 
 def get_random_event(controller):
@@ -2863,25 +2881,12 @@ def get_random_event(controller):
     if fresh:
         candidates = fresh
 
-    passed = []
-    candidate_probs = []
-    for event_cls in candidates:
-        trigger_prob = _build_event_weight(controller, event_cls)
-        candidate_probs.append(trigger_prob)
-        if random.random() <= trigger_prob:
-            passed.append((event_cls, trigger_prob))
-
-    if passed:
-        event_cls = _weighted_pick(
-            [event_cls for event_cls, _ in passed],
-            [prob for _, prob in passed],
-        )
-        _mark_event_triggered(controller, event_cls)
-        return event_cls(controller)
-
-    fallback_cls = _weighted_pick(candidates, candidate_probs)
-    _mark_event_triggered(controller, fallback_cls)
-    return fallback_cls(controller)
+    candidate_weights = [_build_event_weight(controller, event_cls) for event_cls in candidates]
+    event_cls = _weighted_pick(candidates, candidate_weights)
+    if event_cls is None:
+        event_cls = random.choice(candidates)
+    _mark_event_triggered(controller, event_cls)
+    return event_cls(controller)
 
 
 LONG_EVENT_CLASSES = (
