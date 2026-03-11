@@ -5,6 +5,7 @@ from test.test_base import BaseTest
 from models.door import DoorEnum
 from models.monster import Monster
 from models import items
+from models.game_config import GameConfig
 from scenes import DoorScene, BattleScene, ShopScene, UseItemScene, GameOverScene
 from unittest import mock
 
@@ -121,7 +122,9 @@ class TestSceneSystem(BaseTest):
         door_scene = self.controller.scene_manager.current_scene
         door_scene.generate_doors([DoorEnum.EVENT, DoorEnum.MONSTER, DoorEnum.TRAP])
 
-        with mock.patch("models.story_system.random.random", return_value=0.0):
+        with mock.patch.object(GameConfig, "EVENT_DOOR_SKIP_REWRITE_CHANCE", 0.0), mock.patch(
+            "models.story_system.random.uniform", return_value=0.0
+        ):
             door_scene.handle_choice(0)
         self.assertIsInstance(self.controller.scene_manager.current_scene, BattleScene)
 
@@ -133,7 +136,9 @@ class TestSceneSystem(BaseTest):
 
         door_scene = self.controller.scene_manager.current_scene
         door_scene.generate_doors([DoorEnum.EVENT, DoorEnum.MONSTER, DoorEnum.TRAP])
-        with mock.patch("models.story_system.random.random", return_value=0.0):
+        with mock.patch.object(GameConfig, "EVENT_DOOR_SKIP_REWRITE_CHANCE", 0.0), mock.patch(
+            "models.story_system.random.uniform", return_value=0.0
+        ):
             door_scene.handle_choice(0)
         self.assertIsInstance(self.controller.scene_manager.current_scene, BattleScene)
 

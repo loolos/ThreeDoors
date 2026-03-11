@@ -5,10 +5,23 @@ from models.door import DoorEnum
 from models.events import MoonBountyEvent, ElfThiefIntroEvent
 from models.items import FlyingHammer
 from models.monster import Monster
+from models.game_config import GameConfig
 from test.test_base import BaseTest
 
 
 class TestStorySystem(BaseTest):
+    def setUp(self):
+        super().setUp()
+        # 测试中禁用事件门「候选<5 时 30% 跳过改写」，使单次只应用一条后果的断言可预测
+        self._skip_rewrite_patcher = unittest.mock.patch.object(
+            GameConfig, "EVENT_DOOR_SKIP_REWRITE_CHANCE", 0.0
+        )
+        self._skip_rewrite_patcher.start()
+
+    def tearDown(self):
+        if hasattr(self, "_skip_rewrite_patcher"):
+            self._skip_rewrite_patcher.stop()
+        super().tearDown()
     def test_elf_chain_followup_is_scheduled_between_10_and_20_rounds(self):
         story = self.controller.story
         self.controller.round_count = 12
@@ -75,7 +88,7 @@ class TestStorySystem(BaseTest):
         event_door_1 = DoorEnum.EVENT.create_instance(controller=self.controller)
         event_door_2 = DoorEnum.EVENT.create_instance(controller=self.controller)
 
-        with unittest.mock.patch("models.story_system.random.random", return_value=0.0):
+        with unittest.mock.patch("models.story_system.random.uniform", return_value=0.0):
             story.apply_pre_enter_checks(event_door_1)
             gold_after_first = self.player.gold
             story.apply_pre_enter_checks(event_door_2)
@@ -110,7 +123,7 @@ class TestStorySystem(BaseTest):
 
         shop_door = DoorEnum.SHOP.create_instance(controller=self.controller)
         event_door = DoorEnum.EVENT.create_instance(controller=self.controller)
-        with unittest.mock.patch("models.story_system.random.random", return_value=0.0):
+        with unittest.mock.patch("models.story_system.random.uniform", return_value=0.0):
             story.apply_pre_enter_checks(shop_door)
             story.apply_pre_enter_checks(event_door)
 
@@ -125,6 +138,7 @@ class TestStorySystem(BaseTest):
         angel = Monster(name="天使", hp=80, atk=16, tier=5)
         monster_door = DoorEnum.MONSTER.create_instance(controller=self.controller, monster=angel)
 
+        # 无候选后果，只走道德判定；需 patch random.random 使 0.22 与 0.5 判定通过
         with unittest.mock.patch("models.story_system.random.random", return_value=0.0):
             changed_door = story.apply_pre_enter_checks(monster_door)
 
@@ -137,7 +151,7 @@ class TestStorySystem(BaseTest):
         monster_door = DoorEnum.MONSTER.create_instance(controller=self.controller, monster=slime)
         hp_before = monster_door.monster.hp
 
-        with unittest.mock.patch("models.story_system.random.random", return_value=0.0):
+        with unittest.mock.patch("models.story_system.random.uniform", return_value=0.0):
             changed_door = story.apply_pre_enter_checks(monster_door)
 
         self.assertEqual(changed_door.enum.name, "MONSTER")
@@ -167,13 +181,13 @@ class TestStorySystem(BaseTest):
         event_door = DoorEnum.EVENT.create_instance(controller=self.controller)
         shop_door = DoorEnum.SHOP.create_instance(controller=self.controller)
 
-        with unittest.mock.patch("models.story_system.random.random", return_value=0.0):
+        with unittest.mock.patch("models.story_system.random.uniform", return_value=0.0):
             story.apply_pre_enter_checks(event_door)
 
         self.assertIn("chain_second", story.pending_consequences)
         self.assertIn("consumed:chain_start", story.story_tags)
 
-        with unittest.mock.patch("models.story_system.random.random", return_value=0.0):
+        with unittest.mock.patch("models.story_system.random.uniform", return_value=0.0):
             story.apply_pre_enter_checks(shop_door)
         self.assertIn("chain_second", story.consumed_consequences)
 
@@ -192,13 +206,13 @@ class TestStorySystem(BaseTest):
         event_door = DoorEnum.EVENT.create_instance(controller=self.controller)
         self.player.gold = 100
 
-        with unittest.mock.patch("models.story_system.random.random", return_value=0.0):
+        with unittest.mock.patch("models.story_system.random.uniform", return_value=0.0):
             story.apply_pre_enter_checks(event_door)
         self.assertEqual(self.player.gold, 100)
         self.assertIn("delay_gold_loss", story.pending_consequences)
 
         self.controller.round_count = 3
-        with unittest.mock.patch("models.story_system.random.random", return_value=0.0):
+        with unittest.mock.patch("models.story_system.random.uniform", return_value=0.0):
             story.apply_pre_enter_checks(event_door)
         self.assertEqual(self.player.gold, 85)
         self.assertIn("delay_gold_loss", story.consumed_consequences)
@@ -222,7 +236,7 @@ class TestStorySystem(BaseTest):
         )
         event_door = DoorEnum.EVENT.create_instance(controller=self.controller)
 
-        with unittest.mock.patch("models.story_system.random.random", return_value=0.0):
+        with unittest.mock.patch("models.story_system.random.uniform", return_value=0.0):
             story.apply_pre_enter_checks(event_door)
 
         self.assertTrue(marker["called"])
@@ -240,7 +254,7 @@ class TestStorySystem(BaseTest):
         )
         event_door = DoorEnum.EVENT.create_instance(controller=self.controller)
 
-        with unittest.mock.patch("models.story_system.random.random", return_value=0.0):
+        with unittest.mock.patch("models.story_system.random.uniform", return_value=0.0):
             changed_door = story.apply_pre_enter_checks(event_door)
 
         self.assertEqual(changed_door.enum.name, "MONSTER")
@@ -264,7 +278,7 @@ class TestStorySystem(BaseTest):
             payload={"ratio": 0.5},
         )
 
-        with unittest.mock.patch("models.story_system.random.random", return_value=0.0):
+        with unittest.mock.patch("models.story_system.random.uniform", return_value=0.0):
             changed_door = story.apply_pre_enter_checks(shop_door)
 
         self.assertEqual(changed_door.enum.name, "SHOP")
@@ -285,7 +299,7 @@ class TestStorySystem(BaseTest):
         )
         self.controller.messages.clear()
 
-        with unittest.mock.patch("models.story_system.random.random", return_value=0.0):
+        with unittest.mock.patch("models.story_system.random.uniform", return_value=0.0):
             story.apply_pre_enter_checks(shop_door)
 
         combined = "\n".join(self.controller.messages)
@@ -307,7 +321,7 @@ class TestStorySystem(BaseTest):
         )
         self.controller.messages.clear()
 
-        with unittest.mock.patch("models.story_system.random.random", return_value=0.0):
+        with unittest.mock.patch("models.story_system.random.uniform", return_value=0.0):
             story.apply_pre_enter_checks(event_door)
 
         combined = "\n".join(self.controller.messages)
@@ -327,7 +341,7 @@ class TestStorySystem(BaseTest):
         )
         event_door = DoorEnum.EVENT.create_instance(controller=self.controller)
 
-        with unittest.mock.patch("models.story_system.random.random", return_value=0.0):
+        with unittest.mock.patch("models.story_system.random.uniform", return_value=0.0):
             changed_door = story.apply_pre_enter_checks(event_door)
 
         self.assertEqual(getattr(changed_door, "story_forced_event_key", ""), "moon_verdict_event")
@@ -346,7 +360,7 @@ class TestStorySystem(BaseTest):
             payload={"item_key": "giant_scroll", "gold_bonus": 10},
         )
 
-        with unittest.mock.patch("models.story_system.random.random", return_value=0.0):
+        with unittest.mock.patch("models.story_system.random.uniform", return_value=0.0):
             changed_door = story.apply_pre_enter_checks(reward_door)
 
         reward = changed_door.reward
@@ -369,7 +383,7 @@ class TestStorySystem(BaseTest):
             payload={"fake_gold": 6},
         )
 
-        with unittest.mock.patch("models.story_system.random.random", return_value=0.0):
+        with unittest.mock.patch("models.story_system.random.uniform", return_value=0.0):
             changed_door = story.apply_pre_enter_checks(reward_door)
 
         self.assertEqual(changed_door.reward, {"gold": 6})
@@ -381,7 +395,7 @@ class TestStorySystem(BaseTest):
         self.assertIn("moon_chain_accept_hunter", story.pending_consequences)
 
         first_event_door = DoorEnum.EVENT.create_instance(controller=self.controller)
-        with unittest.mock.patch("models.story_system.random.random", return_value=0.0):
+        with unittest.mock.patch("models.story_system.random.uniform", return_value=0.0):
             hunter_door = story.apply_pre_enter_checks(first_event_door)
         self.assertEqual(hunter_door.enum.name, "MONSTER")
         self.assertTrue(hasattr(hunter_door.monster, "story_consequence_id"))
@@ -391,12 +405,12 @@ class TestStorySystem(BaseTest):
         self.assertIn("moon_chain_accept_shop", story.pending_consequences)
 
         shop_door = DoorEnum.SHOP.create_instance(controller=self.controller)
-        with unittest.mock.patch("models.story_system.random.random", return_value=0.0):
+        with unittest.mock.patch("models.story_system.random.uniform", return_value=0.0):
             story.apply_pre_enter_checks(shop_door)
         self.assertIn("moon_chain_accept_force_verdict", story.pending_consequences)
 
         second_event_door = DoorEnum.EVENT.create_instance(controller=self.controller)
-        with unittest.mock.patch("models.story_system.random.random", return_value=0.0):
+        with unittest.mock.patch("models.story_system.random.uniform", return_value=0.0):
             forced_event_door = story.apply_pre_enter_checks(second_event_door)
         self.assertEqual(getattr(forced_event_door, "story_forced_event_key", ""), "moon_verdict_event")
 
@@ -415,7 +429,7 @@ class TestStorySystem(BaseTest):
             payload={"hp_ratio": 1.5, "atk_ratio": 1.4},
         )
 
-        with unittest.mock.patch("models.story_system.random.random", side_effect=[0.0, 0.99, 1.0]):
+        with unittest.mock.patch("models.story_system.random.uniform", return_value=0.0):
             changed_door = story.apply_pre_enter_checks(monster_door)
 
         self.assertEqual(changed_door.enum.name, "MONSTER")
@@ -438,7 +452,10 @@ class TestStorySystem(BaseTest):
             payload={"hp_ratio": 1.5, "atk_ratio": 1.4},
         )
 
-        with unittest.mock.patch("models.story_system.random.random", side_effect=[0.0, 0.0, 1.0, 1.0, 1.0]):
+        # 加权抽中该后果后，effect 内 replace_chance 用 random.random()；<0.35 则替换怪物
+        with unittest.mock.patch("models.story_system.random.uniform", return_value=0.0), unittest.mock.patch(
+            "models.story_system.random.random", return_value=0.0
+        ):
             changed_door = story.apply_pre_enter_checks(monster_door)
 
         self.assertEqual(changed_door.enum.name, "MONSTER")
@@ -464,7 +481,7 @@ class TestStorySystem(BaseTest):
         )
         shop_door = DoorEnum.SHOP.create_instance(controller=self.controller)
 
-        with unittest.mock.patch("models.story_system.random.random", return_value=0.0):
+        with unittest.mock.patch("models.story_system.random.uniform", return_value=0.0):
             story.apply_pre_enter_checks(shop_door)
 
         random.seed(20260309)
@@ -500,7 +517,8 @@ class TestStorySystem(BaseTest):
         )
 
         event_door = DoorEnum.EVENT.create_instance(controller=self.controller)
-        with unittest.mock.patch("models.story_system.random.random", return_value=0.0):
+        # 5 条候选权重 [1,1,1,1,2]；roll=5.0 落在最后一条（force_story_event）区间 [4,6)
+        with unittest.mock.patch("models.story_system.random.uniform", return_value=5.0):
             changed_door = story.apply_pre_enter_checks(event_door)
 
         self.assertEqual(getattr(changed_door, "story_forced_event_key", ""), "moon_verdict_event")

@@ -2,6 +2,7 @@ import random
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, Iterable, Optional, Set, Tuple
 
+from models.game_config import GameConfig
 from models.items import (
     AttackUpScroll,
     Barrier,
@@ -193,38 +194,42 @@ class StorySystem:
             if c.matches(door=door, round_count=round_count, story_flags=story_flags)
         ]
         door_type = getattr(getattr(door, "enum", None), "name", "")
-        prefer_followup_event = False
-        if door_type == "EVENT" and len(candidates) >= 5:
-            prefer_followup_event = True
 
         if not candidates:
             return door
 
-        # 高优先级先尝试，同优先级随机化。
-        random.shuffle(candidates)
-        if prefer_followup_event:
-            candidates.sort(
-                key=lambda c: (
-                    c.effect_key == "force_story_event",
-                    c.priority,
-                ),
-                reverse=True,
-            )
-        else:
-            candidates.sort(key=lambda c: c.priority, reverse=True)
-        current_door = door
-        applied_any = False
-        for consequence in candidates:
-            if random.random() > consequence.chance:
-                continue
-            self.controller.add_message(self._build_trigger_message(consequence))
-            applied, new_door = self._apply_effect(consequence, current_door)
-            if applied:
-                if not self._should_defer_consumption(consequence, new_door):
-                    self._consume_consequence(consequence)
-                current_door = new_door
-                applied_any = True
-        return current_door if applied_any else door
+        # 事件门且候选 <5：按配置概率直接跳过门改写，沿用原门
+        if door_type == "EVENT" and len(candidates) < 5:
+            if random.random() < GameConfig.EVENT_DOOR_SKIP_REWRITE_CHANCE:
+                return door
+
+        # 按权重只抽取一条后果并应用（force_story_event 享有更高权重）
+        weights = []
+        for c in candidates:
+            w = max(0.0, float(c.chance))
+            if c.effect_key == "force_story_event":
+                w *= GameConfig.FORCE_STORY_EVENT_WEIGHT_BONUS
+            weights.append(w)
+        total = sum(weights)
+        if total <= 0:
+            return door
+        roll = random.uniform(0, total)
+        acc = 0.0
+        chosen = None
+        for c, w in zip(candidates, weights):
+            acc += w
+            if roll <= acc:
+                chosen = c
+                break
+        if chosen is None:
+            chosen = candidates[-1]
+        self.controller.add_message(self._build_trigger_message(chosen))
+        applied, new_door = self._apply_effect(chosen, door)
+        if applied:
+            if not self._should_defer_consumption(chosen, new_door):
+                self._consume_consequence(chosen)
+            return new_door
+        return door
 
     def _consume_consequence(self, consequence: PendingConsequence) -> None:
         cid = consequence.consequence_id
