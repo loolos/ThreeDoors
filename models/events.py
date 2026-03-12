@@ -1289,7 +1289,7 @@ class MirrorTheaterEvent(Event):
     def __init__(self, controller):
         super().__init__(controller)
         self.title = "Mirror Theater"
-        self.description = "废墟里有一座镜面剧场，导演递来三张面具：英雄、恶徒、或观众。"
+        self.description = "废墟尽头亮着一座镜面剧场。传闻它会把过路人的抉择写进下一段命运：演得像谁，世界就按谁来回应你。导演不问姓名，只催你立刻选一张面具——英雄、恶徒，或直接撕本离场。"
         self.choices = [
             EventChoice("戴上英雄面具", self.play_hero),
             EventChoice("戴上恶徒面具", self.play_villain),
@@ -1310,7 +1310,7 @@ class MirrorTheaterEvent(Event):
                     "payload": {
                         "gold": random.randint(18, 36),
                         "heal": 8,
-                        "message": "前情：你在镜剧场演了英雄。后续路人愿意给你补给和消息。",
+                        "message": "前情：你在镜剧场把英雄演到了谢幕。你的名声先一步传开，路上有人愿意补给并提醒风险。",
                     },
                 },
                 {
@@ -1319,13 +1319,13 @@ class MirrorTheaterEvent(Event):
                     "chance": 0.28,
                     "trigger_door_types": ["TRAP", "MONSTER"],
                     "payload": {
-                        "message": "前情：你选择了英雄剧本。临门一脚时，那份信念帮你压住了危险。",
+                        "message": "前情：你坚持了英雄剧本。危急一刻，你更容易稳住呼吸并抓住反击窗口。",
                     },
                 },
             ],
         )
         healed = p.heal(12)
-        self.add_message(f"掌声从空剧场里响起，你从角色里抽离时恢复了 {healed} 点生命。")
+        self.add_message(f"谢幕时空席间竟有掌声回荡。你摘下面具后像卸下一层重负，恢复了 {healed} 点生命。")
         return "Event Completed"
 
     def play_villain(self):
@@ -1341,7 +1341,7 @@ class MirrorTheaterEvent(Event):
                     "trigger_door_types": ["SHOP"],
                     "payload": {
                         "ratio": 0.74,
-                        "message": "前情：你在镜剧场演了恶徒。黑市把你当成同类，先给了交易甜头。",
+                        "message": "前情：你在镜剧场把恶徒演得太像。黑市误把你当自己人，先递来一轮试探性折扣。",
                     },
                 },
                 {
@@ -1352,14 +1352,14 @@ class MirrorTheaterEvent(Event):
                     "payload": {
                         "force_hunter": True,
                         "hunter_name": "冥界使者",
-                        "message": "前情：你在舞台上选了恶徒结局。想要你人头的人很快循着剧评找到了你。",
+                        "message": "前情：你在舞台上选了恶徒结局。悬赏客顺着剧评和目击者描述，很快锁定了你的行踪。",
                     },
                 },
             ],
         )
         gain = random.randint(22, 42)
         p.gold += gain
-        self.add_message(f"导演把反派分成递给你，你拿到 {gain}G。谢幕时你听见观众席有人记下了你的脸。")
+        self.add_message(f"导演把反派分成塞进你手里，你拿到 {gain}G。退场时你注意到观众席有人在素描本上勾勒你的脸。")
         return "Event Completed"
 
     def tear_script(self):
@@ -1377,7 +1377,7 @@ class MirrorTheaterEvent(Event):
                     "payload": {
                         "event_key": "echo_court_event",
                         "hint": "前情：你撕了镜剧场剧本，回声法庭要你解释",
-                        "message": "前情：你拒绝在镜剧场扮演任何角色。下一扇事件门被改写成回声法庭。",
+                        "message": "前情：你当场撕毁剧本并拒绝入戏。剧场把这次违约上报，下一扇事件门被改写成回声法庭。",
                     },
                 },
                 {
@@ -1387,7 +1387,7 @@ class MirrorTheaterEvent(Event):
                     "trigger_door_types": ["MONSTER", "TRAP", "EVENT"],
                     "payload": {
                         "duration": 1,
-                        "message": "前情：你撕碎剧本后强行离场。余震般的回声让你短暂失衡。",
+                        "message": "前情：你撕碎剧本后强行离场。破碎台词像回音钩住神经，让你短暂失衡。",
                     },
                 },
             ],
@@ -1395,11 +1395,11 @@ class MirrorTheaterEvent(Event):
         if random.random() < 0.6:
             item = create_random_item()
             item.acquire(player=p)
-            self.add_message(f"你把剧本撕成碎片，幕后人竟鼓掌离席，留下了 {item.name}。")
+            self.add_message(f"你把剧本撕成纸雨，幕后人沉默片刻后反而鼓掌离席，只在台口留下了 {item.name}。")
         else:
             dmg = 10
             p.take_damage(dmg)
-            self.add_message(f"你撕剧本时镜面反噬，碎光割伤了你，受到 {dmg} 点伤害。")
+            self.add_message(f"你撕剧本的一瞬间镜幕反噬，碎光像刀一样回卷，令你受到 {dmg} 点伤害。")
         return "Event Completed"
 
 
@@ -1664,7 +1664,7 @@ class ClockworkBazaarEvent(Event):
     def __init__(self, controller):
         super().__init__(controller)
         self.title = "Clockwork Bazaar"
-        self.description = "移动黑市停在岔路口，主持人说今天只收'会动的故事'。"
+        self.description = "一列会自行换轨的摊车停在岔路口。这里的移动黑市不认身份，只认你能带来多少'可兑现的经历'：修好它的机关可换信誉，篡改规则能赚快钱，砸摊则会立刻树敌。主持人敲钟，催你马上选一种做法。"
         self.choices = [
             EventChoice("校准摊位机械，换取信誉", self.calibrate),
             EventChoice("偷改优惠码", self.hack_coupon),
@@ -1680,12 +1680,12 @@ class ClockworkBazaarEvent(Event):
                 shop_effect="black_market_discount",
                 ratio=0.68,
                 hunter_name="食人魔",
-                shop_message="机械账本认可了你的调校记录，后续商店对你亮起绿灯。",
+                shop_message="你留下的调校参数通过了总账验证，后续摊位把你标记为可靠客户。",
             ),
         )
         tip = 12
         self.get_player().gold += tip
-        self.add_message(f"你修好了计价机关，黑市主持人把一枚齿轮徽章别在你肩上，并付给你 {tip}G 调校费。")
+        self.add_message(f"你把卡死的计价机关重新校到同频，主持人当众给你别上齿轮徽章，并付了 {tip}G 调校费。")
         return "Event Completed"
 
     def hack_coupon(self):
@@ -1697,12 +1697,12 @@ class ClockworkBazaarEvent(Event):
                 shop_effect="black_market_discount",
                 ratio=0.8,
                 hunter_name="狼人",
-                shop_message="第一家店没识破你的优惠码，给了你离谱折扣。",
+                shop_message="第一家摊位没识破你伪造的优惠码，价格被你压到了近乎成本线。",
             ),
         )
         gain = 16
         self.get_player().gold += gain
-        self.add_message(f"你改了校验齿轮，券码短暂有效，先白赚了 {gain}G。倒计时已经开始。")
+        self.add_message(f"你偷改了校验齿轮，伪码在短窗口内生效，先白赚 {gain}G；但系统回滚的倒计时已经亮起。")
         return "Event Completed"
 
     def sabotage(self):
@@ -1714,13 +1714,13 @@ class ClockworkBazaarEvent(Event):
                 shop_effect="black_market_markup",
                 ratio=1.35,
                 hunter_name="死亡骑士",
-                shop_message="你砸摊的录像被同步给全市场，几乎所有店都给你涨价。",
+                shop_message="你砸摊的画面被市场广播循环播放，几乎所有摊位都把你列进高风险名单并抬价。",
             ),
         )
         p = self.get_player()
         p.gold += 20
         p.take_damage(8)
-        self.add_message("你踢翻了对面摊位，抢到 20G 材料费，但飞溅零件划伤了你，受到 8 点伤害。")
+        self.add_message("你踢翻竞品摊位后抢走 20G 材料费，但飞溅齿片反弹划开护甲，让你受到 8 点伤害。")
         return "Event Completed"
 
     def _build_clockwork_chain(self, route, shop_effect, ratio, hunter_name, shop_message):
@@ -1744,7 +1744,7 @@ class ClockworkBazaarEvent(Event):
                                 "payload": {
                                     "event_key": "cog_audit_event",
                                     "hint": "前情：你已在黑市留下调校记录，门后摆着一台审计机关",
-                                    "message": "前情：你刚靠调校机械换到信誉。你刚离开柜台，门后就传来齿轮审计员的敲桌声。",
+                                    "message": "前情：你靠调校机械换到了信誉额度。离柜台没几步，下一扇门后就响起齿轮审计员的敲桌声。",
                                 },
                             }
                         ],
@@ -1758,7 +1758,7 @@ class ClockworkBazaarEvent(Event):
                     "trigger_door_types": ["MONSTER"],
                     "payload": {
                         "delta": 1,
-                        "message": "前情：你在黑市调校过计价机关。你调过的机械节奏帮你看清了敌人的出招空档。",
+                        "message": "前情：你在黑市调校过计价机关。熟悉的节拍感让你更容易预判敌人的出招空档。",
                         "chain_followups": [
                             {
                                 "consequence_id": "clock_chain_calibrate_reward_cache",
@@ -1768,7 +1768,7 @@ class ClockworkBazaarEvent(Event):
                                 "payload": {
                                     "item_key": "barrier",
                                     "gold_bonus": 15,
-                                    "message": "前情：你的调校记录通过了对账。你按协议领取技术红利，宝物门里是结界发生器。",
+                                    "message": "前情：你的调校记录通过了对账。按技术分成协议，宝物门里为你预留了一台结界发生器。",
                                 },
                             }
                         ],
@@ -1795,7 +1795,7 @@ class ClockworkBazaarEvent(Event):
                                 "trigger_door_types": ["EVENT", "SHOP"],
                                 "payload": {
                                     "amount": 22,
-                                    "message": "前情：你先前偷改了优惠码并拿过折扣。优惠码被追溯后触发回滚扣款，你被系统追缴了差价。",
+                                    "message": "前情：你先前偷改优惠码拿走折扣。风控完成追溯后触发回滚扣款，系统直接从你账上追缴差价。",
                                     "chain_followups": [
                                         {
                                             "consequence_id": "clock_chain_hack_force_audit",
@@ -1805,7 +1805,7 @@ class ClockworkBazaarEvent(Event):
                                             "payload": {
                                                 "event_key": "cog_audit_event",
                                                 "hint": "前情：伪造优惠码已被锁定，审计门要求你复核",
-                                                "message": "前情：你的伪码交易已进入追责流程。你以为躲过了，审计门却自动在前方亮起。",
+                                                "message": "前情：你的伪码交易已进入追责流程。你以为已经脱身，审计门却在前方自动点亮并锁定你。",
                                             },
                                         },
                                         {
@@ -1815,7 +1815,7 @@ class ClockworkBazaarEvent(Event):
                                             "trigger_door_types": ["REWARD"],
                                             "payload": {
                                                 "fake_gold": 12,
-                                                "message": "前情：伪码触发了系统回滚与风控。库存冻结把宝物门清空了，只给你留了点找零。",
+                                                "message": "前情：伪码触发系统回滚与风控。库存先被临时冻结，宝物门被清空后只给你留了点找零。",
                                             },
                                         },
                                     ],
@@ -1837,7 +1837,7 @@ class ClockworkBazaarEvent(Event):
                     "force_hunter": True,
                     "consume_on_defeat": True,
                     "hunter_name": hunter_name,
-                    "message": "前情：你刚公开破坏了竞品摊位。碎片还在地上转，清算队已经顺着标记追来了。",
+                    "message": "前情：你刚公开破坏竞品摊位。碎片还在地上打转，市场清算队已沿着追踪标记赶来。",
                     "chain_followups": [
                         {
                             "consequence_id": "clock_chain_sabotage_trap_backfire",
@@ -1846,7 +1846,7 @@ class ClockworkBazaarEvent(Event):
                             "trigger_door_types": ["TRAP", "MONSTER"],
                             "payload": {
                                 "duration": 2,
-                                "message": "前情：你先前改坏了黑市机关。现在机关反向写入你的战斗节奏，行动开始迟滞。",
+                                "message": "前情：你先前改坏了黑市机关。故障反馈反向干扰你的动作节奏，让你出手变得迟滞。",
                             },
                         },
                         {
@@ -1855,7 +1855,7 @@ class ClockworkBazaarEvent(Event):
                             "chance": 1.0,
                             "trigger_door_types": ["REWARD"],
                             "payload": {
-                                "message": "前情：你破坏摊位后被列入重点清算名单。市场执法先一步扣押了你的奖励，宝物门只剩封条。",
+                                "message": "前情：你破坏摊位后被列入重点清算名单。市场执法提前扣押奖励，宝物门上只剩未拆的封条。",
                             },
                         },
                     ],
@@ -1875,7 +1875,7 @@ class CogAuditEvent(Event):
     def __init__(self, controller):
         super().__init__(controller)
         self.title = "Cog Audit"
-        self.description = "你在齿轮黑市留下的操作记录已经触发审计。审计员递给你三种结算方式：补税、做假账，或者买断风声。"
+        self.description = "你在齿轮黑市留下的每一步操作都被总账追踪，如今正式触发审计。审计员把账本摊到你面前：要么补税认账、要么继续做假账硬闯、要么花钱买断风声。你必须当场给出结算方案。"
         self.choices = [
             EventChoice("补税结清", self.pay_tax),
             EventChoice("做假账", self.fake_ledger),
@@ -2007,7 +2007,7 @@ class DreamWellEvent(Event):
     def __init__(self, controller):
         super().__init__(controller)
         self.title = "Dream Well"
-        self.description = "井里映出的不是你的脸，而是三种未来：喝下、封井、或把梦卖掉。"
+        self.description = "梦井的水面映出的不是你的脸，而是被提前剪好的三段结局。传闻井水会把你的念头放大成现实，所以每个选择都会留下可追踪的后果：喝下它、封住它，或把梦折价卖给行脚商。你得现在决定要把哪条线继续下去。"
         self.choices = [
             EventChoice("喝下梦井水", self.drink_dream),
             EventChoice("封住井口", self.seal_well),
@@ -2023,11 +2023,11 @@ class DreamWellEvent(Event):
                 shop_effect="black_market_discount",
                 ratio=0.79,
                 hunter_name="幽灵",
-                shop_message="你描述的梦境太精准，商人把你当成'消息源'，先给了折扣。",
+                shop_message="你复述的梦境细节精准到可交易，商人把你当成消息源，先给了试探性折扣。",
             ),
         )
         healed = self.get_player().heal(12)
-        self.add_message(f"梦井水让你清醒得发冷，恢复了 {healed} 点生命。")
+        self.add_message(f"梦井水入口冰冷，你的意识却短暂异常清明，恢复了 {healed} 点生命。")
         return "Event Completed"
 
     def seal_well(self):
@@ -2039,11 +2039,11 @@ class DreamWellEvent(Event):
                 shop_effect="black_market_markup",
                 ratio=1.22,
                 hunter_name="美杜莎",
-                shop_message="你封井断了很多人的生意，商人们把这笔账算在你头上。",
+                shop_message="你封井等于切断了整条梦境供货线，商人们把损失统一记在你名下。",
             ),
         )
         healed = self.get_player().heal(8)
-        self.add_message(f"你用石板封住了井口，紧绷的神经终于放松，恢复了 {healed} 点生命。")
+        self.add_message(f"你用石板和封钉压死井口，耳边的低语终于减弱，恢复了 {healed} 点生命。")
         return "Event Completed"
 
     def sell_dream(self):
@@ -2055,13 +2055,13 @@ class DreamWellEvent(Event):
                 shop_effect="black_market_discount",
                 ratio=0.7,
                 hunter_name="冥界使者",
-                shop_message="你把梦卖成货币，黑市把你列为优先交易对象。",
+                shop_message="你把梦直接折算成可流通凭证，黑市把你标为优先接待的高价值卖家。",
             ),
         )
         p = self.get_player()
         p.gold += 26
         p.take_damage(6)
-        self.add_message("你卖掉了一个关于胜利的梦，立刻拿到 26G；但精神被抽走一截，受到 6 点伤害。")
+        self.add_message("你把一个关于胜利的梦打包卖出，立刻拿到 26G；但精神像被抽走一层，受到 6 点伤害。")
         return "Event Completed"
 
     def _build_dream_chain(self, route, shop_effect, ratio, hunter_name, shop_message):
@@ -2076,7 +2076,7 @@ class DreamWellEvent(Event):
                     "payload": {
                         "event_key": "echo_court_event",
                         "hint": "前情：你刚喝下梦井水，回声法庭正在点名",
-                        "message": "前情：你先前喝了梦井水。你刚靠近事件门，法槌回声就把门后的剧情改写成了庭审。",
+                        "message": "前情：你先前喝下梦井水并触发了回声记录。你刚靠近事件门，法槌回声就把门后的剧情改写成庭审。",
                         "chain_followups": [
                             {
                                 "consequence_id": "dream_chain_drink_bless",
@@ -2084,7 +2084,7 @@ class DreamWellEvent(Event):
                                 "chance": 1.0,
                                 "trigger_door_types": ["TRAP", "MONSTER"],
                                 "payload": {
-                                    "message": "前情：梦井水仍在你体内回响。你对危险的直觉短暂提升。",
+                                    "message": "前情：梦井水仍在你体内回响。你对威胁的预感被短暂放大，能更早察觉危险。",
                                 },
                             }
                         ],
@@ -2102,7 +2102,7 @@ class DreamWellEvent(Event):
                     "trigger_door_types": ["MONSTER", "TRAP", "EVENT"],
                     "payload": {
                         "duration": 1,
-                        "message": "前情：你刚亲手封住梦井井口。未散的回声压在你身上，动作变得沉重。",
+                        "message": "前情：你刚亲手封住梦井井口。回声尚未散去，沉重感压在肩上，让动作变慢。",
                         "chain_followups": [
                             {
                                 "consequence_id": "dream_chain_seal_relic_cache",
@@ -2112,7 +2112,7 @@ class DreamWellEvent(Event):
                                 "payload": {
                                     "item_key": "immune_scroll",
                                     "gold_bonus": 14,
-                                    "message": "前情：你选择了封井并承担了回声反噬。封井守望者在宝物门里留了免疫卷轴作为报酬。",
+                                    "message": "前情：你选择封井并承担了回声反噬。守望者认可你的代价，在宝物门里留下一张免疫卷轴。",
                                     "chain_followups": [
                                         {
                                             "consequence_id": "dream_chain_seal_trade_penalty",
@@ -2121,7 +2121,7 @@ class DreamWellEvent(Event):
                                             "trigger_door_types": ["SHOP"],
                                             "payload": {
                                                 "ratio": 1.2,
-                                                "message": "前情：你封井后切断了梦境交易链。商人把利润损失全摊到你身上。",
+                                                "message": "前情：你封井后切断了梦境交易链。商人们把断供损失计入你的风险价并抬高报价。",
                                             },
                                         }
                                     ],
@@ -2151,7 +2151,7 @@ class DreamWellEvent(Event):
                             "payload": {
                                 "item_key": "attack_up_scroll",
                                 "keep_gold": False,
-                                "message": "前情：你先把梦卖给行脚商，再继续滚动交易。你把梦境债券兑成攻击卷轴，宝物门里只剩这一件硬货。",
+                                "message": "前情：你先把梦卖给行脚商，再滚动做大交易。你把梦境债券兑成攻击卷轴，宝物门里只剩这件硬货。",
                                 "chain_followups": [
                                     {
                                         "consequence_id": "dream_chain_sell_hunter",
@@ -2162,7 +2162,7 @@ class DreamWellEvent(Event):
                                             "force_hunter": True,
                                             "consume_on_defeat": True,
                                             "hunter_name": hunter_name,
-                                            "message": "前情：你持续倒卖梦境并扩大交易。你越卖越顺手，梦税征收官也越追越近。",
+                                            "message": "前情：你持续倒卖梦境并扩大交易规模。你越卖越熟练，梦税征收官的追缴也越逼越近。",
                                         },
                                     }
                                 ],
@@ -2185,7 +2185,7 @@ class EchoCourtEvent(Event):
     def __init__(self, controller):
         super().__init__(controller)
         self.title = "Echo Court"
-        self.description = "你与梦井相关的交易已被回声法庭立案。法庭只问一个问题：你要赎回梦、上缴梦，还是继续交易？"
+        self.description = "你与梦井相关的交易已被回声法庭正式立案。法庭认定你既是当事人也是收益者，要求你立刻表态并承担后果：赎回被卖掉的梦境记忆、补缴拖欠的梦税，或公开宣布继续交易。"
         self.choices = [
             EventChoice("赎回梦境记忆", self.redeem_dream),
             EventChoice("上缴梦境税", self.pay_dream_tax),
@@ -2205,7 +2205,7 @@ class EchoCourtEvent(Event):
                     "payload": {
                         "item_key": "immune_scroll",
                         "gold_bonus": 18,
-                        "message": "前情：你在回声法庭选择赎回梦境记忆。你赎回的梦凝成了一张免疫卷轴，安静地躺在宝箱里。",
+                        "message": "前情：你在回声法庭选择赎回梦境记忆。被赎回的梦凝成一张免疫卷轴，安静地躺在宝箱里。",
                         "chain_followups": [
                             {
                                 "consequence_id": "echo_redeem_recovery",
@@ -2215,7 +2215,7 @@ class EchoCourtEvent(Event):
                                 "payload": {
                                     "gold": 18,
                                     "heal": 10,
-                                    "message": "前情：你已在法庭完成赎回并接受补救。法庭判你有诚意，后续旅途得到额外补给。",
+                                    "message": "前情：你已在法庭完成赎回并接受补救。法庭认定你有修复意愿，后续旅途获得额外补给。",
                                 },
                             }
                         ],
@@ -2239,7 +2239,7 @@ class EchoCourtEvent(Event):
                     "trigger_door_types": ["REWARD"],
                     "payload": {
                         "fake_gold": 5,
-                        "message": "前情：你在回声法庭选择上缴梦境税。税官先你一步打开了宝物门，只给你留了 5G 手续费找零。",
+                        "message": "前情：你在回声法庭选择上缴梦境税。税官先一步清点了宝物门，只给你留了 5G 手续费找零。",
                         "chain_followups": [
                             {
                                 "consequence_id": "echo_tax_discount",
@@ -2248,7 +2248,7 @@ class EchoCourtEvent(Event):
                                 "trigger_door_types": ["SHOP"],
                                 "payload": {
                                     "ratio": 0.88,
-                                    "message": "前情：你已按法庭裁定补齐梦税。部分商人愿意给你一点面子。",
+                                    "message": "前情：你已按法庭裁定补齐梦税。部分商人把你从黑名单边缘挪回了普通档位。",
                                 },
                             }
                         ],
@@ -2259,7 +2259,7 @@ class EchoCourtEvent(Event):
         p = self.get_player()
         paid = min(p.gold, 15)
         p.gold -= paid
-        self.add_message(f"你先补交了 {paid}G 梦税，法槌暂时不再追着你敲。")
+        self.add_message(f"你先补交了 {paid}G 梦税，审判席上的法槌声终于暂时停下。")
         return "Event Completed"
 
     def keep_trading(self):
@@ -2275,7 +2275,7 @@ class EchoCourtEvent(Event):
                     "payload": {
                         "item_key": "attack_up_scroll",
                         "keep_gold": False,
-                        "message": "前情：你当庭决定继续倒卖梦境。你继续交易梦境，宝物门只剩下一张攻击卷轴和一张赊账单。",
+                        "message": "前情：你当庭决定继续倒卖梦境。交易链继续转动，宝物门里只剩一张攻击卷轴和一张赊账单。",
                         "chain_followups": [
                             {
                                 "consequence_id": "echo_trade_hunt",
@@ -2287,7 +2287,7 @@ class EchoCourtEvent(Event):
                                     "hunter_name": "暗影刺客",
                                     "hp_ratio": 1.2,
                                     "atk_ratio": 1.19,
-                                    "message": "前情：你无视法庭警告继续交易梦境。收割者自然也继续追你。",
+                                    "message": "前情：你无视法庭警告继续交易梦境。负责追缴的人自然不会停手。",
                                 },
                             }
                         ],
@@ -2298,7 +2298,7 @@ class EchoCourtEvent(Event):
         p = self.get_player()
         p.gold += 20
         p.take_damage(8)
-        self.add_message("你选择把梦继续当货币，当场多赚了 20G；但回声反噬让你受了 8 点伤害。")
+        self.add_message("你选择继续把梦当货币流通，当场多赚 20G；但回声反噬同步加深，让你受了 8 点伤害。")
         return "Event Completed"
 
 
