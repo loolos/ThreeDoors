@@ -14,13 +14,13 @@ class GameConfig:
     MONSTER_MAX_TIER = 6
     START_UNLOCKED_MONSTER_TIER = 1
     MONSTER_TIER_CHECK_INTERVAL = 5
-    # 解锁规则：仅当玩家（历史峰值）攻击和生命都达到门槛时解锁下一 tier
+    # 解锁规则：玩家历史峰值 min(攻击, 生命/2) 达到门槛时解锁下一 tier（数值越高门槛越高）
     MONSTER_TIER_UNLOCK_REQUIREMENTS = {
-        2: {"atk": 8, "hp": 30},
-        3: {"atk": 14, "hp": 60},
-        4: {"atk": 24, "hp": 120},
-        5: {"atk": 40, "hp": 260},
-        6: {"atk": 70, "hp": 420},
+        2: 32,   # min(攻击, 生命/2) >= 32
+        3: 64,   # min(攻击, 生命/2) >= 64
+        4: 112,  # min(攻击, 生命/2) >= 112
+        5: 180,  # min(攻击, 生命/2) >= 180
+        6: 280,  # min(攻击, 生命/2) >= 280
     }
 
     # 事件门后续影响：候选数 <5 时，此概率下不改写门、沿用原门（不应用任何 pending consequence）

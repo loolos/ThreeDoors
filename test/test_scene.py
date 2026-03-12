@@ -149,16 +149,16 @@ class TestSceneSystem(BaseTest):
         self.assertNotIn(consequence_id, story.pending_consequences)
 
     def test_tier_unlock_check_runs_every_five_rounds(self):
-        """tier 解锁检测应仅在每5回合触发，并写入日志。"""
+        """tier 解锁检测应仅在每5回合触发，并写入日志。解锁条件：min(攻击, 生命/2) 达到对应门槛。"""
         self.controller.round_count = 4
-        self.player.hp = 140
-        self.player.atk = 30
+        self.player.hp = 240
+        self.player.atk = 120  # min(120, 120)=120，足以解锁到 tier 4（需求 112）
 
         # 非5的倍数不触发检测
         self.controller.check_and_unlock_monster_tier()
         self.assertEqual(self.controller.unlocked_monster_tier, 1)
 
-        # 到5回合触发检测，按属性一次性解锁到可达上限
+        # 到5回合触发检测，按 min(攻击, 生命/2) 一次性解锁到可达上限
         self.controller.round_count = 5
         self.controller.check_and_unlock_monster_tier()
         self.assertEqual(self.controller.unlocked_monster_tier, 4)

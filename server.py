@@ -76,15 +76,17 @@ class GameController:
             return
 
         self.update_player_power_peaks()
+        # 有效战力 = min(攻击, 生命/2)，用于 tier 解锁判定
+        effective_power = min(self.player_peak_atk, self.player_peak_hp // 2)
         old_tier = self.unlocked_monster_tier
         max_tier = GameConfig.MONSTER_MAX_TIER
         new_tier = old_tier
 
         for tier in range(old_tier + 1, max_tier + 1):
             requirement = GameConfig.MONSTER_TIER_UNLOCK_REQUIREMENTS.get(tier)
-            if not requirement:
+            if requirement is None:
                 continue
-            if self.player_peak_atk >= requirement["atk"] and self.player_peak_hp >= requirement["hp"]:
+            if effective_power >= requirement:
                 new_tier = tier
             else:
                 break
@@ -102,12 +104,11 @@ class GameController:
             return
 
         next_tier = old_tier + 1
-        requirement = GameConfig.MONSTER_TIER_UNLOCK_REQUIREMENTS.get(next_tier, {})
-        req_atk = requirement.get("atk", 0)
-        req_hp = requirement.get("hp", 0)
+        requirement = GameConfig.MONSTER_TIER_UNLOCK_REQUIREMENTS.get(next_tier)
+        req_val = requirement if isinstance(requirement, (int, float)) else 0
         self.add_message(
             f"【威胁侦测】更强怪物的气息正在逼近（下一层 Tier {next_tier} 需求："
-            f"攻击≥{req_atk}，生命≥{req_hp}；当前峰值：攻击{self.player_peak_atk} / 生命{self.player_peak_hp}）。"
+            f"min(攻击, 生命/2)≥{req_val}；当前峰值：攻击{self.player_peak_atk} / 生命{self.player_peak_hp}，有效={effective_power}）。"
         )
 
 # -------------------------------

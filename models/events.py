@@ -2386,8 +2386,12 @@ def _schedule_next_elf_event(controller, completed_key):
         trigger_door_types=["EVENT"],
         payload={
             "event_key": next_key,
-            "hint": "墙上的银色箭羽指向下一次相遇。",
-            "message": f"你想起精灵飞贼{ELF_THIEF_NAME}留下的暗号：至少 {min_round} 回合后再见。",
+            "hint": "门框上有新刻的银羽记号，正是她约好的那一扇。",
+            "message": (
+                f"你想起{ELF_THIEF_NAME}上次分别时在墙上刻的银羽暗号与那句「下次在门后见」。"
+                f"她说过要隔一阵子再碰头，算来至少要到第 {min_round} 回合之后才会在某一扇事件门后等你——"
+                f"而眼前这扇门的门框上，正有那道银羽刻痕。"
+            ),
         },
     )
 
@@ -2406,7 +2410,11 @@ class ElfThiefIntroEvent(Event):
     def __init__(self, controller):
         super().__init__(controller)
         self.title = "银羽飞贼"
-        self.description = f"你在烛火暗巷里撞见一名精灵飞贼，她自称{ELF_THIEF_NAME}。她指尖转着匕首，笑着说：'要不要做个长期交易？'"
+        self.description = (
+            f"你推开事件门，门后不是寻常的奇遇或考验，而是一条烛火摇曳的暗巷。"
+            f"一名精灵飞贼背靠砖墙，指尖转着匕首，抬眼打量你，自称{ELF_THIEF_NAME}。"
+            f"她笑了笑：'要不要做个长期交易？'"
+        )
         self.choices = [
             EventChoice("递上口粮，表示愿意合作", self.offer_food),
             EventChoice("拔刀试探，先打一场再说", self.challenge_duel),
@@ -2454,7 +2462,10 @@ class ElfShadowMarkEvent(Event):
     def __init__(self, controller):
         super().__init__(controller)
         self.title = "银羽暗号"
-        self.description = "第十几回合后，你在门框背面看见熟悉的银羽刻痕：'今晚不偷你，聊聊。'"
+        self.description = (
+            "你正要选一扇事件门时，发现门框背面有熟悉的银羽刻痕——那是她上次分别时约好的记号，意思是「今晚不偷你，聊聊」。"
+            "你推开门，她果然在门后的阴影里等着，没动你身上的东西，只冲你抬了抬下巴。"
+        )
         self.choices = [
             EventChoice("交换情报", self.share_info),
             EventChoice("追问她真实目的", self.ask_intent),
@@ -2491,7 +2502,11 @@ class ElfRooftopDuelEvent(Event):
     def __init__(self, controller):
         super().__init__(controller)
         self.title = "屋脊切磋"
-        self.description = "又过了十几回合，她在怪物门前等你：'三招，谁掉下屋脊谁请客。'"
+        self.description = (
+            "你穿过走廊时，发现她蹲在某扇门前的屋脊上，朝你招手。"
+            "她跳下来，指了指身后那扇怪物门：'真怪物还没出来，趁这空档——三招，谁掉下屋脊谁请客。'"
+            "你意识到她是在邀你切磋，顺便试试你的身手。"
+        )
         self.choices = [
             EventChoice("认真比试", self.train_hard),
             EventChoice("故意放水", self.go_easy),
@@ -2526,7 +2541,10 @@ class ElfFakeMapEvent(Event):
     def __init__(self, controller):
         super().__init__(controller)
         self.title = "假地图与真考验"
-        self.description = "她丢来两份地图：一真一假。'选吧，看看你到底信我还是信自己。'"
+        self.description = (
+            "门后她靠在墙边，手里捏着两份皱巴巴的地图，冲你晃了晃。"
+            "她说：一份是这条走廊的实情，一份是她随手改过的坑人版。'选吧，看看你到底信我还是信自己。'"
+        )
         self.choices = [
             EventChoice("信她指的那份", self.trust_map),
             EventChoice("自己重新标记路径", self.remap),
@@ -2561,7 +2579,10 @@ class ElfMonsterStageEvent(Event):
     def __init__(self, controller):
         super().__init__(controller)
         self.title = "怪物门前的演武"
-        self.description = "她从怪物门里拖出木制假人：'来，练一套拆招。真怪物待会儿再说。'"
+        self.description = (
+            "你赶到时，她正从一扇怪物门里拖出一具木制假人，丢在走廊中央。"
+            "'门后的真家伙还没醒，'她说，'先来练一套拆招。练完再进去不迟。'"
+        )
         self.choices = [
             EventChoice("专注练闪避", self.train_dodge),
             EventChoice("专注练反击", self.train_counter),
@@ -2596,7 +2617,10 @@ class ElfNightCampEvent(Event):
     def __init__(self, controller):
         super().__init__(controller)
         self.title = "夜营火谈"
-        self.description = "十几回合后，你们在坍塌神像下同烤一只蘑菇鸡。她第一次谈起自己的追兵。"
+        self.description = (
+            "门后是一处坍塌神像的背风面，她生了堆小火，正在烤一只蘑菇鸡。"
+            "她示意你坐下，沉默了一会儿，第一次正经谈起一直追在她身后的那些人。"
+        )
         self.choices = [
             EventChoice("答应帮她断后", self.promise_help),
             EventChoice("要求先付定金", self.ask_payment),
@@ -2631,7 +2655,10 @@ class ElfTrapRescueEvent(Event):
     def __init__(self, controller):
         super().__init__(controller)
         self.title = "陷阱回廊"
-        self.description = "你踩进连环陷阱，绞索正收紧。飞贼从梁上倒挂下来：'关系好坏，决定我割哪根绳。'"
+        self.description = (
+            "你刚踏进这条走廊就触发了连环机关，绞索从梁上落下，正往你身上收紧。"
+            "她从梁上倒挂下来，手里捏着匕首，似笑非笑：'关系好坏，决定我割哪根绳。'"
+        )
         self.choices = [
             EventChoice("承认此前的过错", self.apologize),
             EventChoice("命令她立刻救人", self.order_her),
@@ -2678,7 +2705,10 @@ class ElfHunterGateEvent(Event):
     def __init__(self, controller):
         super().__init__(controller)
         self.title = "猎门同调"
-        self.description = "她从怪物门里跃出，身后跟着追兵：'来场真格切磋，顺便把他们清掉。'"
+        self.description = (
+            "你靠近一扇怪物门时，门突然被从里撞开——她先跃出，身后跟着几名追兵。"
+            "她边退边朝你喊：'来场真格切磋，顺便把他们清掉。'"
+        )
         self.choices = [
             EventChoice("并肩作战", self.team_up),
             EventChoice("只顾自己输出", self.selfish_fight),
@@ -2713,7 +2743,10 @@ class ElfFinalHeistEvent(Event):
     def __init__(self, controller):
         super().__init__(controller)
         self.title = "双人盗案"
-        self.description = "最后一次暗号将你引到钟塔金库。她说：'今晚之后，我们要么成传说，要么成通缉令。'"
+        self.description = (
+            "她留下的最后一次暗号将你引到钟塔下的金库入口。"
+            "她已在暗处等着，压低声音：'今晚之后，我们要么成传说，要么成通缉令。'"
+        )
         self.choices = [
             EventChoice("按计划潜入", self.follow_plan),
             EventChoice("临时改计划", self.change_plan),
@@ -2753,11 +2786,20 @@ class ElfEpilogueEvent(Event):
         self.title = "银羽余响"
         rel = getattr(_get_elf_chain_state(controller), "elf_relation", 0)
         if rel >= 2:
-            self.description = "她在晨雾里向你抛来半枚徽章：'以后你喊一声，我就来。'"
+            self.description = (
+                "门后是晨雾中的一处岔路。她在雾里现身，向你抛来半枚徽章："
+                "'以后你喊一声，我就来。'"
+            )
         elif rel <= -2:
-            self.description = "你在墙上看见新涂鸦：一支折断的银羽，旁边写着你的名字。"
+            self.description = (
+                "门后墙上有一幅新涂鸦：一支折断的银羽，旁边写着你名字。"
+                "她没有露面，但你清楚这是她留下的句号。"
+            )
         else:
-            self.description = "她没有现身，只留下一袋补给和一张字条：'下次见面，再分胜负。'"
+            self.description = (
+                "门后她并没有现身，只在地上留了一袋补给和一张字条："
+                "'下次见面，再分胜负。'"
+            )
         self.choices = [
             EventChoice("收下结局，继续前进", self.finish),
         ]
@@ -2897,16 +2939,14 @@ class ElfSideMerchantDisguisedEvent(Event):
 
     def __init__(self, controller):
         super().__init__(controller)
-        self.title = "集市"
+        self.title = "杂货铺"
         self._items = []
         for _ in range(3):
             item = create_random_item()
             cost = max(8, int(item.cost * (0.9 + random.random() * 0.3)))
             self._items.append((item, cost))
-        lines = ["柜台上摆着几件货物，商人懒洋洋地报着价："]
-        for item, cost in self._items:
-            lines.append(f"  · {item.name} ({cost}G)")
-        self.description = "\n".join(lines)
+        # 与真正商店门一致：进入后仅一句招呼，货物只在选项按钮中展示
+        self.description = "老板热情的招呼你。"
         # 与真正商店门一致：三个选项即三件货物及其价格，格式 "名称 (价格G)"
         self.choices = [
             EventChoice(f"{item.name} ({cost}G)", self._make_buy(i))
