@@ -38,6 +38,36 @@ class TestStorySystem(BaseTest):
         self.assertEqual(shadow.min_round, 17)   # 12 + 5
         self.assertIsNone(shadow.max_round)     # 精灵链不设上限，避免错过事件门后链断
 
+    def test_elf_side_monster_payload_hint_is_printed_on_trigger(self):
+        story = self.controller.story
+        monster_door = DoorEnum.MONSTER.create_instance(
+            controller=self.controller,
+            monster=Monster(name="史莱姆", hp=30, atk=6, tier=1),
+            hint="原始提示",
+        )
+        story.register_consequence(
+            choice_flag="elf_side_reg",
+            consequence_id="elf_side_monster_print_once",
+            effect_key="elf_side_monster_mark",
+            chance=1.0,
+            trigger_door_types=["MONSTER"],
+            payload={
+                "chance": 1.0,
+                "message": "门后有人喊你名字，你还没站稳就被拽进战圈。",
+                "hint": "她被追兵缠住，正在把你强拉进并肩作战。",
+            },
+        )
+
+        with unittest.mock.patch("models.story_system.random.uniform", return_value=0.0), unittest.mock.patch(
+            "models.story_system.random.random", return_value=0.0
+        ):
+            changed_door = story.apply_pre_enter_checks(monster_door)
+
+        self.assertTrue(getattr(changed_door.monster, "elf_side_story", False))
+        self.assertEqual(changed_door.hint, "她被追兵缠住，正在把你强拉进并肩作战。")
+        self.assertIn("门后有人喊你名字，你还没站稳就被拽进战圈。", self.controller.messages)
+        self.assertIn("她被追兵缠住，正在把你强拉进并肩作战。", self.controller.messages)
+
     def test_one_choice_can_register_multiple_consequences(self):
         story = self.controller.story
         story.register_choice(
@@ -152,7 +182,9 @@ class TestStorySystem(BaseTest):
         monster_door = DoorEnum.MONSTER.create_instance(controller=self.controller, monster=slime)
         hp_before = monster_door.monster.hp
 
-        with unittest.mock.patch("models.story_system.random.uniform", return_value=0.0):
+        with unittest.mock.patch("models.story_system.random.uniform", return_value=0.0), unittest.mock.patch(
+            "models.story_system.random.random", return_value=0.9
+        ):
             changed_door = story.apply_pre_enter_checks(monster_door)
 
         self.assertEqual(changed_door.enum.name, "MONSTER")
@@ -430,7 +462,9 @@ class TestStorySystem(BaseTest):
             payload={"hp_ratio": 1.5, "atk_ratio": 1.4},
         )
 
-        with unittest.mock.patch("models.story_system.random.uniform", return_value=0.0):
+        with unittest.mock.patch("models.story_system.random.uniform", return_value=0.0), unittest.mock.patch(
+            "models.story_system.random.random", return_value=0.9
+        ):
             changed_door = story.apply_pre_enter_checks(monster_door)
 
         self.assertEqual(changed_door.enum.name, "MONSTER")

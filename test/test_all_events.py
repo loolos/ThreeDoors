@@ -220,6 +220,23 @@ class TestAllEvents(BaseTest):
         event = ElfThiefIntroEvent(self.controller)
         self.assertIn("莱希娅", event.description)
 
+    def test_elf_epilogue_provides_three_choices(self):
+        event = get_story_event_by_key("elf_epilogue_event", self.controller)
+        self.assertIsNotNone(event)
+        self.assertEqual(len(event.choices), 3)
+
+    def test_elf_epilogue_records_global_outcome_flags(self):
+        event = get_story_event_by_key("elf_epilogue_event", self.controller)
+        self.assertIsNotNone(event)
+
+        event.resolve_choice(0)
+        story = self.controller.story
+        self.assertTrue(getattr(story, "elf_chain_ended", False))
+        self.assertEqual(getattr(story, "elf_final_outcome", None), "alliance")
+        self.assertIn("elf_outcome:alliance", story.story_tags)
+        self.assertIn("ending_hook:elf_alliance", story.story_tags)
+        self.assertIn("elf_outcome_alliance", story.choice_flags)
+
     def test_new_long_chain_starter_event_choices(self):
         self.player.gold = 300
         self._run_choice(TimePawnshopEvent, 0)

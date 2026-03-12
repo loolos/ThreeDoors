@@ -594,11 +594,14 @@ class StorySystem:
                 return False, door
             setattr(monster, "elf_side_story", True)
             hint = payload.get("hint")
-            if isinstance(hint, str) and hint.strip():
-                door.hint = hint.strip()
-            self.controller.add_message(
-                self._resolve_message(payload, "message", "门后传来打斗声，你推门一看——")
-            )
+            hint_text = hint.strip() if isinstance(hint, str) and hint.strip() else ""
+            if hint_text:
+                door.hint = hint_text
+            message_text = self._resolve_message(payload, "message", "门后传来打斗声，你推门一看——")
+            self.controller.add_message(message_text)
+            # 该支线强调“入门瞬间就要被拉进战斗”，因此确保 payload 提示会输出到消息流。
+            if hint_text and hint_text != message_text:
+                self.controller.add_message(hint_text)
             self._log_effect_result(consequence, "")
             return True, door
 
