@@ -170,6 +170,7 @@ class BattleScene(Scene):
                     self.monster.process_loot(p)
                     if hasattr(self.controller, "story") and self.controller.story:
                         self.controller.story.resolve_battle_consequence(self.monster, defeated=True)
+                        self.controller.story.record_elf_side_monster_outcome(self.monster, defeated=True)
                     p.clear_battle_status() # 战斗胜利，清除战斗状态
                     self.controller.scene_manager.go_to("door_scene")
                 
@@ -182,6 +183,8 @@ class BattleScene(Scene):
             elif index == 2:
                 escaped = p.try_escape(self.monster)
                 if escaped:
+                    if hasattr(self.controller, "story") and self.controller.story:
+                        self.controller.story.record_elf_side_monster_outcome(self.monster, defeated=False)
                     p.clear_battle_status()
                     self.monster.clear_battle_status()
                     self.controller.scene_manager.go_to("door_scene", generate_new_doors=False)

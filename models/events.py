@@ -2787,18 +2787,17 @@ def _register_elf_side_events(controller):
     story = _get_elf_chain_state(controller)
     if story is None or "elf_met" not in story.story_tags:
         return
-    # 怪物门：发现她在打怪，可加入或逃跑
+    # 怪物门：标记为银羽与利爪（保持怪物门，进门后打怪或逃跑，根据结果不同提示）
     story.register_consequence(
         choice_flag="elf_side_reg",
         consequence_id="elf_side_monster_once",
-        effect_key="replace_with_elf_side_event",
+        effect_key="elf_side_monster_mark",
         chance=1.0,
         trigger_door_types=["MONSTER"],
         required_flags={"elf_met"},
         forbidden_flags={"elf_chain_ended"},
         priority=90,
         payload={
-            "event_key": "elf_side_monster_event",
             "chance": 0.22,
             "message": "门后传来打斗声，你推门一看——",
             "hint": "银羽与利爪交织，有人在替你试刀。",
@@ -2836,6 +2835,22 @@ def _register_elf_side_events(controller):
             "chance": 0.18,
             "message": "柜台后的商人冲你眨了眨眼——那眼神你认得。",
             "hint": "银羽飞贼在等你上钩。",
+        },
+    )
+    # 宝物门：无选项，根据与她的关系决定是拿到宝物还是被她抢走
+    story.register_consequence(
+        choice_flag="elf_side_reg",
+        consequence_id="elf_side_reward_once",
+        effect_key="elf_side_reward_mark",
+        chance=1.0,
+        trigger_door_types=["REWARD"],
+        required_flags={"elf_met"},
+        forbidden_flags={"elf_chain_ended"},
+        priority=90,
+        payload={
+            "chance": 0.2,
+            "message": "门缝里闪过一抹银光……",
+            "hint": "宝光与银羽，不知谁先到。",
         },
     )
 

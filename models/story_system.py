@@ -263,6 +263,17 @@ class StorySystem:
             return
         self._consume_consequence(consequence)
 
+    def record_elf_side_monster_outcome(self, monster: Any, defeated: bool) -> None:
+        """银羽与利爪支线：根据击倒或逃跑给出不同提示并更新精灵关系。"""
+        if not monster or not getattr(monster, "elf_side_story", False):
+            return
+        if defeated:
+            self.controller.add_message("你们联手解决了敌人。她丢给你一句：'谢了，下次还你。'")
+            self.elf_relation = max(-6, min(6, int(getattr(self, "elf_relation", 0)) + 1))
+        else:
+            self.controller.add_message("你转身就跑，背后传来她的骂声与怪物追来的风声。")
+            self.elf_relation = max(-6, min(6, int(getattr(self, "elf_relation", 0)) - 1))
+
     def _trigger_moral_influence(self, door: Any) -> Any:
         monster = getattr(door, "monster", None)
         if not monster:
@@ -552,9 +563,48 @@ class StorySystem:
             self._log_effect_result(consequence, "")
             return True, door
 
+        if effect == "elf_side_reward_mark":
+            door_type = getattr(getattr(door, "enum", None), "name", "")
+            if door_type != "REWARD":
+                return False, door
+            chance = payload.get("chance", 0.2)
+            chance = max(0.0, min(1.0, float(chance)))
+            if random.random() >= chance:
+                return False, door
+            setattr(door, "elf_side_reward", True)
+            hint = payload.get("hint")
+            if isinstance(hint, str) and hint.strip():
+                door.hint = hint.strip()
+            self.controller.add_message(
+                self._resolve_message(payload, "message", "门缝里闪过一抹银光……")
+            )
+            self._log_effect_result(consequence, "")
+            return True, door
+
+        if effect == "elf_side_monster_mark":
+            door_type = getattr(getattr(door, "enum", None), "name", "")
+            if door_type != "MONSTER":
+                return False, door
+            chance = payload.get("chance", 0.2)
+            chance = max(0.0, min(1.0, float(chance)))
+            if random.random() >= chance:
+                return False, door
+            monster = getattr(door, "monster", None)
+            if monster is None:
+                return False, door
+            setattr(monster, "elf_side_story", True)
+            hint = payload.get("hint")
+            if isinstance(hint, str) and hint.strip():
+                door.hint = hint.strip()
+            self.controller.add_message(
+                self._resolve_message(payload, "message", "门后传来打斗声，你推门一看——")
+            )
+            self._log_effect_result(consequence, "")
+            return True, door
+
         if effect == "replace_with_elf_side_event":
             door_type = getattr(getattr(door, "enum", None), "name", "")
-            if door_type not in ("MONSTER", "SHOP"):
+            if door_type != "SHOP":
                 return False, door
             chance = payload.get("chance", 0.2)
             chance = max(0.0, min(1.0, float(chance)))
@@ -563,10 +613,6 @@ class StorySystem:
             event_key = payload.get("event_key")
             if not isinstance(event_key, str) or not event_key.strip():
                 return False, door
-            if door_type == "MONSTER":
-                monster = getattr(door, "monster", None)
-                if monster is not None:
-                    setattr(self.controller, "_elf_side_monster", monster)
             new_door = DoorEnum.EVENT.create_instance(controller=self.controller)
             new_door.story_forced_event_key = event_key.strip()
             hint = payload.get("hint", "墙上的银色箭羽指向下一次相遇。")

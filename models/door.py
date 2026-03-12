@@ -6,7 +6,7 @@ from models.monster import Monster
 from models.shop import Shop
 from enum import Enum
 from models.items import create_random_item
-from models.events import get_random_event, get_story_event_by_key
+from models.events import get_random_event, get_story_event_by_key, ELF_THIEF_NAME
 
 
 class DoorEnum(Enum):
@@ -162,8 +162,20 @@ class RewardDoor(Door):
     
     def generate_hint(self) -> None:
         self.generate_non_monster_door_hint()
-    
+
     def enter(self) -> bool:
+        if getattr(self, "elf_side_reward", False):
+            story = getattr(self.controller, "story", None)
+            rel = int(getattr(story, "elf_relation", 0)) if story else 0
+            if rel >= 0:
+                self.controller.add_message(
+                    "一抹银影从门缝里闪出，与你擦肩而过时往你怀里塞了把东西：'顺来的，懒得拿。' 你低头一看，正是门里该有的那份。"
+                )
+            else:
+                self.controller.add_message(
+                    "你推门的瞬间，一道银光从门内掠出。她揣着鼓鼓的兜冲你摆摆手：'谢了啊，下次有这种好事记得叫我。' 门里只剩一地包装纸。"
+                )
+                self.reward = {}
         for item, amount in self.reward.items():
             if item == 'gold':
                 self.controller.player.gold += amount
@@ -221,7 +233,10 @@ class MonsterDoor(Door):
         if not self.monster:
             return False
         self.controller.current_monster = self.monster
-        self.controller.add_message(f"你遇到了 {self.monster.name}！")
+        if getattr(self.monster, "elf_side_story", False):
+            self.controller.add_message(f"{ELF_THIEF_NAME}正与一头{self.monster.name}缠斗。她瞥见你：'愣着干什么？帮忙还是跑，选一个。'")
+        else:
+            self.controller.add_message(f"你遇到了 {self.monster.name}！")
         return True
 
 
