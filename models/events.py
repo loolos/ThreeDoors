@@ -2387,11 +2387,7 @@ def _schedule_next_elf_event(controller, completed_key):
         payload={
             "event_key": next_key,
             "hint": "门框上有新刻的银羽记号，正是她约好的那一扇。",
-            "message": (
-                f"你想起{ELF_THIEF_NAME}上次分别时在墙上刻的银羽暗号与那句「下次在门后见」。"
-                f"她说过要隔一阵子再碰头，算来至少要到第 {min_round} 回合之后才会在某一扇事件门后等你——"
-                f"而眼前这扇门的门框上，正有那道银羽刻痕。"
-            ),
+            "message": "眼前这扇门的门框上，有那道银羽刻痕，你意识到莱希亚在这里",
         },
     )
 
