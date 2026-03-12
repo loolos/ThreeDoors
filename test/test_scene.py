@@ -147,3 +147,31 @@ class TestSceneSystem(BaseTest):
         self.controller.scene_manager.current_scene.handle_choice(0)
         self.assertIn(consequence_id, story.consumed_consequences)
         self.assertNotIn(consequence_id, story.pending_consequences)
+
+    def test_tier_unlock_check_runs_every_five_rounds(self):
+        """tier 解锁检测应仅在每5回合触发，并写入日志。"""
+        self.controller.round_count = 4
+        self.player.hp = 140
+        self.player.atk = 30
+
+        # 非5的倍数不触发检测
+        self.controller.check_and_unlock_monster_tier()
+        self.assertEqual(self.controller.unlocked_monster_tier, 1)
+
+        # 到5回合触发检测，按属性一次性解锁到可达上限
+        self.controller.round_count = 5
+        self.controller.check_and_unlock_monster_tier()
+        self.assertEqual(self.controller.unlocked_monster_tier, 4)
+        self.assertTrue(any("威胁升级" in m for m in self.controller.messages))
+        self.assertTrue(any("更强大的怪物正在路上" in m for m in self.controller.messages))
+
+    def test_door_generation_respects_unlocked_tier_cap(self):
+        """门场景生成怪物时应受已解锁 tier 限制。"""
+        self.controller.unlocked_monster_tier = 2
+        self.controller.round_count = 99
+        door_scene = self.controller.scene_manager.current_scene
+
+        for _ in range(30):
+            door_scene.generate_doors()
+            monster_door = next(door for door in door_scene.doors if door.enum == DoorEnum.MONSTER)
+            self.assertLessEqual(monster_door.monster.tier, 2)

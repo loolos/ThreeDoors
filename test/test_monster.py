@@ -62,7 +62,7 @@ class TestMonsterSystem(BaseTest):
     def test_random_monster_scales_with_player_power(self):
         """玩家属性导致的怪物增强应从40回合后才生效。"""
         weak_player = SimpleNamespace(_atk=6, atk=6, hp=50, gold=10)
-        strong_player = SimpleNamespace(_atk=40, atk=40, hp=260, gold=400)
+        strong_player = SimpleNamespace(_atk=300, atk=300, hp=1600, gold=400)
 
         random.seed(20260310)
         weak_pack = [get_random_monster(current_round=28, player=weak_player) for _ in range(40)]
@@ -78,9 +78,9 @@ class TestMonsterSystem(BaseTest):
         self.assertEqual(strong_avg_atk, weak_avg_atk)
 
         random.seed(20260310)
-        weak_pack_late = [get_random_monster(current_round=45, player=weak_player) for _ in range(40)]
+        weak_pack_late = [get_random_monster(current_round=70, player=weak_player) for _ in range(40)]
         random.seed(20260310)
-        strong_pack_late = [get_random_monster(current_round=45, player=strong_player) for _ in range(40)]
+        strong_pack_late = [get_random_monster(current_round=70, player=strong_player) for _ in range(40)]
 
         weak_avg_hp_late = sum(m.hp for m in weak_pack_late) / len(weak_pack_late)
         strong_avg_hp_late = sum(m.hp for m in strong_pack_late) / len(strong_pack_late)
@@ -89,7 +89,22 @@ class TestMonsterSystem(BaseTest):
         weak_avg_effect_late = sum(m.effect_probability for m in weak_pack_late) / len(weak_pack_late)
         strong_avg_effect_late = sum(m.effect_probability for m in strong_pack_late) / len(strong_pack_late)
 
-        # 新版 power 计算下，后期玩家差异主要体现在攻击和效果概率，不保证生命均值严格单调
-        self.assertNotEqual(strong_avg_hp_late, weak_avg_hp_late)
+        # 后期高战力应带来更高攻击与更强状态概率，且整体耐久更高
+        self.assertGreater(strong_avg_hp_late, weak_avg_hp_late)
         self.assertGreater(strong_avg_atk_late, weak_avg_atk_late)
         self.assertGreater(strong_avg_effect_late, weak_avg_effect_late)
+
+    def test_tier6_monster_stats_are_massively_boosted(self):
+        """最高 tier 怪物应达到超高血量与攻击。"""
+        tier6 = Monster.MONSTER_TYPES[6]
+        self.assertTrue(all(hp >= 1000 for _, hp, _ in tier6))
+        self.assertTrue(all(atk >= 100 for _, _, atk in tier6))
+
+    def test_unlocked_tier_limits_generated_monster_tier(self):
+        """即使在高回合，未解锁的 tier 也不应生成。"""
+        random.seed(20260312)
+        pack = [
+            get_random_monster(current_round=99, unlocked_tier=3, player=None)
+            for _ in range(80)
+        ]
+        self.assertTrue(all(m.tier <= 3 for m in pack))
