@@ -2,6 +2,8 @@ import random
 from enum import Enum
 from typing import Any, Optional
 
+from models.game_config import GameConfig
+
 class StatusName(Enum):
     WEAK = "weak"              # 虚弱状态
     POISON = "poison"          # 中毒状态
@@ -286,10 +288,18 @@ class HealingScrollStatus(Status):
             raise ValueError("Value must be positive")
         
     def duration_pass(self) -> bool:
-        heal_amount = random.randint(1, self.value)
+        base_heal = random.randint(1, self.value)
+        heal_amount = min(5, base_heal + self._get_life_foundation_bonus())
         self.target.heal(heal_amount)
         self.target.controller.add_message(f"恢复卷轴生效，恢复 {heal_amount} 点生命！")
         return super().duration_pass()
+
+    def _get_life_foundation_bonus(self) -> int:
+        """生命底蕴会略微强化恢复卷轴：历史血量每提升 200 点，额外+1。"""
+        controller = getattr(self.target, "controller", None)
+        peak_hp = int(max(getattr(controller, "player_peak_hp", self.target.hp), self.target.hp))
+        hp_growth = max(0, peak_hp - GameConfig.START_PLAYER_HP)
+        return hp_growth // 200
 
     def combine(self, other: 'Status') -> None:
         """恢复卷轴状态叠加：叠加持续时间"""
