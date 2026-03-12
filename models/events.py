@@ -2516,7 +2516,7 @@ class ElfRooftopDuelEvent(Event):
         self.title = "屋脊切磋"
         self.description = (
             "你穿过走廊时，发现她蹲在某扇门前的屋脊上，朝你招手。"
-            "她跳下来，指了指身后那扇怪物门：'真怪物还没出来，趁这空档——三招，谁掉下屋脊谁请客。'"
+            "她跳下来，指了指身后那扇怪物门：'真怪物还没出来，趁这空档过过招，谁掉下屋脊谁请客。'"
             "你意识到她是在邀你切磋，顺便试试你的身手。"
         )
         self.choices = [
@@ -2555,20 +2555,20 @@ class ElfFakeMapEvent(Event):
         super().__init__(controller)
         self.title = "假地图与真考验"
         self.description = (
-            "门后她靠在墙边，手里捏着两份皱巴巴的地图，冲你晃了晃。"
-            "她说：一份是这条走廊的实情，一份是她随手改过的坑人版。'选吧，看看你到底信我还是信自己。'"
+            "门后她靠在墙边，手里捏着份皱巴巴的地图，冲你晃了晃。"
+            "她说：'这是这条走廊的地图，我标注过的，对你有用。'"
         )
         self.choices = [
-            EventChoice("信她指的那份", self.trust_map),
+            EventChoice("信她的标注", self.trust_map),
             EventChoice("自己重新标记路径", self.remap),
-            EventChoice("把两份都卖了", self.sell_both),
+            EventChoice("把两份都卖了给商人", self.sell_both),
         ]
 
     def trust_map(self):
         gain = _elf_percent_gold(self.get_player(), 0.12)
         self.get_player().gold += gain
         _adjust_elf_relation(self.controller, 1)
-        self.add_message(f"你选中了真图，顺路摸到一处被忽视的补给箱（+{gain}G）。")
+        self.add_message(f"根据她的标注，顺路摸到一处被忽视的补给箱（+{gain}G）。")
         _schedule_next_elf_event(self.controller, "elf_fake_map_event")
         return "Event Completed"
 
@@ -2584,7 +2584,7 @@ class ElfFakeMapEvent(Event):
         gain = _elf_percent_gold(self.get_player(), 0.18)
         self.get_player().gold += gain
         _adjust_elf_relation(self.controller, -2)
-        self.add_message(f"你把两份图都卖给路人，赚了 {gain}G，也让她记下你这笔坏账。")
+        self.add_message(f"你把两份图都卖给商人，赚了 {gain}G，也让她记下你这笔坏账。")
         _schedule_next_elf_event(self.controller, "elf_fake_map_event")
         return "Event Completed"
 
@@ -2640,7 +2640,7 @@ class ElfNightCampEvent(Event):
             "火光映着她的侧脸，她把一半烤肉推给你：'所以你今晚要选，跟我一起扛，拿钱只做一单，还是听完就当没见过我。'"
         )
         self.choices = [
-            EventChoice("站她这边：一起挡住追兵", self.promise_help),
+            EventChoice("站她这边：一起对付追兵", self.promise_help),
             EventChoice("谈价接单：先收钱再帮忙", self.ask_payment),
             EventChoice("只拿情报：记路线，之后各走各路", self.prepare_solo),
         ]
@@ -2675,11 +2675,11 @@ class ElfTrapRescueEvent(Event):
         super().__init__(controller)
         self.title = "陷阱回廊"
         self.description = (
-            "你刚踏进这条走廊就触发了连环机关，绞索从梁上落下，正往你身上收紧。"
-            "她从梁上倒挂下来，手里捏着匕首，似笑非笑：'关系好坏，决定我割哪根绳。'"
+            "你刚踏进这条走廊就触发了连环机关，绞索从梁上落下，正往你身上收紧，把你一只脚吊了起来，机关正在靠近你，形势危急。"
+            "她从梁上倒挂下来，手里捏着匕首，似笑非笑：'关系好坏，决定我救不救你。'"
         )
         self.choices = [
-            EventChoice("承认此前的过错", self.apologize),
+            EventChoice("好言相劝，求求放人", self.apologize),
             EventChoice("命令她立刻救人", self.order_her),
             EventChoice("自己挣脱，不求她", self.break_free),
         ]
@@ -2767,13 +2767,13 @@ class ElfFinalHeistEvent(Event):
         self.description = (
             "她留下的最后一次暗号把你引到钟塔下的旧金库。"
             "你刚到，就看见莱希娅把三把钥匙摊在地上：外圈巡逻表、内层机关图、以及守卫换岗钟点。"
-            "她快速说明：正门有重甲和弩手；侧井能绕进账册室但会触发毒针；如果你此刻出卖她，守卫会立刻封锁整层。"
-            "她盯着你：'你来定，按我的线稳进稳出，赌一把高风险快线，还是现在就把我卖了换赏金。'"
+            "她快速说明：正门有重甲和弩手；侧井能绕进账册室但会触发毒针；但你在想，如果你此刻出卖她，守卫或许也会给你悬赏。"
+            "她盯着你：'你来定，按我的线稳进稳出，赌一把高风险快线？'"
         )
         self.choices = [
             EventChoice("按她的路线走：低风险潜入并平分赃款", self.follow_plan),
             EventChoice("改走侧井快线：多拿一票但硬吃反噬", self.change_plan),
-            EventChoice("敲警铃卖掉她：拿悬赏并承受后患", self.betray),
+            EventChoice("敲警铃卖掉她：拿悬赏", self.betray),
         ]
 
     def follow_plan(self):
