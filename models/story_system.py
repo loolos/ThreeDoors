@@ -224,7 +224,9 @@ class StorySystem:
                 break
         if chosen is None:
             chosen = candidates[-1]
-        self.controller.add_message(self._build_trigger_message(chosen))
+        trigger_message = self._build_trigger_message(chosen)
+        if trigger_message:
+            self.controller.add_message(trigger_message)
         applied, new_door = self._apply_effect(chosen, door)
         if applied:
             if not self._should_defer_consumption(chosen, new_door):
@@ -734,7 +736,7 @@ class StorySystem:
         if consequence.source_flag in by_source:
             return by_source[consequence.source_flag]
 
-        return "一段旧事突然浮上心头，眼前的局势也随之松动。"
+        return ""
 
     def _log_effect_result(self, consequence: PendingConsequence, detail: str) -> None:
         custom = self._resolve_message(consequence.payload, "log_result", "")
