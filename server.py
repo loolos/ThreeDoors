@@ -91,12 +91,31 @@ class GameController:
             else:
                 break
 
+        tier_unlock_messages = {
+            2: "【威胁升级】阴影里多了细碎脚步声——潜伏者开始在门后徘徊。",
+            3: "【威胁升级】你听见铁甲彼此摩擦的回响，重装猎手也加入了追逐。",
+            4: "【威胁升级】空气里浮起血与硫磺的味道，凶暴巨兽已被惊醒。",
+            5: "【威胁升级】远处传来低沉吟唱，古老而狡诈的强敌正在靠近。",
+            6: "【威胁升级】整座迷宫都在震颤，传说中的掠食者已锁定你的气息。",
+        }
+
+        tier_warning_messages = {
+            2: "【威胁侦测】墙上的抓痕越来越新，像是有猎手在试探你的脚步。",
+            3: "【威胁侦测】风里夹着金属味，前方似乎有披甲敌人在巡猎。",
+            4: "【威胁侦测】地面偶尔传来闷响，更沉重的脚步正在向你逼近。",
+            5: "【威胁侦测】你听见断续低语，某些危险存在已经开始注意你。",
+            6: "【威胁侦测】连火把都在发颤，最顶层的威胁正从黑暗深处苏醒。",
+        }
+
         if new_tier > old_tier:
             self.unlocked_monster_tier = new_tier
-            self.add_message(
-                f"【威胁升级】你感觉深处的杀意正在苏醒……已解锁 Tier {new_tier} 怪物！"
-            )
-            self.add_message("远方传来沉重咆哮——更强大的怪物正在路上。")
+            for tier in range(old_tier + 1, new_tier + 1):
+                self.add_message(
+                    tier_unlock_messages.get(
+                        tier,
+                        f"【威胁升级】更凶险的敌人现身了（已解锁 Tier {tier}）。",
+                    )
+                )
             return
 
         if old_tier >= max_tier:
@@ -104,11 +123,11 @@ class GameController:
             return
 
         next_tier = old_tier + 1
-        requirement = GameConfig.MONSTER_TIER_UNLOCK_REQUIREMENTS.get(next_tier)
-        req_val = requirement if isinstance(requirement, (int, float)) else 0
         self.add_message(
-            f"【威胁侦测】更强怪物的气息正在逼近（下一层 Tier {next_tier} 需求："
-            f"min(攻击, 生命/2)≥{req_val}；当前峰值：攻击{self.player_peak_atk} / 生命{self.player_peak_hp}，有效={effective_power}）。"
+            tier_warning_messages.get(
+                next_tier,
+                "【威胁侦测】黑暗中的敌意仍在增长，你能感觉到下一波威胁快到了。",
+            )
         )
 
 # -------------------------------

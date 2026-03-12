@@ -163,7 +163,7 @@ class TestSceneSystem(BaseTest):
         self.controller.check_and_unlock_monster_tier()
         self.assertEqual(self.controller.unlocked_monster_tier, 4)
         self.assertTrue(any("威胁升级" in m for m in self.controller.messages))
-        self.assertTrue(any("更强大的怪物正在路上" in m for m in self.controller.messages))
+        self.assertTrue(any("凶暴巨兽已被惊醒" in m for m in self.controller.messages))
 
     def test_door_generation_respects_unlocked_tier_cap(self):
         """门场景生成怪物时应受已解锁 tier 限制。"""
