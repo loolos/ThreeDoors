@@ -336,7 +336,7 @@ class TestStorySystem(BaseTest):
             story.apply_pre_enter_checks(shop_door)
 
         combined = "\n".join(self.controller.messages)
-        self.assertIn("旧事", combined)
+        self.assertNotIn("旧事", combined)
         self.assertIn("掌柜就改了价签", combined)
         self.assertNotIn("【后续影响", combined)
         self.assertNotIn("log_discount_case", combined)
