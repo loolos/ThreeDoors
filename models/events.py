@@ -2917,7 +2917,7 @@ def _register_elf_side_events(controller):
         payload={
             "event_key": "elf_side_merchant_disguised_event",
             "chance": 0.18,
-            "message": "柜台上摆着几件货物，商人懒洋洋地招呼着你。",
+            "message": "你进入了杂货铺，老板热情的招呼你",
             "hint": "商人的吆喝声传来……",
         },
     )
@@ -2934,8 +2934,8 @@ def _register_elf_side_events(controller):
         payload={
             "event_key": "elf_side_merchant_event",
             "chance": 0.18,
-            "message": "柜台后的商人冲你眨了眨眼——那眼神你认得。",
-            "hint": "银羽飞贼在等你上钩。",
+            "message": "柜台后的商人懒洋洋的看着你——那眼神你认得，这是{ELF_THIEF_NAME}。",
+            "hint": "某个事件在等你上钩。",
         },
     )
     # 宝物门：无选项，根据与她的关系决定是拿到宝物还是被她抢走
@@ -3009,7 +3009,7 @@ class ElfSideMerchantDisguisedEvent(Event):
             cost = max(8, int(item.cost * (0.9 + random.random() * 0.3)))
             self._items.append((item, cost))
         # 与真正商店门一致：进入后仅一句招呼，货物只在选项按钮中展示
-        self.description = "老板热情的招呼你。"
+        self.description = "神秘商人的店铺"
         # 与真正商店门一致：三个选项即三件货物及其价格，格式 "名称 (价格G)"
         self.choices = [
             EventChoice(f"{item.name} ({cost}G)", self._make_buy(i))
@@ -3026,8 +3026,8 @@ class ElfSideMerchantDisguisedEvent(Event):
         p = self.get_player()
         if p.gold >= cost:
             p.gold -= cost
-            self.add_message(f"你付了 {cost} 金币，对方把货塞进你手里。")
-            self.add_message("走出几步才发现是假货或空包——你被骗了。")
+            self.add_message(f"你付了 {cost} 金币，对方把货塞进你手里，懒洋洋的看着你。")
+            self.add_message("走出几步才发现是假货-——你被骗了，刚刚那个商人是{ELF_THIEF_NAME}假扮的。")
         else:
             self.add_message("你的金币不足, 无法购买!")
         return "Event Completed"
@@ -3039,17 +3039,17 @@ class ElfSideMerchantEvent(Event):
     def __init__(self, controller):
         super().__init__(controller)
         self.title = "柜台后的银羽"
-        self.description = f"「商人」摘下兜帽，{ELF_THIEF_NAME}冲你一笑：'又见面了。买还是揭穿，随你。'"
+        self.description = f"「伪装的商人」{ELF_THIEF_NAME}，继续热情的说到：'看看我的商品吧！你要点啥？'"
         self.choices = [
             EventChoice("识破并揭穿她", self.expose),
-            EventChoice("假装上当，付钱走人", self.pretend_pay),
+            EventChoice("假装上当，付钱转身就走", self.pretend_pay),
             EventChoice("不买账，转身就走", self.walk_away),
         ]
 
     def expose(self):
         gain = _elf_percent_gold(self.get_player(), 0.08)
         self.get_player().gold += gain
-        _adjust_elf_relation(self.controller, 1)
+        _adjust_elf_relation(self.controller, 0)
         self.add_message(f"你当众戳穿把戏，她悻悻退了你一点'封口费'（+{gain}G）。'算你狠。'")
         return "Event Completed"
 
@@ -3057,8 +3057,8 @@ class ElfSideMerchantEvent(Event):
         p = self.get_player()
         lost = min(p.gold, _elf_percent_gold(p, 0.12))
         p.gold = max(0, p.gold - lost)
-        _adjust_elf_relation(self.controller, 0)
-        self.add_message(f"你故意付了钱，她收下 {lost}G 时眼神复杂：'你这人真怪。'")
+        _adjust_elf_relation(self.controller, 1)
+        self.add_message(f"你故意付了钱，拿了假货就走，她收下 {lost}G 时眼神复杂：'谢谢惠顾。'")
         return "Event Completed"
 
     def walk_away(self):
