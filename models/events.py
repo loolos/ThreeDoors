@@ -2328,6 +2328,8 @@ def _get_elf_chain_state(controller):
         story.elf_chain_started = False
     if not hasattr(story, "elf_middle_queue"):
         story.elf_middle_queue = []
+    if not hasattr(story, "elf_chain_ended"):
+        story.elf_chain_ended = False
     return story
 
 
@@ -2371,7 +2373,7 @@ def _schedule_next_elf_event(controller, completed_key):
 
     current_round = max(0, int(getattr(controller, "round_count", 0)))
     min_round = current_round + 5
-    max_round = current_round + 15
+    # 不设 max_round，避免因未在窗口内选到事件门而永久失效（事件门每轮不保证出现）
     consequence_id = f"elf_chain_force_{next_key}_{current_round}_{random.randint(1, 9999)}"
     story.register_consequence(
         choice_flag=f"elf_chain:{completed_key}",
@@ -2379,13 +2381,13 @@ def _schedule_next_elf_event(controller, completed_key):
         effect_key="force_story_event",
         chance=1.0,
         min_round=min_round,
-        max_round=max_round,
+        max_round=None,
         priority=99,
         trigger_door_types=["EVENT"],
         payload={
             "event_key": next_key,
             "hint": "墙上的银色箭羽指向下一次相遇。",
-            "message": f"你想起精灵飞贼{ELF_THIEF_NAME}留下的暗号：大约 {min_round}-{max_round} 回合后再见。",
+            "message": f"你想起精灵飞贼{ELF_THIEF_NAME}留下的暗号：至少 {min_round} 回合后再见。",
         },
     )
 
@@ -2416,6 +2418,9 @@ class ElfThiefIntroEvent(Event):
         if story is None or story.elf_chain_started:
             return
         story.elf_chain_started = True
+        if not getattr(story, "elf_chain_ended", False):
+            story.story_tags.add("elf_met")
+            _register_elf_side_events(self.controller)
         _schedule_next_elf_event(self.controller, "elf_intro")
 
     def offer_food(self):
@@ -2758,7 +2763,11 @@ class ElfEpilogueEvent(Event):
         ]
 
     def finish(self):
-        rel = getattr(_get_elf_chain_state(self.controller), "elf_relation", 0)
+        story = _get_elf_chain_state(self.controller)
+        if story is not None:
+            story.elf_chain_ended = True
+            story.story_tags.add("elf_chain_ended")
+        rel = getattr(story, "elf_relation", 0) if story else 0
         if rel >= 2:
             self.get_player().change_base_atk(2)
             self.add_message("你们成了亦敌亦友的固定搭子，基础攻击 +2。")
@@ -2770,6 +2779,174 @@ class ElfEpilogueEvent(Event):
             gain = self.scale_value(18, positive=True)
             self.get_player().gold += gain
             self.add_message(f"这段关系停在模糊地带，但她还是留了 {gain}G 作为'平手礼'。")
+        return "Event Completed"
+
+
+def _register_elf_side_events(controller):
+    """精灵飞贼支线：已遇见她且未终局时，登记怪物门/商店门内随机触发的独立事件（各仅一次）。"""
+    story = _get_elf_chain_state(controller)
+    if story is None or "elf_met" not in story.story_tags:
+        return
+    # 怪物门：发现她在打怪，可加入或逃跑
+    story.register_consequence(
+        choice_flag="elf_side_reg",
+        consequence_id="elf_side_monster_once",
+        effect_key="replace_with_elf_side_event",
+        chance=1.0,
+        trigger_door_types=["MONSTER"],
+        required_flags={"elf_met"},
+        forbidden_flags={"elf_chain_ended"},
+        priority=90,
+        payload={
+            "event_key": "elf_side_monster_event",
+            "chance": 0.22,
+            "message": "门后传来打斗声，你推门一看——",
+            "hint": "银羽与利爪交织，有人在替你试刀。",
+        },
+    )
+    # 商店门（未认出）：门样式与购买流程像商店，实为她伪装，仅一次
+    story.register_consequence(
+        choice_flag="elf_side_reg",
+        consequence_id="elf_side_merchant_disguised_once",
+        effect_key="replace_with_elf_side_event",
+        chance=1.0,
+        trigger_door_types=["SHOP"],
+        required_flags={"elf_met"},
+        forbidden_flags={"elf_chain_ended"},
+        priority=90,
+        payload={
+            "event_key": "elf_side_merchant_disguised_event",
+            "chance": 0.18,
+            "message": "柜台上摆着几件货物，商人懒洋洋地招呼着你。",
+            "hint": "商人的吆喝声传来……",
+        },
+    )
+    # 商店门（认出她）：直接揭穿，事件门对话，仅一次
+    story.register_consequence(
+        choice_flag="elf_side_reg",
+        consequence_id="elf_side_merchant_once",
+        effect_key="replace_with_elf_side_event",
+        chance=1.0,
+        trigger_door_types=["SHOP"],
+        required_flags={"elf_met"},
+        forbidden_flags={"elf_chain_ended"},
+        priority=90,
+        payload={
+            "event_key": "elf_side_merchant_event",
+            "chance": 0.18,
+            "message": "柜台后的商人冲你眨了眨眼——那眼神你认得。",
+            "hint": "银羽飞贼在等你上钩。",
+        },
+    )
+
+
+class ElfSideMonsterEvent(Event):
+    """支线：怪物门内发现飞贼在打怪，与主链独立，仅触发一次。"""
+
+    def __init__(self, controller):
+        super().__init__(controller)
+        self.title = "银羽与利爪"
+        monster = getattr(controller, "_elf_side_monster", None)
+        name = getattr(monster, "name", "怪物") if monster else "怪物"
+        self.description = f"门后{ELF_THIEF_NAME}正与一头{name}缠斗。她瞥见你：'愣着干什么？帮忙还是跑，选一个。'"
+        self.choices = [
+            EventChoice("加入，一起干掉怪物", self.help_kill),
+            EventChoice("趁机逃跑", self.flee),
+        ]
+
+    def help_kill(self):
+        monster = getattr(self.controller, "_elf_side_monster", None)
+        if monster is not None:
+            self.controller.current_monster = monster
+            if hasattr(self.controller, "_elf_side_monster"):
+                delattr(self.controller, "_elf_side_monster")
+            _adjust_elf_relation(self.controller, 1)
+            self.add_message(f"{ELF_THIEF_NAME}让出破绽，你们联手解决了敌人。战后她丢给你一句：'谢了，下次还你。'")
+            self.controller.scene_manager.go_to("battle_scene")
+        else:
+            self.add_message("幻象消散，门后只剩空荡。")
+        return "Event Completed"
+
+    def flee(self):
+        if hasattr(self.controller, "_elf_side_monster"):
+            delattr(self.controller, "_elf_side_monster")
+        dmg = self.scale_value(8, positive=False)
+        self.get_player().take_damage(dmg)
+        _adjust_elf_relation(self.controller, -1)
+        self.add_message(f"你转身就跑，背后传来她的骂声与怪物追来的风声；你挨了一下（-{dmg}HP）。")
+        return "Event Completed"
+
+
+class ElfSideMerchantDisguisedEvent(Event):
+    """支线：商店门内未认出她，门样式与购买流程像商店，实为她伪装，仅触发一次。"""
+
+    def __init__(self, controller):
+        super().__init__(controller)
+        self.title = "集市"
+        self._items = []
+        for _ in range(3):
+            item = create_random_item()
+            cost = max(8, int(item.cost * (0.9 + random.random() * 0.3)))
+            self._items.append((item, cost))
+        lines = ["柜台上摆着几件货物，商人懒洋洋地报着价："]
+        for item, cost in self._items:
+            lines.append(f"  · {item.name} ({cost}G)")
+        self.description = "\n".join(lines)
+        # 与真正商店门一致：三个选项即三件货物及其价格，格式 "名称 (价格G)"
+        self.choices = [
+            EventChoice(f"{item.name} ({cost}G)", self._make_buy(i))
+            for i, (item, cost) in enumerate(self._items)
+        ]
+
+    def _make_buy(self, index):
+        return lambda idx=index: self._do_buy(idx)
+
+    def _do_buy(self, index):
+        if index < 0 or index >= len(self._items):
+            return "Event Completed"
+        item, cost = self._items[index]
+        p = self.get_player()
+        if p.gold >= cost:
+            p.gold -= cost
+            self.add_message(f"你付了 {cost} 金币，对方把货塞进你手里。")
+            self.add_message("走出几步才发现是假货或空包——你被骗了。")
+        else:
+            self.add_message("你的金币不足, 无法购买!")
+        return "Event Completed"
+
+
+class ElfSideMerchantEvent(Event):
+    """支线：商店门内认出她，直接揭穿/对话，与主链独立，仅触发一次。"""
+
+    def __init__(self, controller):
+        super().__init__(controller)
+        self.title = "柜台后的银羽"
+        self.description = f"「商人」摘下兜帽，{ELF_THIEF_NAME}冲你一笑：'又见面了。买还是揭穿，随你。'"
+        self.choices = [
+            EventChoice("识破并揭穿她", self.expose),
+            EventChoice("假装上当，付钱走人", self.pretend_pay),
+            EventChoice("不买账，转身就走", self.walk_away),
+        ]
+
+    def expose(self):
+        gain = self.scale_value(8, positive=True)
+        self.get_player().gold += gain
+        _adjust_elf_relation(self.controller, 1)
+        self.add_message(f"你当众戳穿把戏，她悻悻退了你一点'封口费'（+{gain}G）。'算你狠。'")
+        return "Event Completed"
+
+    def pretend_pay(self):
+        cost = self.scale_value(15, positive=False)
+        p = self.get_player()
+        lost = min(p.gold, cost)
+        p.gold = max(0, p.gold - cost)
+        _adjust_elf_relation(self.controller, 0)
+        self.add_message(f"你故意付了钱，她收下 {lost}G 时眼神复杂：'你这人真怪。'")
+        return "Event Completed"
+
+    def walk_away(self):
+        _adjust_elf_relation(self.controller, -1)
+        self.add_message("你扭头离开，她在背后嘀咕：'没劲。'")
         return "Event Completed"
 
 
@@ -2787,6 +2964,9 @@ def get_story_event_by_key(event_key, controller):
         "elf_hunter_gate_event": ElfHunterGateEvent,
         "elf_final_heist_event": ElfFinalHeistEvent,
         "elf_epilogue_event": ElfEpilogueEvent,
+        "elf_side_monster_event": ElfSideMonsterEvent,
+        "elf_side_merchant_disguised_event": ElfSideMerchantDisguisedEvent,
+        "elf_side_merchant_event": ElfSideMerchantEvent,
     }
     event_cls = event_map.get(event_key)
     if not event_cls or not _is_event_available(controller, event_cls):

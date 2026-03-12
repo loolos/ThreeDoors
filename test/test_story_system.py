@@ -30,12 +30,13 @@ class TestStorySystem(BaseTest):
 
         self.assertTrue(getattr(story, "elf_chain_started", False))
         pending = list(story.pending_consequences.values())
-        self.assertEqual(len(pending), 1)
-        consequence = pending[0]
-        self.assertEqual(consequence.effect_key, "force_story_event")
-        self.assertEqual(consequence.min_round, 17)   # 12 + 5
-        self.assertEqual(consequence.max_round, 27)   # 12 + 15
-        self.assertEqual(consequence.payload.get("event_key"), "elf_shadow_mark_event")
+        # 1 条主链下一环 + 3 条支线（怪物门/商店门未认出/认出）
+        self.assertGreaterEqual(len(pending), 1)
+        shadow = next((c for c in pending if c.payload.get("event_key") == "elf_shadow_mark_event"), None)
+        self.assertIsNotNone(shadow, "应有登记下一环银羽暗号的后果")
+        self.assertEqual(shadow.effect_key, "force_story_event")
+        self.assertEqual(shadow.min_round, 17)   # 12 + 5
+        self.assertIsNone(shadow.max_round)     # 精灵链不设上限，避免错过事件门后链断
 
     def test_one_choice_can_register_multiple_consequences(self):
         story = self.controller.story

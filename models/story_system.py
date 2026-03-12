@@ -3,6 +3,7 @@ from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, Iterable, Optional, Set, Tuple
 
 from models.game_config import GameConfig
+from models.door import DoorEnum
 from models.items import (
     AttackUpScroll,
     Barrier,
@@ -360,8 +361,6 @@ class StorySystem:
                         "门后等待你的不是原住怪物，而是一路追杀而来的猎手。",
                     )
                 )
-                from models.door import DoorEnum
-
                 hunter_hint = payload.get("hunter_hint", "脚步声不是偶然，那是追猎者在校准你的呼吸。")
                 hunter.story_consequence_id = consequence.consequence_id
                 # 由非怪物门引出的追猎战，只有击倒才算真正了结。
@@ -552,6 +551,32 @@ class StorySystem:
             )
             self._log_effect_result(consequence, "")
             return True, door
+
+        if effect == "replace_with_elf_side_event":
+            door_type = getattr(getattr(door, "enum", None), "name", "")
+            if door_type not in ("MONSTER", "SHOP"):
+                return False, door
+            chance = payload.get("chance", 0.2)
+            chance = max(0.0, min(1.0, float(chance)))
+            if random.random() >= chance:
+                return False, door
+            event_key = payload.get("event_key")
+            if not isinstance(event_key, str) or not event_key.strip():
+                return False, door
+            if door_type == "MONSTER":
+                monster = getattr(door, "monster", None)
+                if monster is not None:
+                    setattr(self.controller, "_elf_side_monster", monster)
+            new_door = DoorEnum.EVENT.create_instance(controller=self.controller)
+            new_door.story_forced_event_key = event_key.strip()
+            hint = payload.get("hint", "墙上的银色箭羽指向下一次相遇。")
+            if isinstance(hint, str) and hint.strip():
+                new_door.hint = hint.strip()
+            self.controller.add_message(
+                self._resolve_message(payload, "message", "门后的景象和你预想的不太一样……")
+            )
+            self._log_effect_result(consequence, "")
+            return True, new_door
 
         if effect == "treasure_marked_item":
             if getattr(getattr(door, "enum", None), "name", "") != "REWARD":
