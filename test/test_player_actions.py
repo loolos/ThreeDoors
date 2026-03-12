@@ -46,6 +46,31 @@ class TestPlayerActions(unittest.TestCase):
         self.assertIn("恢复 17 HP!", self.controller.messages[-1])
         self.assertIn("生命底蕴", self.controller.messages[-1])
 
+
+    def test_healing_scroll_peak_bonus_scaling(self):
+        """恢复卷轴每回合恢复受生命底蕴轻微加成：每 200 历史生命 +1。"""
+        self.player.hp = 10
+        self.controller.player_peak_hp = 500
+        status = StatusName.HEALING_SCROLL.create_instance(duration=3, target=self.player, value=3)
+
+        with mock.patch("models.status.random.randint", return_value=2):
+            status.duration_pass()
+
+        self.assertEqual(self.player.hp, 14)
+        self.assertIn("恢复卷轴生效，恢复 4 点生命！", self.controller.messages[-1])
+
+    def test_healing_scroll_heal_amount_capped_at_five(self):
+        """恢复卷轴单回合恢复上限为 5 点生命。"""
+        self.player.hp = 10
+        self.controller.player_peak_hp = 1200
+        status = StatusName.HEALING_SCROLL.create_instance(duration=3, target=self.player, value=5)
+
+        with mock.patch("models.status.random.randint", return_value=5):
+            status.duration_pass()
+
+        self.assertEqual(self.player.hp, 15)
+        self.assertIn("恢复卷轴生效，恢复 5 点生命！", self.controller.messages[-1])
+
     def test_player_gold(self):
         """测试玩家金币"""
         initial_gold = self.player.gold
