@@ -48,6 +48,9 @@ class GameController:
         self.scene_manager = SceneManager()
         self.scene_manager.game_controller = self  # 直接设置 game_controller
         self.scene_manager.initialize_scenes()  # 这会设置当前场景为 DoorScene
+        self.unlocked_monster_tier = GameConfig.START_UNLOCKED_MONSTER_TIER
+        self.player_peak_hp = self.player.hp
+        self.player_peak_atk = self.player.atk
 
     def add_message(self, msg):
         """添加消息到消息列表"""
@@ -59,6 +62,53 @@ class GameController:
     def clear_messages(self):
         """清空消息列表"""
         self.messages.clear()
+
+    def update_player_power_peaks(self):
+        """记录玩家历史最高生命与攻击，用于 tier 解锁判定。"""
+        self.player_peak_hp = max(self.player_peak_hp, self.player.hp)
+        self.player_peak_atk = max(self.player_peak_atk, self.player.atk)
+
+    def check_and_unlock_monster_tier(self):
+        """每隔固定回合检查怪物 tier 解锁进度，并输出日志。"""
+        if self.round_count <= 0:
+            return
+        if self.round_count % GameConfig.MONSTER_TIER_CHECK_INTERVAL != 0:
+            return
+
+        self.update_player_power_peaks()
+        old_tier = self.unlocked_monster_tier
+        max_tier = GameConfig.MONSTER_MAX_TIER
+        new_tier = old_tier
+
+        for tier in range(old_tier + 1, max_tier + 1):
+            requirement = GameConfig.MONSTER_TIER_UNLOCK_REQUIREMENTS.get(tier)
+            if not requirement:
+                continue
+            if self.player_peak_atk >= requirement["atk"] and self.player_peak_hp >= requirement["hp"]:
+                new_tier = tier
+            else:
+                break
+
+        if new_tier > old_tier:
+            self.unlocked_monster_tier = new_tier
+            self.add_message(
+                f"【威胁升级】你感觉深处的杀意正在苏醒……已解锁 Tier {new_tier} 怪物！"
+            )
+            self.add_message("远方传来沉重咆哮——更强大的怪物正在路上。")
+            return
+
+        if old_tier >= max_tier:
+            self.add_message("【威胁侦测】你已触及最高威胁层级，前方皆是传说级敌手。")
+            return
+
+        next_tier = old_tier + 1
+        requirement = GameConfig.MONSTER_TIER_UNLOCK_REQUIREMENTS.get(next_tier, {})
+        req_atk = requirement.get("atk", 0)
+        req_hp = requirement.get("hp", 0)
+        self.add_message(
+            f"【威胁侦测】更强怪物的气息正在逼近（下一层 Tier {next_tier} 需求："
+            f"攻击≥{req_atk}，生命≥{req_hp}；当前峰值：攻击{self.player_peak_atk} / 生命{self.player_peak_hp}）。"
+        )
 
 # -------------------------------
 # 3) Flask 路由及 Session 存储

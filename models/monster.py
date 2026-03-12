@@ -37,54 +37,54 @@ class Monster:
             ("小鸟妖", 14, 4)         # 飞行生物
         ],
         2: [  # 精英怪物
-            ("半人马", 30, 6),       # 神话生物
-            ("牛头人", 36, 5),       # 力量型怪物
-            ("树人", 42, 3),        # 自然生物
-            ("狼人", 33, 6),        # 诅咒生物
-            ("食人魔", 38, 5),      # 巨型生物
-            ("美杜莎", 27, 7),      # 神话生物
-            ("巨型蝎子", 32, 6),    # 节肢生物
-            ("幽灵", 24, 9)         # 灵体生物
+            ("半人马", 36, 7),       # 神话生物
+            ("牛头人", 42, 6),       # 力量型怪物
+            ("树人", 50, 5),        # 自然生物
+            ("狼人", 40, 7),        # 诅咒生物
+            ("食人魔", 46, 6),      # 巨型生物
+            ("美杜莎", 34, 8),      # 神话生物
+            ("巨型蝎子", 39, 7),    # 节肢生物
+            ("幽灵", 32, 8)         # 灵体生物
         ],
         3: [  # 首领级怪物
-            ("巨魔酋长", 48, 9),    # 部落首领
-            ("九头蛇", 54, 8),      # 传说生物
-            ("石像鬼", 42, 12),      # 魔法造物
-            ("吸血鬼", 45, 10),      # 不死生物
-            ("独眼巨人", 57, 8),    # 神话巨人
-            ("精灵法师", 39, 13),    # 魔法使用者
-            ("地狱犬", 51, 9),      # 地狱生物
-            ("巨型蜘蛛", 50, 10)     # 巨型节肢生物
+            ("巨魔酋长", 88, 13),    # 部落首领
+            ("九头蛇", 96, 12),      # 传说生物
+            ("石像鬼", 78, 15),      # 魔法造物
+            ("吸血鬼", 84, 14),      # 不死生物
+            ("独眼巨人", 108, 12),   # 神话巨人
+            ("精灵法师", 72, 16),    # 魔法使用者
+            ("地狱犬", 94, 13),      # 地狱生物
+            ("巨型蜘蛛", 90, 14)     # 巨型节肢生物
         ],
         4: [  # 传说级怪物
-            ("青铜龙", 68, 12),      # 金属龙
-            ("死亡骑士", 60, 15),   # 不死战士
-            ("冰霜巨人", 75, 10),    # 元素巨人
-            ("暗影刺客", 53, 18),   # 暗影生物
-            ("雷鸟", 63, 13),        # 天空生物
-            ("海妖", 57, 16),       # 水生生物
-            ("地穴领主", 66, 13),    # 地下生物
-            ("炎魔", 72, 12)         # 火焰生物
+            ("青铜龙", 180, 24),      # 金属龙
+            ("死亡骑士", 165, 28),   # 不死战士
+            ("冰霜巨人", 210, 22),    # 元素巨人
+            ("暗影刺客", 150, 30),   # 暗影生物
+            ("雷鸟", 175, 25),        # 天空生物
+            ("海妖", 160, 27),       # 水生生物
+            ("地穴领主", 195, 24),    # 地下生物
+            ("炎魔", 220, 23)         # 火焰生物
         ],
         5: [  # 史诗级怪物
-            ("白银龙", 83, 16),     # 高级金属龙
-            ("利维坦", 98, 13),      # 远古巨兽
-            ("凤凰", 75, 19),       # 神话鸟类
-            ("泰坦", 90, 15),       # 上古巨人
-            ("冥界使者", 78, 18),   # 冥界生物
-            ("天使", 87, 16),       # 天界生物
-            ("混沌巫师", 72, 21),   # 混沌法师
-            ("远古守卫", 93, 15)    # 远古生物
+            ("白银龙", 360, 42),     # 高级金属龙
+            ("利维坦", 430, 38),      # 远古巨兽
+            ("凤凰", 340, 50),       # 神话鸟类
+            ("泰坦", 410, 40),       # 上古巨人
+            ("冥界使者", 350, 47),   # 冥界生物
+            ("天使", 380, 44),       # 天界生物
+            ("混沌巫师", 330, 55),   # 混沌法师
+            ("远古守卫", 460, 39)    # 远古生物
         ],
         6: [  # 神话级怪物
-            ("黄金龙", 105, 19),     # 最强金属龙
-            ("克拉肯", 120, 16),     # 深海巨兽
-            ("天启骑士", 98, 22),   # 末日使者
-            ("世界之蛇", 113, 18),   # 世界级巨兽
-            ("深渊领主", 102, 21),   # 深渊生物
-            ("创世神官", 108, 19),   # 神级生物
-            ("混沌之主", 90, 25),   # 混沌生物
-            ("永恒守护者", 128, 18)  # 永恒生物
+            ("黄金龙", 1100, 112),     # 最强金属龙
+            ("克拉肯", 1260, 106),     # 深海巨兽
+            ("天启骑士", 1180, 128),   # 末日使者
+            ("世界之蛇", 1320, 116),   # 世界级巨兽
+            ("深渊领主", 1200, 124),   # 深渊生物
+            ("创世神官", 1150, 118),   # 神级生物
+            ("混沌之主", 1080, 136),   # 混沌生物
+            ("永恒守护者", 1450, 110)  # 永恒生物
         ]
     }
 
@@ -478,17 +478,17 @@ def _get_round_limited_max_tier(current_round):
     """根据回合数给出基础怪物等级上限。"""
     if current_round is None:
         return 1
-    if current_round <= 5:
-        return 1  # 前5回合只出现Tier 1怪物
-    if current_round <= 10:
-        return 2  # 6-10回合可能出现Tier 2怪物
-    if current_round <= 15:
-        return 3  # 11-15回合可能出现Tier 3怪物
-    if current_round <= 20:
-        return 4  # 16-20回合可能出现Tier 4怪物
-    if current_round <= 25:
-        return 5  # 21-25回合可能出现Tier 5怪物
-    return 6  # 25回合后可能出现所有怪物
+    if current_round <= 8:
+        return 1  # 前8回合只出现Tier 1怪物
+    if current_round <= 18:
+        return 2  # 9-18回合可能出现Tier 2怪物
+    if current_round <= 30:
+        return 3  # 19-30回合可能出现Tier 3怪物
+    if current_round <= 45:
+        return 4  # 31-45回合可能出现Tier 4怪物
+    if current_round <= 60:
+        return 5  # 46-60回合可能出现Tier 5怪物
+    return 6  # 60回合后可能出现所有怪物
 
 
 def _roll_tier(max_tier, current_round, power_score):
@@ -498,14 +498,14 @@ def _roll_tier(max_tier, current_round, power_score):
 
     weights = []
     for tier in range(1, max_tier + 1):
-        base_weight = float(tier)
-        if current_round is not None and current_round >= 12 and tier >= max_tier - 1:
-            base_weight += 1.8
-        if current_round is not None and current_round >= 40:
-            if power_score >= 95 and tier >= max_tier - 1:
-                base_weight += 0.7
-            elif power_score >= 70 and tier == max_tier:
-                base_weight += 0.5
+        # 同阶段下低 tier 更常见；后期再逐步提高高 tier 出场率
+        base_weight = float((max_tier - tier + 1) * 1.2)
+        if current_round is not None and current_round >= 20 and tier >= max_tier - 1:
+            base_weight += 0.8
+        if current_round is not None and current_round >= 45 and tier == max_tier:
+            base_weight += 1.4
+        if current_round is not None and current_round >= 60 and power_score >= 140 and tier == max_tier:
+            base_weight += 0.8
         weights.append(max(0.1, base_weight))
 
     total = sum(weights)
@@ -548,23 +548,22 @@ def _apply_player_match_scaling(monster, player, current_round, power_score):
     )
 
 
-def get_random_monster(max_tier=None, current_round=None, effect_probability=None, player=None):
-    """根据当前回合数生成随机怪物"""
+def get_random_monster(max_tier=None, current_round=None, effect_probability=None, player=None, unlocked_tier=None):
+    """根据回合和已解锁 tier 生成随机怪物。"""
     round_limited = _get_round_limited_max_tier(current_round)
+    hard_cap = GameConfig.MONSTER_MAX_TIER
     if max_tier is None:
-        max_tier = round_limited
+        max_tier = hard_cap
     else:
-        max_tier = max(1, min(6, int(max_tier)))
+        max_tier = max(GameConfig.MONSTER_MIN_TIER, min(hard_cap, int(max_tier)))
+    if unlocked_tier is None:
+        unlocked_tier = hard_cap
+    else:
+        unlocked_tier = max(GameConfig.MONSTER_MIN_TIER, min(hard_cap, int(unlocked_tier)))
 
     power_score = estimate_player_power(player=player, current_round=current_round)
-
-    # 玩家后期战力较高时，允许在回合上限上轻微抬升
-    bonus_tier = 0
-    if current_round is not None and current_round >= 40 and power_score >= 80:
-        bonus_tier += 1
-    if current_round is not None and current_round <= 12:
-        bonus_tier = 0
-    max_tier = min(6, max(max_tier, round_limited) + bonus_tier)
+    max_tier = min(max_tier, round_limited, unlocked_tier)
+    max_tier = max(GameConfig.MONSTER_MIN_TIER, max_tier)
 
     tier = _roll_tier(max_tier=max_tier, current_round=current_round, power_score=power_score)
     monster = Monster(tier=tier, effect_probability=effect_probability)

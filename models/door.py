@@ -69,6 +69,7 @@ class Door(BaseClass):
             fake_monster = get_random_monster(
                 current_round=self.controller.round_count,
                 player=getattr(self.controller, "player", None),
+                unlocked_tier=getattr(self.controller, "unlocked_monster_tier", 1),
             )
             tier_hint, type_hint = fake_monster.get_hints()
             self.hint = f"{self.hint}, {tier_hint}, {type_hint}"
@@ -221,6 +222,7 @@ class MonsterDoor(Door):
             self.monster = get_random_monster(
                 current_round=self.controller.round_count,
                 player=getattr(self.controller, "player", None),
+                unlocked_tier=getattr(self.controller, "unlocked_monster_tier", 1),
             )
         self.generate_hint()
     

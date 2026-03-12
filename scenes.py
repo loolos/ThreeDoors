@@ -55,6 +55,8 @@ class DoorScene(Scene):
             
         c.round_count += 1
         c.add_message(f"第{c.round_count}回合：")
+        c.update_player_power_peaks()
+        c.check_and_unlock_monster_tier()
         
         # 如果选择了非怪物门，清除所有战斗状态
         door = self.doors[index]
@@ -115,6 +117,7 @@ class DoorScene(Scene):
             monster = get_random_monster(
                 current_round=self.controller.round_count,
                 player=getattr(self.controller, "player", None),
+                unlocked_tier=getattr(self.controller, "unlocked_monster_tier", GameConfig.START_UNLOCKED_MONSTER_TIER),
             )
             monster_door = DoorEnum.MONSTER.create_instance(monster=monster, controller=self.controller)
             # 生成其他两扇门
