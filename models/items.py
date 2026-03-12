@@ -82,8 +82,36 @@ class HealingPotion(ConsumableItem):
     def effect(self, **kwargs):
         player = kwargs.get('player')
         if player:
-            recovered = player.heal(self.heal_amount)
-            player.controller.add_message(f"恢复 {recovered} HP!")
+            total_heal = self.heal_amount
+            bonus_heal = self._get_late_game_bonus_heal(player)
+            if bonus_heal > 0:
+                total_heal += bonus_heal
+            recovered = player.heal(total_heal)
+            if bonus_heal > 0:
+                player.controller.add_message(f"恢复 {recovered} HP! (其中 {bonus_heal} 点来自生命底蕴)")
+            else:
+                player.controller.add_message(f"恢复 {recovered} HP!")
+
+    def _get_late_game_bonus_heal(self, player: "Player") -> int:
+        """40 回合后，历史最高生命越高，治疗药水越可能额外恢复生命。"""
+        controller = getattr(player, "controller", None)
+        round_count = max(0, int(getattr(controller, "round_count", 0)))
+        if round_count <= 40:
+            return 0
+
+        peak_hp = int(max(getattr(controller, "player_peak_hp", player.hp), player.hp))
+        hp_growth = max(0, peak_hp - GameConfig.START_PLAYER_HP)
+        if hp_growth <= 0:
+            return 0
+
+        # 历史血量越高，可触发的额外恢复上限越高
+        bonus_cap = max(1, hp_growth // 10)
+        # 40 回合后可触发概率随回合数上升，但保持上限避免失衡
+        trigger_chance = min(0.7, 0.25 + (round_count - 40) * 0.01)
+        if random.random() >= trigger_chance:
+            return 0
+
+        return random.randint(1, bonus_cap)
 
 # 装备类
 class Equipment(ConsumableItem):

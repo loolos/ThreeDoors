@@ -1,4 +1,5 @@
 import unittest
+from unittest import mock
 from server import GameController, Player, BattleScene
 from models.monster import Monster
 from models import items
@@ -16,6 +17,34 @@ class TestPlayerActions(unittest.TestCase):
         self.assertEqual(self.player.hp, initial_hp - 10)
         self.player.heal(5)
         self.assertEqual(self.player.hp, initial_hp - 5)
+
+    def test_healing_potion_no_peak_bonus_before_or_at_round_40(self):
+        """40 回合及以前不触发历史生命值带来的药水额外恢复。"""
+        self.player.hp = 40
+        self.controller.round_count = 40
+        self.controller.player_peak_hp = 180
+        potion = items.HealingPotion("治疗药水", heal_amount=10, cost=5)
+
+        with mock.patch("models.items.random.random", return_value=0.0):
+            potion.effect(player=self.player)
+
+        self.assertEqual(self.player.hp, 50)
+        self.assertIn("恢复 10 HP!", self.controller.messages[-1])
+
+    def test_healing_potion_peak_bonus_after_round_40(self):
+        """40 回合后，历史最高生命越高，药水可额外恢复更多生命。"""
+        self.player.hp = 40
+        self.controller.round_count = 55
+        self.controller.player_peak_hp = 220
+        potion = items.HealingPotion("治疗药水", heal_amount=10, cost=5)
+
+        with mock.patch("models.items.random.random", return_value=0.0), \
+             mock.patch("models.items.random.randint", return_value=7):
+            potion.effect(player=self.player)
+
+        self.assertEqual(self.player.hp, 57)
+        self.assertIn("恢复 17 HP!", self.controller.messages[-1])
+        self.assertIn("生命底蕴", self.controller.messages[-1])
 
     def test_player_gold(self):
         """测试玩家金币"""
