@@ -2370,8 +2370,8 @@ def _schedule_next_elf_event(controller, completed_key):
             return
 
     current_round = max(0, int(getattr(controller, "round_count", 0)))
-    min_round = current_round + 10
-    max_round = current_round + 20
+    min_round = current_round + 5
+    max_round = current_round + 15
     consequence_id = f"elf_chain_force_{next_key}_{current_round}_{random.randint(1, 9999)}"
     story.register_consequence(
         choice_flag=f"elf_chain:{completed_key}",
@@ -2391,7 +2391,7 @@ def _schedule_next_elf_event(controller, completed_key):
 
 
 class ElfThiefIntroEvent(Event):
-    TRIGGER_BASE_PROBABILITY = 0.08
+    TRIGGER_BASE_PROBABILITY = 0.32  # 4× 原 0.08，便于尽早触发
     MIN_TRIGGER_ROUND = 6
 
     @classmethod
@@ -2419,9 +2419,12 @@ class ElfThiefIntroEvent(Event):
         _schedule_next_elf_event(self.controller, "elf_intro")
 
     def offer_food(self):
-        self.get_player().gold = max(0, self.get_player().gold - 8)
+        p = self.get_player()
+        cost = self.scale_value(16, positive=False)  # 被偷走口粮的代价，随进度略增
+        lost = min(p.gold, cost)
+        p.gold = max(0, p.gold - cost)
         _adjust_elf_relation(self.controller, 2)
-        self.add_message(f"{ELF_THIEF_NAME}毫不客气地抢走干粮，随后把一枚银羽徽记抛给你：'别死太早。'")
+        self.add_message(f"{ELF_THIEF_NAME}毫不客气地抢走干粮与盘缠，你少了 {lost} 金币；她抛来一枚银羽徽记：'别死太早。'")
         self._start_chain()
         return "Event Completed"
 
@@ -2454,22 +2457,27 @@ class ElfShadowMarkEvent(Event):
         ]
 
     def share_info(self):
-        self.get_player().gold += 10
+        gain = self.scale_value(12, positive=True)
+        self.get_player().gold += gain
         _adjust_elf_relation(self.controller, 2)
-        self.add_message("你们互通了怪物巢穴路线，她提醒你绕开最毒的陷阱层。")
+        self.add_message(f"你们互通了怪物巢穴路线，她提醒你绕开最毒的陷阱层；你按图摸到遗漏的财宝（+{gain}G）。")
         _schedule_next_elf_event(self.controller, "elf_shadow_mark_event")
         return "Event Completed"
 
     def ask_intent(self):
-        self.get_player().hp = min(100, self.get_player().hp + 8)
+        heal = self.scale_value(10, positive=True)
+        self.get_player().hp = min(100, self.get_player().hp + heal)
         _adjust_elf_relation(self.controller, 1)
-        self.add_message("她丢来药包：'目的？先活下来，才配知道目的。'")
+        self.add_message(f"她丢来药包：'目的？先活下来，才配知道目的。'（+{heal}HP）")
         _schedule_next_elf_event(self.controller, "elf_shadow_mark_event")
         return "Event Completed"
 
     def threaten(self):
+        p = self.get_player()
+        lost = min(p.gold, self.scale_value(10, positive=False))
+        p.gold = max(0, p.gold - lost)
         _adjust_elf_relation(self.controller, -2)
-        self.add_message("她耸耸肩：'那就看谁账本记得久。'转身消失在火把后。")
+        self.add_message(f"她耸耸肩顺手摸走你钱袋一角：'那就看谁账本记得久。'（-{lost}G）转身消失在火把后。")
         _schedule_next_elf_event(self.controller, "elf_shadow_mark_event")
         return "Event Completed"
 
@@ -2493,16 +2501,18 @@ class ElfRooftopDuelEvent(Event):
         return "Event Completed"
 
     def go_easy(self):
-        self.get_player().hp = min(100, self.get_player().hp + 6)
+        heal = self.scale_value(10, positive=True)
+        self.get_player().hp = min(100, self.get_player().hp + heal)
         _adjust_elf_relation(self.controller, 1)
-        self.add_message("她看穿你在放水，却还是把跌打药塞进你怀里。")
+        self.add_message(f"她看穿你在放水，却还是把跌打药塞进你怀里（+{heal}HP）。")
         _schedule_next_elf_event(self.controller, "elf_rooftop_duel_event")
         return "Event Completed"
 
     def cheap_shot(self):
-        self.get_player().take_damage(10)
+        dmg = self.scale_value(10, positive=False)
+        self.get_player().take_damage(dmg)
         _adjust_elf_relation(self.controller, -3)
-        self.add_message("偷袭差点得手，但她反手把你按进瓦片里。")
+        self.add_message(f"偷袭差点得手，但她反手把你按进瓦片里（-{dmg}HP）。")
         _schedule_next_elf_event(self.controller, "elf_rooftop_duel_event")
         return "Event Completed"
 
@@ -2519,9 +2529,10 @@ class ElfFakeMapEvent(Event):
         ]
 
     def trust_map(self):
-        self.get_player().gold += 14
+        gain = self.scale_value(16, positive=True)
+        self.get_player().gold += gain
         _adjust_elf_relation(self.controller, 1)
-        self.add_message("你选中了真图，顺路摸到一处被忽视的补给箱（+14G）。")
+        self.add_message(f"你选中了真图，顺路摸到一处被忽视的补给箱（+{gain}G）。")
         _schedule_next_elf_event(self.controller, "elf_fake_map_event")
         return "Event Completed"
 
@@ -2533,9 +2544,10 @@ class ElfFakeMapEvent(Event):
         return "Event Completed"
 
     def sell_both(self):
-        self.get_player().gold += 20
+        gain = self.scale_value(22, positive=True)
+        self.get_player().gold += gain
         _adjust_elf_relation(self.controller, -2)
-        self.add_message("你把两份图都卖给路人，赚了 20G，也让她记下你这笔坏账。")
+        self.add_message(f"你把两份图都卖给路人，赚了 {gain}G，也让她记下你这笔坏账。")
         _schedule_next_elf_event(self.controller, "elf_fake_map_event")
         return "Event Completed"
 
@@ -2552,9 +2564,10 @@ class ElfMonsterStageEvent(Event):
         ]
 
     def train_dodge(self):
-        self.get_player().hp = min(100, self.get_player().hp + 10)
+        heal = self.scale_value(12, positive=True)
+        self.get_player().hp = min(100, self.get_player().hp + heal)
         _adjust_elf_relation(self.controller, 1)
-        self.add_message("你学会了借门框卸力，体力恢复了 10 点。")
+        self.add_message(f"你学会了借门框卸力，体力恢复了 {heal} 点。")
         _schedule_next_elf_event(self.controller, "elf_monster_stage_event")
         return "Event Completed"
 
@@ -2566,8 +2579,10 @@ class ElfMonsterStageEvent(Event):
         return "Event Completed"
 
     def refuse(self):
+        dmg = self.scale_value(6, positive=False)
+        self.get_player().take_damage(dmg)
         _adjust_elf_relation(self.controller, -1)
-        self.add_message("她把假人踢回门后：'行，别怪我以后不救场。'")
+        self.add_message(f"她把假人踢回门后，你躲闪不及被门板刮到。'行，别怪我以后不救场。'（-{dmg}HP）")
         _schedule_next_elf_event(self.controller, "elf_monster_stage_event")
         return "Event Completed"
 
@@ -2584,15 +2599,18 @@ class ElfNightCampEvent(Event):
         ]
 
     def promise_help(self):
+        heal = self.scale_value(14, positive=True)
+        self.get_player().hp = min(100, self.get_player().hp + heal)
         _adjust_elf_relation(self.controller, 2)
-        self.add_message("她难得正经地点头：'好，我也记你一份人情。'")
+        self.add_message(f"她难得正经地点头，把多烤的肉递给你：'好，我也记你一份人情。'（+{heal}HP）")
         _schedule_next_elf_event(self.controller, "elf_night_camp_event")
         return "Event Completed"
 
     def ask_payment(self):
-        self.get_player().gold += 16
+        gain = self.scale_value(18, positive=True)
+        self.get_player().gold += gain
         _adjust_elf_relation(self.controller, -1)
-        self.add_message("她扔来 16G：'佣兵价，童叟无欺。'语气却冷了半分。")
+        self.add_message(f"她扔来 {gain}G：'佣兵价，童叟无欺。'语气却冷了半分。")
         _schedule_next_elf_event(self.controller, "elf_night_camp_event")
         return "Event Completed"
 
@@ -2618,14 +2636,17 @@ class ElfTrapRescueEvent(Event):
     def _rescue_outcome(self):
         rel = getattr(_get_elf_chain_state(self.controller), "elf_relation", 0)
         if rel >= 2:
-            self.get_player().hp = min(100, self.get_player().hp + 14)
-            self.add_message("她精准切断绞索，还顺手包扎了你的手腕（+14HP）。")
+            heal = self.scale_value(16, positive=True)
+            self.get_player().hp = min(100, self.get_player().hp + heal)
+            self.add_message(f"她精准切断绞索，还顺手包扎了你的手腕（+{heal}HP）。")
         elif rel <= -2:
-            self.get_player().take_damage(12)
-            self.add_message("她慢了半拍才出手，你被机关刮得遍体鳞伤（-12HP）。")
+            dmg = self.scale_value(14, positive=False)
+            self.get_player().take_damage(dmg)
+            self.add_message(f"她慢了半拍才出手，你被机关刮得遍体鳞伤（-{dmg}HP）。")
         else:
-            self.get_player().take_damage(4)
-            self.add_message("她把你拉出陷阱，但你还是被铁刺擦伤（-4HP）。")
+            dmg = self.scale_value(5, positive=False)
+            self.get_player().take_damage(dmg)
+            self.add_message(f"她把你拉出陷阱，但你还是被铁刺擦伤（-{dmg}HP）。")
 
     def apologize(self):
         _adjust_elf_relation(self.controller, 2)
@@ -2640,9 +2661,10 @@ class ElfTrapRescueEvent(Event):
         return "Event Completed"
 
     def break_free(self):
-        self.get_player().take_damage(8)
+        dmg = self.scale_value(10, positive=False)
+        self.get_player().take_damage(dmg)
         _adjust_elf_relation(self.controller, -1)
-        self.add_message("你硬扯绞索脱身，肩膀脱臼般剧痛（-8HP）。")
+        self.add_message(f"你硬扯绞索脱身，肩膀脱臼般剧痛（-{dmg}HP）。")
         _schedule_next_elf_event(self.controller, "elf_trap_rescue_event")
         return "Event Completed"
 
@@ -2666,16 +2688,18 @@ class ElfHunterGateEvent(Event):
         return "Event Completed"
 
     def selfish_fight(self):
-        self.get_player().gold += 18
+        gain = self.scale_value(20, positive=True)
+        self.get_player().gold += gain
         _adjust_elf_relation(self.controller, -1)
-        self.add_message("你抢下战利品 18G，她虽然没说什么，但眼神变冷。")
+        self.add_message(f"你抢下战利品 {gain}G，她虽然没说什么，但眼神变冷。")
         _schedule_next_elf_event(self.controller, "elf_hunter_gate_event")
         return "Event Completed"
 
     def run_away(self):
-        self.get_player().take_damage(10)
+        dmg = self.scale_value(12, positive=False)
+        self.get_player().take_damage(dmg)
         _adjust_elf_relation(self.controller, -3)
-        self.add_message("你撤得太急，背后中箭（-10HP）。她在远处骂你胆小鬼。")
+        self.add_message(f"你撤得太急，背后中箭（-{dmg}HP）。她在远处骂你胆小鬼。")
         _schedule_next_elf_event(self.controller, "elf_hunter_gate_event")
         return "Event Completed"
 
@@ -2692,24 +2716,28 @@ class ElfFinalHeistEvent(Event):
         ]
 
     def follow_plan(self):
-        self.get_player().gold += 30
+        gain = self.scale_value(35, positive=True)
+        self.get_player().gold += gain
         _adjust_elf_relation(self.controller, 2)
-        self.add_message("行动顺利，你分到 30G。她笑说：'你终于像个靠谱同伙了。'")
+        self.add_message(f"行动顺利，你分到 {gain}G。她笑说：'你终于像个靠谱同伙了。'")
         _schedule_next_elf_event(self.controller, "elf_final_heist_event")
         return "Event Completed"
 
     def change_plan(self):
-        self.get_player().gold += 20
-        self.get_player().take_damage(6)
+        gain = self.scale_value(24, positive=True)
+        dmg = self.scale_value(8, positive=False)
+        self.get_player().gold += gain
+        self.get_player().take_damage(dmg)
         _adjust_elf_relation(self.controller, 0)
-        self.add_message("你临场改线，多捞了些钱但也被弩箭擦伤（+20G，-6HP）。")
+        self.add_message(f"你临场改线，多捞了些钱但也被弩箭擦伤（+{gain}G，-{dmg}HP）。")
         _schedule_next_elf_event(self.controller, "elf_final_heist_event")
         return "Event Completed"
 
     def betray(self):
-        self.get_player().gold += 40
+        gain = self.scale_value(45, positive=True)
+        self.get_player().gold += gain
         _adjust_elf_relation(self.controller, -4)
-        self.add_message("你拿了悬赏 40G。她被押走前只留下一句：'你最好永远别落单。'")
+        self.add_message(f"你拿了悬赏 {gain}G。她被押走前只留下一句：'你最好永远别落单。'")
         _schedule_next_elf_event(self.controller, "elf_final_heist_event")
         return "Event Completed"
 
@@ -2735,11 +2763,13 @@ class ElfEpilogueEvent(Event):
             self.get_player().change_base_atk(2)
             self.add_message("你们成了亦敌亦友的固定搭子，基础攻击 +2。")
         elif rel <= -2:
-            self.get_player().take_damage(10)
-            self.add_message("她的报复来得又快又准，你在余波中受伤（-10HP）。")
+            dmg = self.scale_value(12, positive=False)
+            self.get_player().take_damage(dmg)
+            self.add_message(f"她的报复来得又快又准，你在余波中受伤（-{dmg}HP）。")
         else:
-            self.get_player().gold += 15
-            self.add_message("这段关系停在模糊地带，但她还是留了 15G 作为'平手礼'。")
+            gain = self.scale_value(18, positive=True)
+            self.get_player().gold += gain
+            self.add_message(f"这段关系停在模糊地带，但她还是留了 {gain}G 作为'平手礼'。")
         return "Event Completed"
 
 

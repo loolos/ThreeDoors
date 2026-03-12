@@ -22,7 +22,7 @@ class TestStorySystem(BaseTest):
         if hasattr(self, "_skip_rewrite_patcher"):
             self._skip_rewrite_patcher.stop()
         super().tearDown()
-    def test_elf_chain_followup_is_scheduled_between_10_and_20_rounds(self):
+    def test_elf_chain_followup_is_scheduled_between_5_and_15_rounds(self):
         story = self.controller.story
         self.controller.round_count = 12
         event = ElfThiefIntroEvent(self.controller)
@@ -33,8 +33,8 @@ class TestStorySystem(BaseTest):
         self.assertEqual(len(pending), 1)
         consequence = pending[0]
         self.assertEqual(consequence.effect_key, "force_story_event")
-        self.assertEqual(consequence.min_round, 22)
-        self.assertEqual(consequence.max_round, 32)
+        self.assertEqual(consequence.min_round, 17)   # 12 + 5
+        self.assertEqual(consequence.max_round, 27)   # 12 + 15
         self.assertEqual(consequence.payload.get("event_key"), "elf_shadow_mark_event")
 
     def test_one_choice_can_register_multiple_consequences(self):
