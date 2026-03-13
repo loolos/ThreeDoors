@@ -399,6 +399,14 @@ class Monster:
         # 如果有攻击力翻倍效果
         if self.has_status(StatusName.ATK_MULTIPLIER):
             dmg *= self.statuses[StatusName.ATK_MULTIPLIER].value
+        story = getattr(getattr(target, "controller", None), "story", None)
+        if story and hasattr(story, "apply_puppet_combat_modifiers"):
+            dmg = story.apply_puppet_combat_modifiers(
+                trigger="monster_attack",
+                attacker=self,
+                defender=target,
+                damage=dmg,
+            )
         # 造成伤害
         target.take_damage(dmg)
 

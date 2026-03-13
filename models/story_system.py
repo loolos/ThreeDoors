@@ -1,6 +1,6 @@
 import random
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, Iterable, Optional, Set, Tuple
+from typing import Any, Callable, Dict, Iterable, List, Optional, Set, Tuple
 
 from models.game_config import GameConfig
 from models.door import DoorEnum
@@ -770,6 +770,7 @@ class StorySystem:
             base_hp = max(80, int(payload.get("base_hp", 220)))
             base_atk = max(10, int(payload.get("base_atk", 34)))
             boss_name = payload.get("boss_name", "堕暗机偶·弃线者")
+            phase2_name = payload.get("phase2_name", "堕暗机偶·黑暗完全体")
             story_flags = self.choice_flags.union(self.story_tags)
             kind_name = payload.get("kind_persona_name", "绒心·诺诺")
             dark_name = payload.get("dark_persona_name", "裂齿·夜魇")
@@ -810,70 +811,7 @@ class StorySystem:
             evil_value += (dark_score - kind_score) * 2
             evil_value = max(0, min(100, evil_value))
             side_hit_count = len([tag for tag in self.story_tags if str(tag).startswith("consumed:puppet_side_")])
-            direct_hp_scale = 1.0
-            direct_atk_scale = 1.0
             player = getattr(self.controller, "player", None)
-
-            def _add_start_damage(amount: int, text: str) -> None:
-                if not player:
-                    return
-                real = max(0, min(player.hp, int(amount)))
-                if real <= 0:
-                    return
-                player.take_damage(real)
-                self.controller.add_message(text.format(value=real))
-
-            def _add_start_heal(amount: int, text: str) -> None:
-                if not player:
-                    return
-                healed = player.heal(max(0, int(amount)))
-                if healed <= 0:
-                    return
-                self.controller.add_message(text.format(value=healed))
-
-            # 中间事件的直接影响（不依赖邪恶值）。
-            if "consumed:puppet_side_minion_once" in story_flags:
-                direct_atk_scale *= 0.93
-                self.controller.add_message("【前情影响】你拆过它的追猎小弟，已读懂一部分同步节奏，它开场挥击慢了半拍。")
-            if "consumed:puppet_side_shop_once" in story_flags:
-                direct_hp_scale *= 1.08
-                self.controller.add_message("【前情影响】黑市替它补了装甲片，核心外壳更难被打穿。")
-            if "consumed:puppet_side_trap_once" in story_flags:
-                direct_atk_scale *= 1.05
-                _add_start_damage(4, "【前情影响】陷阱回廊数据被写进战斗脚本，碎片风暴先手刮伤你（-{value}HP）。")
-            if "consumed:puppet_side_reward_once" in story_flags:
-                direct_hp_scale *= 0.94
-                _add_start_heal(5, "【前情影响】你在宝物舱拿到的结界模板提前启动，稳住了开场节奏（+{value}HP）。")
-
-            if "puppet_signal_soft" in story_flags:
-                direct_hp_scale *= 0.9
-                direct_atk_scale *= 0.9
-                self.controller.add_message("【前情影响】你在信号室重放的温和样本还在生效，它的攻击协议出现了短暂迟滞。")
-            elif "puppet_signal_log" in story_flags:
-                direct_atk_scale *= 0.88
-                self.controller.add_message("【前情影响】你截取的战术日志让你更早读出它的抬手动作。")
-            elif "puppet_signal_resell" in story_flags:
-                direct_hp_scale *= 1.12
-                direct_atk_scale *= 1.1
-                self.controller.add_message("【前情影响】你转卖污染片段导致病毒扩散，它的黑暗协议反而被额外喂强。")
-
-            if "puppet_kind_echo_trust" in story_flags:
-                direct_atk_scale *= 0.9
-                self.controller.add_message("【前情影响】你回应过善良人格的求援，它在底层悄悄卡住了几条杀戮指令。")
-            elif "puppet_kind_echo_comfort" in story_flags:
-                direct_hp_scale *= 0.92
-                _add_start_heal(6, "【前情影响】你安抚过它被遗弃的记忆，开战瞬间蓝光回路替你回了一口气（+{value}HP）。")
-            elif "puppet_kind_echo_exploit" in story_flags:
-                direct_atk_scale *= 1.08
-                self.controller.add_message("【前情影响】你曾强挖它的情感弱点，创伤被反向利用，黑暗人格更暴躁。")
-
-            if "puppet_rift_kind" in story_flags:
-                direct_hp_scale *= 0.94
-            elif "puppet_rift_balance" in story_flags:
-                direct_atk_scale *= 0.97
-            elif "puppet_rift_dark" in story_flags:
-                direct_hp_scale *= 1.1
-                direct_atk_scale *= 1.06
 
             hp_scale = 1.0
             atk_scale = 1.0
@@ -892,8 +830,6 @@ class StorySystem:
             else:
                 hp_scale, atk_scale = 1.35, 1.28
                 dark_overload = True
-            hp_scale *= direct_hp_scale
-            atk_scale *= direct_atk_scale
 
             boss = Monster(
                 name=boss_name,
@@ -945,6 +881,20 @@ class StorySystem:
                     )
                 )
 
+            puppet_state = self._build_puppet_battle_state(
+                payload=payload,
+                story_flags=story_flags,
+                kind_name=kind_name,
+                dark_name=dark_name,
+                phase2_name=phase2_name,
+            )
+            setattr(boss, "is_puppet_dark_boss", True)
+            setattr(boss, "puppet_battle_state", puppet_state)
+            setattr(boss, "puppet_story_flags_snapshot", set(story_flags))
+            self._apply_puppet_entry_modifiers(monster=boss, phase=1)
+            puppet_state["phase1_max_hp"] = max(1, int(boss.hp))
+            puppet_state["phase1_base_atk"] = max(1, int(boss.atk))
+
             door.monster = boss
             hint = payload.get("hunter_hint") or payload.get("hint")
             if isinstance(hint, str) and hint.strip():
@@ -956,6 +906,438 @@ class StorySystem:
             return True, door
 
         return False, door
+
+    def _build_puppet_battle_state(
+        self,
+        payload: Dict[str, Any],
+        story_flags: Set[str],
+        kind_name: str,
+        dark_name: str,
+        phase2_name: str,
+    ) -> Dict[str, Any]:
+        """构建黑暗木偶双阶段战斗状态。"""
+        try:
+            threshold = float(payload.get("phase2_threshold_ratio", 0.45))
+        except (TypeError, ValueError):
+            threshold = 0.45
+        threshold = max(0.12, min(0.75, threshold))
+        try:
+            burst_heal_ratio = float(payload.get("phase2_burst_heal_ratio", 0.22))
+        except (TypeError, ValueError):
+            burst_heal_ratio = 0.22
+        burst_heal_ratio = max(0.08, min(0.5, burst_heal_ratio))
+        try:
+            burst_atk_ratio = float(payload.get("phase2_burst_atk_ratio", 1.12))
+        except (TypeError, ValueError):
+            burst_atk_ratio = 1.12
+        burst_atk_ratio = max(1.03, min(1.5, burst_atk_ratio))
+
+        state: Dict[str, Any] = {
+            "phase": 1,
+            "phase2_started": False,
+            "phase2_name": phase2_name.strip() if isinstance(phase2_name, str) and phase2_name.strip() else f"{dark_name}·黑暗完全体",
+            "phase2_threshold_ratio": threshold,
+            "phase2_burst_heal_ratio": burst_heal_ratio,
+            "phase2_burst_atk_ratio": burst_atk_ratio,
+            "phase1_entry_modifiers": [],
+            "phase2_entry_modifiers": [],
+            "runtime_modifiers": [],
+            "runtime_trigger_counts": {},
+            "kind_name": kind_name,
+            "dark_name": dark_name,
+        }
+
+        def _add_entry(
+            flag: str,
+            *,
+            phase: int,
+            target: str,
+            direction: str,
+            message: str,
+            min_pct: float = 0.05,
+            max_pct: float = 0.15,
+        ) -> None:
+            if flag not in story_flags:
+                return
+            key = "phase1_entry_modifiers" if phase == 1 else "phase2_entry_modifiers"
+            state[key].append(
+                {
+                    "id": flag,
+                    "target": target,
+                    "direction": direction,
+                    "message": message,
+                    "min_pct": max(0.05, float(min_pct)),
+                    "max_pct": min(0.15, float(max_pct)),
+                }
+            )
+
+        def _add_runtime(
+            flag: str,
+            *,
+            trigger: str,
+            direction: str,
+            message: str,
+            chance: float = 0.35,
+            active_phase: int = 0,
+            min_pct: float = 0.05,
+            max_pct: float = 0.15,
+        ) -> None:
+            if flag not in story_flags:
+                return
+            state["runtime_modifiers"].append(
+                {
+                    "id": flag,
+                    "trigger": trigger,
+                    "direction": direction,
+                    "message": message,
+                    "chance": max(0.01, min(1.0, float(chance))),
+                    "active_phase": max(0, int(active_phase)),
+                    "min_pct": max(0.05, float(min_pct)),
+                    "max_pct": min(0.15, float(max_pct)),
+                }
+            )
+
+        # 阶段一开场：只做百分比增减（5%~15%）。
+        _add_entry(
+            "consumed:puppet_side_minion_once",
+            phase=1,
+            target="boss_atk",
+            direction="down",
+            message="【阶段1前情】你拆过追猎小弟，开场节奏被你读穿，黑暗木偶攻击降低 {percent}%。",
+        )
+        _add_entry(
+            "puppet_signal_soft",
+            phase=1,
+            target="boss_hp",
+            direction="down",
+            message="【阶段1前情】温和样本仍在生效，核心输出收敛，黑暗木偶生命降低 {percent}%。",
+        )
+        _add_entry(
+            "puppet_signal_soft",
+            phase=1,
+            target="boss_atk",
+            direction="down",
+            message="【阶段1前情】温和样本干扰了抬手节奏，黑暗木偶攻击降低 {percent}%。",
+        )
+        _add_entry(
+            "puppet_signal_log",
+            phase=1,
+            target="boss_atk",
+            direction="down",
+            message="【阶段1前情】你提前解析战术日志，黑暗木偶攻击降低 {percent}%。",
+        )
+        _add_entry(
+            "puppet_kind_echo_trust",
+            phase=1,
+            target="boss_atk",
+            direction="down",
+            message="【阶段1前情】善良人格仍在底层牵制，黑暗木偶攻击降低 {percent}%。",
+        )
+        _add_entry(
+            "puppet_rift_kind",
+            phase=1,
+            target="boss_hp",
+            direction="down",
+            message="【阶段1前情】裂隙中你偏向善良侧，黑暗木偶生命降低 {percent}%。",
+        )
+        _add_entry(
+            "puppet_descent_patch",
+            phase=1,
+            target="boss_hp",
+            direction="down",
+            message="【阶段1前情】修复补丁残留生效，黑暗木偶生命降低 {percent}%。",
+        )
+
+        # 阶段二开场：部分前情延迟到“完全体爆发”时结算。
+        _add_entry(
+            "consumed:puppet_side_shop_once",
+            phase=2,
+            target="boss_hp",
+            direction="up",
+            message="【阶段2前情】黑市替它补了装甲片，完全体生命上升 {percent}%。",
+        )
+        _add_entry(
+            "consumed:puppet_side_shop_once",
+            phase=2,
+            target="boss_atk",
+            direction="up",
+            message="【阶段2前情】装甲驱动联动完成，完全体攻击上升 {percent}%。",
+        )
+        _add_entry(
+            "puppet_signal_resell",
+            phase=2,
+            target="boss_hp",
+            direction="up",
+            message="【阶段2前情】你转卖过污染片段，完全体病毒回灌，生命上升 {percent}%。",
+        )
+        _add_entry(
+            "puppet_rift_dark",
+            phase=2,
+            target="boss_atk",
+            direction="up",
+            message="【阶段2前情】裂隙里你偏向黑暗侧，完全体攻击上升 {percent}%。",
+        )
+        _add_entry(
+            "puppet_descent_dark_feed",
+            phase=2,
+            target="boss_hp",
+            direction="up",
+            message="【阶段2前情】你喂入的黑暗指令集中兑现，完全体生命上升 {percent}%。",
+        )
+        _add_entry(
+            "puppet_descent_dark_feed",
+            phase=2,
+            target="boss_atk",
+            direction="up",
+            message="【阶段2前情】黑暗协议彻底放开限制，完全体攻击上升 {percent}%。",
+        )
+        _add_entry(
+            "puppet_kind_echo_comfort",
+            phase=2,
+            target="player_hp",
+            direction="up",
+            message="【阶段2前情】你安抚过被遗弃记忆，蓝光回路在爆发瞬间回补你 {percent}% 当前生命。",
+        )
+
+        # 运行时连锁：玩家攻击 / 木偶出招时可重复触发。
+        _add_runtime(
+            "consumed:puppet_side_trap_once",
+            trigger="monster_attack",
+            direction="up",
+            message="【连锁触发】陷阱回廊数据在出招时重放，本次木偶伤害提高 {percent}%。",
+            chance=0.33,
+            active_phase=0,
+        )
+        _add_runtime(
+            "consumed:puppet_side_reward_once",
+            trigger="player_attack",
+            direction="up",
+            message="【连锁触发】你拿到的结界模板在挥击时校准受力，本次玩家伤害提高 {percent}%。",
+            chance=0.36,
+            active_phase=0,
+        )
+        _add_runtime(
+            "puppet_signal_soft",
+            trigger="monster_attack",
+            direction="down",
+            message="【连锁触发】温和样本拖慢了黑暗抬手，本次木偶伤害降低 {percent}%。",
+            chance=0.35,
+            active_phase=0,
+        )
+        _add_runtime(
+            "puppet_signal_log",
+            trigger="player_attack",
+            direction="up",
+            message="【连锁触发】战术日志提示了破绽，本次玩家伤害提高 {percent}%。",
+            chance=0.4,
+            active_phase=0,
+        )
+        _add_runtime(
+            "puppet_kind_echo_trust",
+            trigger="monster_attack",
+            direction="down",
+            message="【连锁触发】善良人格再次短暂争夺控制，本次木偶伤害降低 {percent}%。",
+            chance=0.32,
+            active_phase=0,
+        )
+        _add_runtime(
+            "puppet_kind_echo_exploit",
+            trigger="monster_attack",
+            direction="up",
+            message="【连锁触发】你曾利用的创伤被反向放大，本次木偶伤害提高 {percent}%。",
+            chance=0.34,
+            active_phase=0,
+        )
+        _add_runtime(
+            "puppet_rift_balance",
+            trigger="player_attack",
+            direction="up",
+            message="【连锁触发】你在裂隙保留的平衡参数生效，本次玩家伤害提高 {percent}%。",
+            chance=0.28,
+            active_phase=0,
+        )
+        _add_runtime(
+            "consumed:puppet_side_shop_once",
+            trigger="player_attack",
+            direction="down",
+            message="【连锁触发】黑市装甲片抵消了部分冲击，本次玩家伤害降低 {percent}%。",
+            chance=0.35,
+            active_phase=2,
+        )
+        _add_runtime(
+            "puppet_signal_resell",
+            trigger="monster_attack",
+            direction="up",
+            message="【连锁触发】污染扩散在完全体中继续发酵，本次木偶伤害提高 {percent}%。",
+            chance=0.37,
+            active_phase=2,
+        )
+        _add_runtime(
+            "puppet_descent_cut_emotion",
+            trigger="monster_attack",
+            direction="up",
+            message="【连锁触发】情感模块已被切断，本次木偶伤害提高 {percent}%。",
+            chance=0.4,
+            active_phase=2,
+        )
+        _add_runtime(
+            "puppet_descent_patch",
+            trigger="monster_attack",
+            direction="down",
+            message="【连锁触发】修复补丁在关键节点阻断杀意，本次木偶伤害降低 {percent}%。",
+            chance=0.3,
+            active_phase=2,
+        )
+
+        return state
+
+    def _apply_puppet_entry_modifiers(self, monster: Any, phase: int) -> None:
+        state = getattr(monster, "puppet_battle_state", None)
+        if not isinstance(state, dict):
+            return
+        key = "phase1_entry_modifiers" if phase == 1 else "phase2_entry_modifiers"
+        modifiers = state.get(key, [])
+        if not isinstance(modifiers, list):
+            return
+        player = getattr(self.controller, "player", None)
+        for mod in modifiers:
+            if not isinstance(mod, dict):
+                continue
+            min_pct = max(0.05, float(mod.get("min_pct", 0.05)))
+            max_pct = min(0.15, float(mod.get("max_pct", 0.15)))
+            if max_pct < min_pct:
+                min_pct, max_pct = max_pct, min_pct
+            pct = random.uniform(min_pct, max_pct)
+            pct_text = int(round(pct * 100))
+            direction = mod.get("direction", "down")
+            target = mod.get("target")
+            amount = 0
+
+            if target == "boss_hp":
+                before = max(1, int(monster.hp))
+                scale = (1.0 + pct) if direction == "up" else max(0.1, 1.0 - pct)
+                monster.hp = max(1, int(round(before * scale)))
+                amount = abs(monster.hp - before)
+            elif target == "boss_atk":
+                before = max(1, int(monster.atk))
+                scale = (1.0 + pct) if direction == "up" else max(0.1, 1.0 - pct)
+                monster.atk = max(1, int(round(before * scale)))
+                amount = abs(monster.atk - before)
+            elif target == "player_hp" and player is not None:
+                base = max(1, int(getattr(player, "hp", 1)))
+                delta = max(1, int(round(base * pct)))
+                if direction == "up":
+                    amount = player.heal(delta)
+                else:
+                    safe_delta = min(delta, max(0, player.hp - 1))
+                    if safe_delta > 0:
+                        player.take_damage(safe_delta)
+                        amount = safe_delta
+            message = mod.get("message", "")
+            if isinstance(message, str) and message.strip():
+                self.controller.add_message(message.format(percent=pct_text, value=amount))
+
+    def is_puppet_dark_boss_monster(self, monster: Any) -> bool:
+        if monster is None:
+            return False
+        return bool(getattr(monster, "is_puppet_dark_boss", False)) and isinstance(
+            getattr(monster, "puppet_battle_state", None), dict
+        )
+
+    def try_trigger_puppet_phase_two(self, monster: Any) -> bool:
+        """在阶段一生命跌破阈值时，切入黑暗完全体。"""
+        if not self.is_puppet_dark_boss_monster(monster):
+            return False
+        state = monster.puppet_battle_state
+        if int(state.get("phase", 1)) >= 2:
+            return False
+        phase1_max_hp = int(state.get("phase1_max_hp", max(1, int(getattr(monster, "hp", 1)))))
+        threshold_ratio = float(state.get("phase2_threshold_ratio", 0.45))
+        threshold_hp = max(1, int(round(phase1_max_hp * threshold_ratio)))
+        if int(monster.hp) > threshold_hp and int(monster.hp) > 0:
+            return False
+
+        state["phase"] = 2
+        state["phase2_started"] = True
+        old_name = monster.name
+        monster.name = state.get("phase2_name", monster.name)
+
+        burst_heal_ratio = float(state.get("phase2_burst_heal_ratio", 0.22))
+        burst_heal = max(1, int(round(phase1_max_hp * burst_heal_ratio)))
+        monster.hp = max(1, int(monster.hp)) + burst_heal
+
+        old_atk = max(1, int(monster.atk))
+        burst_atk_ratio = float(state.get("phase2_burst_atk_ratio", 1.12))
+        monster.atk = max(1, int(round(old_atk * burst_atk_ratio)))
+
+        self.controller.add_message(
+            f"【阶段切换】{old_name}核心炸裂，{monster.name}爆发登场！恢复 {burst_heal} 点生命，攻击抬升至 {monster.atk}。"
+        )
+        self._apply_puppet_entry_modifiers(monster=monster, phase=2)
+        return True
+
+    def apply_puppet_combat_modifiers(self, trigger: str, attacker: Any, defender: Any, damage: int) -> int:
+        """在玩家攻击/木偶出招时应用可重复触发的百分比修正。"""
+        try:
+            raw_damage = max(1, int(damage))
+        except (TypeError, ValueError):
+            return damage
+        if raw_damage <= 0:
+            return raw_damage
+
+        puppet_monster = attacker if self.is_puppet_dark_boss_monster(attacker) else None
+        if puppet_monster is None and self.is_puppet_dark_boss_monster(defender):
+            puppet_monster = defender
+        if puppet_monster is None:
+            return raw_damage
+
+        state = getattr(puppet_monster, "puppet_battle_state", {})
+        current_phase = max(1, int(state.get("phase", 1)))
+        runtime_modifiers = state.get("runtime_modifiers", [])
+        if not isinstance(runtime_modifiers, list) or not runtime_modifiers:
+            return raw_damage
+
+        factor = 1.0
+        triggered = []
+        counters = state.get("runtime_trigger_counts")
+        if not isinstance(counters, dict):
+            counters = {}
+            state["runtime_trigger_counts"] = counters
+
+        for mod in runtime_modifiers:
+            if not isinstance(mod, dict):
+                continue
+            if mod.get("trigger") != trigger:
+                continue
+            active_phase = max(0, int(mod.get("active_phase", 0)))
+            if active_phase and current_phase < active_phase:
+                continue
+            chance = max(0.01, min(1.0, float(mod.get("chance", 0.35))))
+            if random.random() > chance:
+                continue
+            min_pct = max(0.05, float(mod.get("min_pct", 0.05)))
+            max_pct = min(0.15, float(mod.get("max_pct", 0.15)))
+            if max_pct < min_pct:
+                min_pct, max_pct = max_pct, min_pct
+            pct = random.uniform(min_pct, max_pct)
+            if str(mod.get("direction", "up")).lower() == "down":
+                factor *= max(0.15, 1.0 - pct)
+            else:
+                factor *= 1.0 + pct
+            pct_text = int(round(pct * 100))
+            msg = mod.get("message", "")
+            if isinstance(msg, str) and msg.strip():
+                triggered.append(msg.format(percent=pct_text))
+            key = f"{mod.get('id', 'unknown')}:{trigger}"
+            counters[key] = int(counters.get(key, 0)) + 1
+
+        adjusted = max(1, int(round(raw_damage * factor)))
+        for msg in triggered:
+            self.controller.add_message(msg)
+        if adjusted != raw_damage:
+            actor = "木偶" if trigger == "monster_attack" else "玩家"
+            self.controller.add_message(f"【连锁结算】{actor}本次伤害 {raw_damage}→{adjusted}。")
+        return adjusted
 
     def _queue_chain_followups(self, consequence: PendingConsequence) -> None:
         """链式扩展端口：某个后续触发后再挂新的后续影响。"""
