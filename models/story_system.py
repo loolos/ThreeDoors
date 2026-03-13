@@ -618,7 +618,7 @@ class StorySystem:
             event_key = payload.get("event_key")
             if not isinstance(event_key, str) or not event_key.strip():
                 return False, door
-            new_door = DoorEnum.EVENT.create_instance(controller=self.controller)
+            new_door = DoorEnum.SHOP.create_instance(controller=self.controller)
             new_door.story_forced_event_key = event_key.strip()
             hint = payload.get("hint", "墙上的银色箭羽指向下一次相遇。")
             if isinstance(hint, str) and hint.strip():
