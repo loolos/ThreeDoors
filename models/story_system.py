@@ -888,12 +888,19 @@ class StorySystem:
                 dark_name=dark_name,
                 phase2_name=phase2_name,
             )
-            setattr(boss, "is_puppet_dark_boss", True)
-            setattr(boss, "puppet_battle_state", puppet_state)
-            setattr(boss, "puppet_story_flags_snapshot", set(story_flags))
-            self._apply_puppet_entry_modifiers(monster=boss, phase=1)
+            self._apply_puppet_entry_modifiers(monster=boss, state=puppet_state, phase=1)
             puppet_state["phase1_max_hp"] = max(1, int(boss.hp))
             puppet_state["phase1_base_atk"] = max(1, int(boss.atk))
+            extension_cfg = {
+                "extension_type": "puppet_dark_boss",
+                "monster_ref": boss,
+                "state": puppet_state,
+            }
+            if hasattr(door, "add_battle_extension"):
+                door.add_battle_extension(extension_cfg)
+            else:
+                # 兼容可能缺少扩展窗口的旧门实现
+                door.battle_extensions = [extension_cfg]
 
             door.monster = boss
             hint = payload.get("hunter_hint") or payload.get("hint")
@@ -1191,8 +1198,7 @@ class StorySystem:
 
         return state
 
-    def _apply_puppet_entry_modifiers(self, monster: Any, phase: int) -> None:
-        state = getattr(monster, "puppet_battle_state", None)
+    def _apply_puppet_entry_modifiers(self, monster: Any, state: Dict[str, Any], phase: int) -> None:
         if not isinstance(state, dict):
             return
         key = "phase1_entry_modifiers" if phase == 1 else "phase2_entry_modifiers"
@@ -1237,18 +1243,27 @@ class StorySystem:
             if isinstance(message, str) and message.strip():
                 self.controller.add_message(message.format(percent=pct_text, value=amount))
 
-    def is_puppet_dark_boss_monster(self, monster: Any) -> bool:
-        if monster is None:
-            return False
-        return bool(getattr(monster, "is_puppet_dark_boss", False)) and isinstance(
-            getattr(monster, "puppet_battle_state", None), dict
-        )
+    def _get_puppet_extension_runtime(self, extension: Dict[str, Any], attacker: Any, defender: Any):
+        if not isinstance(extension, dict):
+            return None, None
+        if extension.get("extension_type") != "puppet_dark_boss":
+            return None, None
+        monster = extension.get("monster_ref")
+        state = extension.get("state")
+        if monster is None or not isinstance(state, dict):
+            return None, None
+        if attacker is not monster and defender is not monster:
+            return None, None
+        return monster, state
 
-    def try_trigger_puppet_phase_two(self, monster: Any) -> bool:
+    def _try_trigger_puppet_phase_two(self, extension: Dict[str, Any], target: Any) -> bool:
         """在阶段一生命跌破阈值时，切入黑暗完全体。"""
-        if not self.is_puppet_dark_boss_monster(monster):
+        if not isinstance(extension, dict) or extension.get("extension_type") != "puppet_dark_boss":
             return False
-        state = monster.puppet_battle_state
+        monster = extension.get("monster_ref")
+        state = extension.get("state")
+        if monster is None or target is not monster or not isinstance(state, dict):
+            return False
         if int(state.get("phase", 1)) >= 2:
             return False
         phase1_max_hp = int(state.get("phase1_max_hp", max(1, int(getattr(monster, "hp", 1)))))
@@ -1273,11 +1288,18 @@ class StorySystem:
         self.controller.add_message(
             f"【阶段切换】{old_name}核心炸裂，{monster.name}爆发登场！恢复 {burst_heal} 点生命，攻击抬升至 {monster.atk}。"
         )
-        self._apply_puppet_entry_modifiers(monster=monster, phase=2)
+        self._apply_puppet_entry_modifiers(monster=monster, state=state, phase=2)
         return True
 
-    def apply_puppet_combat_modifiers(self, trigger: str, attacker: Any, defender: Any, damage: int) -> int:
-        """在玩家攻击/木偶出招时应用可重复触发的百分比修正。"""
+    def _apply_puppet_runtime_modifiers(
+        self,
+        extension: Dict[str, Any],
+        trigger: str,
+        attacker: Any,
+        defender: Any,
+        damage: int,
+    ) -> int:
+        """对木偶最终战扩展应用战斗中可重复触发的百分比修正。"""
         try:
             raw_damage = max(1, int(damage))
         except (TypeError, ValueError):
@@ -1285,13 +1307,10 @@ class StorySystem:
         if raw_damage <= 0:
             return raw_damage
 
-        puppet_monster = attacker if self.is_puppet_dark_boss_monster(attacker) else None
-        if puppet_monster is None and self.is_puppet_dark_boss_monster(defender):
-            puppet_monster = defender
-        if puppet_monster is None:
+        puppet_monster, state = self._get_puppet_extension_runtime(extension, attacker=attacker, defender=defender)
+        if puppet_monster is None or not isinstance(state, dict):
             return raw_damage
 
-        state = getattr(puppet_monster, "puppet_battle_state", {})
         current_phase = max(1, int(state.get("phase", 1)))
         runtime_modifiers = state.get("runtime_modifiers", [])
         if not isinstance(runtime_modifiers, list) or not runtime_modifiers:
@@ -1338,6 +1357,57 @@ class StorySystem:
             actor = "木偶" if trigger == "monster_attack" else "玩家"
             self.controller.add_message(f"【连锁结算】{actor}本次伤害 {raw_damage}→{adjusted}。")
         return adjusted
+
+    def apply_battle_extension(
+        self,
+        extension: Dict[str, Any],
+        trigger: str,
+        attacker: Any,
+        defender: Any,
+        damage: int,
+    ) -> int:
+        """统一扩展入口：仅处理当前怪物门声明的扩展。"""
+        if not isinstance(extension, dict):
+            return damage
+        ext_type = extension.get("extension_type")
+        if ext_type == "puppet_dark_boss":
+            return self._apply_puppet_runtime_modifiers(
+                extension=extension,
+                trigger=trigger,
+                attacker=attacker,
+                defender=defender,
+                damage=damage,
+            )
+        return damage
+
+    def handle_battle_extension_post_player_attack(self, extension: Dict[str, Any], target: Any) -> None:
+        """统一扩展后处理入口。"""
+        if not isinstance(extension, dict):
+            return
+        ext_type = extension.get("extension_type")
+        if ext_type == "puppet_dark_boss":
+            self._try_trigger_puppet_phase_two(extension=extension, target=target)
+
+    # 兼容旧接口：若调用方仍直接走 StorySystem，则透传到当前战斗扩展。
+    def apply_puppet_combat_modifiers(self, trigger: str, attacker: Any, defender: Any, damage: int) -> int:
+        extensions = getattr(self.controller, "current_battle_extensions", []) or []
+        adjusted = damage
+        for ext in extensions:
+            adjusted = self.apply_battle_extension(
+                extension=ext,
+                trigger=trigger,
+                attacker=attacker,
+                defender=defender,
+                damage=adjusted,
+            )
+        return adjusted
+
+    def try_trigger_puppet_phase_two(self, monster: Any) -> bool:
+        extensions = getattr(self.controller, "current_battle_extensions", []) or []
+        switched = False
+        for ext in extensions:
+            switched = self._try_trigger_puppet_phase_two(extension=ext, target=monster) or switched
+        return switched
 
     def _queue_chain_followups(self, consequence: PendingConsequence) -> None:
         """链式扩展端口：某个后续触发后再挂新的后续影响。"""

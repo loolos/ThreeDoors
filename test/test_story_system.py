@@ -699,15 +699,17 @@ class TestStorySystem(BaseTest):
             changed = story.apply_pre_enter_checks(monster_door)
 
         monster = changed.monster
+        self.controller.current_battle_extensions = getattr(changed, "battle_extensions", [])
         monster.hp = 1
         with unittest.mock.patch("models.player.random.randint", return_value=0), unittest.mock.patch(
             "models.story_system.random.uniform", return_value=0.1
         ), unittest.mock.patch("models.story_system.random.random", return_value=0.9):
             defeated = self.player.attack(monster)
 
+        state = self.controller.current_battle_extensions[0]["state"]
         self.assertFalse(defeated)
         self.assertEqual(monster.name, "裂齿·夜魇·黑暗完全体")
-        self.assertEqual(monster.puppet_battle_state.get("phase"), 2)
+        self.assertEqual(state.get("phase"), 2)
         self.assertGreater(monster.hp, 0)
         self.assertTrue(any("阶段切换" in msg for msg in self.controller.messages))
 
@@ -731,6 +733,7 @@ class TestStorySystem(BaseTest):
         ):
             changed = story.apply_pre_enter_checks(monster_door)
         monster = changed.monster
+        self.controller.current_battle_extensions = getattr(changed, "battle_extensions", [])
         atk_before = monster.atk
         monster.hp = 1
         with unittest.mock.patch("models.player.random.randint", return_value=0), unittest.mock.patch(
@@ -738,8 +741,9 @@ class TestStorySystem(BaseTest):
         ), unittest.mock.patch("models.story_system.random.random", return_value=0.9):
             defeated = self.player.attack(monster)
 
+        state = self.controller.current_battle_extensions[0]["state"]
         self.assertFalse(defeated)
-        self.assertEqual(monster.puppet_battle_state.get("phase"), 2)
+        self.assertEqual(state.get("phase"), 2)
         self.assertGreater(monster.atk, atk_before)
         self.assertTrue(any("补了装甲片" in msg for msg in self.controller.messages))
 
@@ -763,6 +767,7 @@ class TestStorySystem(BaseTest):
         ):
             changed = story.apply_pre_enter_checks(monster_door)
         monster = changed.monster
+        self.controller.current_battle_extensions = getattr(changed, "battle_extensions", [])
         monster.hp = 1200
 
         with unittest.mock.patch("models.player.random.randint", return_value=0), unittest.mock.patch(
@@ -771,7 +776,7 @@ class TestStorySystem(BaseTest):
             self.player.attack(monster)
             self.player.attack(monster)
 
-        trigger_counts = monster.puppet_battle_state.get("runtime_trigger_counts", {})
+        trigger_counts = self.controller.current_battle_extensions[0]["state"].get("runtime_trigger_counts", {})
         self.assertGreaterEqual(trigger_counts.get("consumed:puppet_side_reward_once:player_attack", 0), 2)
         self.assertTrue(any("结界模板" in msg for msg in self.controller.messages))
 

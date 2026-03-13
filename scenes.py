@@ -62,6 +62,8 @@ class DoorScene(Scene):
         door = self.doors[index]
         if door.enum != DoorEnum.MONSTER:
             p.clear_battle_status()
+            if hasattr(c, "clear_battle_extensions"):
+                c.clear_battle_extensions()
             
         p.adventure_status_duration_pass()  # Adventure turn effects
         
@@ -179,6 +181,8 @@ class BattleScene(Scene):
                         self.controller.story.resolve_battle_consequence(self.monster, defeated=True)
                         self.controller.story.record_elf_side_monster_outcome(self.monster, defeated=True)
                     p.clear_battle_status() # 战斗胜利，清除战斗状态
+                    if hasattr(self.controller, "clear_battle_extensions"):
+                        self.controller.clear_battle_extensions()
                     self.controller.scene_manager.go_to("door_scene")
                 
                 # 无论怪物是否死亡，只要玩家行动了，就推进状态计时
@@ -194,6 +198,8 @@ class BattleScene(Scene):
                         self.controller.story.record_elf_side_monster_outcome(self.monster, defeated=False)
                     p.clear_battle_status()
                     self.monster.clear_battle_status()
+                    if hasattr(self.controller, "clear_battle_extensions"):
+                        self.controller.clear_battle_extensions()
                     self.controller.scene_manager.go_to("door_scene", generate_new_doors=False)
                 else:
                     self.monster.attack(p)

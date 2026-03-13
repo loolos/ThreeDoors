@@ -36,6 +36,7 @@ class GameController:
     def reset_game(self):
         """重置游戏状态"""
         self.current_monster = None
+        self.current_battle_extensions = []
         self.current_event = None
         self.round_count = 0
         self.messages = []
@@ -62,6 +63,40 @@ class GameController:
     def clear_messages(self):
         """清空消息列表"""
         self.messages.clear()
+
+    def clear_battle_extensions(self):
+        """清空当前战斗扩展。"""
+        self.current_battle_extensions = []
+
+    def apply_battle_extensions(self, trigger, attacker, defender, damage):
+        """仅对当前怪物门声明的扩展执行战斗修正。"""
+        extensions = getattr(self, "current_battle_extensions", []) or []
+        if not extensions:
+            return damage
+        story = getattr(self, "story", None)
+        if story is None or not hasattr(story, "apply_battle_extension"):
+            return damage
+        adjusted = damage
+        for ext in extensions:
+            adjusted = story.apply_battle_extension(
+                extension=ext,
+                trigger=trigger,
+                attacker=attacker,
+                defender=defender,
+                damage=adjusted,
+            )
+        return adjusted
+
+    def on_player_attack_resolved(self, target):
+        """玩家攻击后执行扩展后处理（例如阶段切换）。"""
+        extensions = getattr(self, "current_battle_extensions", []) or []
+        if not extensions:
+            return
+        story = getattr(self, "story", None)
+        if story is None or not hasattr(story, "handle_battle_extension_post_player_attack"):
+            return
+        for ext in extensions:
+            story.handle_battle_extension_post_player_attack(extension=ext, target=target)
 
     def update_player_power_peaks(self):
         """记录玩家历史最高生命与攻击，用于 tier 解锁判定。"""
