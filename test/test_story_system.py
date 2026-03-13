@@ -453,6 +453,25 @@ class TestStorySystem(BaseTest):
         changed_door.enter()
         self.assertEqual(self.controller.current_event.title, "Moon Verdict")
 
+    def test_force_story_event_attaches_to_door_extension_port(self):
+        story = self.controller.story
+        story.register_consequence(
+            choice_flag="force_event_extension_case",
+            consequence_id="force_event_extension_once",
+            effect_key="force_story_event",
+            chance=1.0,
+            trigger_door_types=["EVENT"],
+            payload={"event_key": "moon_verdict_event", "hint": "门后正在开庭。"},
+        )
+        event_door = DoorEnum.EVENT.create_instance(controller=self.controller)
+
+        with unittest.mock.patch("models.story_system.random.uniform", return_value=0.0):
+            changed_door = story.apply_pre_enter_checks(event_door)
+
+        extension_types = [ext.get("extension_type") for ext in getattr(changed_door, "door_extensions", [])]
+        self.assertIn("force_story_event", extension_types)
+        self.assertEqual(getattr(changed_door, "story_forced_event_key", ""), "moon_verdict_event")
+
     def test_treasure_marked_item_rewrites_reward_door(self):
         story = self.controller.story
         reward_door = DoorEnum.REWARD.create_instance(controller=self.controller, reward={"gold": 20})
@@ -473,6 +492,31 @@ class TestStorySystem(BaseTest):
         self.assertIn("巨大卷轴", item_names)
         self.assertEqual(reward.get("gold", 0), 30)
 
+    def test_treasure_marked_extension_is_idempotent_on_reapply(self):
+        story = self.controller.story
+        reward_door = DoorEnum.REWARD.create_instance(controller=self.controller, reward={"gold": 15})
+        story.register_consequence(
+            choice_flag="treasure_extension_idempotent_case",
+            consequence_id="treasure_extension_idempotent_once",
+            effect_key="treasure_marked_item",
+            chance=1.0,
+            trigger_door_types=["REWARD"],
+            payload={"item_key": "giant_scroll", "gold_bonus": 5},
+        )
+
+        with unittest.mock.patch("models.story_system.random.uniform", return_value=0.0):
+            changed_door = story.apply_pre_enter_checks(reward_door)
+
+        ext = next(
+            (cfg for cfg in getattr(changed_door, "door_extensions", []) if cfg.get("extension_type") == "treasure_marked_item"),
+            None,
+        )
+        self.assertIsNotNone(ext)
+        reward_before = dict(changed_door.reward)
+        apply_result = story.apply_door_extension(door=changed_door, extension=ext, hook="before_enter")
+        self.assertEqual(dict(changed_door.reward), reward_before)
+        self.assertTrue(apply_result.get("applied"))
+
     def test_treasure_vanish_can_empty_reward_door(self):
         story = self.controller.story
         reward_door = DoorEnum.REWARD.create_instance(
@@ -492,6 +536,43 @@ class TestStorySystem(BaseTest):
             changed_door = story.apply_pre_enter_checks(reward_door)
 
         self.assertEqual(changed_door.reward, {"gold": 6})
+
+    def test_trap_extension_can_replace_default_trap_enter(self):
+        trap_door = DoorEnum.TRAP.create_instance(controller=self.controller)
+        trap_door.add_door_extension(
+            {
+                "extension_type": "trap_rewrite_to_reward",
+                "reward": {"gold": 19},
+                "hint": "神佑余辉",
+            }
+        )
+        hp_before = self.player.hp
+        self.player.gold = 0
+
+        entered = trap_door.enter()
+
+        self.assertTrue(entered)
+        self.assertEqual(self.player.hp, hp_before)
+        self.assertEqual(self.player.gold, 19)
+        self.assertNotIn("你触发了机关！", self.controller.messages)
+
+    def test_run_door_extensions_dispatches_each_extension_config(self):
+        event_door = DoorEnum.EVENT.create_instance(controller=self.controller)
+        event_door.add_door_extension({"extension_type": "unit_test_one"})
+        event_door.add_door_extension({"extension_type": "unit_test_two"})
+        original_handler = self.controller.story.apply_door_extension
+        mock_handler = unittest.mock.Mock(
+            side_effect=[{"applied": True, "index": 1}, None]
+        )
+        self.controller.story.apply_door_extension = mock_handler
+        try:
+            outputs = event_door.run_door_extensions(hook="before_enter")
+        finally:
+            self.controller.story.apply_door_extension = original_handler
+
+        self.assertEqual(len(outputs), 1)
+        self.assertEqual(outputs[0].get("index"), 1)
+        self.assertEqual(mock_handler.call_count, 2)
 
     def test_long_chain_can_progress_from_hunter_to_shop_to_forced_event(self):
         story = self.controller.story
