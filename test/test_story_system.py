@@ -648,6 +648,100 @@ class TestStorySystem(BaseTest):
         self.assertGreater(changed.monster.hp, 200)
         self.assertGreater(changed.monster.atk, 30)
 
+    def test_puppet_dark_boss_gets_direct_modifier_from_signal_soft(self):
+        story = self.controller.story
+        story.choice_flags.add("puppet_signal_soft")
+        story.story_tags.add("consumed:puppet_side_signal_once")
+        story.register_consequence(
+            choice_flag="puppet_test",
+            consequence_id="puppet_direct_signal_soft_case",
+            effect_key="puppet_dark_boss",
+            chance=1.0,
+            trigger_door_types=["MONSTER"],
+            payload={"boss_name": "堕暗机偶·弃线者", "base_hp": 200, "base_atk": 30, "evil_value": 55},
+        )
+        monster_door = DoorEnum.MONSTER.create_instance(
+            controller=self.controller,
+            monster=Monster(name="史莱姆", hp=20, atk=4, tier=1),
+        )
+        with unittest.mock.patch("models.story_system.random.uniform", return_value=0.0), unittest.mock.patch(
+            "models.story_system.random.random", return_value=0.9
+        ):
+            changed = story.apply_pre_enter_checks(monster_door)
+
+        self.assertLess(changed.monster.hp, 200)
+        self.assertLess(changed.monster.atk, 30)
+        self.assertTrue(any("温和样本" in msg for msg in self.controller.messages))
+
+    def test_puppet_dark_boss_gets_direct_buff_from_shop_side_event(self):
+        story = self.controller.story
+        story.story_tags.add("consumed:puppet_side_shop_once")
+        story.register_consequence(
+            choice_flag="puppet_test",
+            consequence_id="puppet_direct_shop_case",
+            effect_key="puppet_dark_boss",
+            chance=1.0,
+            trigger_door_types=["MONSTER"],
+            payload={"boss_name": "堕暗机偶·弃线者", "base_hp": 200, "base_atk": 30, "evil_value": 55},
+        )
+        monster_door = DoorEnum.MONSTER.create_instance(
+            controller=self.controller,
+            monster=Monster(name="史莱姆", hp=20, atk=4, tier=1),
+        )
+        with unittest.mock.patch("models.story_system.random.uniform", return_value=0.0), unittest.mock.patch(
+            "models.story_system.random.random", return_value=0.9
+        ):
+            changed = story.apply_pre_enter_checks(monster_door)
+
+        self.assertGreater(changed.monster.hp, 200)
+        self.assertTrue(any("补了装甲片" in msg for msg in self.controller.messages))
+
+    def test_puppet_dark_boss_can_apply_reward_side_relief_to_player(self):
+        story = self.controller.story
+        self.player.hp = 60
+        story.story_tags.add("consumed:puppet_side_reward_once")
+        story.register_consequence(
+            choice_flag="puppet_test",
+            consequence_id="puppet_direct_reward_case",
+            effect_key="puppet_dark_boss",
+            chance=1.0,
+            trigger_door_types=["MONSTER"],
+            payload={"boss_name": "堕暗机偶·弃线者", "base_hp": 200, "base_atk": 30, "evil_value": 55},
+        )
+        monster_door = DoorEnum.MONSTER.create_instance(
+            controller=self.controller,
+            monster=Monster(name="史莱姆", hp=20, atk=4, tier=1),
+        )
+        with unittest.mock.patch("models.story_system.random.uniform", return_value=0.0), unittest.mock.patch(
+            "models.story_system.random.random", return_value=0.9
+        ):
+            changed = story.apply_pre_enter_checks(monster_door)
+
+        self.assertGreater(self.player.hp, 60)
+        self.assertLess(changed.monster.hp, 200)
+        self.assertTrue(any("结界模板" in msg for msg in self.controller.messages))
+
+    def test_puppet_dark_boss_has_fallback_message_when_no_side_event_happened(self):
+        story = self.controller.story
+        story.register_consequence(
+            choice_flag="puppet_test",
+            consequence_id="puppet_direct_no_side_case",
+            effect_key="puppet_dark_boss",
+            chance=1.0,
+            trigger_door_types=["MONSTER"],
+            payload={"boss_name": "堕暗机偶·弃线者", "base_hp": 200, "base_atk": 30, "evil_value": 55},
+        )
+        monster_door = DoorEnum.MONSTER.create_instance(
+            controller=self.controller,
+            monster=Monster(name="史莱姆", hp=20, atk=4, tier=1),
+        )
+        with unittest.mock.patch("models.story_system.random.uniform", return_value=0.0), unittest.mock.patch(
+            "models.story_system.random.random", return_value=0.9
+        ):
+            story.apply_pre_enter_checks(monster_door)
+
+        self.assertTrue(any("没在中途触发那些支线干预" in msg for msg in self.controller.messages))
+
     def test_revenge_ambush_on_monster_door_can_buff_existing_monster(self):
         story = self.controller.story
         monster_door = DoorEnum.MONSTER.create_instance(

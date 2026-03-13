@@ -814,6 +814,70 @@ class StorySystem:
             evil_value += (dark_score - kind_score) * 2
             evil_value = max(0, min(100, evil_value))
             side_hit_count = len([tag for tag in self.story_tags if str(tag).startswith("consumed:puppet_side_")])
+            direct_hp_scale = 1.0
+            direct_atk_scale = 1.0
+            player = getattr(self.controller, "player", None)
+
+            def _add_start_damage(amount: int, text: str) -> None:
+                if not player:
+                    return
+                real = max(0, min(player.hp, int(amount)))
+                if real <= 0:
+                    return
+                player.take_damage(real)
+                self.controller.add_message(text.format(value=real))
+
+            def _add_start_heal(amount: int, text: str) -> None:
+                if not player:
+                    return
+                healed = player.heal(max(0, int(amount)))
+                if healed <= 0:
+                    return
+                self.controller.add_message(text.format(value=healed))
+
+            # 中间事件的直接影响（不依赖邪恶值）。
+            if "consumed:puppet_side_minion_once" in story_flags:
+                direct_atk_scale *= 0.93
+                self.controller.add_message("【前情影响】你拆过它的追猎小弟，已读懂一部分同步节奏，它开场挥击慢了半拍。")
+            if "consumed:puppet_side_shop_once" in story_flags:
+                direct_hp_scale *= 1.08
+                self.controller.add_message("【前情影响】黑市替它补了装甲片，核心外壳更难被打穿。")
+            if "consumed:puppet_side_trap_once" in story_flags:
+                direct_atk_scale *= 1.05
+                _add_start_damage(4, "【前情影响】陷阱回廊数据被写进战斗脚本，碎片风暴先手刮伤你（-{value}HP）。")
+            if "consumed:puppet_side_reward_once" in story_flags:
+                direct_hp_scale *= 0.94
+                _add_start_heal(5, "【前情影响】你在宝物舱拿到的结界模板提前启动，稳住了开场节奏（+{value}HP）。")
+
+            if "puppet_signal_soft" in story_flags:
+                direct_hp_scale *= 0.9
+                direct_atk_scale *= 0.9
+                self.controller.add_message("【前情影响】你在信号室重放的温和样本还在生效，它的攻击协议出现了短暂迟滞。")
+            elif "puppet_signal_log" in story_flags:
+                direct_atk_scale *= 0.88
+                self.controller.add_message("【前情影响】你截取的战术日志让你更早读出它的抬手动作。")
+            elif "puppet_signal_resell" in story_flags:
+                direct_hp_scale *= 1.12
+                direct_atk_scale *= 1.1
+                self.controller.add_message("【前情影响】你转卖污染片段导致病毒扩散，它的黑暗协议反而被额外喂强。")
+
+            if "puppet_kind_echo_trust" in story_flags:
+                direct_atk_scale *= 0.9
+                self.controller.add_message("【前情影响】你回应过善良人格的求援，它在底层悄悄卡住了几条杀戮指令。")
+            elif "puppet_kind_echo_comfort" in story_flags:
+                direct_hp_scale *= 0.92
+                _add_start_heal(6, "【前情影响】你安抚过它被遗弃的记忆，开战瞬间蓝光回路替你回了一口气（+{value}HP）。")
+            elif "puppet_kind_echo_exploit" in story_flags:
+                direct_atk_scale *= 1.08
+                self.controller.add_message("【前情影响】你曾强挖它的情感弱点，创伤被反向利用，黑暗人格更暴躁。")
+
+            if "puppet_rift_kind" in story_flags:
+                direct_hp_scale *= 0.94
+            elif "puppet_rift_balance" in story_flags:
+                direct_atk_scale *= 0.97
+            elif "puppet_rift_dark" in story_flags:
+                direct_hp_scale *= 1.1
+                direct_atk_scale *= 1.06
 
             hp_scale = 1.0
             atk_scale = 1.0
@@ -832,6 +896,8 @@ class StorySystem:
             else:
                 hp_scale, atk_scale = 1.35, 1.28
                 dark_overload = True
+            hp_scale *= direct_hp_scale
+            atk_scale *= direct_atk_scale
 
             boss = Monster(
                 name=boss_name,
@@ -840,7 +906,6 @@ class StorySystem:
                 tier=max(2, int(payload.get("tier", 5))),
             )
             round_count = max(0, int(getattr(self.controller, "round_count", 0)))
-            player = getattr(self.controller, "player", None)
             power_score = estimate_player_power(player=player, current_round=round_count)
             _apply_player_match_scaling(
                 monster=boss,
