@@ -2338,6 +2338,8 @@ def _get_puppet_chain_state(controller):
         story.puppet_kind_persona_name = PUPPET_KIND_PERSONA_NAME
     if not hasattr(story, "puppet_dark_persona_name"):
         story.puppet_dark_persona_name = PUPPET_DARK_PERSONA_NAME
+    if not hasattr(story, "puppet_side_registered"):
+        story.puppet_side_registered = False
     return story
 
 
@@ -2362,8 +2364,163 @@ def _get_puppet_persona_names(controller):
     )
 
 
+def _schedule_puppet_mainline_event(controller, from_stage, next_event_key, hint, message):
+    story = _get_puppet_chain_state(controller)
+    if story is None:
+        return
+    current_round = max(0, int(getattr(controller, "round_count", 0)))
+    cid = f"puppet_mainline_{from_stage}_to_{next_event_key}"
+    story.register_consequence(
+        choice_flag=f"puppet_mainline:{from_stage}",
+        consequence_id=cid,
+        effect_key="force_story_event",
+        chance=1.0,
+        priority=120,
+        trigger_door_types=["EVENT"],
+        min_round=current_round + 15,
+        max_round=current_round + 25,
+        force_on_expire=True,
+        force_door_type="EVENT",
+        required_flags={"puppet_arc_active"},
+        forbidden_flags={"consumed:puppet_mainline_final_boss_gate"},
+        payload={
+            "event_key": next_event_key,
+            "hint": hint,
+            "message": message,
+            "log_trigger": "你刚要按原计划开门，墙内警报突然改写路线，门框上的编号被系统重排。",
+            "log_result": "你原本选择的门失效，木偶主线强制推进到了下一阶段。",
+        },
+    )
+
+
+def _register_puppet_side_consequences(controller):
+    story = _get_puppet_chain_state(controller)
+    if story is None:
+        return
+    if bool(getattr(story, "puppet_side_registered", False)):
+        return
+    story.puppet_side_registered = True
+
+    common_required = {"puppet_arc_active"}
+    common_forbidden = {"consumed:puppet_mainline_final_boss_gate"}
+
+    story.register_consequence(
+        choice_flag="puppet_side_reg",
+        consequence_id="puppet_side_minion_once",
+        effect_key="revenge_ambush",
+        chance=0.32,
+        priority=86,
+        trigger_door_types=["MONSTER", "EVENT"],
+        required_flags=common_required,
+        forbidden_flags=common_forbidden,
+        payload={
+            "force_hunter": True,
+            "consume_on_defeat": True,
+            "hunter_name": "锈蚀追猎偶",
+            "hunter_hint": "金属摩擦声忽远忽近，像有一台小型追猎体在你周围绕圈校准。",
+            "message": "你本来想推门离开，一只小木偶却先从门里弹射出来，把你当场撞进战斗区。",
+            "log_trigger": "在你正要打开门之前，一个小木偶突然从门里飞出来冲向了你，把你推入了另一个空间。",
+            "log_result": "你原本选中的门被小弟战斗覆盖，这次只能先把它打掉。",
+            "evil_value_delta": 8,
+        },
+    )
+
+    story.register_consequence(
+        choice_flag="puppet_side_reg",
+        consequence_id="puppet_side_signal_once",
+        effect_key="force_story_event",
+        chance=0.26,
+        priority=87,
+        trigger_door_types=["EVENT"],
+        required_flags={"puppet_arc_active", "consumed:puppet_side_minion_once"},
+        forbidden_flags=common_forbidden,
+        payload={
+            "event_key": "puppet_signal_event",
+            "hint": "前情：你刚拆掉小弟追猎体，墙缝里开始回放失真童谣。",
+            "message": "你刚摆脱小弟，失真信号就占据了门禁系统，下一扇门被改写成信号室。",
+            "log_trigger": "你按下门把，墙里的童谣忽然倒放，门牌号被篡改成信号室编号。",
+            "log_result": "原路线被系统强制覆盖，你被拖进了木偶留下的信号节点。",
+            "evil_value_delta": -5,
+        },
+    )
+
+    story.register_consequence(
+        choice_flag="puppet_side_reg",
+        consequence_id="puppet_side_shop_once",
+        effect_key="black_market_markup",
+        chance=0.24,
+        priority=80,
+        trigger_door_types=["SHOP"],
+        required_flags=common_required,
+        forbidden_flags=common_forbidden,
+        payload={
+            "ratio": 1.18,
+            "message": "你携带的木偶日志被黑市识别为高风险污染样本，商人当场给你上调了风险价。",
+            "log_trigger": "你本想走普通商店，但门后柜台亮起红灯，显示“污染样本处理费”。",
+            "log_result": "你挑的门没按原计划结算，被木偶线的交易后果改写。",
+            "evil_value_delta": 6,
+        },
+    )
+
+    story.register_consequence(
+        choice_flag="puppet_side_reg",
+        consequence_id="puppet_side_trap_once",
+        effect_key="shrine_curse",
+        chance=0.24,
+        priority=81,
+        trigger_door_types=["TRAP", "EVENT"],
+        required_flags=common_required,
+        forbidden_flags=common_forbidden,
+        payload={
+            "duration": 1,
+            "message": "木偶病毒噪声短暂劫持了你的节拍，陷阱区里你的动作慢了半拍。",
+            "log_trigger": "你脚下地砖突然翻转，原门被机关吞没，新的出口只剩陷阱回廊。",
+            "log_result": "选门失效，你被强行送进了机关线。",
+            "evil_value_delta": 7,
+        },
+    )
+
+    story.register_consequence(
+        choice_flag="puppet_side_reg",
+        consequence_id="puppet_side_reward_once",
+        effect_key="treasure_marked_item",
+        chance=0.22,
+        priority=79,
+        trigger_door_types=["REWARD"],
+        required_flags=common_required,
+        forbidden_flags=common_forbidden,
+        payload={
+            "item_key": "barrier",
+            "gold_bonus": 14,
+            "message": "一段蓝光子程序提前改写了宝物舱清单，留给你一台应急结界发生器。",
+            "log_trigger": "你选中的门被机械臂贴上“样本回收”标签，门框重排成临时宝物舱结构。",
+            "log_result": "路线被木偶链路短暂劫持，你被迫先处理这一处宝物事件。",
+            "evil_value_delta": -8,
+        },
+    )
+
+    story.register_consequence(
+        choice_flag="puppet_side_reg",
+        consequence_id="puppet_side_kind_echo_once",
+        effect_key="force_story_event",
+        chance=0.24,
+        priority=88,
+        trigger_door_types=["EVENT"],
+        required_flags=common_required,
+        forbidden_flags=common_forbidden,
+        payload={
+            "event_key": "puppet_kind_echo_event",
+            "hint": "前情：一束细蓝光正在门后等你回应。",
+            "message": "你伸手推门时，耳边忽然响起一句轻轻的“别怕”，门牌同步重写成蓝眼回声节点。",
+            "log_trigger": "你原本想开别的门，门框却渗出蓝线，把你拉进了善良人格的求援频道。",
+            "log_result": "你选的门暂时无效，剧情切到善良人格互动。",
+            "evil_value_delta": -4,
+        },
+    )
+
+
 class PuppetAbandonmentEvent(Event):
-    """长链4：弃线木偶（起始）"""
+    """木偶主线起始：仅能规避冲突。"""
     TRIGGER_BASE_PROBABILITY = 0.065
 
     @classmethod
@@ -2384,7 +2541,7 @@ class PuppetAbandonmentEvent(Event):
             "你在昏暗走廊尽头看见一具被丢弃的机器人木偶，胸口还挂着半截编号牌。"
             f"屏幕闪烁着两行人格标签：蓝光侧【{kind_name}】、红噪侧【{dark_name}】。"
             f"当前邪恶值读数：{evil_value}/100。"
-            "下一秒，墙面被它一拳砸裂。你确认现在绝不是正面对决的时候。"
+            "它一拳砸裂墙面，你确认现在绝不能正面打。"
         )
         self.choices = [
             EventChoice("钻进检修井盖，贴墙潜行躲避", self.hide_in_shaft),
@@ -2392,82 +2549,57 @@ class PuppetAbandonmentEvent(Event):
             EventChoice("丢出诱饵芯片，反向引开它", self.throw_decoy),
         ]
 
-    def _register_opening_chain(self, route, moral_delta):
-        current_round = max(0, int(getattr(self.controller, "round_count", 0)))
-        minion_id = f"puppet_chain_{route}_minion_gate"
-        self.register_story_choice(
-            choice_flag=f"puppet_intro_{route}",
-            moral_delta=moral_delta,
-            consequences=[
-                {
-                    "consequence_id": minion_id,
-                    "effect_key": "revenge_ambush",
-                    "chance": 1.0,
-                    "priority": 99,
-                    "trigger_door_types": ["MONSTER", "EVENT"],
-                    "min_round": current_round + 1,
-                    "max_round": current_round + 4,
-                    "force_on_expire": True,
-                    "force_door_type": "MONSTER",
-                    "payload": {
-                        "force_hunter": True,
-                        "consume_on_defeat": True,
-                        "hunter_name": "锈蚀追猎偶",
-                        "hunter_hint": "通道里留下拖拽金属的刺耳摩擦声——它的先遣追猎偶先追上了你。",
-                        "message": "你刚甩掉木偶本体，却先撞上了它放出的追猎小弟。对方像坏掉的安保程序一样死咬不放。",
-                        "log_trigger": "在你正要打开门之前，一个小木偶突然从门里飞出来冲向了你，把你推入了另一个空间。",
-                        "log_result": "门的去向被追猎偶强行改写，你原本的选门无效，只能先打这一场。",
-                    },
-                },
-                {
-                    "consequence_id": f"puppet_chain_{route}_signal_event_gate",
-                    "effect_key": "force_story_event",
-                    "chance": 1.0,
-                    "priority": 96,
-                    "trigger_door_types": ["EVENT"],
-                    "min_round": current_round + 2,
-                    "max_round": current_round + 7,
-                    "force_on_expire": True,
-                    "force_door_type": "EVENT",
-                    "required_flags": [f"consumed:{minion_id}"],
-                    "payload": {
-                        "event_key": "puppet_signal_event",
-                        "hint": "前情：你刚处理完追猎小弟，门缝里传来失真童谣与电流噪声。",
-                        "message": "前情：你击倒了木偶放出的追猎小弟。病毒日志自动重排，下一扇事件门被改写成它留下的信号节点。",
-                        "log_trigger": "你正要拧开另一扇门，墙里的童谣忽然倒放，门牌号被篡改成信号室编号。",
-                        "log_result": "原路线被系统强制覆盖，你被拖进了木偶留下的信号节点。",
-                    },
-                },
-            ],
+    def _start_arc(self, route, evil_delta, moral_delta, msg):
+        story = _get_puppet_chain_state(self.controller)
+        if story is not None:
+            story.story_tags.add("puppet_arc_active")
+            story.choice_flags.add(f"puppet_intro_{route}")
+        _adjust_puppet_evil_value(self.controller, evil_delta)
+        self.register_story_choice(choice_flag=f"puppet_intro_{route}", moral_delta=moral_delta)
+        _register_puppet_side_consequences(self.controller)
+        _schedule_puppet_mainline_event(
+            self.controller,
+            from_stage="intro",
+            next_event_key="puppet_persona_rift_event",
+            hint="前情：你刚从弃线木偶手里逃脱，远处传来蓝红双重心跳。",
+            message="前情提要：你在初遇木偶时选择了规避冲突。更深的人格裂隙将在 15~25 回合后被强制拉开。",
         )
+        self.add_message(msg)
+        return "Event Completed"
 
     def hide_in_shaft(self):
-        _adjust_puppet_evil_value(self.controller, -6)
-        self._register_opening_chain(route="hide", moral_delta=3)
         heal = self.get_player().heal(6)
-        self.add_message(f"你缩进检修井，听着金属脚步从头顶掠过，险之又险地躲开第一轮追杀（+{heal}HP，邪恶值 -6）。")
-        return "Event Completed"
+        return self._start_arc(
+            route="hide",
+            evil_delta=-6,
+            moral_delta=3,
+            msg=f"你缩进检修井，听着金属脚步从头顶掠过，险之又险地躲开第一轮追杀（+{heal}HP，邪恶值 -6）。",
+        )
 
     def cut_power_and_escape(self):
-        _adjust_puppet_evil_value(self.controller, 4)
-        self._register_opening_chain(route="blackout", moral_delta=-1)
         dmg = 5
         self.get_player().take_damage(dmg)
-        self.add_message(f"你猛拉总闸让整段走廊断电，借黑暗甩开木偶；但被飞散零件擦伤（-{dmg}HP，邪恶值 +4）。")
-        return "Event Completed"
+        return self._start_arc(
+            route="blackout",
+            evil_delta=4,
+            moral_delta=-1,
+            msg=f"你猛拉总闸让整段走廊断电，借黑暗甩开木偶；但被飞散零件擦伤（-{dmg}HP，邪恶值 +4）。",
+        )
 
     def throw_decoy(self):
-        _adjust_puppet_evil_value(self.controller, 7)
-        self._register_opening_chain(route="decoy", moral_delta=-2)
         p = self.get_player()
         spent = min(p.gold, 14)
         p.gold -= spent
-        self.add_message(f"你把值钱芯片当诱饵抛向岔路，成功骗过木偶扫描，但也烧掉了 {spent}G 物资（邪恶值 +7）。")
-        return "Event Completed"
+        return self._start_arc(
+            route="decoy",
+            evil_delta=7,
+            moral_delta=-2,
+            msg=f"你把值钱芯片当诱饵抛向岔路，成功骗过木偶扫描，但也烧掉了 {spent}G 物资（邪恶值 +7）。",
+        )
 
 
 class PuppetSignalEvent(Event):
-    """弃线木偶中继：强制串联商店门/陷阱门/宝物门。"""
+    """支线：失真信号室（需先发生小弟战）。"""
     TRIGGER_BASE_PROBABILITY = 0.0
 
     @classmethod
@@ -2477,190 +2609,45 @@ class PuppetSignalEvent(Event):
     def __init__(self, controller):
         super().__init__(controller)
         kind_name, dark_name = _get_puppet_persona_names(controller)
+        evil_value = int(getattr(_get_puppet_chain_state(controller), "puppet_evil_value", 55))
         self.title = "失真童谣"
         self.description = (
             "门后是一间报废监控室，满墙屏幕循环播放同一个画面：木偶坐在雨里，像被人遗弃的玩具。"
             f"日志交替刷出两句自检：'{kind_name} 请求停止追杀' / '{dark_name} 请求继续清洗目标'。"
-            "你意识到它还没完全坠落，下一步怎么处理这份线索，会直接影响最后那场战斗。"
+            f"当前邪恶值：{evil_value}/100。"
         )
         self.choices = [
-            EventChoice("播放旧日安抚协议，尝试稳住它的善良人格", self.play_lullaby_protocol),
-            EventChoice("拆出记忆匣做逆向分析，准备战术反制", self.reverse_engineer_memory_box),
-            EventChoice("把故障录像卖给黑市技师，换快速收益", self.sell_corrupted_footage),
+            EventChoice("重放温和语音样本", self.replay_soft_sample),
+            EventChoice("截取战术日志做分析", self.extract_tactical_log),
+            EventChoice("把污染片段打包转卖", self.resell_corrupted_fragment),
         ]
 
-    def _register_middle_chain(
-        self,
-        route,
-        moral_delta,
-        shop_effect,
-        shop_ratio,
-        shop_message,
-        trap_effect,
-        trap_payload,
-        reward_effect,
-        reward_payload,
-    ):
-        current_round = max(0, int(getattr(self.controller, "round_count", 0)))
-        shop_id = f"puppet_mid_{route}_shop_gate"
-        trap_id = f"puppet_mid_{route}_trap_gate"
-        reward_id = f"puppet_mid_{route}_reward_gate"
-        self.register_story_choice(
-            choice_flag=f"puppet_signal_{route}",
-            moral_delta=moral_delta,
-            consequences=[
-                {
-                    "consequence_id": shop_id,
-                    "effect_key": shop_effect,
-                    "chance": 1.0,
-                    "priority": 95,
-                    "trigger_door_types": ["SHOP"],
-                    "min_round": current_round + 1,
-                    "max_round": current_round + 3,
-                    "force_on_expire": True,
-                    "force_door_type": "SHOP",
-                    "payload": {
-                        "ratio": shop_ratio,
-                        "message": shop_message,
-                        "forced_door_hint": "前情：木偶日志流入交易网，门后商人正拿你的情报重新定价。",
-                        "log_trigger": "你刚要开门，门缝忽然喷出成堆价签，把这扇门硬改写成交易节点。",
-                        "log_result": "你原本想去的不是这里，但木偶事件链把你推进了商店线。",
-                    },
-                },
-                {
-                    "consequence_id": trap_id,
-                    "effect_key": trap_effect,
-                    "chance": 1.0,
-                    "priority": 94,
-                    "trigger_door_types": ["TRAP", "EVENT"],
-                    "min_round": current_round + 2,
-                    "max_round": current_round + 5,
-                    "force_on_expire": True,
-                    "force_door_type": "TRAP",
-                    "required_flags": [f"consumed:{shop_id}"],
-                    "payload": {
-                        **trap_payload,
-                        "log_trigger": "你脚下地砖突然翻面，原门被连环机关吞掉，新的出口只剩陷阱回廊。",
-                        "log_result": "门被机关强制改道，你的选门失效并进入了陷阱线。",
-                    },
-                },
-                {
-                    "consequence_id": reward_id,
-                    "effect_key": reward_effect,
-                    "chance": 1.0,
-                    "priority": 93,
-                    "trigger_door_types": ["REWARD"],
-                    "min_round": current_round + 3,
-                    "max_round": current_round + 7,
-                    "force_on_expire": True,
-                    "force_door_type": "REWARD",
-                    "required_flags": [f"consumed:{trap_id}"],
-                    "payload": {
-                        **reward_payload,
-                        "log_trigger": "你选中的门被机械臂贴上“样本回收”标签，门框随即重排成宝物舱结构。",
-                        "log_result": "路线被木偶链路劫持，你被迫进入了宝物线。",
-                    },
-                },
-                {
-                    "consequence_id": f"puppet_mid_{route}_kind_event_gate",
-                    "effect_key": "force_story_event",
-                    "chance": 1.0,
-                    "priority": 92,
-                    "trigger_door_types": ["EVENT"],
-                    "min_round": current_round + 4,
-                    "max_round": current_round + 9,
-                    "force_on_expire": True,
-                    "force_door_type": "EVENT",
-                    "required_flags": [f"consumed:{reward_id}"],
-                    "payload": {
-                        "event_key": "puppet_kind_echo_event",
-                        "hint": "前情：商店、陷阱、宝物线已跑完。一个细小蓝光正在门内等你回应。",
-                        "message": "前情：你已沿着商店线、陷阱线与宝物线把木偶污染路径走了一遍。善良人格的回声试图与你通话。",
-                        "log_trigger": "你伸手推门时，耳边忽然响起一句轻轻的“别怕”，门牌同步重写。",
-                        "log_result": "你原本想选的门无效，剧情强制跳到善良人格互动节点。",
-                    },
-                },
-            ],
-        )
-
-    def play_lullaby_protocol(self):
-        _adjust_puppet_evil_value(self.controller, -12)
-        self._register_middle_chain(
-            route="empathy",
-            moral_delta=6,
-            shop_effect="black_market_discount",
-            shop_ratio=0.76,
-            shop_message="你上传了安抚协议，商会判断你仍可沟通，相关商店给出修复者折扣。",
-            trap_effect="shrine_blessing",
-            trap_payload={
-                "message": "你写入的安抚协议在危急时触发，部分机关被善良子进程临时改写，伤害被削弱。",
-                "forced_door_hint": "前情：善良子进程短暂上线，陷阱回廊的杀意被削过一层。",
-            },
-            reward_effect="treasure_marked_item",
-            reward_payload={
-                "item_key": "immune_scroll",
-                "gold_bonus": 18,
-                "message": "你在病毒日志里保住了一段温和指令，宝物门里留下一张写着“别被它同化”的免疫卷轴。",
-            },
-        )
-        heal = self.get_player().heal(8)
-        self.add_message(f"你把旧童谣编码进广播回路，监控里那只蓝眼短暂稳定，系统噪声明显降低（+{heal}HP，邪恶值 -12）。")
+    def replay_soft_sample(self):
+        healed = self.get_player().heal(7)
+        _adjust_puppet_evil_value(self.controller, -10)
+        self.register_story_choice(choice_flag="puppet_signal_soft", moral_delta=4)
+        self.add_message(f"你把旧录音接回主线，总线噪声明显下降（+{healed}HP，邪恶值 -10）。")
         return "Event Completed"
 
-    def reverse_engineer_memory_box(self):
+    def extract_tactical_log(self):
+        self.get_player().change_base_atk(1)
         _adjust_puppet_evil_value(self.controller, -4)
-        self._register_middle_chain(
-            route="analyze",
-            moral_delta=1,
-            shop_effect="black_market_markup",
-            shop_ratio=1.12,
-            shop_message="你拆下记忆匣导致配件供给紧张，商人们认定你会继续囤货，先行抬价。",
-            trap_effect="shrine_curse",
-            trap_payload={
-                "duration": 1,
-                "message": "你接触了高噪声记忆扇区，神经延迟上升，在机关区容易慢半拍。",
-                "forced_door_hint": "前情：逆向分析留下延迟副作用，陷阱层像在等你犯错。",
-            },
-            reward_effect="treasure_marked_item",
-            reward_payload={
-                "item_key": "barrier",
-                "gold_bonus": 10,
-                "message": "你从记忆匣里抄出一段防御模板，宝物门里多了一台临时结界发生器。",
-            },
-        )
-        self.get_player().change_base_atk(2)
-        self.add_message("你把损坏记忆匣拆成战斗参数，战术更锋利了（基础攻击 +2，邪恶值 -4）。")
+        self.register_story_choice(choice_flag="puppet_signal_log", moral_delta=1)
+        self.add_message("你截取到关键动作日志并补齐了反制参数（基础攻击 +1，邪恶值 -4）。")
         return "Event Completed"
 
-    def sell_corrupted_footage(self):
-        _adjust_puppet_evil_value(self.controller, 14)
-        self._register_middle_chain(
-            route="sellout",
-            moral_delta=-6,
-            shop_effect="black_market_discount",
-            shop_ratio=0.7,
-            shop_message="你把木偶故障录像卖给黑市后，商人把你当成高价值情报贩子，先给甜头价。",
-            trap_effect="shrine_curse",
-            trap_payload={
-                "duration": 2,
-                "message": "你售卖的污染片段反向污染了你的终端，陷阱触发时你会明显迟滞。",
-                "forced_door_hint": "前情：被污染的数据正在回写你的神经反射，陷阱门像专门克你。",
-            },
-            reward_effect="treasure_vanish",
-            reward_payload={
-                "fake_gold": 9,
-                "message": "你刚靠倒卖录像赚快钱，宝物门却被黑市同伙提前洗劫，只剩几枚零散硬币。",
-            },
-        )
+    def resell_corrupted_fragment(self):
         p = self.get_player()
-        p.gold += 24
-        p.take_damage(6)
-        self.add_message("你把录像高价出手，立刻到手 24G；可感染噪声回冲终端，让你头痛欲裂（-6HP，邪恶值 +14）。")
+        p.gold += 18
+        p.take_damage(4)
+        _adjust_puppet_evil_value(self.controller, 10)
+        self.register_story_choice(choice_flag="puppet_signal_resell", moral_delta=-4)
+        self.add_message("你把污染片段转卖赚了 18G，但反冲电流灼伤手臂（-4HP，邪恶值 +10）。")
         return "Event Completed"
 
 
 class PuppetKindEchoEvent(Event):
-    """新增中继：与善良人格互动。"""
+    """支线：与善良人格互动。"""
     TRIGGER_BASE_PROBABILITY = 0.0
 
     @classmethod
@@ -2675,7 +2662,7 @@ class PuppetKindEchoEvent(Event):
         self.description = (
             f"一束细蓝光从坏掉的喇叭里投影成小小木偶轮廓，它自称{kind_name}。"
             f"它压低声音说：'{dark_name}快接管我了。' 当前邪恶值：{evil_value}/100。"
-            "你能感觉到这不是幻觉，而是它善良人格在最后求援。"
+            "你能感觉到这不是幻觉，而是它善良人格在求援。"
         )
         self.choices = [
             EventChoice(f"相信{kind_name}，按它给的隐蔽路线前进", self.follow_kind_voice),
@@ -2683,57 +2670,30 @@ class PuppetKindEchoEvent(Event):
             EventChoice("记录它的情感弱点，准备决战压制", self.extract_weakness),
         ]
 
-    def _queue_rift_event(self, route_flag, moral_delta):
-        current_round = max(0, int(getattr(self.controller, "round_count", 0)))
-        self.register_story_choice(
-            choice_flag=f"puppet_kind_echo_{route_flag}",
-            moral_delta=moral_delta,
-            consequences=[
-                {
-                    "consequence_id": f"puppet_kind_echo_{route_flag}_rift_gate",
-                    "effect_key": "force_story_event",
-                    "chance": 1.0,
-                    "priority": 98,
-                    "trigger_door_types": ["EVENT"],
-                    "min_round": current_round + 1,
-                    "max_round": current_round + 4,
-                    "force_on_expire": True,
-                    "force_door_type": "EVENT",
-                    "payload": {
-                        "event_key": "puppet_persona_rift_event",
-                        "hint": "前情：你刚与善良人格交谈，下一扇门传来人格冲突尖啸。",
-                        "message": "前情：善良人格短暂与你建立连接。下一段门后，双人格冲突正在升级。",
-                        "log_trigger": "你原本想去别的门，但门框突然冒出蓝红双线，把你拽进人格裂隙。",
-                        "log_result": "选门失效，剧情强制推进到人格拉扯阶段。",
-                    },
-                }
-            ],
-        )
-
     def follow_kind_voice(self):
-        _adjust_puppet_evil_value(self.controller, -14)
-        self._queue_rift_event(route_flag="trust", moral_delta=5)
         heal = self.get_player().heal(7)
+        _adjust_puppet_evil_value(self.controller, -14)
+        self.register_story_choice(choice_flag="puppet_kind_echo_trust", moral_delta=5)
         self.add_message(f"你照着它给的节拍穿过回廊，避开了两组杀招（+{heal}HP，邪恶值 -14）。")
         return "Event Completed"
 
     def ask_abandoned_past(self):
-        _adjust_puppet_evil_value(self.controller, -9)
-        self._queue_rift_event(route_flag="comfort", moral_delta=4)
         self.get_player().gold += 10
+        _adjust_puppet_evil_value(self.controller, -9)
+        self.register_story_choice(choice_flag="puppet_kind_echo_comfort", moral_delta=4)
         self.add_message("你听完它被遗弃那晚的全部记录，蓝光稳定了几秒，并交给你一串旧维修密钥（+10G，邪恶值 -9）。")
         return "Event Completed"
 
     def extract_weakness(self):
-        _adjust_puppet_evil_value(self.controller, 6)
-        self._queue_rift_event(route_flag="exploit", moral_delta=-1)
         self.get_player().change_base_atk(1)
+        _adjust_puppet_evil_value(self.controller, 6)
+        self.register_story_choice(choice_flag="puppet_kind_echo_exploit", moral_delta=-1)
         self.add_message("你强行提取情感弱点表，战术上更有把握（基础攻击 +1），但它眼里的红噪更浓了（邪恶值 +6）。")
         return "Event Completed"
 
 
 class PuppetPersonaRiftEvent(Event):
-    """新增中继：善恶人格拔河，决定最终强度基调。"""
+    """主线二：人格裂隙（由初始事件后 15~25 回合强推）。"""
     TRIGGER_BASE_PROBABILITY = 0.0
 
     @classmethod
@@ -2748,7 +2708,7 @@ class PuppetPersonaRiftEvent(Event):
         self.description = (
             "你踏入门后空间，眼前出现同一具木偶的两层投影：蓝光与红噪不断覆盖彼此。"
             f"{kind_name}在求你别放弃它，{dark_name}则不断诱导你走最快最脏的路径。"
-            f"当前邪恶值：{evil_value}/100。你的这次回应会直接决定终战压力。"
+            f"当前邪恶值：{evil_value}/100。这次回应会影响 15~25 回合后的核心下潜。"
         )
         self.choices = [
             EventChoice(f"护住{kind_name}的信号通道", self.shield_kind_signal),
@@ -2756,59 +2716,50 @@ class PuppetPersonaRiftEvent(Event):
             EventChoice(f"向{dark_name}投喂黑暗指令换取短利", self.fuel_dark_side),
         ]
 
-    def _queue_core_event(self, route_flag, moral_delta):
-        current_round = max(0, int(getattr(self.controller, "round_count", 0)))
-        self.register_story_choice(
-            choice_flag=f"puppet_rift_{route_flag}",
-            moral_delta=moral_delta,
-            consequences=[
-                {
-                    "consequence_id": f"puppet_rift_{route_flag}_core_gate",
-                    "effect_key": "force_story_event",
-                    "chance": 1.0,
-                    "priority": 99,
-                    "trigger_door_types": ["EVENT"],
-                    "min_round": current_round + 1,
-                    "max_round": current_round + 4,
-                    "force_on_expire": True,
-                    "force_door_type": "EVENT",
-                    "payload": {
-                        "event_key": "puppet_core_descent_event",
-                        "hint": "前情：人格拔河结束，核心井舱门正在同步解锁。",
-                        "message": "前情：你刚在人格裂隙里做了最终站队。核心下潜阶段已被强制排入下一门。",
-                        "log_trigger": "你刚握住门把，整段走廊的照明切成红黑警戒，门型被系统改写。",
-                        "log_result": "原门失效，剧情强制切入最终下潜准备。",
-                    },
-                }
-            ],
+    def _after_rift(self, route_flag, moral_delta, message):
+        self.register_story_choice(choice_flag=f"puppet_rift_{route_flag}", moral_delta=moral_delta)
+        _schedule_puppet_mainline_event(
+            self.controller,
+            from_stage="rift",
+            next_event_key="puppet_core_descent_event",
+            hint="前情：人格裂隙战结束，核心井正在重启。",
+            message="前情提要：你已在人格裂隙做出站队。核心下潜将于 15~25 回合后被强制推进。",
         )
+        self.add_message(message)
+        return "Event Completed"
 
     def shield_kind_signal(self):
-        _adjust_puppet_evil_value(self.controller, -15)
-        self._queue_core_event(route_flag="kind", moral_delta=6)
         heal = self.get_player().heal(9)
-        self.add_message(f"你把护盾接到蓝光回路上，善良人格短暂稳住了主导权（+{heal}HP，邪恶值 -15）。")
-        return "Event Completed"
+        _adjust_puppet_evil_value(self.controller, -15)
+        return self._after_rift(
+            route_flag="kind",
+            moral_delta=6,
+            message=f"你把护盾接到蓝光回路上，善良人格短暂稳住主导权（+{heal}HP，邪恶值 -15）。",
+        )
 
     def keep_pragmatic_balance(self):
-        _adjust_puppet_evil_value(self.controller, -3)
-        self._queue_core_event(route_flag="balance", moral_delta=1)
         self.get_player().change_base_atk(1)
-        self.add_message("你不选边，只把两侧输出压到可控区间（基础攻击 +1，邪恶值 -3）。")
-        return "Event Completed"
+        _adjust_puppet_evil_value(self.controller, -3)
+        return self._after_rift(
+            route_flag="balance",
+            moral_delta=1,
+            message="你不选边，只把两侧输出压到可控区间（基础攻击 +1，邪恶值 -3）。",
+        )
 
     def fuel_dark_side(self):
-        _adjust_puppet_evil_value(self.controller, 16)
-        self._queue_core_event(route_flag="dark", moral_delta=-6)
         p = self.get_player()
         p.gold += 15
         p.take_damage(5)
-        self.add_message("你把黑暗协议喂给红噪回路，立刻拿到 15G，但反冲灼伤你的神经（-5HP，邪恶值 +16）。")
-        return "Event Completed"
+        _adjust_puppet_evil_value(self.controller, 16)
+        return self._after_rift(
+            route_flag="dark",
+            moral_delta=-6,
+            message="你把黑暗协议喂给红噪回路，立刻拿到 15G，但反冲灼伤你的神经（-5HP，邪恶值 +16）。",
+        )
 
 
 class PuppetCoreDescentEvent(Event):
-    """弃线木偶终战前置：根据选择安排最终怪物门。"""
+    """主线三：核心下潜（由人格裂隙后 15~25 回合强推）。"""
     TRIGGER_BASE_PROBABILITY = 0.0
 
     @classmethod
@@ -2823,7 +2774,7 @@ class PuppetCoreDescentEvent(Event):
         self.description = (
             "你走进核心井，看到木偶本体被铁索吊在半空，黑红电弧在它周身游走。"
             f"监控写着：善良侧[{kind_name}]、黑暗侧[{dark_name}]。当前邪恶值：{evil_value}/100。"
-            "你还有最后一次操作机会：修复、阉割情感模块，或者继续喂黑暗协议。"
+            "这次选择将决定 15~25 回合后强制开启的最终怪物战。"
         )
         self.choices = [
             EventChoice("写入修复补丁，尝试唤醒善良人格", self.patch_kind_persona),
@@ -2841,46 +2792,47 @@ class PuppetCoreDescentEvent(Event):
             moral_delta=moral_delta,
             consequences=[
                 {
-                    "consequence_id": f"puppet_final_{route}_boss_gate",
+                    "consequence_id": "puppet_mainline_final_boss_gate",
                     "effect_key": "puppet_dark_boss",
                     "chance": 1.0,
-                    "priority": 100,
+                    "priority": 130,
                     "trigger_door_types": ["MONSTER", "EVENT"],
-                    "min_round": current_round + 2,
-                    "max_round": current_round + 6,
+                    "min_round": current_round + 15,
+                    "max_round": current_round + 25,
                     "force_on_expire": True,
                     "force_door_type": "MONSTER",
+                    "required_flags": {"puppet_arc_active"},
                     "payload": {
                         "boss_name": f"{dark_name}·堕暗机偶",
-                        "base_hp": 236,
-                        "base_atk": 36,
-                        "tier": 5,
+                        "base_hp": 980,
+                        "base_atk": 96,
+                        "tier": 6,
                         "evil_value": evil_value,
                         "kind_persona_name": kind_name,
                         "dark_persona_name": dark_name,
-                        "kind_heal": 12,
+                        "kind_heal": 18,
+                        "no_side_event_message": "你几乎没碰到那些支线干预，它的邪恶值按核心读数直接结算，战斗走势更加不可预测。",
                         "kind_flags": [
                             "puppet_intro_hide",
-                            "puppet_signal_empathy",
-                            "puppet_signal_analyze",
-                            "puppet_descent_patch",
+                            "puppet_signal_soft",
                             "puppet_kind_echo_trust",
                             "puppet_kind_echo_comfort",
                             "puppet_rift_kind",
+                            "puppet_descent_patch",
                         ],
                         "dark_flags": [
                             "puppet_intro_blackout",
                             "puppet_intro_decoy",
-                            "puppet_signal_sellout",
-                            "puppet_descent_cut_emotion",
-                            "puppet_descent_dark_feed",
+                            "puppet_signal_resell",
                             "puppet_kind_echo_exploit",
                             "puppet_rift_dark",
+                            "puppet_descent_cut_emotion",
+                            "puppet_descent_dark_feed",
                         ],
-                        "hint": "前情：核心下潜结束，真正的终战门被点亮——你将直面木偶的黑暗人格本体。",
-                        "message": "核心阀门轰然落锁，最终门型被改写成怪物门。你知道：这一次，门后就是它本体。",
+                        "hint": "前情：核心下潜结束，最终战门正在生成。门后是木偶黑暗人格本体。",
+                        "message": "核心阀门轰然落锁，最终门型开始写入。你知道：这次门后就是它本体。",
                         "log_trigger": "你正要推开门，整条走廊被红色封锁线覆盖，门框被强制改写成战斗舱。",
-                        "log_result": "原本选门彻底无效，终战被强制开启。",
+                        "log_result": "原本选门彻底无效，最终怪物战被强制开启。",
                         "kind_awaken_message": f"你先前留下的修复指令在最后一秒生效。{kind_name}短暂夺回控制，替你压低了黑暗核心输出。",
                         "dark_overload_message": f"你喂给它的黑暗指令全部生效，{dark_name}彻底接管本体，气势瞬间暴涨。",
                         "neutral_message": f"{kind_name}与{dark_name}仍在互咬，但黑暗侧握着主导权。它缓缓抬头，战斗不可避免。",

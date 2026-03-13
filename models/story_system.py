@@ -298,10 +298,31 @@ class StorySystem:
             # 截止轮次的强制触发至少要保证门被改写到目标类型。
             applied, new_door = True, door
         if applied:
+            self._apply_payload_metric_deltas(chosen)
             if not self._should_defer_consumption(chosen, new_door):
                 self._consume_consequence(chosen)
             return new_door
         return fallback_door
+
+    def _apply_payload_metric_deltas(self, consequence: PendingConsequence) -> None:
+        """扩展端口：允许后果在触发时修改剧情指标（如木偶邪恶值）。"""
+        payload = consequence.payload or {}
+        if "evil_value_delta" not in payload:
+            return
+        try:
+            delta = int(payload.get("evil_value_delta", 0))
+        except (TypeError, ValueError):
+            return
+        if delta == 0:
+            return
+        current = int(getattr(self, "puppet_evil_value", 55))
+        next_val = max(0, min(100, current + delta))
+        self.puppet_evil_value = next_val
+        self.story_tags.add(f"puppet_evil_bucket:{(next_val // 10) * 10}")
+        if delta > 0:
+            self.controller.add_message(f"木偶邪恶值上升至 {next_val}/100。")
+        else:
+            self.controller.add_message(f"木偶邪恶值下降至 {next_val}/100。")
 
     def _consume_consequence(self, consequence: PendingConsequence) -> None:
         cid = consequence.consequence_id
@@ -748,7 +769,7 @@ class StorySystem:
         if effect == "puppet_dark_boss":
             if getattr(getattr(door, "enum", None), "name", "") != "MONSTER":
                 return False, door
-            from models.monster import Monster
+            from models.monster import Monster, _apply_player_match_scaling, estimate_player_power
 
             base_hp = max(80, int(payload.get("base_hp", 220)))
             base_atk = max(10, int(payload.get("base_atk", 34)))
@@ -792,6 +813,7 @@ class StorySystem:
                     pass
             evil_value += (dark_score - kind_score) * 2
             evil_value = max(0, min(100, evil_value))
+            side_hit_count = len([tag for tag in self.story_tags if str(tag).startswith("consumed:puppet_side_")])
 
             hp_scale = 1.0
             atk_scale = 1.0
@@ -817,6 +839,23 @@ class StorySystem:
                 atk=max(1, int(base_atk * atk_scale)),
                 tier=max(2, int(payload.get("tier", 5))),
             )
+            round_count = max(0, int(getattr(self.controller, "round_count", 0)))
+            player = getattr(self.controller, "player", None)
+            power_score = estimate_player_power(player=player, current_round=round_count)
+            _apply_player_match_scaling(
+                monster=boss,
+                player=player,
+                current_round=round_count,
+                power_score=power_score,
+            )
+            if side_hit_count <= 0:
+                self.controller.add_message(
+                    self._resolve_message(
+                        payload,
+                        "no_side_event_message",
+                        "你几乎没在中途触发那些支线干预，它的最终参数按核心读数直接结算。",
+                    )
+                )
             if awakened_kind:
                 heal = min(100 - self.controller.player.hp, max(4, int(payload.get("kind_heal", 12))))
                 if heal > 0:

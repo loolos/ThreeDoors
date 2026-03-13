@@ -11,6 +11,8 @@ from models.events import (
     PuppetAbandonmentEvent,
     PuppetSignalEvent,
     PuppetKindEchoEvent,
+    PuppetPersonaRiftEvent,
+    PuppetCoreDescentEvent,
 )
 from models.items import FlyingHammer
 from models.monster import Monster
@@ -517,23 +519,22 @@ class TestStorySystem(BaseTest):
             forced_event_door = story.apply_pre_enter_checks(second_event_door)
         self.assertEqual(getattr(forced_event_door, "story_forced_event_key", ""), "moon_verdict_event")
 
-    def test_puppet_intro_registers_forced_minion_and_signal_gate(self):
+    def test_puppet_intro_schedules_mainline_rift_in_15_to_25_rounds(self):
         story = self.controller.story
         self.controller.round_count = 9
         event = PuppetAbandonmentEvent(self.controller)
         event.resolve_choice(0)
 
-        minion = story.pending_consequences.get("puppet_chain_hide_minion_gate")
-        signal = story.pending_consequences.get("puppet_chain_hide_signal_event_gate")
-        self.assertIsNotNone(minion)
-        self.assertIsNotNone(signal)
-        self.assertEqual(minion.min_round, 10)
-        self.assertEqual(minion.max_round, 13)
-        self.assertTrue(minion.force_on_expire)
-        self.assertEqual(minion.force_door_type, "MONSTER")
-        self.assertTrue(signal.force_on_expire)
-        self.assertEqual(signal.force_door_type, "EVENT")
-        self.assertIn("consumed:puppet_chain_hide_minion_gate", signal.required_flags)
+        self.assertIn("puppet_arc_active", story.story_tags)
+        self.assertIn("puppet_mainline_intro_to_puppet_persona_rift_event", story.pending_consequences)
+        rift = story.pending_consequences["puppet_mainline_intro_to_puppet_persona_rift_event"]
+        self.assertEqual(rift.min_round, 24)  # 9 + 15
+        self.assertEqual(rift.max_round, 34)  # 9 + 25
+        self.assertTrue(rift.force_on_expire)
+        self.assertEqual(rift.force_door_type, "EVENT")
+        self.assertIn("puppet_arc_active", rift.required_flags)
+        self.assertIn("puppet_side_minion_once", story.pending_consequences)
+        self.assertIn("puppet_side_signal_once", story.pending_consequences)
 
     def test_puppet_chain_can_force_signal_event_after_minion_defeat(self):
         story = self.controller.story
@@ -548,10 +549,10 @@ class TestStorySystem(BaseTest):
             minion_door = story.apply_pre_enter_checks(event_door)
         self.assertEqual(minion_door.enum.name, "MONSTER")
         self.assertEqual(minion_door.monster.name, "锈蚀追猎偶")
-        self.assertIn("puppet_chain_hide_minion_gate", story.pending_consequences)
+        self.assertIn("puppet_side_minion_once", story.pending_consequences)
 
         story.resolve_battle_consequence(minion_door.monster, defeated=True)
-        self.assertIn("puppet_chain_hide_minion_gate", story.consumed_consequences)
+        self.assertIn("puppet_side_minion_once", story.consumed_consequences)
 
         self.controller.round_count = 17
         reward_door = DoorEnum.REWARD.create_instance(controller=self.controller)
@@ -559,32 +560,28 @@ class TestStorySystem(BaseTest):
         self.assertEqual(forced_event_door.enum.name, "EVENT")
         self.assertEqual(getattr(forced_event_door, "story_forced_event_key", ""), "puppet_signal_event")
 
-    def test_puppet_signal_registers_forced_shop_trap_reward_and_kind_event(self):
+    def test_puppet_rift_schedules_core_in_15_to_25_rounds(self):
         story = self.controller.story
         self.controller.round_count = 20
-        PuppetSignalEvent(self.controller).resolve_choice(0)
+        PuppetPersonaRiftEvent(self.controller).resolve_choice(0)
+        self.assertIn("puppet_mainline_rift_to_puppet_core_descent_event", story.pending_consequences)
+        core = story.pending_consequences["puppet_mainline_rift_to_puppet_core_descent_event"]
+        self.assertEqual(core.min_round, 35)  # 20 + 15
+        self.assertEqual(core.max_round, 45)  # 20 + 25
+        self.assertTrue(core.force_on_expire)
+        self.assertEqual(core.force_door_type, "EVENT")
 
-        shop = story.pending_consequences.get("puppet_mid_empathy_shop_gate")
-        trap = story.pending_consequences.get("puppet_mid_empathy_trap_gate")
-        reward = story.pending_consequences.get("puppet_mid_empathy_reward_gate")
-        kind = story.pending_consequences.get("puppet_mid_empathy_kind_event_gate")
-        self.assertIsNotNone(shop)
-        self.assertIsNotNone(trap)
-        self.assertIsNotNone(reward)
-        self.assertIsNotNone(kind)
-
-        self.assertTrue(shop.force_on_expire)
-        self.assertEqual(shop.force_door_type, "SHOP")
-        self.assertTrue(trap.force_on_expire)
-        self.assertEqual(trap.force_door_type, "TRAP")
-        self.assertTrue(reward.force_on_expire)
-        self.assertEqual(reward.force_door_type, "REWARD")
-        self.assertTrue(kind.force_on_expire)
-        self.assertEqual(kind.force_door_type, "EVENT")
-        self.assertIn("consumed:puppet_mid_empathy_shop_gate", trap.required_flags)
-        self.assertIn("consumed:puppet_mid_empathy_trap_gate", reward.required_flags)
-        self.assertIn("consumed:puppet_mid_empathy_reward_gate", kind.required_flags)
-        self.assertEqual(kind.payload.get("event_key"), "puppet_kind_echo_event")
+    def test_puppet_core_schedules_final_boss_in_15_to_25_rounds(self):
+        story = self.controller.story
+        self.controller.round_count = 40
+        PuppetCoreDescentEvent(self.controller).resolve_choice(0)
+        self.assertIn("puppet_mainline_final_boss_gate", story.pending_consequences)
+        final_boss = story.pending_consequences["puppet_mainline_final_boss_gate"]
+        self.assertEqual(final_boss.min_round, 55)  # 40 + 15
+        self.assertEqual(final_boss.max_round, 65)  # 40 + 25
+        self.assertTrue(final_boss.force_on_expire)
+        self.assertEqual(final_boss.force_door_type, "MONSTER")
+        self.assertEqual(final_boss.effect_key, "puppet_dark_boss")
 
     def test_puppet_kind_echo_choice_can_reduce_evil_value(self):
         story = self.controller.story
@@ -592,8 +589,6 @@ class TestStorySystem(BaseTest):
         self.controller.round_count = 21
         PuppetKindEchoEvent(self.controller).resolve_choice(0)
         self.assertLess(story.puppet_evil_value, 60)
-        pending_ids = set(story.pending_consequences.keys())
-        self.assertTrue(any(cid.startswith("puppet_kind_echo_trust_rift_gate") for cid in pending_ids))
 
     def test_puppet_dark_boss_can_be_weakened_by_kind_persona(self):
         story = self.controller.story
