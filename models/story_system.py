@@ -305,7 +305,7 @@ class StorySystem:
         return fallback_door
 
     def _apply_payload_metric_deltas(self, consequence: PendingConsequence) -> None:
-        """扩展端口：允许后果在触发时修改剧情指标（如木偶邪恶值）。"""
+        """扩展端口：允许后果在触发时修改剧情指标（如木偶隐性参数）。"""
         payload = consequence.payload or {}
         if "evil_value_delta" not in payload:
             return
@@ -319,10 +319,6 @@ class StorySystem:
         next_val = max(0, min(100, current + delta))
         self.puppet_evil_value = next_val
         self.story_tags.add(f"puppet_evil_bucket:{(next_val // 10) * 10}")
-        if delta > 0:
-            self.controller.add_message(f"木偶邪恶值上升至 {next_val}/100。")
-        else:
-            self.controller.add_message(f"木偶邪恶值下降至 {next_val}/100。")
 
     def _consume_consequence(self, consequence: PendingConsequence) -> None:
         cid = consequence.consequence_id

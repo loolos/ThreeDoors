@@ -2418,8 +2418,8 @@ def _register_puppet_side_consequences(controller):
             "consume_on_defeat": True,
             "hunter_name": "锈蚀追猎偶",
             "hunter_hint": "金属摩擦声忽远忽近，像有一台小型追猎体在你周围绕圈校准。",
-            "message": "你本来想推门离开，一只小木偶却先从门里弹射出来，把你当场撞进战斗区。",
-            "log_trigger": "在你正要打开门之前，一个小木偶突然从门里飞出来冲向了你，把你推入了另一个空间。",
+            "message": "门缝刚开，一只锈蚀小木偶就扑了出来，逼得你当场应战。",
+            "log_trigger": "你手刚碰到门把，门内先传来急促抓挠声，紧接着整道门被反锁改写。",
             "log_result": "你原本选中的门被小弟战斗覆盖，这次只能先把它打掉。",
             "evil_value_delta": 8,
         },
@@ -2535,12 +2535,10 @@ class PuppetAbandonmentEvent(Event):
     def __init__(self, controller):
         super().__init__(controller)
         kind_name, dark_name = _get_puppet_persona_names(controller)
-        evil_value = int(getattr(_get_puppet_chain_state(controller), "puppet_evil_value", 55))
         self.title = "弃线木偶"
         self.description = (
             "你在昏暗走廊尽头看见一具被丢弃的机器人木偶，胸口还挂着半截编号牌。"
             f"屏幕闪烁着两行人格标签：蓝光侧【{kind_name}】、红噪侧【{dark_name}】。"
-            f"当前邪恶值读数：{evil_value}/100。"
             "它一拳砸裂墙面，你确认现在绝不能正面打。"
         )
         self.choices = [
@@ -2561,8 +2559,8 @@ class PuppetAbandonmentEvent(Event):
             self.controller,
             from_stage="intro",
             next_event_key="puppet_persona_rift_event",
-            hint="前情：你刚从弃线木偶手里逃脱，远处传来蓝红双重心跳。",
-            message="前情提要：你在初遇木偶时选择了规避冲突。更深的人格裂隙将在 15~25 回合后被强制拉开。",
+            hint="前情：你侥幸甩开了弃线木偶，但墙后仍回荡着蓝红交替的心跳。",
+            message="前情提要：你从弃线木偶手下脱身了。那道被压住的人格裂隙并未消失，会在 15~25 回合后再次撕开。",
         )
         self.add_message(msg)
         return "Event Completed"
@@ -2573,7 +2571,7 @@ class PuppetAbandonmentEvent(Event):
             route="hide",
             evil_delta=-6,
             moral_delta=3,
-            msg=f"你缩进检修井，听着金属脚步从头顶掠过，险之又险地躲开第一轮追杀（+{heal}HP，邪恶值 -6）。",
+            msg=f"你缩进检修井，听着金属脚步从头顶掠过，险之又险地躲开第一轮追杀（+{heal}HP）。",
         )
 
     def cut_power_and_escape(self):
@@ -2583,7 +2581,7 @@ class PuppetAbandonmentEvent(Event):
             route="blackout",
             evil_delta=4,
             moral_delta=-1,
-            msg=f"你猛拉总闸让整段走廊断电，借黑暗甩开木偶；但被飞散零件擦伤（-{dmg}HP，邪恶值 +4）。",
+            msg=f"你猛拉总闸让整段走廊断电，借黑暗甩开木偶；但被飞散零件擦伤（-{dmg}HP）。",
         )
 
     def throw_decoy(self):
@@ -2594,7 +2592,7 @@ class PuppetAbandonmentEvent(Event):
             route="decoy",
             evil_delta=7,
             moral_delta=-2,
-            msg=f"你把值钱芯片当诱饵抛向岔路，成功骗过木偶扫描，但也烧掉了 {spent}G 物资（邪恶值 +7）。",
+            msg=f"你把值钱芯片当诱饵抛向岔路，成功骗过木偶扫描，但也烧掉了 {spent}G 物资。",
         )
 
 
@@ -2609,12 +2607,10 @@ class PuppetSignalEvent(Event):
     def __init__(self, controller):
         super().__init__(controller)
         kind_name, dark_name = _get_puppet_persona_names(controller)
-        evil_value = int(getattr(_get_puppet_chain_state(controller), "puppet_evil_value", 55))
         self.title = "失真童谣"
         self.description = (
             "门后是一间报废监控室，满墙屏幕循环播放同一个画面：木偶坐在雨里，像被人遗弃的玩具。"
             f"日志交替刷出两句自检：'{kind_name} 请求停止追杀' / '{dark_name} 请求继续清洗目标'。"
-            f"当前邪恶值：{evil_value}/100。"
         )
         self.choices = [
             EventChoice("重放温和语音样本", self.replay_soft_sample),
@@ -2626,14 +2622,14 @@ class PuppetSignalEvent(Event):
         healed = self.get_player().heal(7)
         _adjust_puppet_evil_value(self.controller, -10)
         self.register_story_choice(choice_flag="puppet_signal_soft", moral_delta=4)
-        self.add_message(f"你把旧录音接回主线，总线噪声明显下降（+{healed}HP，邪恶值 -10）。")
+        self.add_message(f"你把旧录音接回主线，总线噪声明显下降（+{healed}HP）。")
         return "Event Completed"
 
     def extract_tactical_log(self):
         self.get_player().change_base_atk(1)
         _adjust_puppet_evil_value(self.controller, -4)
         self.register_story_choice(choice_flag="puppet_signal_log", moral_delta=1)
-        self.add_message("你截取到关键动作日志并补齐了反制参数（基础攻击 +1，邪恶值 -4）。")
+        self.add_message("你截取到关键动作日志并补齐了反制参数（基础攻击 +1）。")
         return "Event Completed"
 
     def resell_corrupted_fragment(self):
@@ -2642,7 +2638,7 @@ class PuppetSignalEvent(Event):
         p.take_damage(4)
         _adjust_puppet_evil_value(self.controller, 10)
         self.register_story_choice(choice_flag="puppet_signal_resell", moral_delta=-4)
-        self.add_message("你把污染片段转卖赚了 18G，但反冲电流灼伤手臂（-4HP，邪恶值 +10）。")
+        self.add_message("你把污染片段转卖赚了 18G，但反冲电流灼伤手臂（-4HP）。")
         return "Event Completed"
 
 
@@ -2657,11 +2653,10 @@ class PuppetKindEchoEvent(Event):
     def __init__(self, controller):
         super().__init__(controller)
         kind_name, dark_name = _get_puppet_persona_names(controller)
-        evil_value = int(getattr(_get_puppet_chain_state(controller), "puppet_evil_value", 55))
         self.title = "蓝眼回声"
         self.description = (
             f"一束细蓝光从坏掉的喇叭里投影成小小木偶轮廓，它自称{kind_name}。"
-            f"它压低声音说：'{dark_name}快接管我了。' 当前邪恶值：{evil_value}/100。"
+            f"它压低声音说：'{dark_name}快接管我了。'"
             "你能感觉到这不是幻觉，而是它善良人格在求援。"
         )
         self.choices = [
@@ -2674,21 +2669,21 @@ class PuppetKindEchoEvent(Event):
         heal = self.get_player().heal(7)
         _adjust_puppet_evil_value(self.controller, -14)
         self.register_story_choice(choice_flag="puppet_kind_echo_trust", moral_delta=5)
-        self.add_message(f"你照着它给的节拍穿过回廊，避开了两组杀招（+{heal}HP，邪恶值 -14）。")
+        self.add_message(f"你照着它给的节拍穿过回廊，避开了两组杀招（+{heal}HP）。")
         return "Event Completed"
 
     def ask_abandoned_past(self):
         self.get_player().gold += 10
         _adjust_puppet_evil_value(self.controller, -9)
         self.register_story_choice(choice_flag="puppet_kind_echo_comfort", moral_delta=4)
-        self.add_message("你听完它被遗弃那晚的全部记录，蓝光稳定了几秒，并交给你一串旧维修密钥（+10G，邪恶值 -9）。")
+        self.add_message("你听完它被遗弃那晚的全部记录，蓝光稳定了几秒，并交给你一串旧维修密钥（+10G）。")
         return "Event Completed"
 
     def extract_weakness(self):
         self.get_player().change_base_atk(1)
         _adjust_puppet_evil_value(self.controller, 6)
         self.register_story_choice(choice_flag="puppet_kind_echo_exploit", moral_delta=-1)
-        self.add_message("你强行提取情感弱点表，战术上更有把握（基础攻击 +1），但它眼里的红噪更浓了（邪恶值 +6）。")
+        self.add_message("你强行提取情感弱点表，战术上更有把握（基础攻击 +1），但它眼里的红噪更浓了。")
         return "Event Completed"
 
 
@@ -2703,12 +2698,11 @@ class PuppetPersonaRiftEvent(Event):
     def __init__(self, controller):
         super().__init__(controller)
         kind_name, dark_name = _get_puppet_persona_names(controller)
-        evil_value = int(getattr(_get_puppet_chain_state(controller), "puppet_evil_value", 55))
         self.title = "人格裂隙"
         self.description = (
             "你踏入门后空间，眼前出现同一具木偶的两层投影：蓝光与红噪不断覆盖彼此。"
             f"{kind_name}在求你别放弃它，{dark_name}则不断诱导你走最快最脏的路径。"
-            f"当前邪恶值：{evil_value}/100。这次回应会影响 15~25 回合后的核心下潜。"
+            "这次回应会影响 15~25 回合后的核心下潜。"
         )
         self.choices = [
             EventChoice(f"护住{kind_name}的信号通道", self.shield_kind_signal),
@@ -2722,8 +2716,8 @@ class PuppetPersonaRiftEvent(Event):
             self.controller,
             from_stage="rift",
             next_event_key="puppet_core_descent_event",
-            hint="前情：人格裂隙战结束，核心井正在重启。",
-            message="前情提要：你已在人格裂隙做出站队。核心下潜将于 15~25 回合后被强制推进。",
+            hint="前情：裂隙暂时闭合，但更深处的核心井已经开始重启。",
+            message="前情提要：你在裂隙里的抉择已写入核心。15~25 回合后，你将被拖入下一段核心下潜。",
         )
         self.add_message(message)
         return "Event Completed"
@@ -2734,7 +2728,7 @@ class PuppetPersonaRiftEvent(Event):
         return self._after_rift(
             route_flag="kind",
             moral_delta=6,
-            message=f"你把护盾接到蓝光回路上，善良人格短暂稳住主导权（+{heal}HP，邪恶值 -15）。",
+            message=f"你把护盾接到蓝光回路上，善良人格短暂稳住主导权（+{heal}HP）。",
         )
 
     def keep_pragmatic_balance(self):
@@ -2743,7 +2737,7 @@ class PuppetPersonaRiftEvent(Event):
         return self._after_rift(
             route_flag="balance",
             moral_delta=1,
-            message="你不选边，只把两侧输出压到可控区间（基础攻击 +1，邪恶值 -3）。",
+            message="你不选边，只把两侧输出压到可控区间（基础攻击 +1）。",
         )
 
     def fuel_dark_side(self):
@@ -2754,7 +2748,7 @@ class PuppetPersonaRiftEvent(Event):
         return self._after_rift(
             route_flag="dark",
             moral_delta=-6,
-            message="你把黑暗协议喂给红噪回路，立刻拿到 15G，但反冲灼伤你的神经（-5HP，邪恶值 +16）。",
+            message="你把黑暗协议喂给红噪回路，立刻拿到 15G，但反冲灼伤你的神经（-5HP）。",
         )
 
 
@@ -2769,11 +2763,10 @@ class PuppetCoreDescentEvent(Event):
     def __init__(self, controller):
         super().__init__(controller)
         kind_name, dark_name = _get_puppet_persona_names(controller)
-        evil_value = int(getattr(_get_puppet_chain_state(controller), "puppet_evil_value", 55))
         self.title = "核心下潜"
         self.description = (
             "你走进核心井，看到木偶本体被铁索吊在半空，黑红电弧在它周身游走。"
-            f"监控写着：善良侧[{kind_name}]、黑暗侧[{dark_name}]。当前邪恶值：{evil_value}/100。"
+            f"监控写着：善良侧[{kind_name}]、黑暗侧[{dark_name}]。"
             "这次选择将决定 15~25 回合后强制开启的最终怪物战。"
         )
         self.choices = [
@@ -2811,7 +2804,7 @@ class PuppetCoreDescentEvent(Event):
                         "kind_persona_name": kind_name,
                         "dark_persona_name": dark_name,
                         "kind_heal": 18,
-                        "no_side_event_message": "你几乎没碰到那些支线干预，它的邪恶值按核心读数直接结算，战斗走势更加不可预测。",
+                        "no_side_event_message": "你几乎没碰到那些支线干预，它的核心参数按默认流程直接结算，战斗走势更加不可预测。",
                         "kind_flags": [
                             "puppet_intro_hide",
                             "puppet_signal_soft",
@@ -2829,8 +2822,8 @@ class PuppetCoreDescentEvent(Event):
                             "puppet_descent_cut_emotion",
                             "puppet_descent_dark_feed",
                         ],
-                        "hint": "前情：核心下潜结束，最终战门正在生成。门后是木偶黑暗人格本体。",
-                        "message": "核心阀门轰然落锁，最终门型开始写入。你知道：这次门后就是它本体。",
+                        "hint": "前情：核心下潜结束，最深处那扇门正在锁定。门后是木偶黑暗人格本体。",
+                        "message": "核心阀门一节节闭合，走廊尽头只剩一扇被红线封死的门。你知道，门后就是它的本体。",
                         "log_trigger": "你正要推开门，整条走廊被红色封锁线覆盖，门框被强制改写成战斗舱。",
                         "log_result": "原本选门彻底无效，最终怪物战被强制开启。",
                         "kind_awaken_message": f"你先前留下的修复指令在最后一秒生效。{kind_name}短暂夺回控制，替你压低了黑暗核心输出。",
@@ -2848,14 +2841,14 @@ class PuppetCoreDescentEvent(Event):
         cost = min(p.gold, 18)
         p.gold -= cost
         healed = p.heal(10)
-        self.add_message(f"你把修复补丁烧进核心，总计消耗 {cost}G 维修件；蓝光重新亮了半秒（+{healed}HP，邪恶值 -18）。")
+        self.add_message(f"你把修复补丁烧进核心，总计消耗 {cost}G 维修件；蓝光重新亮了半秒（+{healed}HP）。")
         return "Event Completed"
 
     def cut_emotion_module(self):
         _adjust_puppet_evil_value(self.controller, 8)
         self._queue_final_boss(route="cut_emotion", moral_delta=-2)
         self.get_player().change_base_atk(2)
-        self.add_message("你一刀切断情感模块供电：仁慈被一起关掉了。代价是更冷更快的战术（基础攻击 +2，邪恶值 +8）。")
+        self.add_message("你一刀切断情感模块供电：仁慈被一起关掉了。代价是更冷更快的战术（基础攻击 +2）。")
         return "Event Completed"
 
     def feed_dark_protocol(self):
@@ -2864,7 +2857,7 @@ class PuppetCoreDescentEvent(Event):
         p = self.get_player()
         p.gold += 22
         p.take_damage(8)
-        self.add_message("你把黑暗协议当筹码卖给旁路终端，先赚 22G；回灌污染流反咬你（-8HP，邪恶值 +20）。")
+        self.add_message("你把黑暗协议当筹码卖给旁路终端，先赚 22G；回灌污染流反咬你（-8HP）。")
         return "Event Completed"
 
 
