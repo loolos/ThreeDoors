@@ -606,7 +606,7 @@ class TestStorySystem(BaseTest):
             controller=self.controller,
             monster=Monster(name="史莱姆", hp=20, atk=4, tier=1),
         )
-        with unittest.mock.patch("models.story_system.random.uniform", return_value=0.0), unittest.mock.patch(
+        with unittest.mock.patch("models.story_system.random.uniform", return_value=0.1), unittest.mock.patch(
             "models.story_system.random.random", return_value=0.9
         ):
             changed = story.apply_pre_enter_checks(monster_door)
@@ -664,7 +664,7 @@ class TestStorySystem(BaseTest):
             controller=self.controller,
             monster=Monster(name="史莱姆", hp=20, atk=4, tier=1),
         )
-        with unittest.mock.patch("models.story_system.random.uniform", return_value=0.0), unittest.mock.patch(
+        with unittest.mock.patch("models.story_system.random.uniform", return_value=0.1), unittest.mock.patch(
             "models.story_system.random.random", return_value=0.9
         ):
             changed = story.apply_pre_enter_checks(monster_door)
