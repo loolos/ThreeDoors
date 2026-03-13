@@ -398,6 +398,63 @@ class StorySystem:
                 self.controller.add_message(f"{name} 厌恶你的作风，愤怒地强化了自己。")
         return door
 
+    def _attach_door_extension(
+        self,
+        door: Any,
+        extension_config: Dict[str, Any],
+        *,
+        apply_on_attach: bool = True,
+    ) -> bool:
+        """将事件改写封装到门扩展，并可在挂载时做一次兼容应用。"""
+        if door is None or not isinstance(extension_config, dict):
+            return False
+        add_method = getattr(door, "add_door_extension", None)
+        if not callable(add_method):
+            add_method = getattr(door, "add_extension", None)
+        if callable(add_method):
+            add_method(extension_config)
+        else:
+            ext_list = getattr(door, "door_extensions", None)
+            if not isinstance(ext_list, list):
+                ext_list = []
+                door.door_extensions = ext_list
+            ext_list.append(extension_config)
+        if apply_on_attach:
+            self.apply_door_extension(door=door, extension=extension_config, hook="on_attach")
+        return True
+
+    @staticmethod
+    def _get_extension_runtime(extension: Dict[str, Any]) -> Dict[str, Any]:
+        runtime = extension.get("_runtime")
+        if not isinstance(runtime, dict):
+            runtime = {}
+            extension["_runtime"] = runtime
+        return runtime
+
+    def _build_marked_reward(
+        self,
+        current_reward: Dict[Any, int],
+        payload: Dict[str, Any],
+    ) -> Tuple[Dict[Any, int], Any]:
+        keep_gold = bool(payload.get("keep_gold", True))
+        reward_gold = current_reward.get("gold", 0) if keep_gold else 0
+        if bool(payload.get("replace_existing_items", True)):
+            new_reward: Dict[Any, int] = {}
+        else:
+            new_reward = {k: v for k, v in current_reward.items() if k != "gold"}
+        if reward_gold > 0:
+            new_reward["gold"] = reward_gold
+        bonus_gold = int(payload.get("gold_bonus", 0))
+        if bonus_gold > 0:
+            new_reward["gold"] = new_reward.get("gold", 0) + bonus_gold
+        amount = max(1, int(payload.get("amount", 1)))
+        item_key = payload.get("item_key")
+        marked_item = self._create_story_item(item_key)
+        if not marked_item:
+            marked_item = create_random_item()
+        new_reward[marked_item] = amount
+        return new_reward, marked_item
+
     def _apply_effect(self, consequence: PendingConsequence, door: Any) -> Tuple[bool, Any]:
         effect = consequence.effect_key
         payload = consequence.payload
@@ -574,11 +631,20 @@ class StorySystem:
                     self._resolve_message(payload, "message", "圣坛余辉保护了你，陷阱化作馈赠。")
                 )
                 reward_door = self._make_reward_door(gold=random.randint(25, 65), include_item=False, hint="神佑余辉")
+                self._attach_door_extension(
+                    door=door,
+                    extension_config={
+                        "extension_type": "trap_rewrite_to_reward",
+                        "reward": dict(getattr(reward_door, "reward", {})),
+                        "hint": getattr(reward_door, "hint", "神佑余辉"),
+                    },
+                    apply_on_attach=False,
+                )
                 self._log_effect_result(
                     consequence,
                     f"险境被改写成馈赠：{self._describe_reward(reward_door)}",
                 )
-                return True, reward_door
+                return True, door
             monster = getattr(door, "monster", None)
             if monster:
                 old_atk = monster.atk
@@ -641,10 +707,16 @@ class StorySystem:
             event_key = payload.get("event_key")
             if not isinstance(event_key, str) or not event_key.strip():
                 return False, door
-            door.story_forced_event_key = event_key.strip()
             hint = payload.get("hint")
-            if isinstance(hint, str) and hint.strip():
-                door.hint = hint.strip()
+            self._attach_door_extension(
+                door=door,
+                extension_config={
+                    "extension_type": "force_story_event",
+                    "event_key": event_key.strip(),
+                    "hint": hint,
+                },
+                apply_on_attach=True,
+            )
             self.controller.add_message(
                 self._resolve_message(payload, "message", "命运突然偏转，下一扇事件门被写上了你的名字。")
             )
@@ -659,10 +731,14 @@ class StorySystem:
             chance = max(0.0, min(1.0, float(chance)))
             if random.random() >= chance:
                 return False, door
-            setattr(door, "elf_side_reward", True)
-            hint = payload.get("hint")
-            if isinstance(hint, str) and hint.strip():
-                door.hint = hint.strip()
+            self._attach_door_extension(
+                door=door,
+                extension_config={
+                    "extension_type": "elf_side_reward_mark",
+                    "hint": payload.get("hint"),
+                },
+                apply_on_attach=True,
+            )
             self.controller.add_message(
                 self._resolve_message(payload, "message", "门缝里闪过一抹银光……")
             )
@@ -680,11 +756,16 @@ class StorySystem:
             monster = getattr(door, "monster", None)
             if monster is None:
                 return False, door
-            setattr(monster, "elf_side_story", True)
             hint = payload.get("hint")
             hint_text = hint.strip() if isinstance(hint, str) and hint.strip() else ""
-            if hint_text:
-                door.hint = hint_text
+            self._attach_door_extension(
+                door=door,
+                extension_config={
+                    "extension_type": "elf_side_monster_mark",
+                    "hint": hint_text,
+                },
+                apply_on_attach=True,
+            )
             message_text = self._resolve_message(payload, "message", "门后传来打斗声，你推门一看——")
             self.controller.add_message(message_text)
             # 该支线强调“入门瞬间就要被拉进战斗”，因此确保 payload 提示会输出到消息流。
@@ -704,16 +785,20 @@ class StorySystem:
             event_key = payload.get("event_key")
             if not isinstance(event_key, str) or not event_key.strip():
                 return False, door
-            new_door = DoorEnum.SHOP.create_instance(controller=self.controller)
-            new_door.story_forced_event_key = event_key.strip()
-            hint = payload.get("hint", "墙上的银色箭羽指向下一次相遇。")
-            if isinstance(hint, str) and hint.strip():
-                new_door.hint = hint.strip()
+            self._attach_door_extension(
+                door=door,
+                extension_config={
+                    "extension_type": "force_story_event",
+                    "event_key": event_key.strip(),
+                    "hint": payload.get("hint", "墙上的银色箭羽指向下一次相遇。"),
+                },
+                apply_on_attach=True,
+            )
             self.controller.add_message(
                 self._resolve_message(payload, "message", "门后的景象和你预想的不太一样……")
             )
             self._log_effect_result(consequence, "")
-            return True, new_door
+            return True, door
 
         if effect == "treasure_marked_item":
             if getattr(getattr(door, "enum", None), "name", "") != "REWARD":
@@ -721,24 +806,15 @@ class StorySystem:
             current_reward = getattr(door, "reward", {})
             if not isinstance(current_reward, dict):
                 current_reward = {}
-            keep_gold = bool(payload.get("keep_gold", True))
-            reward_gold = current_reward.get("gold", 0) if keep_gold else 0
-            if bool(payload.get("replace_existing_items", True)):
-                new_reward: Dict[Any, int] = {}
-            else:
-                new_reward = {k: v for k, v in current_reward.items() if k != "gold"}
-            if reward_gold > 0:
-                new_reward["gold"] = reward_gold
-            bonus_gold = int(payload.get("gold_bonus", 0))
-            if bonus_gold > 0:
-                new_reward["gold"] = new_reward.get("gold", 0) + bonus_gold
-            amount = max(1, int(payload.get("amount", 1)))
-            item_key = payload.get("item_key")
-            marked_item = self._create_story_item(item_key)
-            if not marked_item:
-                marked_item = create_random_item()
-            new_reward[marked_item] = amount
-            door.reward = new_reward
+            new_reward, marked_item = self._build_marked_reward(current_reward=current_reward, payload=payload)
+            self._attach_door_extension(
+                door=door,
+                extension_config={
+                    "extension_type": "treasure_marked_item",
+                    "resolved_reward": new_reward,
+                },
+                apply_on_attach=True,
+            )
             self.controller.add_message(
                 self._resolve_message(payload, "message", f"宝物门被人做了记号，里面是 {marked_item.name}。")
             )
@@ -752,7 +828,14 @@ class StorySystem:
             if getattr(getattr(door, "enum", None), "name", "") != "REWARD":
                 return False, door
             fake_gold = max(0, int(payload.get("fake_gold", 0)))
-            door.reward = {"gold": fake_gold} if fake_gold > 0 else {}
+            self._attach_door_extension(
+                door=door,
+                extension_config={
+                    "extension_type": "treasure_vanish",
+                    "resolved_reward": {"gold": fake_gold} if fake_gold > 0 else {},
+                },
+                apply_on_attach=True,
+            )
             self.controller.add_message(
                 self._resolve_message(payload, "message", "你推开宝物门，只看到被提前洗劫的空架子。")
             )
@@ -1365,6 +1448,98 @@ class StorySystem:
             actor = "木偶" if trigger == "monster_attack" else "玩家"
             self.controller.add_message(f"【连锁结算】{actor}本次伤害 {raw_damage}→{adjusted}。")
         return adjusted
+
+    def apply_door_extension(
+        self,
+        door: Any,
+        extension: Dict[str, Any],
+        hook: str,
+        **kwargs,
+    ) -> Dict[str, Any]:
+        """统一门扩展入口：事件对门的改写逻辑集中在此。"""
+        if door is None or not isinstance(extension, dict):
+            return {}
+        ext_type = extension.get("extension_type")
+        door_type = getattr(getattr(door, "enum", None), "name", "")
+        runtime = self._get_extension_runtime(extension)
+
+        if ext_type == "force_story_event":
+            event_key = extension.get("event_key")
+            if door_type not in {"EVENT", "SHOP"}:
+                return {}
+            if not isinstance(event_key, str) or not event_key.strip():
+                return {}
+            door.story_forced_event_key = event_key.strip()
+            hint = extension.get("hint")
+            if isinstance(hint, str) and hint.strip():
+                door.hint = hint.strip()
+            runtime["applied"] = True
+            return {"applied": True}
+
+        if ext_type == "elf_side_reward_mark":
+            if door_type != "REWARD":
+                return {}
+            setattr(door, "elf_side_reward", True)
+            hint = extension.get("hint")
+            if isinstance(hint, str) and hint.strip():
+                door.hint = hint.strip()
+            runtime["applied"] = True
+            return {"applied": True}
+
+        if ext_type == "elf_side_monster_mark":
+            if door_type != "MONSTER":
+                return {}
+            monster = getattr(door, "monster", None)
+            if monster is None:
+                return {}
+            setattr(monster, "elf_side_story", True)
+            hint = extension.get("hint")
+            if isinstance(hint, str) and hint.strip():
+                door.hint = hint.strip()
+            runtime["applied"] = True
+            return {"applied": True}
+
+        if ext_type == "treasure_marked_item":
+            if door_type != "REWARD":
+                return {}
+            if runtime.get("reward_written"):
+                return {"applied": True}
+            resolved_reward = extension.get("resolved_reward", {})
+            if not isinstance(resolved_reward, dict):
+                resolved_reward = {}
+            door.reward = dict(resolved_reward)
+            runtime["reward_written"] = True
+            return {"applied": True}
+
+        if ext_type == "treasure_vanish":
+            if door_type != "REWARD":
+                return {}
+            if runtime.get("reward_written"):
+                return {"applied": True}
+            resolved_reward = extension.get("resolved_reward", {})
+            if not isinstance(resolved_reward, dict):
+                resolved_reward = {}
+            door.reward = dict(resolved_reward)
+            runtime["reward_written"] = True
+            return {"applied": True}
+
+        if ext_type == "trap_rewrite_to_reward":
+            if door_type != "TRAP" or hook != "before_enter":
+                return {}
+            if runtime.get("converted"):
+                return {"skip_default_enter": True}
+            reward = extension.get("reward", {})
+            if not isinstance(reward, dict):
+                reward = {}
+            reward_door = DoorEnum.REWARD.create_instance(
+                controller=self.controller,
+                reward=dict(reward),
+                hint=extension.get("hint", "神佑余辉"),
+            )
+            runtime["converted"] = True
+            return {"replacement_door": reward_door}
+
+        return {}
 
     def apply_battle_extension(
         self,
