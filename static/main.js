@@ -7,6 +7,20 @@ let currentChoices = [];
 let hasRenderedState = false;
 
 const delay = ms => new Promise(res => setTimeout(res, ms));
+const REQUEST_TIMEOUT_MS = 8000;
+const STATE_TIMEOUT_MS = 6000;
+const RETRY_DELAY_MS = 900;
+const CATCHUP_DELAY_MS = 2200;
+const RETRY_AFTER_SECONDS = 3;
+const NETWORK_FUNNY_HINTS = [
+  "🕯️ 地牢信号忽明忽暗，信鸽正在申请第二次起飞许可。",
+  "🧭 罗盘刚刚打了个喷嚏，路线正在重新计算。",
+  "🐌 后端快递员被一只蜗牛超车了，包裹正在追回。",
+  "📮 你的请求卡在异次元邮箱，邮差正努力敲门。",
+  "🌩️ 天空闪过静电，卷轴边缘有点焦，但消息还活着。",
+  "🛡️ 守门骑士在核验暗号，马上放行下一班数据马车。"
+];
+let lastNetworkHintAt = 0;
 
 const SOUND_STORAGE_KEY = "three_doors_sound_enabled";
 const SoundSystem = {
@@ -275,6 +289,89 @@ function getFrontDoorStyle(textureKey) {
   return map[textureKey] || { main: "🚪", accent: "🔑" };
 }
 
+function pickRandom(items) {
+  return items[Math.floor(Math.random() * items.length)];
+}
+
+function isTimeoutError(err) {
+  if (!err) return false;
+  if (err.name === "AbortError") return true;
+  const msg = String(err.message || "").toLowerCase();
+  return msg.includes("timeout");
+}
+
+function shouldLogNetworkHintNow() {
+  const now = Date.now();
+  if (now - lastNetworkHintAt < 1200) return false;
+  lastNetworkHintAt = now;
+  return true;
+}
+
+function logNetworkIssue(context, err, attempt, maxAttempts) {
+  if (!shouldLogNetworkHintNow()) return;
+  const primary = isTimeoutError(err)
+    ? `⏳ ${context}超时，回声信道暂时堵塞。`
+    : `📡 ${context}失败，地牢通信暂时中断。`;
+  const suffix = attempt < maxAttempts
+    ? `正在重连（${attempt}/${maxAttempts}）...`
+    : `请 ${RETRY_AFTER_SECONDS} 秒后重试，我们会继续尝试追上进度。`;
+  addLog(`${primary}\n${pickRandom(NETWORK_FUNNY_HINTS)}\n${suffix}`);
+}
+
+async function fetchJsonWithTimeout(url, options = {}, timeoutMs = REQUEST_TIMEOUT_MS) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, {
+      ...options,
+      signal: controller.signal
+    });
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status} ${res.statusText}`);
+    }
+    return await res.json();
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function requestJsonWithRetry(
+  url,
+  options = {},
+  { timeoutMs = REQUEST_TIMEOUT_MS, maxAttempts = 2, context = "请求" } = {}
+) {
+  let lastErr = null;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await fetchJsonWithTimeout(url, options, timeoutMs);
+    } catch (err) {
+      lastErr = err;
+      logNetworkIssue(context, err, attempt, maxAttempts);
+      if (attempt < maxAttempts) {
+        await delay(RETRY_DELAY_MS * attempt);
+      }
+    }
+  }
+  throw lastErr;
+}
+
+async function catchupStateSync() {
+  addLog("🧵 正在重新缝合时间线，尝试同步最新局势...");
+  try {
+    await delay(CATCHUP_DELAY_MS);
+    const state = await requestJsonWithRetry("/getState", {}, {
+      timeoutMs: STATE_TIMEOUT_MS,
+      maxAttempts: 2,
+      context: "状态回补"
+    });
+    renderState(state);
+    addLog("✅ 已重新连上命运主线，你可以继续行动。");
+  } catch (err) {
+    console.error("Catch-up sync error:", err);
+    addLog(`🌫️ 连接仍不稳定，请 ${RETRY_AFTER_SECONDS} 秒后再试一次。`);
+  }
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   initUI();
   initSoundControls();
@@ -340,16 +437,22 @@ async function handleDoorClick(index, card) {
 
   try {
     // 1. Commit Action
-    const actionRes = await fetch("/buttonAction", {
+    const actionData = await requestJsonWithRetry("/buttonAction", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ index: index })
+    }, {
+      timeoutMs: REQUEST_TIMEOUT_MS,
+      maxAttempts: 2,
+      context: "开门动作"
     });
-    const actionData = await actionRes.json();
 
     // 2. Get New State (to peek at result)
-    const stateRes = await fetch("/getState");
-    const newState = await stateRes.json();
+    const newState = await requestJsonWithRetry("/getState", {}, {
+      timeoutMs: STATE_TIMEOUT_MS,
+      maxAttempts: 2,
+      context: "开门结果同步"
+    });
 
     // 3. Reveal Animation
     // We use the passed 'card' element directly. 
@@ -383,6 +486,7 @@ async function handleDoorClick(index, card) {
 
   } catch (err) {
     console.error("Door Click Error:", err);
+    await catchupStateSync();
   } finally {
     // Re-enable pointer events (though renderState usually rebuilds the area)
     if (doorArea) doorArea.style.pointerEvents = "auto";
@@ -412,12 +516,15 @@ async function buttonAction(index) {
   if (buttonArea) buttonArea.style.pointerEvents = "none";
 
   try {
-    const res = await fetch("/buttonAction", {
+    const data = await requestJsonWithRetry("/buttonAction", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ index: index })
+    }, {
+      timeoutMs: REQUEST_TIMEOUT_MS,
+      maxAttempts: 2,
+      context: "执行动作"
     });
-    const data = await res.json();
     if (data.log) {
       addLog(data.log);
     }
@@ -430,6 +537,7 @@ async function buttonAction(index) {
     await getStateAndRender();
   } catch (err) {
     console.error("Action error:", err);
+    await catchupStateSync();
   } finally {
     actionInProgress = false;
     if (buttonArea) buttonArea.style.pointerEvents = "auto";
@@ -437,18 +545,29 @@ async function buttonAction(index) {
 }
 
 async function startOver() {
-  const res = await fetch("/startOver", { method: "POST" });
-  const data = await res.json();
-  addLog(data.log || data.msg);
-  getStateAndRender();
+  try {
+    const data = await requestJsonWithRetry("/startOver", { method: "POST" }, {
+      timeoutMs: REQUEST_TIMEOUT_MS,
+      maxAttempts: 2,
+      context: "重置游戏"
+    });
+    addLog(data.log || data.msg);
+    await getStateAndRender();
+  } catch (err) {
+    console.error("StartOver error:", err);
+    await catchupStateSync();
+  }
 }
 
 async function exitGame() {
   try {
-    const res = await fetch("/exitGame", {
+    const data = await requestJsonWithRetry("/exitGame", {
       method: "POST"
+    }, {
+      timeoutMs: REQUEST_TIMEOUT_MS,
+      maxAttempts: 1,
+      context: "关闭游戏"
     });
-    const data = await res.json();
     addLog(data.log || data.msg);
 
     document.querySelectorAll("button").forEach(b => b.disabled = true);
@@ -472,11 +591,15 @@ async function exitGame() {
 
 async function getStateAndRender() {
   try {
-    const res = await fetch("/getState");
-    const state = await res.json();
+    const state = await requestJsonWithRetry("/getState", {}, {
+      timeoutMs: STATE_TIMEOUT_MS,
+      maxAttempts: 2,
+      context: "获取状态"
+    });
     renderState(state);
   } catch (err) {
     console.error("GetState error:", err);
+    await catchupStateSync();
   }
 }
 
