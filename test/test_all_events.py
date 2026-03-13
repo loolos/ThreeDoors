@@ -489,6 +489,16 @@ class TestAllEvents(BaseTest):
             self.controller.event_trigger_counts["StrangerEvent"] = 2
             self.assertAlmostEqual(events_module._build_event_weight(self.controller, StrangerEvent), 0.2)
 
+
+    def test_preferred_long_starters_have_triple_pool_weight(self):
+        with unittest.mock.patch.object(events_module, "LONG_EVENT_STARTER_FIRST_TIME_BONUS", 1.0),              unittest.mock.patch.object(events_module, "PREFERRED_LONG_EVENT_WEIGHT_MULTIPLIER", 3.0),              unittest.mock.patch.object(ClockworkBazaarEvent, "get_trigger_probability", return_value=0.2),              unittest.mock.patch.object(PuppetAbandonmentEvent, "get_trigger_probability", return_value=0.2),              unittest.mock.patch.object(ElfThiefIntroEvent, "get_trigger_probability", return_value=0.2):
+            normal_weight = events_module._build_event_weight(self.controller, ClockworkBazaarEvent)
+            puppet_weight = events_module._build_event_weight(self.controller, PuppetAbandonmentEvent)
+            elf_weight = events_module._build_event_weight(self.controller, ElfThiefIntroEvent)
+
+        self.assertAlmostEqual(puppet_weight, normal_weight * 3)
+        self.assertAlmostEqual(elf_weight, normal_weight * 3)
+
     def test_unseen_long_starter_event_has_weight_bonus(self):
         with unittest.mock.patch.object(TimePawnshopEvent, "get_trigger_probability", return_value=0.5):
             weight = events_module._build_event_weight(self.controller, TimePawnshopEvent)

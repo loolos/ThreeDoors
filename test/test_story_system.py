@@ -600,7 +600,7 @@ class TestStorySystem(BaseTest):
             forced_event_door = story.apply_pre_enter_checks(second_event_door)
         self.assertEqual(getattr(forced_event_door, "story_forced_event_key", ""), "moon_verdict_event")
 
-    def test_puppet_intro_schedules_mainline_rift_in_15_to_25_rounds(self):
+    def test_puppet_intro_schedules_mainline_rift_in_20_to_30_rounds(self):
         story = self.controller.story
         self.controller.round_count = 9
         event = PuppetAbandonmentEvent(self.controller)
@@ -609,8 +609,8 @@ class TestStorySystem(BaseTest):
         self.assertIn("puppet_arc_active", story.story_tags)
         self.assertIn("puppet_mainline_intro_to_puppet_persona_rift_event", story.pending_consequences)
         rift = story.pending_consequences["puppet_mainline_intro_to_puppet_persona_rift_event"]
-        self.assertEqual(rift.min_round, 24)  # 9 + 15
-        self.assertEqual(rift.max_round, 34)  # 9 + 25
+        self.assertEqual(rift.min_round, 29)  # 9 + 20
+        self.assertEqual(rift.max_round, 39)  # 9 + 30
         self.assertTrue(rift.force_on_expire)
         self.assertEqual(rift.force_door_type, "EVENT")
         self.assertIn("puppet_arc_active", rift.required_flags)
@@ -642,25 +642,25 @@ class TestStorySystem(BaseTest):
         self.assertEqual(forced_event_door.enum.name, "EVENT")
         self.assertEqual(getattr(forced_event_door, "story_forced_event_key", ""), "puppet_signal_event")
 
-    def test_puppet_rift_schedules_core_in_15_to_25_rounds(self):
+    def test_puppet_rift_schedules_core_in_20_to_30_rounds(self):
         story = self.controller.story
         self.controller.round_count = 20
         PuppetPersonaRiftEvent(self.controller).resolve_choice(0)
         self.assertIn("puppet_mainline_rift_to_puppet_core_descent_event", story.pending_consequences)
         core = story.pending_consequences["puppet_mainline_rift_to_puppet_core_descent_event"]
-        self.assertEqual(core.min_round, 35)  # 20 + 15
-        self.assertEqual(core.max_round, 45)  # 20 + 25
+        self.assertEqual(core.min_round, 40)  # 20 + 20
+        self.assertEqual(core.max_round, 50)  # 20 + 30
         self.assertTrue(core.force_on_expire)
         self.assertEqual(core.force_door_type, "EVENT")
 
-    def test_puppet_core_schedules_final_boss_in_15_to_25_rounds(self):
+    def test_puppet_core_schedules_final_boss_in_20_to_30_rounds(self):
         story = self.controller.story
         self.controller.round_count = 40
         PuppetCoreDescentEvent(self.controller).resolve_choice(0)
         self.assertIn("puppet_mainline_final_boss_gate", story.pending_consequences)
         final_boss = story.pending_consequences["puppet_mainline_final_boss_gate"]
-        self.assertEqual(final_boss.min_round, 55)  # 40 + 15
-        self.assertEqual(final_boss.max_round, 65)  # 40 + 25
+        self.assertEqual(final_boss.min_round, 60)  # 40 + 20
+        self.assertEqual(final_boss.max_round, 70)  # 40 + 30
         self.assertTrue(final_boss.force_on_expire)
         self.assertEqual(final_boss.force_door_type, "MONSTER")
         self.assertEqual(final_boss.effect_key, "puppet_dark_boss")
@@ -728,6 +728,33 @@ class TestStorySystem(BaseTest):
         self.assertEqual(changed.monster.name, "堕暗机偶·弃线者")
         self.assertGreater(changed.monster.hp, 200)
         self.assertGreater(changed.monster.atk, 30)
+
+
+    def test_puppet_final_boss_defeat_grants_low_evil_bonus_rewards(self):
+        story = self.controller.story
+        story.puppet_evil_value = 20
+        monster = Monster(name="裂齿·夜魇·堕暗机偶", hp=10, atk=2, tier=2)
+        setattr(monster, "story_puppet_final_boss", True)
+
+        gold_before = self.player.gold
+        story.resolve_battle_consequence(monster, defeated=True)
+
+        self.assertGreaterEqual(self.player.gold - gold_before, 90)
+        self.assertTrue(any("木偶终战奖励" in msg for msg in self.controller.messages))
+        self.assertTrue(any("木偶结局·晨光修复" in msg for msg in self.controller.messages))
+
+    def test_puppet_final_boss_defeat_high_evil_has_lower_reward(self):
+        story = self.controller.story
+        story.puppet_evil_value = 90
+        story.choice_flags.update({"puppet_intro_blackout", "puppet_intro_decoy", "puppet_signal_resell", "puppet_rift_dark", "puppet_descent_dark_feed"})
+        monster = Monster(name="裂齿·夜魇·堕暗机偶", hp=10, atk=2, tier=2)
+        setattr(monster, "story_puppet_final_boss", True)
+
+        gold_before = self.player.gold
+        story.resolve_battle_consequence(monster, defeated=True)
+
+        self.assertLessEqual(self.player.gold - gold_before, 18)
+        self.assertTrue(any("木偶结局·暗噪回响" in msg for msg in self.controller.messages))
 
     def test_puppet_dark_boss_gets_direct_modifier_from_signal_soft(self):
         story = self.controller.story

@@ -2377,8 +2377,8 @@ def _schedule_puppet_mainline_event(controller, from_stage, next_event_key, hint
         chance=1.0,
         priority=120,
         trigger_door_types=["EVENT"],
-        min_round=current_round + 15,
-        max_round=current_round + 25,
+        min_round=current_round + 20,
+        max_round=current_round + 30,
         force_on_expire=True,
         force_door_type="EVENT",
         required_flags={"puppet_arc_active"},
@@ -2391,6 +2391,17 @@ def _schedule_puppet_mainline_event(controller, from_stage, next_event_key, hint
             "log_result": "你原本选择的门失效，木偶主线强制推进到了下一阶段。",
         },
     )
+
+
+def _emit_puppet_audio_cue(controller, cue="event"):
+    if controller is None or not hasattr(controller, "add_message"):
+        return
+    cue_map = {
+        "event": "【木偶音效】远处传来发条轻响与失真童谣。",
+        "rift": "【木偶音效】双声道人格在耳边重叠回响。",
+        "core": "【木偶音效】核心井深处传来低频轰鸣。",
+    }
+    controller.add_message(cue_map.get(cue, cue_map["event"]))
 
 
 def _register_puppet_side_consequences(controller):
@@ -2560,21 +2571,26 @@ class PuppetAbandonmentEvent(Event):
             from_stage="intro",
             next_event_key="puppet_persona_rift_event",
             hint="前情：你侥幸甩开了弃线木偶，但墙后仍回荡着蓝红交替的心跳。",
-            message="前情提要：你从弃线木偶手下脱身了。那道被压住的人格裂隙并未消失，会在 15~25 回合后再次撕开。",
+            message="前情提要：你从弃线木偶手下脱身了。那道被压住的人格裂隙并未消失，会在 20~30 回合后再次撕开。",
         )
         self.add_message(msg)
         return "Event Completed"
 
     def hide_in_shaft(self):
-        heal = self.get_player().heal(6)
-        return self._start_arc(
-            route="hide",
-            evil_delta=-6,
-            moral_delta=3,
-            msg=f"你缩进检修井，听着金属脚步从头顶掠过，险之又险地躲开第一轮追杀（+{heal}HP）。",
-        )
-
+        _emit_puppet_audio_cue(self.controller, "event")
+        p = self.get_player()
+        if random.random() < 0.55:
+            heal = p.heal(6)
+            evil_delta, moral_delta = -4, 2
+            msg = f"你缩进检修井，踩着木偶巡逻节拍躲开追猎（+{heal}HP）。"
+        else:
+            dmg = 4
+            p.take_damage(dmg)
+            evil_delta, moral_delta = 3, -1
+            msg = f"你本想安静潜行，却误触到旧警报线，慌乱中擦伤（-{dmg}HP）。"
+        return self._start_arc(route="hide", evil_delta=evil_delta, moral_delta=moral_delta, msg=msg)
     def cut_power_and_escape(self):
+        _emit_puppet_audio_cue(self.controller, "event")
         dmg = 5
         self.get_player().take_damage(dmg)
         return self._start_arc(
@@ -2585,6 +2601,7 @@ class PuppetAbandonmentEvent(Event):
         )
 
     def throw_decoy(self):
+        _emit_puppet_audio_cue(self.controller, "event")
         p = self.get_player()
         spent = min(p.gold, 14)
         p.gold -= spent
@@ -2619,20 +2636,28 @@ class PuppetSignalEvent(Event):
         ]
 
     def replay_soft_sample(self):
-        healed = self.get_player().heal(7)
-        _adjust_puppet_evil_value(self.controller, -10)
-        self.register_story_choice(choice_flag="puppet_signal_soft", moral_delta=4)
-        self.add_message(f"你把旧录音接回主线，总线噪声明显下降（+{healed}HP）。")
+        _emit_puppet_audio_cue(self.controller, "event")
+        p = self.get_player()
+        if random.random() < 0.6:
+            healed = p.heal(7)
+            _adjust_puppet_evil_value(self.controller, -8)
+            self.register_story_choice(choice_flag="puppet_signal_soft", moral_delta=2)
+            self.add_message(f"你把旧录音接回主线，总线噪声明显下降（+{healed}HP）。")
+        else:
+            p.take_damage(3)
+            _adjust_puppet_evil_value(self.controller, 5)
+            self.register_story_choice(choice_flag="puppet_signal_soft", moral_delta=-1)
+            self.add_message("录音在关键段落失真，木偶误判了你的节拍，冲击电流反噬（-3HP）。")
         return "Event Completed"
-
     def extract_tactical_log(self):
+        _emit_puppet_audio_cue(self.controller, "event")
         self.get_player().change_base_atk(1)
         _adjust_puppet_evil_value(self.controller, -4)
         self.register_story_choice(choice_flag="puppet_signal_log", moral_delta=1)
         self.add_message("你截取到关键动作日志并补齐了反制参数（基础攻击 +1）。")
         return "Event Completed"
-
     def resell_corrupted_fragment(self):
+        _emit_puppet_audio_cue(self.controller, "event")
         p = self.get_player()
         p.gold += 18
         p.take_damage(4)
@@ -2666,20 +2691,28 @@ class PuppetKindEchoEvent(Event):
         ]
 
     def follow_kind_voice(self):
+        _emit_puppet_audio_cue(self.controller, "event")
         heal = self.get_player().heal(7)
         _adjust_puppet_evil_value(self.controller, -14)
         self.register_story_choice(choice_flag="puppet_kind_echo_trust", moral_delta=5)
         self.add_message(f"你照着它给的节拍穿过回廊，避开了两组杀招（+{heal}HP）。")
         return "Event Completed"
-
     def ask_abandoned_past(self):
-        self.get_player().gold += 10
-        _adjust_puppet_evil_value(self.controller, -9)
-        self.register_story_choice(choice_flag="puppet_kind_echo_comfort", moral_delta=4)
-        self.add_message("你听完它被遗弃那晚的全部记录，蓝光稳定了几秒，并交给你一串旧维修密钥（+10G）。")
+        _emit_puppet_audio_cue(self.controller, "event")
+        p = self.get_player()
+        p.gold += 8
+        if random.random() < 0.5:
+            _adjust_puppet_evil_value(self.controller, -7)
+            self.register_story_choice(choice_flag="puppet_kind_echo_comfort", moral_delta=3)
+            self.add_message("你听完它被遗弃那晚的记录，蓝光短暂稳定，并交给你旧维修密钥（+8G）。")
+        else:
+            p.take_damage(4)
+            _adjust_puppet_evil_value(self.controller, 4)
+            self.register_story_choice(choice_flag="puppet_kind_echo_comfort", moral_delta=-2)
+            self.add_message("你触碰到过深记忆，情绪回路反咬你，胸口像被电弧掠过（-4HP，仍拿到 8G）。")
         return "Event Completed"
-
     def extract_weakness(self):
+        _emit_puppet_audio_cue(self.controller, "event")
         self.get_player().change_base_atk(1)
         _adjust_puppet_evil_value(self.controller, 6)
         self.register_story_choice(choice_flag="puppet_kind_echo_exploit", moral_delta=-1)
@@ -2688,7 +2721,7 @@ class PuppetKindEchoEvent(Event):
 
 
 class PuppetPersonaRiftEvent(Event):
-    """主线二：人格裂隙（由初始事件后 15~25 回合强推）。"""
+    """主线二：人格裂隙（由初始事件后 20~30 回合强推）。"""
     TRIGGER_BASE_PROBABILITY = 0.0
 
     @classmethod
@@ -2702,7 +2735,7 @@ class PuppetPersonaRiftEvent(Event):
         self.description = (
             "你踏入门后空间，眼前出现同一具木偶的两层投影：蓝光与红噪不断覆盖彼此。"
             f"{kind_name}在求你别放弃它，{dark_name}则不断诱导你走最快最脏的路径。"
-            "这次回应会影响 15~25 回合后的核心下潜。"
+            "这次回应会影响 20~30 回合后的核心下潜。"
         )
         self.choices = [
             EventChoice(f"护住{kind_name}的信号通道", self.shield_kind_signal),
@@ -2717,12 +2750,13 @@ class PuppetPersonaRiftEvent(Event):
             from_stage="rift",
             next_event_key="puppet_core_descent_event",
             hint="前情：裂隙暂时闭合，但更深处的核心井已经开始重启。",
-            message="前情提要：你在裂隙里的抉择已写入核心。15~25 回合后，你将被拖入下一段核心下潜。",
+            message="前情提要：你在裂隙里的抉择已写入核心。20~30 回合后，你将被拖入下一段核心下潜。",
         )
         self.add_message(message)
         return "Event Completed"
 
     def shield_kind_signal(self):
+        _emit_puppet_audio_cue(self.controller, "rift")
         heal = self.get_player().heal(9)
         _adjust_puppet_evil_value(self.controller, -15)
         return self._after_rift(
@@ -2730,17 +2764,22 @@ class PuppetPersonaRiftEvent(Event):
             moral_delta=6,
             message=f"你把护盾接到蓝光回路上，善良人格短暂稳住主导权（+{heal}HP）。",
         )
-
     def keep_pragmatic_balance(self):
-        self.get_player().change_base_atk(1)
-        _adjust_puppet_evil_value(self.controller, -3)
-        return self._after_rift(
-            route_flag="balance",
-            moral_delta=1,
-            message="你不选边，只把两侧输出压到可控区间（基础攻击 +1）。",
-        )
-
+        _emit_puppet_audio_cue(self.controller, "rift")
+        p = self.get_player()
+        if random.random() < 0.5:
+            p.change_base_atk(1)
+            _adjust_puppet_evil_value(self.controller, -2)
+            moral_delta = 1
+            message = "你维持双侧输出平衡，战术窗口扩大了一瞬（基础攻击 +1）。"
+        else:
+            p.take_damage(4)
+            _adjust_puppet_evil_value(self.controller, 3)
+            moral_delta = -1
+            message = "你试图两边都压住，却被裂隙反向共振震伤（-4HP）。"
+        return self._after_rift(route_flag="balance", moral_delta=moral_delta, message=message)
     def fuel_dark_side(self):
+        _emit_puppet_audio_cue(self.controller, "rift")
         p = self.get_player()
         p.gold += 15
         p.take_damage(5)
@@ -2753,7 +2792,7 @@ class PuppetPersonaRiftEvent(Event):
 
 
 class PuppetCoreDescentEvent(Event):
-    """主线三：核心下潜（由人格裂隙后 15~25 回合强推）。"""
+    """主线三：核心下潜（由人格裂隙后 20~30 回合强推）。"""
     TRIGGER_BASE_PROBABILITY = 0.0
 
     @classmethod
@@ -2767,7 +2806,7 @@ class PuppetCoreDescentEvent(Event):
         self.description = (
             "你走进核心井，看到木偶本体被铁索吊在半空，黑红电弧在它周身游走。"
             f"监控写着：善良侧[{kind_name}]、黑暗侧[{dark_name}]。"
-            "这次选择将决定 15~25 回合后强制开启的最终怪物战。"
+            "这次选择将决定 20~30 回合后强制开启的最终怪物战。"
         )
         self.choices = [
             EventChoice("写入修复补丁，尝试唤醒善良人格", self.patch_kind_persona),
@@ -2790,8 +2829,8 @@ class PuppetCoreDescentEvent(Event):
                     "chance": 1.0,
                     "priority": 130,
                     "trigger_door_types": ["MONSTER", "EVENT"],
-                    "min_round": current_round + 15,
-                    "max_round": current_round + 25,
+                    "min_round": current_round + 20,
+                    "max_round": current_round + 30,
                     "force_on_expire": True,
                     "force_door_type": "MONSTER",
                     "required_flags": {"puppet_arc_active"},
@@ -2835,6 +2874,7 @@ class PuppetCoreDescentEvent(Event):
         )
 
     def patch_kind_persona(self):
+        _emit_puppet_audio_cue(self.controller, "core")
         _adjust_puppet_evil_value(self.controller, -18)
         self._queue_final_boss(route="patch", moral_delta=7)
         p = self.get_player()
@@ -2843,15 +2883,21 @@ class PuppetCoreDescentEvent(Event):
         healed = p.heal(10)
         self.add_message(f"你把修复补丁烧进核心，总计消耗 {cost}G 维修件；蓝光重新亮了半秒（+{healed}HP）。")
         return "Event Completed"
-
     def cut_emotion_module(self):
-        _adjust_puppet_evil_value(self.controller, 8)
+        _emit_puppet_audio_cue(self.controller, "core")
+        p = self.get_player()
         self._queue_final_boss(route="cut_emotion", moral_delta=-2)
-        self.get_player().change_base_atk(2)
-        self.add_message("你一刀切断情感模块供电：仁慈被一起关掉了。代价是更冷更快的战术（基础攻击 +2）。")
+        if random.random() < 0.55:
+            _adjust_puppet_evil_value(self.controller, 6)
+            p.change_base_atk(2)
+            self.add_message("你切断情感模块，战斗逻辑更干净利落（基础攻击 +2）。")
+        else:
+            _adjust_puppet_evil_value(self.controller, -4)
+            p.take_damage(6)
+            self.add_message("你切模块时被残留的善良侧牵制，动作迟疑反被灼伤（-6HP）。")
         return "Event Completed"
-
     def feed_dark_protocol(self):
+        _emit_puppet_audio_cue(self.controller, "core")
         _adjust_puppet_evil_value(self.controller, 20)
         self._queue_final_boss(route="dark_feed", moral_delta=-7)
         p = self.get_player()
@@ -2989,7 +3035,7 @@ def _schedule_next_elf_event(controller, completed_key):
 
 
 class ElfThiefIntroEvent(Event):
-    TRIGGER_BASE_PROBABILITY = 0.32  # 4× 原 0.08，便于尽早触发
+    TRIGGER_BASE_PROBABILITY = 0.08  # 在随机池权重层统一做 3× 提升
     MIN_TRIGGER_ROUND = 6
 
     @classmethod
@@ -3706,6 +3752,11 @@ LONG_EVENT_STARTER_CLASSES = {
 }
 
 LONG_EVENT_STARTER_FIRST_TIME_BONUS = 1.8
+PREFERRED_LONG_EVENT_WEIGHT_MULTIPLIER = 3.0
+PREFERRED_LONG_EVENT_STARTERS = {
+    PuppetAbandonmentEvent,
+    ElfThiefIntroEvent,
+}
 
 
 def _clamp_probability(value):
@@ -3766,6 +3817,10 @@ def _build_event_weight(controller, event_cls):
     # 还未触发过的长线起始事件优先级更高。
     if event_cls in LONG_EVENT_STARTER_CLASSES and trigger_count <= 0:
         weight *= LONG_EVENT_STARTER_FIRST_TIME_BONUS
+
+    # 指定长线起始事件（精灵飞贼/黑暗木偶）在随机池中提升到其他长事件的约 3 倍权重。
+    if event_cls in PREFERRED_LONG_EVENT_STARTERS:
+        weight *= PREFERRED_LONG_EVENT_WEIGHT_MULTIPLIER
 
     # 可重复事件按触发次数衰减：weight / (1 + 次数)
     if not getattr(event_cls, "ONLY_TRIGGER_ONCE", False):

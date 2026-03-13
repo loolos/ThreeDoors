@@ -336,9 +336,11 @@ class StorySystem:
         return bool(getattr(monster, "story_consume_on_defeat", False))
 
     def resolve_battle_consequence(self, monster: Any, defeated: bool) -> None:
-        """战斗收尾：仅在击倒目标时结算特定后续影响。"""
+        """战斗收尾：击败特定目标时结算后续影响；木偶最终战额外结算结局与奖励。"""
         if not monster:
             return
+        if defeated and bool(getattr(monster, "story_puppet_final_boss", False)):
+            self._resolve_puppet_final_outcome()
         cid = getattr(monster, "story_consequence_id", None)
         if not cid:
             return
@@ -350,6 +352,59 @@ class StorySystem:
         if not consequence:
             return
         self._consume_consequence(consequence)
+
+    def _resolve_puppet_final_outcome(self) -> None:
+        evil = max(0, min(100, int(getattr(self, "puppet_evil_value", 55))))
+        player = getattr(self.controller, "player", None)
+        if player is None:
+            return
+        low_flags = {"puppet_intro_hide", "puppet_signal_soft", "puppet_kind_echo_trust", "puppet_rift_kind", "puppet_descent_patch"}
+        high_flags = {"puppet_intro_blackout", "puppet_intro_decoy", "puppet_signal_resell", "puppet_kind_echo_exploit", "puppet_rift_dark", "puppet_descent_dark_feed", "puppet_descent_cut_emotion"}
+        flags = set(getattr(self, "choice_flags", set()))
+        low_hits = len(low_flags.intersection(flags))
+        high_hits = len(high_flags.intersection(flags))
+
+        bonus_gold = 0
+        bonus_items = []
+        ending_text = ""
+        if evil <= 25:
+            bonus_gold = 90
+            bonus_items = ["revive_scroll", "barrier"]
+            ending_text = "【木偶结局·晨光修复】你把它从最深的噪声里拽了回来。善良人格保留了最后的名字，向你献上封存宝物。"
+        elif evil <= 45:
+            bonus_gold = 65
+            bonus_items = ["attack_up_scroll"]
+            ending_text = "【木偶结局·带伤停机】黑暗协议被压住大半，机偶在熄火前向你开放了补给仓。"
+        elif evil <= 70:
+            bonus_gold = 40
+            ending_text = "【木偶结局·灰烬停摆】两个人格互相磨灭，留下可回收的战利品。"
+        else:
+            bonus_gold = 18
+            ending_text = "【木偶结局·暗噪回响】你虽然赢了，但黑暗协议已散入地城深处，只留下零碎报酬。"
+
+        # 让此前选择也影响文本
+        if low_hits >= 3 and evil <= 45:
+            ending_text += " 你先前多次选择保留善良侧信号，因此得到额外宝物。"
+            bonus_items.append("giant_scroll")
+        if high_hits >= 4 and evil >= 55:
+            ending_text += " 你曾多次借黑暗牟利，清算过程吞掉了一部分战利品。"
+            bonus_gold = max(0, bonus_gold - 12)
+
+        player.gold += bonus_gold
+        item_names = []
+        for item_key in bonus_items:
+            item = self._create_story_item(item_key)
+            if item is None:
+                continue
+            player.add_item(item)
+            item_names.append(getattr(item, "name", item_key))
+
+        self.controller.add_message("【木偶终曲】怪物倒下后，走廊响起一段残缺却温柔的收束旋律。")
+        self.controller.add_message(ending_text)
+        reward_msg = f"你获得额外 {bonus_gold}G。"
+        if item_names:
+            reward_msg += f" 额外宝物：{', '.join(item_names)}。"
+        self.controller.add_message(f"【木偶终战奖励】邪恶值 {evil}/100，{reward_msg}")
 
     def record_elf_side_monster_outcome(self, monster: Any, defeated: bool) -> None:
         """银羽与利爪支线：根据击倒或逃跑给出不同提示并更新精灵关系。"""
@@ -928,6 +983,8 @@ class StorySystem:
                 current_round=round_count,
                 power_score=power_score,
             )
+            setattr(boss, "story_puppet_final_boss", True)
+            self.controller.add_message("【木偶音效】警报弦音与重低鼓点同时拉响。")
             if side_hit_count <= 0:
                 self.controller.add_message(
                     self._resolve_message(
@@ -1379,6 +1436,7 @@ class StorySystem:
         self.controller.add_message(
             f"【阶段切换】{old_name}核心炸裂，{monster.name}爆发登场！恢复 {burst_heal} 点生命，攻击抬升至 {monster.atk}。"
         )
+        self.controller.add_message("【木偶音效】失真童谣被重低音撕开，完全体战斗主题开始。")
         self._apply_puppet_entry_modifiers(monster=monster, state=state, phase=2)
         return True
 
