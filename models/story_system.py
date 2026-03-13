@@ -910,8 +910,8 @@ class StorySystem:
             boss_name = payload.get("boss_name", "堕暗机偶·弃线者")
             phase2_name = payload.get("phase2_name", "堕暗机偶·黑暗完全体")
             story_flags = self.choice_flags.union(self.story_tags)
-            kind_name = payload.get("kind_persona_name", "绒心·诺诺")
-            dark_name = payload.get("dark_persona_name", "裂齿·夜魇")
+            kind_name = payload.get("kind_persona_name", "绒心")
+            dark_name = payload.get("dark_persona_name", "裂齿")
 
             default_kind_flags = {
                 "puppet_intro_hide",
@@ -1711,9 +1711,8 @@ class StorySystem:
         return ""
 
     def _log_effect_result(self, consequence: PendingConsequence, detail: str) -> None:
-        custom = self._resolve_message(consequence.payload, "log_result", "")
-        if custom:
-            self.controller.add_message(custom)
+        # 若 payload 有 log_trigger，说明已在触发时展示合并文案，此处不再重复
+        if self._resolve_message(consequence.payload, "log_trigger", ""):
             return
 
         cid = consequence.consequence_id

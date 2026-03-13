@@ -1040,8 +1040,7 @@ class RefugeeCaravanEvent(Event):
                             "你抢劫车队的旧账被翻了出来，复仇者堵住了去路。",
                             "被你洗劫的车队雇来了追猎者，这次他们不打算谈判。",
                         ],
-                        "log_trigger": "你忽然看见地上那面破旗，意识到车队的复仇追上来了。",
-                        "log_result": "期限已到，复仇者破门而入，你被强行拖进了清算战。",
+                        "log_trigger": "你忽然看见地上那面破旗，意识到车队的复仇追上来了。期限已到，复仇者破门而入，你被强行拖进了清算战。",
                     },
                 },
             ],
@@ -2387,8 +2386,7 @@ def _schedule_puppet_mainline_event(controller, from_stage, next_event_key, hint
             "event_key": next_event_key,
             "hint": hint,
             "message": message,
-            "log_trigger": "你刚要按原计划开门，墙内警报突然改写路线，门框上的编号被系统重排。",
-            "log_result": "你原本选择的门失效，木偶主线强制推进到了下一阶段。",
+            "log_trigger": "你刚要按原计划开门，墙内警报突然改写路线，门框上的编号被系统重排。你原本选择的门失效，木偶主线强制推进到了下一阶段。",
         },
     )
 
@@ -2430,8 +2428,7 @@ def _register_puppet_side_consequences(controller):
             "hunter_name": "锈蚀追猎偶",
             "hunter_hint": "金属摩擦声忽远忽近，像有一台小型追猎体在你周围绕圈校准。",
             "message": "门缝刚开，一只锈蚀小木偶就扑了出来，逼得你当场应战。",
-            "log_trigger": "你手刚碰到门把，门内先传来急促抓挠声，紧接着整道门被反锁改写。",
-            "log_result": "你原本选中的门被小弟战斗覆盖，这次只能先把它打掉。",
+            "log_trigger": "你手刚碰到门把，门内先传来急促抓挠声，紧接着整道门被反锁改写。你原本选中的门被小弟战斗覆盖，这次只能先把它打掉。",
             "evil_value_delta": 8,
         },
     )
@@ -2449,8 +2446,7 @@ def _register_puppet_side_consequences(controller):
             "event_key": "puppet_signal_event",
             "hint": "前情：你刚拆掉小弟追猎体，墙缝里开始回放失真童谣。",
             "message": "你刚摆脱小弟，失真信号就占据了门禁系统，下一扇门被改写成信号室。",
-            "log_trigger": "你按下门把，墙里的童谣忽然倒放，门牌号被篡改成信号室编号。",
-            "log_result": "原路线被系统强制覆盖，你被拖进了木偶留下的信号节点。",
+            "log_trigger": "你按下门把，墙里的童谣忽然倒放，门牌号被篡改成信号室编号。原路线被系统强制覆盖，你被拖进了木偶留下的信号节点。",
             "evil_value_delta": -5,
         },
     )
@@ -2467,8 +2463,7 @@ def _register_puppet_side_consequences(controller):
         payload={
             "ratio": 1.18,
             "message": "你携带的木偶日志被黑市识别为高风险污染样本，商人当场给你上调了风险价。",
-            "log_trigger": "你本想走普通商店，但门后柜台亮起红灯，显示“污染样本处理费”。",
-            "log_result": "你挑的门没按原计划结算，被木偶线的交易后果改写。",
+            "log_trigger": "你本想走普通商店，但门后柜台亮起红灯，显示“污染样本处理费”。你挑的门没按原计划结算，被木偶线的交易后果改写。",
             "evil_value_delta": 6,
         },
     )
@@ -2485,8 +2480,7 @@ def _register_puppet_side_consequences(controller):
         payload={
             "duration": 1,
             "message": "木偶病毒噪声短暂劫持了你的节拍，陷阱区里你的动作慢了半拍。",
-            "log_trigger": "你脚下地砖突然翻转，原门被机关吞没，新的出口只剩陷阱回廊。",
-            "log_result": "选门失效，你被强行送进了机关线。",
+            "log_trigger": "你脚下地砖突然翻转，原门被机关吞没，新的出口只剩陷阱回廊。选门失效，你被强行送进了机关线。",
             "evil_value_delta": 7,
         },
     )
@@ -2504,8 +2498,7 @@ def _register_puppet_side_consequences(controller):
             "item_key": "barrier",
             "gold_bonus": 14,
             "message": "一段蓝光子程序提前改写了宝物舱清单，留给你一台应急结界发生器。",
-            "log_trigger": "你选中的门被机械臂贴上“样本回收”标签，门框重排成临时宝物舱结构。",
-            "log_result": "路线被木偶链路短暂劫持，你被迫先处理这一处宝物事件。",
+            "log_trigger": "你选中的门被机械臂贴上“样本回收”标签，门框重排成临时宝物舱结构。路线被木偶链路短暂劫持，你被迫先处理这一处宝物事件。",
             "evil_value_delta": -8,
         },
     )
@@ -2523,8 +2516,7 @@ def _register_puppet_side_consequences(controller):
             "event_key": "puppet_kind_echo_event",
             "hint": "前情：一束细蓝光正在门后等你回应。",
             "message": "你伸手推门时，耳边忽然响起一句轻轻的“别怕”，门牌同步重写成蓝眼回声节点。",
-            "log_trigger": "你原本想开别的门，门框却渗出蓝线，把你拉进了善良人格的求援频道。",
-            "log_result": "你选的门暂时无效，剧情切到善良人格互动。",
+            "log_trigger": "你原本想开别的门，门框却渗出蓝线，把你拉进了善良人格的求援频道。你选的门在蓝光照射下变成了一扇传送门。",
             "evil_value_delta": -4,
         },
     )
@@ -2580,22 +2572,23 @@ class PuppetAbandonmentEvent(Event):
         _emit_puppet_audio_cue(self.controller, "event")
         p = self.get_player()
         if random.random() < 0.55:
-            heal = p.heal(6)
-            evil_delta, moral_delta = -4, 2
+            heal_amt = random.randint(4, 8)
+            heal = p.heal(heal_amt)
+            evil_delta, moral_delta = random.randint(-5, -3), 2
             msg = f"你缩进检修井，踩着木偶巡逻节拍躲开追猎（+{heal}HP）。"
         else:
-            dmg = 4
+            dmg = random.randint(3, 5)
             p.take_damage(dmg)
-            evil_delta, moral_delta = 3, -1
+            evil_delta, moral_delta = random.randint(2, 4), -1
             msg = f"你本想安静潜行，却误触到旧警报线，慌乱中擦伤（-{dmg}HP）。"
         return self._start_arc(route="hide", evil_delta=evil_delta, moral_delta=moral_delta, msg=msg)
     def cut_power_and_escape(self):
         _emit_puppet_audio_cue(self.controller, "event")
-        dmg = 5
+        dmg = random.randint(4, 6)
         self.get_player().take_damage(dmg)
         return self._start_arc(
             route="blackout",
-            evil_delta=4,
+            evil_delta=random.randint(3, 5),
             moral_delta=-1,
             msg=f"你猛拉总闸让整段走廊断电，借黑暗甩开木偶；但被飞散零件擦伤（-{dmg}HP）。",
         )
@@ -2603,11 +2596,12 @@ class PuppetAbandonmentEvent(Event):
     def throw_decoy(self):
         _emit_puppet_audio_cue(self.controller, "event")
         p = self.get_player()
-        spent = min(p.gold, 14)
+        cost = random.randint(10, 18)
+        spent = min(p.gold, cost)
         p.gold -= spent
         return self._start_arc(
             route="decoy",
-            evil_delta=7,
+            evil_delta=random.randint(6, 8),
             moral_delta=-2,
             msg=f"你把值钱芯片当诱饵抛向岔路，成功骗过木偶扫描，但也烧掉了 {spent}G 物资。",
         )
@@ -2639,31 +2633,36 @@ class PuppetSignalEvent(Event):
         _emit_puppet_audio_cue(self.controller, "event")
         p = self.get_player()
         if random.random() < 0.6:
-            healed = p.heal(7)
-            _adjust_puppet_evil_value(self.controller, -8)
+            heal_amt = random.randint(5, 15)
+            healed = p.heal(heal_amt)
+            _adjust_puppet_evil_value(self.controller, random.randint(-10, -6))
             self.register_story_choice(choice_flag="puppet_signal_soft", moral_delta=2)
             self.add_message(f"你把旧录音接回主线，总线噪声明显下降（+{healed}HP）。")
         else:
-            p.take_damage(3)
-            _adjust_puppet_evil_value(self.controller, 5)
+            dmg = random.randint(12, 24)
+            p.take_damage(dmg)
+            _adjust_puppet_evil_value(self.controller, random.randint(4, 6))
             self.register_story_choice(choice_flag="puppet_signal_soft", moral_delta=-1)
-            self.add_message("录音在关键段落失真，木偶误判了你的节拍，冲击电流反噬（-3HP）。")
+            self.add_message(f"录音在关键段落失真，木偶误判了你的节拍，冲击电流反噬（-{dmg}HP）。")
         return "Event Completed"
     def extract_tactical_log(self):
         _emit_puppet_audio_cue(self.controller, "event")
-        self.get_player().change_base_atk(1)
-        _adjust_puppet_evil_value(self.controller, -4)
+        atk_bonus = random.randint(5, 15)
+        self.get_player().change_base_atk(atk_bonus)
+        _adjust_puppet_evil_value(self.controller, random.randint(-5, -3))
         self.register_story_choice(choice_flag="puppet_signal_log", moral_delta=1)
-        self.add_message("你截取到关键动作日志并补齐了反制参数（基础攻击 +1）。")
+        self.add_message(f"你截取到关键动作日志并补齐了反制参数（基础攻击 +{atk_bonus}）。")
         return "Event Completed"
     def resell_corrupted_fragment(self):
         _emit_puppet_audio_cue(self.controller, "event")
         p = self.get_player()
-        p.gold += 18
-        p.take_damage(4)
-        _adjust_puppet_evil_value(self.controller, 10)
+        gold_gain = random.randint(14, 22)
+        dmg = random.randint(13, 25)
+        p.gold += gold_gain
+        p.take_damage(dmg)
+        _adjust_puppet_evil_value(self.controller, random.randint(8, 12))
         self.register_story_choice(choice_flag="puppet_signal_resell", moral_delta=-4)
-        self.add_message("你把污染片段转卖赚了 18G，但反冲电流灼伤手臂（-4HP）。")
+        self.add_message(f"你把污染片段转卖赚了 {gold_gain}G，但反冲电流灼伤手臂（-{dmg}HP）。")
         return "Event Completed"
 
 
@@ -2681,42 +2680,46 @@ class PuppetKindEchoEvent(Event):
         self.title = "蓝眼回声"
         self.description = (
             f"一束细蓝光从坏掉的喇叭里投影成小小木偶轮廓，它自称{kind_name}。"
-            f"它压低声音说：'{dark_name}快接管我了。'"
+            f"它压低声音说：'我中了病毒，{dark_name}快接管我了，快，走这条路，我在这边。'"
             "你能感觉到这不是幻觉，而是它善良人格在求援。"
         )
         self.choices = [
             EventChoice(f"相信{kind_name}，按它给的隐蔽路线前进", self.follow_kind_voice),
-            EventChoice("追问它被抛弃的过去，尝试稳定情绪", self.ask_abandoned_past),
-            EventChoice("记录它的情感弱点，准备决战压制", self.extract_weakness),
+            EventChoice("追问它被抛弃的过去，尝试稳定它的情绪", self.ask_abandoned_past),
+            EventChoice("记录它的情感弱点，无视它的求援，准备决战压制", self.extract_weakness),
         ]
 
     def follow_kind_voice(self):
         _emit_puppet_audio_cue(self.controller, "event")
-        heal = self.get_player().heal(7)
-        _adjust_puppet_evil_value(self.controller, -14)
+        heal_amt = random.randint(5, 10)
+        heal = self.get_player().heal(heal_amt)
+        _adjust_puppet_evil_value(self.controller, random.randint(-16, -12))
         self.register_story_choice(choice_flag="puppet_kind_echo_trust", moral_delta=5)
-        self.add_message(f"你照着它给的节拍穿过回廊，避开了两组杀招（+{heal}HP）。")
+        self.add_message(f"你照着它给的节拍穿过回廊，顺路捡到了一些补给（+{heal}HP）。")
         return "Event Completed"
     def ask_abandoned_past(self):
         _emit_puppet_audio_cue(self.controller, "event")
         p = self.get_player()
-        p.gold += 8
+        gold_gain = random.randint(6, 11)
+        p.gold += gold_gain
         if random.random() < 0.5:
-            _adjust_puppet_evil_value(self.controller, -7)
+            _adjust_puppet_evil_value(self.controller, random.randint(-9, -5))
             self.register_story_choice(choice_flag="puppet_kind_echo_comfort", moral_delta=3)
-            self.add_message("你听完它被遗弃那晚的记录，蓝光短暂稳定，并交给你旧维修密钥（+8G）。")
+            self.add_message(f"你听完它被遗弃那晚的记录，蓝光短暂稳定，并交给你旧维修密钥（+{gold_gain}G）。")
         else:
-            p.take_damage(4)
-            _adjust_puppet_evil_value(self.controller, 4)
+            dmg = random.randint(3, 5)
+            p.take_damage(dmg)
+            _adjust_puppet_evil_value(self.controller, random.randint(3, 5))
             self.register_story_choice(choice_flag="puppet_kind_echo_comfort", moral_delta=-2)
-            self.add_message("你触碰到过深记忆，情绪回路反咬你，胸口像被电弧掠过（-4HP，仍拿到 8G）。")
+            self.add_message(f"你触碰到过深记忆，情绪回路反咬你，胸口像被电弧掠过（-{dmg}HP，仍拿到 {gold_gain}G）。")
         return "Event Completed"
     def extract_weakness(self):
         _emit_puppet_audio_cue(self.controller, "event")
-        self.get_player().change_base_atk(1)
-        _adjust_puppet_evil_value(self.controller, 6)
+        atk_bonus = random.randint(1, 2)
+        self.get_player().change_base_atk(atk_bonus)
+        _adjust_puppet_evil_value(self.controller, random.randint(5, 7))
         self.register_story_choice(choice_flag="puppet_kind_echo_exploit", moral_delta=-1)
-        self.add_message("你强行提取情感弱点表，战术上更有把握（基础攻击 +1），但它眼里的红噪更浓了。")
+        self.add_message(f"你强行提取情感弱点表，战术上更有把握（基础攻击 +{atk_bonus}），但它眼里的红噪更浓了。")
         return "Event Completed"
 
 
@@ -2757,8 +2760,9 @@ class PuppetPersonaRiftEvent(Event):
 
     def shield_kind_signal(self):
         _emit_puppet_audio_cue(self.controller, "rift")
-        heal = self.get_player().heal(9)
-        _adjust_puppet_evil_value(self.controller, -15)
+        heal_amt = random.randint(7, 11)
+        heal = self.get_player().heal(heal_amt)
+        _adjust_puppet_evil_value(self.controller, random.randint(-17, -13))
         return self._after_rift(
             route_flag="kind",
             moral_delta=6,
@@ -2768,26 +2772,30 @@ class PuppetPersonaRiftEvent(Event):
         _emit_puppet_audio_cue(self.controller, "rift")
         p = self.get_player()
         if random.random() < 0.5:
-            p.change_base_atk(1)
-            _adjust_puppet_evil_value(self.controller, -2)
+            atk_bonus = random.randint(5, 10)
+            p.change_base_atk(atk_bonus)
+            _adjust_puppet_evil_value(self.controller, random.randint(-3, -1))
             moral_delta = 1
-            message = "你维持双侧输出平衡，战术窗口扩大了一瞬（基础攻击 +1）。"
+            message = f"你维持双侧输出平衡，战术窗口扩大了一瞬（基础攻击 +{atk_bonus}）。"
         else:
-            p.take_damage(4)
-            _adjust_puppet_evil_value(self.controller, 3)
+            dmg = random.randint(3, 5)
+            p.take_damage(dmg)
+            _adjust_puppet_evil_value(self.controller, random.randint(2, 4))
             moral_delta = -1
-            message = "你试图两边都压住，却被裂隙反向共振震伤（-4HP）。"
+            message = f"你试图两边都压住，却被裂隙反向共振震伤（-{dmg}HP）。"
         return self._after_rift(route_flag="balance", moral_delta=moral_delta, message=message)
     def fuel_dark_side(self):
         _emit_puppet_audio_cue(self.controller, "rift")
         p = self.get_player()
-        p.gold += 15
-        p.take_damage(5)
-        _adjust_puppet_evil_value(self.controller, 16)
+        gold_gain = random.randint(22, 78)
+        dmg = random.randint(4, 6)
+        p.gold += gold_gain
+        p.take_damage(dmg)
+        _adjust_puppet_evil_value(self.controller, random.randint(14, 18))
         return self._after_rift(
             route_flag="dark",
             moral_delta=-6,
-            message="你把黑暗协议喂给红噪回路，立刻拿到 15G，但反冲灼伤你的神经（-5HP）。",
+            message=f"你把黑暗协议喂给红噪回路，立刻拿到 {gold_gain}G，但反冲灼伤你的神经（-{dmg}HP）。",
         )
 
 
@@ -2863,9 +2871,8 @@ class PuppetCoreDescentEvent(Event):
                         ],
                         "hint": "前情：核心下潜结束，最深处那扇门正在锁定。门后是木偶黑暗人格本体。",
                         "message": "核心阀门一节节闭合，走廊尽头只剩一扇被红线封死的门。你知道，门后就是它的本体。",
-                        "log_trigger": "你正要推开门，整条走廊被红色封锁线覆盖，门框被强制改写成战斗舱。",
-                        "log_result": "原本选门彻底无效，最终怪物战被强制开启。",
-                        "kind_awaken_message": f"你先前留下的修复指令在最后一秒生效。{kind_name}短暂夺回控制，替你压低了黑暗核心输出。",
+                        "log_trigger": "你打算要推开门，突然发现整条走廊被红色封锁线覆盖。正要推开的一刹那，整个走廊都开始震动，三扇门在黑暗中重组成了一个巨大的机械人偶。",
+                        "kind_awaken_message": f"你先前留下的修复指令在最后一秒生效。{kind_name}短暂夺回控制，他眼里闪过一丝蓝光，替你压低了黑暗核心输出。",
                         "dark_overload_message": f"你喂给它的黑暗指令全部生效，{dark_name}彻底接管本体，气势瞬间暴涨。",
                         "neutral_message": f"{kind_name}与{dark_name}仍在互咬，但黑暗侧握着主导权。它缓缓抬头，战斗不可避免。",
                     },
@@ -2875,12 +2882,14 @@ class PuppetCoreDescentEvent(Event):
 
     def patch_kind_persona(self):
         _emit_puppet_audio_cue(self.controller, "core")
-        _adjust_puppet_evil_value(self.controller, -18)
+        _adjust_puppet_evil_value(self.controller, random.randint(-20, -16))
         self._queue_final_boss(route="patch", moral_delta=7)
         p = self.get_player()
-        cost = min(p.gold, 18)
+        cost_base = random.randint(14, 22)
+        cost = min(p.gold, cost_base)
         p.gold -= cost
-        healed = p.heal(10)
+        heal_amt = random.randint(8, 12)
+        healed = p.heal(heal_amt)
         self.add_message(f"你把修复补丁烧进核心，总计消耗 {cost}G 维修件；蓝光重新亮了半秒（+{healed}HP）。")
         return "Event Completed"
     def cut_emotion_module(self):
@@ -2888,22 +2897,26 @@ class PuppetCoreDescentEvent(Event):
         p = self.get_player()
         self._queue_final_boss(route="cut_emotion", moral_delta=-2)
         if random.random() < 0.55:
-            _adjust_puppet_evil_value(self.controller, 6)
-            p.change_base_atk(2)
-            self.add_message("你切断情感模块，战斗逻辑更干净利落（基础攻击 +2）。")
+            _adjust_puppet_evil_value(self.controller, random.randint(5, 7))
+            atk_bonus = random.randint(1, 3)
+            p.change_base_atk(atk_bonus)
+            self.add_message(f"你切断情感模块，战斗逻辑更干净利落（基础攻击 +{atk_bonus}）。")
         else:
-            _adjust_puppet_evil_value(self.controller, -4)
-            p.take_damage(6)
-            self.add_message("你切模块时被残留的善良侧牵制，动作迟疑反被灼伤（-6HP）。")
+            _adjust_puppet_evil_value(self.controller, random.randint(-5, -3))
+            dmg = random.randint(5, 8)
+            p.take_damage(dmg)
+            self.add_message(f"你切模块时被残留的善良侧牵制，动作迟疑反被灼伤（-{dmg}HP）。")
         return "Event Completed"
     def feed_dark_protocol(self):
         _emit_puppet_audio_cue(self.controller, "core")
-        _adjust_puppet_evil_value(self.controller, 20)
+        _adjust_puppet_evil_value(self.controller, random.randint(18, 22))
         self._queue_final_boss(route="dark_feed", moral_delta=-7)
         p = self.get_player()
-        p.gold += 22
-        p.take_damage(8)
-        self.add_message("你把黑暗协议当筹码卖给旁路终端，先赚 22G；回灌污染流反咬你（-8HP）。")
+        gold_gain = random.randint(18, 26)
+        dmg = random.randint(6, 10)
+        p.gold += gold_gain
+        p.take_damage(dmg)
+        self.add_message(f"你把黑暗协议当筹码卖给旁路终端，先赚 {gold_gain}G；回灌污染流反咬你（-{dmg}HP）。")
         return "Event Completed"
 
 
