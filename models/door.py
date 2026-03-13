@@ -216,6 +216,7 @@ class MonsterDoor(Door):
     def _initialize(self, **kwargs) -> None:
         self.enum = DoorEnum.MONSTER
         super()._initialize(**kwargs)
+        self.battle_extensions = list(kwargs.get("battle_extensions", []))
         if 'monster' in kwargs:
             self.monster = kwargs['monster']
         else:
@@ -230,11 +231,18 @@ class MonsterDoor(Door):
         fake_door_enum = random.choice([enum for enum in DoorEnum if enum != self.enum])
         tier_hint, type_hint = self.monster.get_hints()
         self.hint = f"{get_mixed_door_hint(frozenset([self.enum, fake_door_enum]))}, {tier_hint}, {type_hint}"
+
+    def add_battle_extension(self, extension_config: Dict[str, Any]) -> None:
+        """怪物门战斗扩展窗口：普通怪物门可保持为空。"""
+        if isinstance(extension_config, dict):
+            self.battle_extensions.append(extension_config)
     
     def enter(self) -> bool:
         if not self.monster:
             return False
         self.controller.current_monster = self.monster
+        # 只加载当前怪物门声明的扩展，普通怪物门默认无扩展。
+        self.controller.current_battle_extensions = self.battle_extensions
         if getattr(self.monster, "elf_side_story", False):
             self.controller.add_message(f"{ELF_THIEF_NAME}正与一头{self.monster.name}缠斗。她瞥见你：'愣着干什么？帮忙还是跑，选一个。'")
         else:

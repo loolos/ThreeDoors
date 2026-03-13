@@ -399,6 +399,14 @@ class Monster:
         # 如果有攻击力翻倍效果
         if self.has_status(StatusName.ATK_MULTIPLIER):
             dmg *= self.statuses[StatusName.ATK_MULTIPLIER].value
+        target_controller = getattr(target, "controller", None)
+        if target_controller and hasattr(target_controller, "apply_battle_extensions"):
+            dmg = target_controller.apply_battle_extensions(
+                trigger="monster_attack",
+                attacker=self,
+                defender=target,
+                damage=dmg,
+            )
         # 造成伤害
         target.take_damage(dmg)
 

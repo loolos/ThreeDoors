@@ -111,10 +111,19 @@ class Player:
             
         # 计算伤害（atk property 已包含 ATK_MULTIPLIER 修正）
         dmg = max(1, self.atk - random.randint(0, 1))
+        if hasattr(self.controller, "apply_battle_extensions"):
+            dmg = self.controller.apply_battle_extensions(
+                trigger="player_attack",
+                attacker=self,
+                defender=target,
+                damage=dmg,
+            )
         
         # 造成伤害
         target.take_damage(dmg)
         self.controller.add_message(f"你攻击 {target.name} 造成 {dmg} 点伤害.")
+        if hasattr(self.controller, "on_player_attack_resolved"):
+            self.controller.on_player_attack_resolved(target)
         # 检查目标是否死亡
         if target.hp <= 0:
             self.controller.add_message(f"你击败了 {target.name}!")

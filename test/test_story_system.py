@@ -606,7 +606,7 @@ class TestStorySystem(BaseTest):
             controller=self.controller,
             monster=Monster(name="史莱姆", hp=20, atk=4, tier=1),
         )
-        with unittest.mock.patch("models.story_system.random.uniform", return_value=0.0), unittest.mock.patch(
+        with unittest.mock.patch("models.story_system.random.uniform", return_value=0.1), unittest.mock.patch(
             "models.story_system.random.random", return_value=0.9
         ):
             changed = story.apply_pre_enter_checks(monster_door)
@@ -664,7 +664,7 @@ class TestStorySystem(BaseTest):
             controller=self.controller,
             monster=Monster(name="史莱姆", hp=20, atk=4, tier=1),
         )
-        with unittest.mock.patch("models.story_system.random.uniform", return_value=0.0), unittest.mock.patch(
+        with unittest.mock.patch("models.story_system.random.uniform", return_value=0.1), unittest.mock.patch(
             "models.story_system.random.random", return_value=0.9
         ):
             changed = story.apply_pre_enter_checks(monster_door)
@@ -673,7 +673,47 @@ class TestStorySystem(BaseTest):
         self.assertLess(changed.monster.atk, 30)
         self.assertTrue(any("温和样本" in msg for msg in self.controller.messages))
 
-    def test_puppet_dark_boss_gets_direct_buff_from_shop_side_event(self):
+    def test_puppet_dark_boss_can_transform_to_dark_complete_form(self):
+        story = self.controller.story
+        story.register_consequence(
+            choice_flag="puppet_test",
+            consequence_id="puppet_phase_two_case",
+            effect_key="puppet_dark_boss",
+            chance=1.0,
+            trigger_door_types=["MONSTER"],
+            payload={
+                "boss_name": "堕暗机偶·弃线者",
+                "phase2_name": "裂齿·夜魇·黑暗完全体",
+                "base_hp": 200,
+                "base_atk": 30,
+                "evil_value": 55,
+            },
+        )
+        monster_door = DoorEnum.MONSTER.create_instance(
+            controller=self.controller,
+            monster=Monster(name="史莱姆", hp=20, atk=4, tier=1),
+        )
+        with unittest.mock.patch("models.story_system.random.uniform", return_value=0.1), unittest.mock.patch(
+            "models.story_system.random.random", return_value=0.9
+        ):
+            changed = story.apply_pre_enter_checks(monster_door)
+
+        monster = changed.monster
+        self.controller.current_battle_extensions = getattr(changed, "battle_extensions", [])
+        monster.hp = 1
+        with unittest.mock.patch("models.player.random.randint", return_value=0), unittest.mock.patch(
+            "models.story_system.random.uniform", return_value=0.1
+        ), unittest.mock.patch("models.story_system.random.random", return_value=0.9):
+            defeated = self.player.attack(monster)
+
+        state = self.controller.current_battle_extensions[0]["state"]
+        self.assertFalse(defeated)
+        self.assertEqual(monster.name, "裂齿·夜魇·黑暗完全体")
+        self.assertEqual(state.get("phase"), 2)
+        self.assertGreater(monster.hp, 0)
+        self.assertTrue(any("阶段切换" in msg for msg in self.controller.messages))
+
+    def test_puppet_dark_boss_applies_shop_side_buff_when_entering_phase_two(self):
         story = self.controller.story
         story.story_tags.add("consumed:puppet_side_shop_once")
         story.register_consequence(
@@ -688,17 +728,27 @@ class TestStorySystem(BaseTest):
             controller=self.controller,
             monster=Monster(name="史莱姆", hp=20, atk=4, tier=1),
         )
-        with unittest.mock.patch("models.story_system.random.uniform", return_value=0.0), unittest.mock.patch(
+        with unittest.mock.patch("models.story_system.random.uniform", return_value=0.1), unittest.mock.patch(
             "models.story_system.random.random", return_value=0.9
         ):
             changed = story.apply_pre_enter_checks(monster_door)
+        monster = changed.monster
+        self.controller.current_battle_extensions = getattr(changed, "battle_extensions", [])
+        atk_before = monster.atk
+        monster.hp = 1
+        with unittest.mock.patch("models.player.random.randint", return_value=0), unittest.mock.patch(
+            "models.story_system.random.uniform", return_value=0.1
+        ), unittest.mock.patch("models.story_system.random.random", return_value=0.9):
+            defeated = self.player.attack(monster)
 
-        self.assertGreater(changed.monster.hp, 200)
+        state = self.controller.current_battle_extensions[0]["state"]
+        self.assertFalse(defeated)
+        self.assertEqual(state.get("phase"), 2)
+        self.assertGreater(monster.atk, atk_before)
         self.assertTrue(any("补了装甲片" in msg for msg in self.controller.messages))
 
-    def test_puppet_dark_boss_can_apply_reward_side_relief_to_player(self):
+    def test_puppet_dark_boss_runtime_modifier_can_trigger_multiple_times(self):
         story = self.controller.story
-        self.player.hp = 60
         story.story_tags.add("consumed:puppet_side_reward_once")
         story.register_consequence(
             choice_flag="puppet_test",
@@ -712,14 +762,123 @@ class TestStorySystem(BaseTest):
             controller=self.controller,
             monster=Monster(name="史莱姆", hp=20, atk=4, tier=1),
         )
-        with unittest.mock.patch("models.story_system.random.uniform", return_value=0.0), unittest.mock.patch(
+        with unittest.mock.patch("models.story_system.random.uniform", return_value=0.1), unittest.mock.patch(
             "models.story_system.random.random", return_value=0.9
         ):
             changed = story.apply_pre_enter_checks(monster_door)
+        monster = changed.monster
+        self.controller.current_battle_extensions = getattr(changed, "battle_extensions", [])
+        monster.hp = 1200
 
-        self.assertGreater(self.player.hp, 60)
-        self.assertLess(changed.monster.hp, 200)
+        with unittest.mock.patch("models.player.random.randint", return_value=0), unittest.mock.patch(
+            "models.story_system.random.uniform", return_value=0.1
+        ), unittest.mock.patch("models.story_system.random.random", return_value=0.0):
+            self.player.attack(monster)
+            self.player.attack(monster)
+
+        trigger_counts = self.controller.current_battle_extensions[0]["state"].get("runtime_trigger_counts", {})
+        self.assertGreaterEqual(trigger_counts.get("consumed:puppet_side_reward_once:player_attack", 0), 2)
         self.assertTrue(any("结界模板" in msg for msg in self.controller.messages))
+
+    def test_puppet_dark_boss_incoming_damage_modifier_works_in_both_phases(self):
+        story = self.controller.story
+        story.story_tags.add("consumed:puppet_side_reward_once")
+        story.register_consequence(
+            choice_flag="puppet_test",
+            consequence_id="puppet_incoming_both_phase_case",
+            effect_key="puppet_dark_boss",
+            chance=1.0,
+            trigger_door_types=["MONSTER"],
+            payload={"boss_name": "堕暗机偶·弃线者", "base_hp": 220, "base_atk": 30, "evil_value": 55},
+        )
+        monster_door = DoorEnum.MONSTER.create_instance(
+            controller=self.controller,
+            monster=Monster(name="史莱姆", hp=20, atk=4, tier=1),
+        )
+        with unittest.mock.patch("models.story_system.random.uniform", return_value=0.1), unittest.mock.patch(
+            "models.story_system.random.random", return_value=0.9
+        ):
+            changed = story.apply_pre_enter_checks(monster_door)
+        monster = changed.monster
+        self.controller.current_battle_extensions = getattr(changed, "battle_extensions", [])
+        extension = self.controller.current_battle_extensions[0]
+
+        with unittest.mock.patch("models.story_system.random.uniform", return_value=0.1), unittest.mock.patch(
+            "models.story_system.random.random", return_value=0.0
+        ):
+            phase1_dmg = story.apply_battle_extension(
+                extension=extension,
+                trigger="monster_attack",
+                attacker=monster,
+                defender=self.player,
+                damage=100,
+            )
+        self.assertLess(phase1_dmg, 100)
+
+        monster.hp = 1
+        self.controller.on_player_attack_resolved(monster)
+        self.assertEqual(extension["state"].get("phase"), 2)
+        with unittest.mock.patch("models.story_system.random.uniform", return_value=0.1), unittest.mock.patch(
+            "models.story_system.random.random", return_value=0.0
+        ):
+            phase2_dmg = story.apply_battle_extension(
+                extension=extension,
+                trigger="monster_attack",
+                attacker=monster,
+                defender=self.player,
+                damage=100,
+            )
+        self.assertLess(phase2_dmg, 100)
+
+    def test_puppet_signal_resell_incoming_damage_bonus_works_in_both_phases(self):
+        story = self.controller.story
+        story.choice_flags.add("puppet_signal_resell")
+        story.register_consequence(
+            choice_flag="puppet_test",
+            consequence_id="puppet_signal_resell_both_phase_case",
+            effect_key="puppet_dark_boss",
+            chance=1.0,
+            trigger_door_types=["MONSTER"],
+            payload={"boss_name": "堕暗机偶·弃线者", "base_hp": 220, "base_atk": 30, "evil_value": 55},
+        )
+        monster_door = DoorEnum.MONSTER.create_instance(
+            controller=self.controller,
+            monster=Monster(name="史莱姆", hp=20, atk=4, tier=1),
+        )
+        with unittest.mock.patch("models.story_system.random.uniform", return_value=0.1), unittest.mock.patch(
+            "models.story_system.random.random", return_value=0.9
+        ):
+            changed = story.apply_pre_enter_checks(monster_door)
+        monster = changed.monster
+        self.controller.current_battle_extensions = getattr(changed, "battle_extensions", [])
+        extension = self.controller.current_battle_extensions[0]
+
+        with unittest.mock.patch("models.story_system.random.uniform", return_value=0.1), unittest.mock.patch(
+            "models.story_system.random.random", return_value=0.0
+        ):
+            phase1_dmg = story.apply_battle_extension(
+                extension=extension,
+                trigger="monster_attack",
+                attacker=monster,
+                defender=self.player,
+                damage=100,
+            )
+        self.assertGreater(phase1_dmg, 100)
+
+        monster.hp = 1
+        self.controller.on_player_attack_resolved(monster)
+        self.assertEqual(extension["state"].get("phase"), 2)
+        with unittest.mock.patch("models.story_system.random.uniform", return_value=0.1), unittest.mock.patch(
+            "models.story_system.random.random", return_value=0.0
+        ):
+            phase2_dmg = story.apply_battle_extension(
+                extension=extension,
+                trigger="monster_attack",
+                attacker=monster,
+                defender=self.player,
+                damage=100,
+            )
+        self.assertGreater(phase2_dmg, 100)
 
     def test_puppet_dark_boss_has_fallback_message_when_no_side_event_happened(self):
         story = self.controller.story
