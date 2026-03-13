@@ -2,7 +2,13 @@ import unittest.mock
 import random
 
 from models.door import DoorEnum
-from models.events import MoonBountyEvent, ElfThiefIntroEvent, ElfSideMerchantDisguisedEvent, ElfRooftopDuelEvent
+from models.events import (
+    MoonBountyEvent,
+    ElfThiefIntroEvent,
+    ElfSideMerchantDisguisedEvent,
+    ElfRooftopDuelEvent,
+    RefugeeCaravanEvent,
+)
 from models.items import FlyingHammer
 from models.monster import Monster
 from models.game_config import GameConfig
@@ -249,6 +255,67 @@ class TestStorySystem(BaseTest):
             story.apply_pre_enter_checks(event_door)
         self.assertEqual(self.player.gold, 85)
         self.assertIn("delay_gold_loss", story.consumed_consequences)
+
+    def test_force_on_expire_can_rewrite_non_matching_door(self):
+        story = self.controller.story
+        story.register_consequence(
+            choice_flag="expire_force_case",
+            consequence_id="expire_force_event_once",
+            effect_key="force_story_event",
+            chance=0.1,
+            trigger_door_types=["EVENT"],
+            max_round=5,
+            force_on_expire=True,
+            force_door_type="EVENT",
+            payload={"event_key": "moon_verdict_event"},
+        )
+        reward_door = DoorEnum.REWARD.create_instance(controller=self.controller)
+
+        self.controller.round_count = 4
+        unchanged = story.apply_pre_enter_checks(reward_door)
+        self.assertEqual(unchanged.enum.name, "REWARD")
+        self.assertIn("expire_force_event_once", story.pending_consequences)
+
+        self.controller.round_count = 5
+        changed = story.apply_pre_enter_checks(reward_door)
+        self.assertEqual(changed.enum.name, "EVENT")
+        self.assertEqual(getattr(changed, "story_forced_event_key", ""), "moon_verdict_event")
+        self.assertIn("expire_force_event_once", story.consumed_consequences)
+
+    def test_force_on_expire_can_force_revenge_battle_from_any_door(self):
+        story = self.controller.story
+        story.register_consequence(
+            choice_flag="expire_revenge_case",
+            consequence_id="expire_revenge_once",
+            effect_key="revenge_ambush",
+            chance=0.0,
+            trigger_door_types=["EVENT"],
+            max_round=2,
+            force_on_expire=True,
+            force_door_type="MONSTER",
+            payload={"force_hunter": True, "hunter_name": "追债者"},
+        )
+        self.controller.round_count = 2
+        shop_door = DoorEnum.SHOP.create_instance(controller=self.controller)
+        changed = story.apply_pre_enter_checks(shop_door)
+
+        self.assertEqual(changed.enum.name, "MONSTER")
+        self.assertEqual(changed.monster.name, "追债者")
+        self.assertIn("expire_revenge_once", story.consumed_consequences)
+
+    def test_caravan_extort_registers_deadline_forced_revenge(self):
+        story = self.controller.story
+        self.controller.round_count = 7
+        event = RefugeeCaravanEvent(self.controller)
+        event.extort()
+
+        consequence = story.pending_consequences.get("caravan_extort_deadline_revenge")
+        self.assertIsNotNone(consequence)
+        self.assertEqual(consequence.effect_key, "revenge_ambush")
+        self.assertEqual(consequence.max_round, 17)
+        self.assertTrue(consequence.force_on_expire)
+        self.assertEqual(consequence.force_door_type, "MONSTER")
+        self.assertTrue(consequence.payload.get("force_hunter", False))
 
     def test_can_register_custom_effect_handler(self):
         story = self.controller.story
