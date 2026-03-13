@@ -298,10 +298,31 @@ class StorySystem:
             # 截止轮次的强制触发至少要保证门被改写到目标类型。
             applied, new_door = True, door
         if applied:
+            self._apply_payload_metric_deltas(chosen)
             if not self._should_defer_consumption(chosen, new_door):
                 self._consume_consequence(chosen)
             return new_door
         return fallback_door
+
+    def _apply_payload_metric_deltas(self, consequence: PendingConsequence) -> None:
+        """扩展端口：允许后果在触发时修改剧情指标（如木偶邪恶值）。"""
+        payload = consequence.payload or {}
+        if "evil_value_delta" not in payload:
+            return
+        try:
+            delta = int(payload.get("evil_value_delta", 0))
+        except (TypeError, ValueError):
+            return
+        if delta == 0:
+            return
+        current = int(getattr(self, "puppet_evil_value", 55))
+        next_val = max(0, min(100, current + delta))
+        self.puppet_evil_value = next_val
+        self.story_tags.add(f"puppet_evil_bucket:{(next_val // 10) * 10}")
+        if delta > 0:
+            self.controller.add_message(f"木偶邪恶值上升至 {next_val}/100。")
+        else:
+            self.controller.add_message(f"木偶邪恶值下降至 {next_val}/100。")
 
     def _consume_consequence(self, consequence: PendingConsequence) -> None:
         cid = consequence.consequence_id
@@ -742,6 +763,199 @@ class StorySystem:
             self._log_effect_result(
                 consequence,
                 "宝物已被掏空",
+            )
+            return True, door
+
+        if effect == "puppet_dark_boss":
+            if getattr(getattr(door, "enum", None), "name", "") != "MONSTER":
+                return False, door
+            from models.monster import Monster, _apply_player_match_scaling, estimate_player_power
+
+            base_hp = max(80, int(payload.get("base_hp", 220)))
+            base_atk = max(10, int(payload.get("base_atk", 34)))
+            boss_name = payload.get("boss_name", "堕暗机偶·弃线者")
+            story_flags = self.choice_flags.union(self.story_tags)
+            kind_name = payload.get("kind_persona_name", "绒心·诺诺")
+            dark_name = payload.get("dark_persona_name", "裂齿·夜魇")
+
+            default_kind_flags = {
+                "puppet_intro_hide",
+                "puppet_signal_empathy",
+                "puppet_signal_analyze",
+                "puppet_descent_patch",
+            }
+            default_dark_flags = {
+                "puppet_intro_blackout",
+                "puppet_intro_decoy",
+                "puppet_signal_sellout",
+                "puppet_descent_cut_emotion",
+                "puppet_descent_dark_feed",
+            }
+            raw_kind_flags = payload.get("kind_flags", default_kind_flags)
+            raw_dark_flags = payload.get("dark_flags", default_dark_flags)
+            kind_flags = set(raw_kind_flags or default_kind_flags)
+            dark_flags = set(raw_dark_flags or default_dark_flags)
+            kind_score = sum(1 for f in kind_flags if f in story_flags)
+            dark_score = sum(1 for f in dark_flags if f in story_flags)
+            stored_evil = getattr(self, "puppet_evil_value", None)
+            try:
+                stored_evil = int(stored_evil) if stored_evil is not None else None
+            except (TypeError, ValueError):
+                stored_evil = None
+            if stored_evil is None:
+                evil_value = 55 + dark_score * 8 - kind_score * 8
+            else:
+                evil_value = stored_evil
+            if "evil_value" in payload:
+                try:
+                    evil_value = int(payload.get("evil_value"))
+                except (TypeError, ValueError):
+                    pass
+            evil_value += (dark_score - kind_score) * 2
+            evil_value = max(0, min(100, evil_value))
+            side_hit_count = len([tag for tag in self.story_tags if str(tag).startswith("consumed:puppet_side_")])
+            direct_hp_scale = 1.0
+            direct_atk_scale = 1.0
+            player = getattr(self.controller, "player", None)
+
+            def _add_start_damage(amount: int, text: str) -> None:
+                if not player:
+                    return
+                real = max(0, min(player.hp, int(amount)))
+                if real <= 0:
+                    return
+                player.take_damage(real)
+                self.controller.add_message(text.format(value=real))
+
+            def _add_start_heal(amount: int, text: str) -> None:
+                if not player:
+                    return
+                healed = player.heal(max(0, int(amount)))
+                if healed <= 0:
+                    return
+                self.controller.add_message(text.format(value=healed))
+
+            # 中间事件的直接影响（不依赖邪恶值）。
+            if "consumed:puppet_side_minion_once" in story_flags:
+                direct_atk_scale *= 0.93
+                self.controller.add_message("【前情影响】你拆过它的追猎小弟，已读懂一部分同步节奏，它开场挥击慢了半拍。")
+            if "consumed:puppet_side_shop_once" in story_flags:
+                direct_hp_scale *= 1.08
+                self.controller.add_message("【前情影响】黑市替它补了装甲片，核心外壳更难被打穿。")
+            if "consumed:puppet_side_trap_once" in story_flags:
+                direct_atk_scale *= 1.05
+                _add_start_damage(4, "【前情影响】陷阱回廊数据被写进战斗脚本，碎片风暴先手刮伤你（-{value}HP）。")
+            if "consumed:puppet_side_reward_once" in story_flags:
+                direct_hp_scale *= 0.94
+                _add_start_heal(5, "【前情影响】你在宝物舱拿到的结界模板提前启动，稳住了开场节奏（+{value}HP）。")
+
+            if "puppet_signal_soft" in story_flags:
+                direct_hp_scale *= 0.9
+                direct_atk_scale *= 0.9
+                self.controller.add_message("【前情影响】你在信号室重放的温和样本还在生效，它的攻击协议出现了短暂迟滞。")
+            elif "puppet_signal_log" in story_flags:
+                direct_atk_scale *= 0.88
+                self.controller.add_message("【前情影响】你截取的战术日志让你更早读出它的抬手动作。")
+            elif "puppet_signal_resell" in story_flags:
+                direct_hp_scale *= 1.12
+                direct_atk_scale *= 1.1
+                self.controller.add_message("【前情影响】你转卖污染片段导致病毒扩散，它的黑暗协议反而被额外喂强。")
+
+            if "puppet_kind_echo_trust" in story_flags:
+                direct_atk_scale *= 0.9
+                self.controller.add_message("【前情影响】你回应过善良人格的求援，它在底层悄悄卡住了几条杀戮指令。")
+            elif "puppet_kind_echo_comfort" in story_flags:
+                direct_hp_scale *= 0.92
+                _add_start_heal(6, "【前情影响】你安抚过它被遗弃的记忆，开战瞬间蓝光回路替你回了一口气（+{value}HP）。")
+            elif "puppet_kind_echo_exploit" in story_flags:
+                direct_atk_scale *= 1.08
+                self.controller.add_message("【前情影响】你曾强挖它的情感弱点，创伤被反向利用，黑暗人格更暴躁。")
+
+            if "puppet_rift_kind" in story_flags:
+                direct_hp_scale *= 0.94
+            elif "puppet_rift_balance" in story_flags:
+                direct_atk_scale *= 0.97
+            elif "puppet_rift_dark" in story_flags:
+                direct_hp_scale *= 1.1
+                direct_atk_scale *= 1.06
+
+            hp_scale = 1.0
+            atk_scale = 1.0
+            awakened_kind = False
+            dark_overload = False
+            if evil_value <= 25:
+                hp_scale, atk_scale = 0.72, 0.72
+                awakened_kind = True
+            elif evil_value <= 45:
+                hp_scale, atk_scale = 0.86, 0.84
+                awakened_kind = True
+            elif evil_value <= 65:
+                hp_scale, atk_scale = 1.0, 1.0
+            elif evil_value <= 85:
+                hp_scale, atk_scale = 1.18, 1.14
+            else:
+                hp_scale, atk_scale = 1.35, 1.28
+                dark_overload = True
+            hp_scale *= direct_hp_scale
+            atk_scale *= direct_atk_scale
+
+            boss = Monster(
+                name=boss_name,
+                hp=max(1, int(base_hp * hp_scale)),
+                atk=max(1, int(base_atk * atk_scale)),
+                tier=max(2, int(payload.get("tier", 5))),
+            )
+            round_count = max(0, int(getattr(self.controller, "round_count", 0)))
+            power_score = estimate_player_power(player=player, current_round=round_count)
+            _apply_player_match_scaling(
+                monster=boss,
+                player=player,
+                current_round=round_count,
+                power_score=power_score,
+            )
+            if side_hit_count <= 0:
+                self.controller.add_message(
+                    self._resolve_message(
+                        payload,
+                        "no_side_event_message",
+                        "你几乎没在中途触发那些支线干预，它的最终参数按核心读数直接结算。",
+                    )
+                )
+            if awakened_kind:
+                heal = min(100 - self.controller.player.hp, max(4, int(payload.get("kind_heal", 12))))
+                if heal > 0:
+                    self.controller.player.heal(heal)
+                self.controller.add_message(
+                    self._resolve_message(
+                        payload,
+                        "kind_awaken_message",
+                        f"病毒噪声里忽然响起温柔童谣，{kind_name}短暂夺回控制，悄悄替你挡下一轮杀意。",
+                    )
+                )
+            elif dark_overload:
+                self.controller.add_message(
+                    self._resolve_message(
+                        payload,
+                        "dark_overload_message",
+                        f"你先前的选择不断喂养黑暗协议，{dark_name}完全接管了机偶核心。",
+                    )
+                )
+            else:
+                self.controller.add_message(
+                    self._resolve_message(
+                        payload,
+                        "neutral_message",
+                        f"{kind_name}与{dark_name}仍在互相撕扯，黑暗协议暂时占了上风。",
+                    )
+                )
+
+            door.monster = boss
+            hint = payload.get("hunter_hint") or payload.get("hint")
+            if isinstance(hint, str) and hint.strip():
+                door.hint = hint.strip()
+            self._log_effect_result(
+                consequence,
+                f"{boss.name} 降临（邪恶值 {evil_value}/100），生命 {boss.hp}，攻击 {boss.atk}",
             )
             return True, door
 

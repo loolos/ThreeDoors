@@ -11,6 +11,7 @@ from models.events import (
     MoonBountyEvent, MoonVerdictEvent,
     ClockworkBazaarEvent, CogAuditEvent,
     DreamWellEvent, EchoCourtEvent, ElfThiefIntroEvent,
+    PuppetAbandonmentEvent, PuppetSignalEvent, PuppetKindEchoEvent, PuppetPersonaRiftEvent, PuppetCoreDescentEvent,
     get_story_event_by_key,
 )
 from models.items import FlyingHammer
@@ -263,6 +264,10 @@ class TestAllEvents(BaseTest):
         self._run_choice(DreamWellEvent, 1)
         self._run_choice(DreamWellEvent, 2)
 
+        self._run_choice(PuppetAbandonmentEvent, 0)
+        self._run_choice(PuppetAbandonmentEvent, 1)
+        self._run_choice(PuppetAbandonmentEvent, 2)
+
     def test_new_long_chain_followup_event_choices(self):
         self.player.gold = 300
         self._run_choice(MoonVerdictEvent, 0)
@@ -276,6 +281,22 @@ class TestAllEvents(BaseTest):
         self._run_choice(EchoCourtEvent, 0)
         self._run_choice(EchoCourtEvent, 1)
         self._run_choice(EchoCourtEvent, 2)
+
+        self._run_choice(PuppetSignalEvent, 0)
+        self._run_choice(PuppetSignalEvent, 1)
+        self._run_choice(PuppetSignalEvent, 2)
+
+        self._run_choice(PuppetKindEchoEvent, 0)
+        self._run_choice(PuppetKindEchoEvent, 1)
+        self._run_choice(PuppetKindEchoEvent, 2)
+
+        self._run_choice(PuppetPersonaRiftEvent, 0)
+        self._run_choice(PuppetPersonaRiftEvent, 1)
+        self._run_choice(PuppetPersonaRiftEvent, 2)
+
+        self._run_choice(PuppetCoreDescentEvent, 0)
+        self._run_choice(PuppetCoreDescentEvent, 1)
+        self._run_choice(PuppetCoreDescentEvent, 2)
 
     def test_long_chain_choices_have_immediate_impact(self):
         c = GameController()
@@ -455,6 +476,12 @@ class TestAllEvents(BaseTest):
         self.assertIsNotNone(get_story_event_by_key("moon_verdict_event", self.controller))
         self.controller.event_trigger_counts["MoonVerdictEvent"] = 1
         self.assertIsNone(get_story_event_by_key("moon_verdict_event", self.controller))
+        self.assertIsNotNone(get_story_event_by_key("puppet_signal_event", self.controller))
+        self.controller.event_trigger_counts["PuppetSignalEvent"] = 1
+        self.assertIsNone(get_story_event_by_key("puppet_signal_event", self.controller))
+        self.assertIsNotNone(get_story_event_by_key("puppet_kind_echo_event", self.controller))
+        self.controller.event_trigger_counts["PuppetKindEchoEvent"] = 1
+        self.assertIsNone(get_story_event_by_key("puppet_kind_echo_event", self.controller))
 
     def test_repeatable_event_weight_divides_by_trigger_count(self):
         with unittest.mock.patch.object(StrangerEvent, "get_trigger_probability", return_value=0.6):
