@@ -555,8 +555,9 @@ class TestStorySystem(BaseTest):
         self.assertIn("puppet_side_minion_once", story.consumed_consequences)
 
         self.controller.round_count = 17
-        reward_door = DoorEnum.REWARD.create_instance(controller=self.controller)
-        forced_event_door = story.apply_pre_enter_checks(reward_door)
+        next_event_door = DoorEnum.EVENT.create_instance(controller=self.controller)
+        with unittest.mock.patch("models.story_system.random.uniform", return_value=0.0):
+            forced_event_door = story.apply_pre_enter_checks(next_event_door)
         self.assertEqual(forced_event_door.enum.name, "EVENT")
         self.assertEqual(getattr(forced_event_door, "story_forced_event_key", ""), "puppet_signal_event")
 
