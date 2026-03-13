@@ -755,8 +755,23 @@ class StorySystem:
             boss_name = payload.get("boss_name", "堕暗机偶·弃线者")
             story_flags = self.choice_flags.union(self.story_tags)
 
-            kind_flags = set(payload.get("kind_flags", []))
-            dark_flags = set(payload.get("dark_flags", []))
+            default_kind_flags = {
+                "puppet_intro_hide",
+                "puppet_signal_empathy",
+                "puppet_signal_analyze",
+                "puppet_descent_patch",
+            }
+            default_dark_flags = {
+                "puppet_intro_blackout",
+                "puppet_intro_decoy",
+                "puppet_signal_sellout",
+                "puppet_descent_cut_emotion",
+                "puppet_descent_dark_feed",
+            }
+            raw_kind_flags = payload.get("kind_flags", default_kind_flags)
+            raw_dark_flags = payload.get("dark_flags", default_dark_flags)
+            kind_flags = set(raw_kind_flags or default_kind_flags)
+            dark_flags = set(raw_dark_flags or default_dark_flags)
             kind_score = sum(1 for f in kind_flags if f in story_flags)
             dark_score = sum(1 for f in dark_flags if f in story_flags)
             alignment = kind_score - dark_score
