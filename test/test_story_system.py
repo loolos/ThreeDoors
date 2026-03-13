@@ -619,7 +619,7 @@ class TestStorySystem(BaseTest):
         self.assertEqual(changed.monster.name, "堕暗机偶·弃线者")
         self.assertLess(changed.monster.hp, 200)
         self.assertLess(changed.monster.atk, 30)
-        self.assertTrue(any("善良人格" in msg for msg in self.controller.messages))
+        self.assertTrue(any("夺回控制" in msg for msg in self.controller.messages))
 
     def test_puppet_dark_boss_can_be_forced_and_strengthened(self):
         story = self.controller.story
