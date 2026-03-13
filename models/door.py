@@ -255,6 +255,13 @@ class ShopDoor(Door):
         self.generate_non_monster_door_hint()
     
     def enter(self) -> bool:
+        forced_key = getattr(self, "story_forced_event_key", None)
+        if forced_key:
+            event = get_story_event_by_key(forced_key, self.controller)
+            if event is not None:
+                self.controller.current_event = event
+                self.controller.scene_manager.go_to("event_scene")
+                return True
         if not self.shop:
             return False
         self.controller.current_shop = self.shop

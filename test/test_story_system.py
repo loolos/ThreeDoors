@@ -2,7 +2,7 @@ import unittest.mock
 import random
 
 from models.door import DoorEnum
-from models.events import MoonBountyEvent, ElfThiefIntroEvent
+from models.events import MoonBountyEvent, ElfThiefIntroEvent, ElfSideMerchantDisguisedEvent, ElfRooftopDuelEvent
 from models.items import FlyingHammer
 from models.monster import Monster
 from models.game_config import GameConfig
@@ -557,3 +557,56 @@ class TestStorySystem(BaseTest):
             changed_door = story.apply_pre_enter_checks(event_door)
 
         self.assertEqual(getattr(changed_door, "story_forced_event_key", ""), "moon_verdict_event")
+
+    def test_elf_side_merchant_rewrite_keeps_shop_door_type(self):
+        story = self.controller.story
+        shop_door = DoorEnum.SHOP.create_instance(controller=self.controller)
+        story.register_consequence(
+            choice_flag="elf_side_reg",
+            consequence_id="elf_side_merchant_disguised_once",
+            effect_key="replace_with_elf_side_event",
+            chance=1.0,
+            trigger_door_types=["SHOP"],
+            payload={"event_key": "elf_side_merchant_disguised_event", "chance": 1.0},
+        )
+
+        with unittest.mock.patch("models.story_system.random.uniform", return_value=0.0), unittest.mock.patch(
+            "models.story_system.random.random", return_value=0.0
+        ):
+            changed_door = story.apply_pre_enter_checks(shop_door)
+
+        self.assertEqual(changed_door.enum.name, "SHOP")
+        self.assertEqual(getattr(changed_door, "story_forced_event_key", ""), "elf_side_merchant_disguised_event")
+
+    def test_shop_door_can_jump_to_forced_story_event(self):
+        shop_door = DoorEnum.SHOP.create_instance(controller=self.controller)
+        shop_door.story_forced_event_key = "elf_side_merchant_disguised_event"
+
+        entered = shop_door.enter()
+
+        self.assertTrue(entered)
+        self.assertEqual(self.controller.scene_manager.current_scene.enum.name, "EVENT")
+        self.assertIsInstance(self.controller.current_event, ElfSideMerchantDisguisedEvent)
+
+    def test_elf_positive_reward_can_be_heal_instead_of_atk(self):
+        self.player.hp = 40
+        base_atk = self.player._atk
+        event = ElfRooftopDuelEvent(self.controller)
+
+        with unittest.mock.patch("models.events.random.random", return_value=0.5):
+            event.train_hard()
+
+        self.assertGreater(self.player.hp, 40)
+        self.assertEqual(self.player._atk, base_atk)
+
+    def test_elf_positive_reward_can_be_item_instead_of_atk(self):
+        event = ElfRooftopDuelEvent(self.controller)
+        before_items = self.player.get_inventory_size()
+
+        with unittest.mock.patch("models.events.random.random", return_value=0.95), unittest.mock.patch(
+            "models.events.create_reward_door_item", return_value=FlyingHammer("飞锤", cost=0, duration=3)
+        ):
+            event.train_hard()
+
+        self.assertGreater(self.player.get_inventory_size(), before_items)
+        self.assertTrue(any("飞锤" in msg for msg in self.controller.messages))

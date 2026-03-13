@@ -1,6 +1,6 @@
 
 import random
-from models.items import create_random_item
+from models.items import create_random_item, create_reward_door_item
 from models.status import StatusName
 
 class EventChoice:
@@ -2356,6 +2356,28 @@ def _elf_percent_atk(player, ratio, minimum=1):
     return max(minimum, int(round(base * max(0.0, float(ratio)))))
 
 
+def _elf_grant_dynamic_boon(controller):
+    """飞贼正向奖励池：不再总是加攻击，改为加血/加攻/给道具三选一。"""
+    p = getattr(controller, "player", None)
+    if p is None:
+        return "她本想给你点东西，却只剩一句'下次。'"
+
+    roll = random.random()
+    if roll < 0.34:
+        atk_up = _elf_percent_atk(p, 0.08)
+        p.change_base_atk(atk_up)
+        return f"她用短刃在墙上划出三道受力线，纠正了你的发力节奏（基础攻击 +{atk_up}）。"
+
+    if roll < 0.68:
+        heal = _elf_percent_hp(p, 0.14)
+        p.hp = min(100, p.hp + heal)
+        return f"她把止血粉和绑带塞给你，顺手重新缠好护腕（+{heal}HP）。"
+
+    item = create_reward_door_item()
+    item.acquire(player=p)
+    return f"她从斗篷夹层摸出一件战利品塞进你怀里：{item.name}。'别问哪来的，能用就行。'"
+
+
 def _schedule_next_elf_event(controller, completed_key):
     story = _get_elf_chain_state(controller)
     if story is None:
@@ -2526,10 +2548,9 @@ class ElfRooftopDuelEvent(Event):
         ]
 
     def train_hard(self):
-        atk_up = _elf_percent_atk(self.get_player(), 0.08)
-        self.get_player().change_base_atk(atk_up)
+        boon_text = _elf_grant_dynamic_boon(self.controller)
         _adjust_elf_relation(self.controller, 2)
-        self.add_message(f"你学会了她的转腕技巧，基础攻击 +{atk_up}。")
+        self.add_message(f"你们在屋脊上连拆七招，落地时她难得认真夸了你一句。{boon_text}")
         _schedule_next_elf_event(self.controller, "elf_rooftop_duel_event")
         return "Event Completed"
 
@@ -2573,10 +2594,9 @@ class ElfFakeMapEvent(Event):
         return "Event Completed"
 
     def remap(self):
-        atk_up = _elf_percent_atk(self.get_player(), 0.06)
-        self.get_player().change_base_atk(atk_up)
+        boon_text = _elf_grant_dynamic_boon(self.controller)
         _adjust_elf_relation(self.controller, 0)
-        self.add_message(f"你凭经验修正了路径，虽然慢，但战斗节奏更稳（基础攻击 +{atk_up}）。")
+        self.add_message(f"你把她的假标注全改成自己的记号，路线更稳更实用。{boon_text}")
         _schedule_next_elf_event(self.controller, "elf_fake_map_event")
         return "Event Completed"
 
@@ -2612,10 +2632,9 @@ class ElfMonsterStageEvent(Event):
         return "Event Completed"
 
     def train_counter(self):
-        atk_up = _elf_percent_atk(self.get_player(), 0.12)
-        self.get_player().change_base_atk(atk_up)
+        boon_text = _elf_grant_dynamic_boon(self.controller)
         _adjust_elf_relation(self.controller, 1)
-        self.add_message(f"她教你抓怪物抬肩的破绽，基础攻击 +{atk_up}。")
+        self.add_message(f"她让你盯着假人肩线连练十次，不再只凭蛮劲出手。{boon_text}")
         _schedule_next_elf_event(self.controller, "elf_monster_stage_event")
         return "Event Completed"
 
@@ -2662,10 +2681,9 @@ class ElfNightCampEvent(Event):
         return "Event Completed"
 
     def prepare_solo(self):
-        atk_up = _elf_percent_atk(self.get_player(), 0.08)
-        self.get_player().change_base_atk(atk_up)
+        boon_text = _elf_grant_dynamic_boon(self.controller)
         _adjust_elf_relation(self.controller, -2)
-        self.add_message(f"你决定把主动权握在自己手里，基础攻击 +{atk_up}。")
+        self.add_message(f"你决定单干，她没拦你，只把一份'不欠人情'的补给甩了过来。{boon_text}")
         _schedule_next_elf_event(self.controller, "elf_night_camp_event")
         return "Event Completed"
 
@@ -2736,10 +2754,9 @@ class ElfHunterGateEvent(Event):
         ]
 
     def team_up(self):
-        atk_up = _elf_percent_atk(self.get_player(), 0.12)
-        self.get_player().change_base_atk(atk_up)
+        boon_text = _elf_grant_dynamic_boon(self.controller)
         _adjust_elf_relation(self.controller, 2)
-        self.add_message(f"你们配合默契，斩落追兵后她给你纠正了两处发力错误（基础攻击 +{atk_up}）。")
+        self.add_message(f"你们背靠背清掉前排追兵，她在喘息间把战利品往你怀里一塞。{boon_text}")
         _schedule_next_elf_event(self.controller, "elf_hunter_gate_event")
         return "Event Completed"
 
@@ -2851,9 +2868,13 @@ class ElfEpilogueEvent(Event):
             extra_tags={"ending_hook:elf_alliance", "ending_hook:ally_network"},
         )
         rel = getattr(story, "elf_relation", 0) if story else 0
-        atk_boost = _elf_percent_atk(self.get_player(), 0.15 if rel >= 2 else 0.1)
-        self.get_player().change_base_atk(atk_boost)
-        self.add_message(f"你把银羽徽记系在护腕上。往后只要暗号还在，你们就算同一边（基础攻击 +{atk_boost}）。")
+        boon_text = _elf_grant_dynamic_boon(self.controller)
+        extra_heal = _elf_percent_hp(self.get_player(), 0.08 if rel >= 2 else 0.05)
+        self.get_player().hp = min(100, self.get_player().hp + extra_heal)
+        self.add_message(
+            f"你把银羽徽记系在护腕上。她把手按在你肩上：'以后见暗号，算自己人。'"
+            f" 临别前她又补了一手急救（+{extra_heal}HP）。{boon_text}"
+        )
         return "Event Completed"
 
     def close_clean(self):
@@ -2934,7 +2955,7 @@ def _register_elf_side_events(controller):
         payload={
             "event_key": "elf_side_merchant_event",
             "chance": 0.18,
-            "message": "柜台后的商人懒洋洋的看着你——那眼神你认得，这是{ELF_THIEF_NAME}。",
+            "message": f"柜台后的商人懒洋洋的看着你——那眼神你认得，这是{ELF_THIEF_NAME}。",
             "hint": "某个事件在等你上钩。",
         },
     )
@@ -3027,7 +3048,7 @@ class ElfSideMerchantDisguisedEvent(Event):
         if p.gold >= cost:
             p.gold -= cost
             self.add_message(f"你付了 {cost} 金币，对方把货塞进你手里，懒洋洋的看着你。")
-            self.add_message("走出几步才发现是假货-——你被骗了，刚刚那个商人是{ELF_THIEF_NAME}假扮的。")
+            self.add_message(f"走出几步才发现是假货-——你被骗了，刚刚那个商人是{ELF_THIEF_NAME}假扮的。")
         else:
             self.add_message("你的金币不足, 无法购买!")
         return "Event Completed"

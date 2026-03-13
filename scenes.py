@@ -70,6 +70,10 @@ class DoorScene(Scene):
             door = c.story.apply_pre_enter_checks(door)
             self.doors[index] = door
         door.enter()
+
+        # 某些门在 enter 中会主动切场景（如被改写成剧情事件的商店门）
+        if c.scene_manager.current_scene.enum != SceneType.DOOR:
+            return door.enum.name
         
         # 检查玩家生命值
         if p.hp <= 0:
