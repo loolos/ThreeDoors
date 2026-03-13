@@ -745,6 +745,79 @@ class StorySystem:
             )
             return True, door
 
+        if effect == "puppet_dark_boss":
+            if getattr(getattr(door, "enum", None), "name", "") != "MONSTER":
+                return False, door
+            from models.monster import Monster
+
+            base_hp = max(80, int(payload.get("base_hp", 220)))
+            base_atk = max(10, int(payload.get("base_atk", 34)))
+            boss_name = payload.get("boss_name", "堕暗机偶·弃线者")
+            story_flags = self.choice_flags.union(self.story_tags)
+
+            kind_flags = set(payload.get("kind_flags", []))
+            dark_flags = set(payload.get("dark_flags", []))
+            kind_score = sum(1 for f in kind_flags if f in story_flags)
+            dark_score = sum(1 for f in dark_flags if f in story_flags)
+            alignment = kind_score - dark_score
+
+            hp_scale = 1.0
+            atk_scale = 1.0
+            awakened_kind = False
+            if alignment >= 2:
+                hp_scale, atk_scale = 0.8, 0.78
+                awakened_kind = True
+            elif alignment == 1:
+                hp_scale, atk_scale = 0.9, 0.88
+            elif alignment <= -2:
+                hp_scale, atk_scale = 1.28, 1.24
+            elif alignment == -1:
+                hp_scale, atk_scale = 1.12, 1.1
+
+            boss = Monster(
+                name=boss_name,
+                hp=max(1, int(base_hp * hp_scale)),
+                atk=max(1, int(base_atk * atk_scale)),
+                tier=max(2, int(payload.get("tier", 5))),
+            )
+            if awakened_kind:
+                heal = min(100 - self.controller.player.hp, max(4, int(payload.get("kind_heal", 12))))
+                if heal > 0:
+                    self.controller.player.heal(heal)
+                self.controller.add_message(
+                    self._resolve_message(
+                        payload,
+                        "kind_awaken_message",
+                        "病毒噪声里忽然响起温柔的童谣。机偶残存的善良人格短暂夺回控制，悄悄替你挡下一轮杀意。",
+                    )
+                )
+            elif alignment <= -2:
+                self.controller.add_message(
+                    self._resolve_message(
+                        payload,
+                        "dark_overload_message",
+                        "你先前的选择不断喂养它体内的黑暗协议，机偶核心完全坠入杀戮模式。",
+                    )
+                )
+            else:
+                self.controller.add_message(
+                    self._resolve_message(
+                        payload,
+                        "neutral_message",
+                        "机偶胸腔里的两段人格互相撕扯，最终仍由黑暗协议抢到了主导权。",
+                    )
+                )
+
+            door.monster = boss
+            hint = payload.get("hunter_hint") or payload.get("hint")
+            if isinstance(hint, str) and hint.strip():
+                door.hint = hint.strip()
+            self._log_effect_result(
+                consequence,
+                f"{boss.name} 降临，生命 {boss.hp}，攻击 {boss.atk}",
+            )
+            return True, door
+
         return False, door
 
     def _queue_chain_followups(self, consequence: PendingConsequence) -> None:

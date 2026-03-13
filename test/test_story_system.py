@@ -8,6 +8,8 @@ from models.events import (
     ElfSideMerchantDisguisedEvent,
     ElfRooftopDuelEvent,
     RefugeeCaravanEvent,
+    PuppetAbandonmentEvent,
+    PuppetSignalEvent,
 )
 from models.items import FlyingHammer
 from models.monster import Monster
@@ -513,6 +515,131 @@ class TestStorySystem(BaseTest):
         with unittest.mock.patch("models.story_system.random.uniform", return_value=0.0):
             forced_event_door = story.apply_pre_enter_checks(second_event_door)
         self.assertEqual(getattr(forced_event_door, "story_forced_event_key", ""), "moon_verdict_event")
+
+    def test_puppet_intro_registers_forced_minion_and_signal_gate(self):
+        story = self.controller.story
+        self.controller.round_count = 9
+        event = PuppetAbandonmentEvent(self.controller)
+        event.resolve_choice(0)
+
+        minion = story.pending_consequences.get("puppet_chain_hide_minion_gate")
+        signal = story.pending_consequences.get("puppet_chain_hide_signal_event_gate")
+        self.assertIsNotNone(minion)
+        self.assertIsNotNone(signal)
+        self.assertEqual(minion.min_round, 10)
+        self.assertEqual(minion.max_round, 13)
+        self.assertTrue(minion.force_on_expire)
+        self.assertEqual(minion.force_door_type, "MONSTER")
+        self.assertTrue(signal.force_on_expire)
+        self.assertEqual(signal.force_door_type, "EVENT")
+        self.assertIn("consumed:puppet_chain_hide_minion_gate", signal.required_flags)
+
+    def test_puppet_chain_can_force_signal_event_after_minion_defeat(self):
+        story = self.controller.story
+        self.controller.round_count = 10
+        PuppetAbandonmentEvent(self.controller).resolve_choice(0)
+
+        self.controller.round_count = 11
+        event_door = DoorEnum.EVENT.create_instance(controller=self.controller)
+        with unittest.mock.patch("models.story_system.random.uniform", return_value=0.0), unittest.mock.patch(
+            "models.story_system.random.random", return_value=0.9
+        ):
+            minion_door = story.apply_pre_enter_checks(event_door)
+        self.assertEqual(minion_door.enum.name, "MONSTER")
+        self.assertEqual(minion_door.monster.name, "锈蚀追猎偶")
+        self.assertIn("puppet_chain_hide_minion_gate", story.pending_consequences)
+
+        story.resolve_battle_consequence(minion_door.monster, defeated=True)
+        self.assertIn("puppet_chain_hide_minion_gate", story.consumed_consequences)
+
+        self.controller.round_count = 17
+        reward_door = DoorEnum.REWARD.create_instance(controller=self.controller)
+        forced_event_door = story.apply_pre_enter_checks(reward_door)
+        self.assertEqual(forced_event_door.enum.name, "EVENT")
+        self.assertEqual(getattr(forced_event_door, "story_forced_event_key", ""), "puppet_signal_event")
+
+    def test_puppet_signal_registers_forced_shop_trap_reward_and_core_event(self):
+        story = self.controller.story
+        self.controller.round_count = 20
+        PuppetSignalEvent(self.controller).resolve_choice(0)
+
+        shop = story.pending_consequences.get("puppet_mid_empathy_shop_gate")
+        trap = story.pending_consequences.get("puppet_mid_empathy_trap_gate")
+        reward = story.pending_consequences.get("puppet_mid_empathy_reward_gate")
+        core = story.pending_consequences.get("puppet_mid_empathy_core_event_gate")
+        self.assertIsNotNone(shop)
+        self.assertIsNotNone(trap)
+        self.assertIsNotNone(reward)
+        self.assertIsNotNone(core)
+
+        self.assertTrue(shop.force_on_expire)
+        self.assertEqual(shop.force_door_type, "SHOP")
+        self.assertTrue(trap.force_on_expire)
+        self.assertEqual(trap.force_door_type, "TRAP")
+        self.assertTrue(reward.force_on_expire)
+        self.assertEqual(reward.force_door_type, "REWARD")
+        self.assertTrue(core.force_on_expire)
+        self.assertEqual(core.force_door_type, "EVENT")
+        self.assertIn("consumed:puppet_mid_empathy_shop_gate", trap.required_flags)
+        self.assertIn("consumed:puppet_mid_empathy_trap_gate", reward.required_flags)
+        self.assertIn("consumed:puppet_mid_empathy_reward_gate", core.required_flags)
+
+    def test_puppet_dark_boss_can_be_weakened_by_kind_persona(self):
+        story = self.controller.story
+        story.choice_flags.update({"puppet_intro_hide", "puppet_signal_empathy", "puppet_descent_patch"})
+        story.register_consequence(
+            choice_flag="puppet_test",
+            consequence_id="puppet_final_kind_case",
+            effect_key="puppet_dark_boss",
+            chance=1.0,
+            trigger_door_types=["MONSTER"],
+            payload={"boss_name": "堕暗机偶·弃线者", "base_hp": 200, "base_atk": 30},
+        )
+        monster_door = DoorEnum.MONSTER.create_instance(
+            controller=self.controller,
+            monster=Monster(name="史莱姆", hp=20, atk=4, tier=1),
+        )
+        with unittest.mock.patch("models.story_system.random.uniform", return_value=0.0), unittest.mock.patch(
+            "models.story_system.random.random", return_value=0.9
+        ):
+            changed = story.apply_pre_enter_checks(monster_door)
+
+        self.assertEqual(changed.enum.name, "MONSTER")
+        self.assertEqual(changed.monster.name, "堕暗机偶·弃线者")
+        self.assertLess(changed.monster.hp, 200)
+        self.assertLess(changed.monster.atk, 30)
+        self.assertTrue(any("善良人格" in msg for msg in self.controller.messages))
+
+    def test_puppet_dark_boss_can_be_forced_and_strengthened(self):
+        story = self.controller.story
+        story.choice_flags.update(
+            {
+                "puppet_intro_blackout",
+                "puppet_intro_decoy",
+                "puppet_signal_sellout",
+                "puppet_descent_dark_feed",
+            }
+        )
+        story.register_consequence(
+            choice_flag="puppet_test",
+            consequence_id="puppet_final_dark_case",
+            effect_key="puppet_dark_boss",
+            chance=0.0,
+            trigger_door_types=["EVENT"],
+            max_round=2,
+            force_on_expire=True,
+            force_door_type="MONSTER",
+            payload={"boss_name": "堕暗机偶·弃线者", "base_hp": 200, "base_atk": 30},
+        )
+        self.controller.round_count = 2
+        reward_door = DoorEnum.REWARD.create_instance(controller=self.controller)
+        with unittest.mock.patch("models.story_system.random.random", return_value=0.9):
+            changed = story.apply_pre_enter_checks(reward_door)
+
+        self.assertEqual(changed.enum.name, "MONSTER")
+        self.assertEqual(changed.monster.name, "堕暗机偶·弃线者")
+        self.assertGreater(changed.monster.hp, 200)
+        self.assertGreater(changed.monster.atk, 30)
 
     def test_revenge_ambush_on_monster_door_can_buff_existing_monster(self):
         story = self.controller.story
