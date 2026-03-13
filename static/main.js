@@ -224,6 +224,34 @@ const SoundSystem = {
     if (sceneType === "GAME_OVER") return this.playTrap();
   },
 
+
+  playPuppetCue() {
+    if (!this.canTrigger("puppet_cue", 180)) return;
+    this.withSynth(Tone.FMSynth, {
+      harmonicity: 1.8,
+      modulationIndex: 9,
+      oscillator: { type: "triangle" },
+      envelope: { attack: 0.01, decay: 0.16, sustain: 0.1, release: 0.2 },
+      volume: -11,
+    }, (synth, now) => {
+      synth.triggerAttackRelease("E4", "8n", now);
+      synth.triggerAttackRelease("B3", "8n", now + 0.12);
+    }, 700);
+  },
+
+  playPuppetFinale() {
+    if (!this.canTrigger("puppet_finale", 1200)) return;
+    this.withPolySynth({
+      oscillator: { type: "sine" },
+      envelope: { attack: 0.04, decay: 0.2, sustain: 0.25, release: 0.5 },
+      volume: -8,
+    }, (synth, now) => {
+      ["C4", "E4", "G4", "B4", "C5"].forEach((note, i) => {
+        synth.triggerAttackRelease(note, "4n", now + i * 0.18);
+      });
+    }, 1800);
+  },
+
   playUiClick() {
     if (!this.canTrigger("ui_click", 60)) return;
     this.withSynth(Tone.Synth, {
@@ -244,6 +272,8 @@ const SoundSystem = {
     if (/购买了|花费\s*\d+\s*金币/.test(text)) this.playShop();
     if (/进入使用道具界面|飞锤|结界|卷轴|恢复\s*\d+\s*HP/.test(text)) this.playUseItem();
     if (/获得了?\s*\d+\s*金币|获得道具|掉落：/.test(text)) this.playReward();
+    if (/木偶音效|木偶终战|木偶结局|阶段切换/.test(text)) this.playPuppetCue();
+    if (/木偶终曲|收束旋律|完全体战斗主题/.test(text)) this.playPuppetFinale();
   },
 };
 
