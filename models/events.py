@@ -984,6 +984,8 @@ class RefugeeCaravanEvent(Event):
 
     def extort(self):
         p = self.get_player()
+        current_round = max(0, int(getattr(self.controller, "round_count", 0)))
+        revenge_deadline_round = current_round + 10
         self.register_story_choice(
             choice_flag="caravan_extorted",
             moral_delta=-9,
@@ -1020,6 +1022,26 @@ class RefugeeCaravanEvent(Event):
                                 },
                             }
                         ],
+                    },
+                },
+                {
+                    "consequence_id": "caravan_extort_deadline_revenge",
+                    "effect_key": "revenge_ambush",
+                    "chance": 0.24,
+                    "trigger_door_types": ["MONSTER", "EVENT"],
+                    "max_round": revenge_deadline_round,
+                    "force_on_expire": True,
+                    "force_door_type": "MONSTER",
+                    "payload": {
+                        "force_hunter": True,
+                        "hunter_name": "复仇执行者",
+                        "hunter_hint": "车队残破的旗帜挂在门后，追债的人已经等了你很久。",
+                        "message": [
+                            "你抢劫车队的旧账被翻了出来，复仇者堵住了去路。",
+                            "被你洗劫的车队雇来了追猎者，这次他们不打算谈判。",
+                        ],
+                        "log_trigger": "你忽然看见地上那面破旗，意识到车队的复仇追上来了。",
+                        "log_result": "期限已到，复仇者破门而入，你被强行拖进了清算战。",
                     },
                 },
             ],

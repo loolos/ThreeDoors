@@ -30,10 +30,19 @@ class PendingConsequence:
     trigger_monsters: Set[str] = field(default_factory=set)
     min_round: Optional[int] = None
     max_round: Optional[int] = None
+    force_on_expire: bool = False
+    force_door_type: Optional[str] = None
     priority: int = 0
     payload: Dict[str, Any] = field(default_factory=dict)
     required_flags: Set[str] = field(default_factory=set)
     forbidden_flags: Set[str] = field(default_factory=set)
+
+    def _flags_match(self, story_flags: Set[str]) -> bool:
+        if self.required_flags and not self.required_flags.issubset(story_flags):
+            return False
+        if self.forbidden_flags and self.forbidden_flags.intersection(story_flags):
+            return False
+        return True
 
     def matches(self, door: Any, round_count: int, story_flags: Set[str]) -> bool:
         door_type = getattr(getattr(door, "enum", None), "name", "")
@@ -46,11 +55,17 @@ class PendingConsequence:
             return False
         if self.max_round is not None and round_count > self.max_round:
             return False
-        if self.required_flags and not self.required_flags.issubset(story_flags):
+        return self._flags_match(story_flags)
+
+    def should_force_trigger(self, round_count: int, story_flags: Set[str]) -> bool:
+        """达到截止轮次后可强制触发，不再受门类型和概率限制。"""
+        if not self.force_on_expire or self.max_round is None:
             return False
-        if self.forbidden_flags and self.forbidden_flags.intersection(story_flags):
+        if self.min_round is not None and round_count < self.min_round:
             return False
-        return True
+        if round_count < self.max_round:
+            return False
+        return self._flags_match(story_flags)
 
 
 class StorySystem:
@@ -139,6 +154,8 @@ class StorySystem:
         trigger_monsters: Optional[Iterable[str]] = None,
         min_round: Optional[int] = None,
         max_round: Optional[int] = None,
+        force_on_expire: bool = False,
+        force_door_type: Optional[str] = None,
         delay_rounds: int = 0,
         priority: int = 0,
         payload: Optional[Dict[str, Any]] = None,
@@ -163,6 +180,12 @@ class StorySystem:
                 except (TypeError, ValueError):
                     min_round = delayed_round
 
+        normalized_force_door_type = None
+        if isinstance(force_door_type, str):
+            candidate = force_door_type.strip().upper()
+            if candidate in DoorEnum.__members__:
+                normalized_force_door_type = candidate
+
         self.pending_consequences[consequence_id] = PendingConsequence(
             consequence_id=consequence_id,
             source_flag=choice_flag,
@@ -173,6 +196,8 @@ class StorySystem:
             trigger_monsters=set(trigger_monsters or []),
             min_round=min_round,
             max_round=max_round,
+            force_on_expire=bool(force_on_expire),
+            force_door_type=normalized_force_door_type,
             priority=priority,
             payload=payload or {},
             required_flags=set(required_flags or []),
@@ -189,9 +214,25 @@ class StorySystem:
     def _trigger_pending_consequence(self, door: Any) -> Any:
         round_count = getattr(self.controller, "round_count", 0)
         story_flags = self.choice_flags.union(self.story_tags)
+        all_pending = list(self.pending_consequences.values())
+        forced_candidates = [
+            c for c in all_pending if c.should_force_trigger(round_count=round_count, story_flags=story_flags)
+        ]
+        if forced_candidates:
+            forced_candidates.sort(
+                key=lambda c: (
+                    c.max_round if c.max_round is not None else 10**9,
+                    -int(c.priority),
+                    c.consequence_id,
+                )
+            )
+            chosen = forced_candidates[0]
+            apply_door = self._coerce_forced_door(door, chosen)
+            return self._apply_chosen_consequence(chosen=chosen, door=apply_door, fallback_door=door, forced=True)
+
         candidates = [
             c
-            for c in self.pending_consequences.values()
+            for c in all_pending
             if c.matches(door=door, round_count=round_count, story_flags=story_flags)
         ]
         door_type = getattr(getattr(door, "enum", None), "name", "")
@@ -224,15 +265,43 @@ class StorySystem:
                 break
         if chosen is None:
             chosen = candidates[-1]
+        return self._apply_chosen_consequence(chosen=chosen, door=door, fallback_door=door, forced=False)
+
+    def _coerce_forced_door(self, door: Any, consequence: PendingConsequence) -> Any:
+        target_type = consequence.force_door_type
+        if not target_type:
+            return door
+        current_type = getattr(getattr(door, "enum", None), "name", "")
+        if current_type == target_type:
+            return door
+        target_enum = DoorEnum.__members__.get(target_type)
+        if target_enum is None:
+            return door
+        forced_door = target_enum.create_instance(controller=self.controller)
+        hint = consequence.payload.get("forced_door_hint")
+        if isinstance(hint, str) and hint.strip():
+            forced_door.hint = hint.strip()
+        return forced_door
+
+    def _apply_chosen_consequence(
+        self,
+        chosen: PendingConsequence,
+        door: Any,
+        fallback_door: Any,
+        forced: bool,
+    ) -> Any:
         trigger_message = self._build_trigger_message(chosen)
         if trigger_message:
             self.controller.add_message(trigger_message)
         applied, new_door = self._apply_effect(chosen, door)
+        if forced and not applied and chosen.force_door_type:
+            # 截止轮次的强制触发至少要保证门被改写到目标类型。
+            applied, new_door = True, door
         if applied:
             if not self._should_defer_consumption(chosen, new_door):
                 self._consume_consequence(chosen)
             return new_door
-        return door
+        return fallback_door
 
     def _consume_consequence(self, consequence: PendingConsequence) -> None:
         cid = consequence.consequence_id
