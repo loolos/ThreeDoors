@@ -1124,6 +1124,14 @@ class StorySystem:
             active_phase=0,
         )
         _add_runtime(
+            "consumed:puppet_side_reward_once",
+            trigger="monster_attack",
+            direction="down",
+            message="【连锁触发】结界模板在受击瞬间展开，本次木偶伤害降低 {percent}%。",
+            chance=0.34,
+            active_phase=0,
+        )
+        _add_runtime(
             "puppet_signal_soft",
             trigger="monster_attack",
             direction="down",
@@ -1177,7 +1185,7 @@ class StorySystem:
             direction="up",
             message="【连锁触发】污染扩散在完全体中继续发酵，本次木偶伤害提高 {percent}%。",
             chance=0.37,
-            active_phase=2,
+            active_phase=0,
         )
         _add_runtime(
             "puppet_descent_cut_emotion",
@@ -1193,7 +1201,7 @@ class StorySystem:
             direction="down",
             message="【连锁触发】修复补丁在关键节点阻断杀意，本次木偶伤害降低 {percent}%。",
             chance=0.3,
-            active_phase=2,
+            active_phase=0,
         )
 
         return state
