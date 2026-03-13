@@ -1,6 +1,6 @@
 import random
 from .monster import get_random_monster
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from models.base_class import BaseClass
 from models.monster import Monster
 from models.shop import Shop
@@ -54,6 +54,11 @@ class Door(BaseClass):
             self.texture_key = kwargs["texture_key"]
         else:
             self.texture_key = self._choose_texture_key()
+        raw_extensions = kwargs.get("door_extensions", kwargs.get("extensions", []))
+        self.door_extensions: List[Dict[str, Any]] = []
+        for ext in raw_extensions:
+            if isinstance(ext, dict):
+                self.door_extensions.append(dict(ext))
 
     def _choose_texture_key(self) -> str:
         return random.choice(FRONT_DOOR_TEXTURES)
@@ -77,6 +82,29 @@ class Door(BaseClass):
     def enter(self) -> bool:
         """进入门"""
         raise NotImplementedError("子类必须实现enter方法")
+
+    def add_door_extension(self, extension_config: Dict[str, Any]) -> None:
+        """门扩展窗口：统一承载事件对门行为的改写。"""
+        if isinstance(extension_config, dict):
+            self.door_extensions.append(extension_config)
+
+    def add_extension(self, extension_config: Dict[str, Any]) -> None:
+        """兼容别名。"""
+        self.add_door_extension(extension_config)
+
+    def run_door_extensions(self, hook: str, **kwargs) -> List[Dict[str, Any]]:
+        """执行门扩展并返回每个扩展的结果字典。"""
+        if not self.door_extensions:
+            return []
+        story = getattr(self.controller, "story", None)
+        if story is None or not hasattr(story, "apply_door_extension"):
+            return []
+        outputs: List[Dict[str, Any]] = []
+        for ext in self.door_extensions:
+            result = story.apply_door_extension(door=self, extension=ext, hook=hook, **kwargs)
+            if isinstance(result, dict):
+                outputs.append(result)
+        return outputs
     
     
 
@@ -99,6 +127,13 @@ class TrapDoor(Door):
             self.generate_non_monster_door_hint()
             
     def enter(self) -> bool:
+        ext_outputs = self.run_door_extensions(hook="before_enter")
+        for out in ext_outputs:
+            replacement_door = out.get("replacement_door")
+            if replacement_door is not None and hasattr(replacement_door, "enter"):
+                return bool(replacement_door.enter())
+            if out.get("skip_default_enter"):
+                return True
         self.controller.add_message("你触发了机关！")
         
         trap_type = random.choice(['spike', 'poison', 'gold', 'weakness'])
@@ -165,6 +200,7 @@ class RewardDoor(Door):
         self.generate_non_monster_door_hint()
 
     def enter(self) -> bool:
+        self.run_door_extensions(hook="before_enter")
         if getattr(self, "elf_side_reward", False):
             story = getattr(self.controller, "story", None)
             rel = int(getattr(story, "elf_relation", 0)) if story else 0
@@ -238,6 +274,7 @@ class MonsterDoor(Door):
             self.battle_extensions.append(extension_config)
     
     def enter(self) -> bool:
+        self.run_door_extensions(hook="before_enter")
         if not self.monster:
             return False
         self.controller.current_monster = self.monster
@@ -263,6 +300,7 @@ class ShopDoor(Door):
         self.generate_non_monster_door_hint()
     
     def enter(self) -> bool:
+        self.run_door_extensions(hook="before_enter")
         forced_key = getattr(self, "story_forced_event_key", None)
         if forced_key:
             event = get_story_event_by_key(forced_key, self.controller)
@@ -288,6 +326,7 @@ class EventDoor(Door):
         self.generate_non_monster_door_hint()
     
     def enter(self) -> bool:
+        self.run_door_extensions(hook="before_enter")
         forced_key = getattr(self, "story_forced_event_key", None)
         if forced_key:
             event = get_story_event_by_key(forced_key, self.controller) or get_random_event(self.controller)
