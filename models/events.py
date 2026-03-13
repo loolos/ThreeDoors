@@ -3731,7 +3731,7 @@ def _weighted_pick(event_classes, weights):
     return event_classes[-1]
 
 
-RECENT_EVENT_WINDOW = 6  # 最近 N 次事件门内尽量不重复
+RECENT_EVENT_WINDOW = 4  # 最近 N 次事件门内尽量不重复
 
 
 def _get_event_trigger_counts(controller):
