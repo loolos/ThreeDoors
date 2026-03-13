@@ -114,9 +114,9 @@ class DoorScene(Scene):
                 else:
                     raise ValueError(f"无效的门类型: {door_enum}")
         else:
-            # 获取可用的门类型
-            available_door_enums = [door_enum for door_enum in DoorEnum]
-                
+            # 获取非怪物门类型：用于生成另外两扇互不重复的门
+            non_monster_door_enums = [door_enum for door_enum in DoorEnum if door_enum != DoorEnum.MONSTER]
+
             # 生成一扇怪物门
             monster = get_random_monster(
                 current_round=self.controller.round_count,
@@ -124,10 +124,10 @@ class DoorScene(Scene):
                 unlocked_tier=getattr(self.controller, "unlocked_monster_tier", GameConfig.START_UNLOCKED_MONSTER_TIER),
             )
             monster_door = DoorEnum.MONSTER.create_instance(monster=monster, controller=self.controller)
-            # 生成其他两扇门
+            # 生成其他两扇门（从非怪物类型中无放回抽样，确保类型不重复）
+            extra_door_enums = random.sample(non_monster_door_enums, 2)
             self.doors = [monster_door]
-            for _ in range(2):
-                door_enum = random.choice(available_door_enums)
+            for door_enum in extra_door_enums:
                 self.doors.append(door_enum.create_instance(controller=self.controller))
             
             # 随机打乱三扇门的顺序

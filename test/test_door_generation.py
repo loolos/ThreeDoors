@@ -15,7 +15,8 @@ class TestDoorGeneration(BaseTest):
         
         # 验证门类型
         door_types = [door.enum for door in self.controller.scene_manager.current_scene.doors]
-        self.assertTrue(any(door_type == DoorEnum.MONSTER for door_type in door_types))
+        self.assertEqual(sum(door_type == DoorEnum.MONSTER for door_type in door_types), 1)
+        self.assertEqual(len(set(door_types)), 3)
         
     def test_door_hints(self):
         """测试门提示"""
