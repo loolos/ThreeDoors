@@ -754,6 +754,8 @@ class StorySystem:
             base_atk = max(10, int(payload.get("base_atk", 34)))
             boss_name = payload.get("boss_name", "堕暗机偶·弃线者")
             story_flags = self.choice_flags.union(self.story_tags)
+            kind_name = payload.get("kind_persona_name", "绒心·诺诺")
+            dark_name = payload.get("dark_persona_name", "裂齿·夜魇")
 
             default_kind_flags = {
                 "puppet_intro_hide",
@@ -774,20 +776,40 @@ class StorySystem:
             dark_flags = set(raw_dark_flags or default_dark_flags)
             kind_score = sum(1 for f in kind_flags if f in story_flags)
             dark_score = sum(1 for f in dark_flags if f in story_flags)
-            alignment = kind_score - dark_score
+            stored_evil = getattr(self, "puppet_evil_value", None)
+            try:
+                stored_evil = int(stored_evil) if stored_evil is not None else None
+            except (TypeError, ValueError):
+                stored_evil = None
+            if stored_evil is None:
+                evil_value = 55 + dark_score * 8 - kind_score * 8
+            else:
+                evil_value = stored_evil
+            if "evil_value" in payload:
+                try:
+                    evil_value = int(payload.get("evil_value"))
+                except (TypeError, ValueError):
+                    pass
+            evil_value += (dark_score - kind_score) * 2
+            evil_value = max(0, min(100, evil_value))
 
             hp_scale = 1.0
             atk_scale = 1.0
             awakened_kind = False
-            if alignment >= 2:
-                hp_scale, atk_scale = 0.8, 0.78
+            dark_overload = False
+            if evil_value <= 25:
+                hp_scale, atk_scale = 0.72, 0.72
                 awakened_kind = True
-            elif alignment == 1:
-                hp_scale, atk_scale = 0.9, 0.88
-            elif alignment <= -2:
-                hp_scale, atk_scale = 1.28, 1.24
-            elif alignment == -1:
-                hp_scale, atk_scale = 1.12, 1.1
+            elif evil_value <= 45:
+                hp_scale, atk_scale = 0.86, 0.84
+                awakened_kind = True
+            elif evil_value <= 65:
+                hp_scale, atk_scale = 1.0, 1.0
+            elif evil_value <= 85:
+                hp_scale, atk_scale = 1.18, 1.14
+            else:
+                hp_scale, atk_scale = 1.35, 1.28
+                dark_overload = True
 
             boss = Monster(
                 name=boss_name,
@@ -803,15 +825,15 @@ class StorySystem:
                     self._resolve_message(
                         payload,
                         "kind_awaken_message",
-                        "病毒噪声里忽然响起温柔的童谣。机偶残存的善良人格短暂夺回控制，悄悄替你挡下一轮杀意。",
+                        f"病毒噪声里忽然响起温柔童谣，{kind_name}短暂夺回控制，悄悄替你挡下一轮杀意。",
                     )
                 )
-            elif alignment <= -2:
+            elif dark_overload:
                 self.controller.add_message(
                     self._resolve_message(
                         payload,
                         "dark_overload_message",
-                        "你先前的选择不断喂养它体内的黑暗协议，机偶核心完全坠入杀戮模式。",
+                        f"你先前的选择不断喂养黑暗协议，{dark_name}完全接管了机偶核心。",
                     )
                 )
             else:
@@ -819,7 +841,7 @@ class StorySystem:
                     self._resolve_message(
                         payload,
                         "neutral_message",
-                        "机偶胸腔里的两段人格互相撕扯，最终仍由黑暗协议抢到了主导权。",
+                        f"{kind_name}与{dark_name}仍在互相撕扯，黑暗协议暂时占了上风。",
                     )
                 )
 
@@ -829,7 +851,7 @@ class StorySystem:
                 door.hint = hint.strip()
             self._log_effect_result(
                 consequence,
-                f"{boss.name} 降临，生命 {boss.hp}，攻击 {boss.atk}",
+                f"{boss.name} 降临（邪恶值 {evil_value}/100），生命 {boss.hp}，攻击 {boss.atk}",
             )
             return True, door
 

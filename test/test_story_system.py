@@ -10,6 +10,7 @@ from models.events import (
     RefugeeCaravanEvent,
     PuppetAbandonmentEvent,
     PuppetSignalEvent,
+    PuppetKindEchoEvent,
 )
 from models.items import FlyingHammer
 from models.monster import Monster
@@ -558,7 +559,7 @@ class TestStorySystem(BaseTest):
         self.assertEqual(forced_event_door.enum.name, "EVENT")
         self.assertEqual(getattr(forced_event_door, "story_forced_event_key", ""), "puppet_signal_event")
 
-    def test_puppet_signal_registers_forced_shop_trap_reward_and_core_event(self):
+    def test_puppet_signal_registers_forced_shop_trap_reward_and_kind_event(self):
         story = self.controller.story
         self.controller.round_count = 20
         PuppetSignalEvent(self.controller).resolve_choice(0)
@@ -566,11 +567,11 @@ class TestStorySystem(BaseTest):
         shop = story.pending_consequences.get("puppet_mid_empathy_shop_gate")
         trap = story.pending_consequences.get("puppet_mid_empathy_trap_gate")
         reward = story.pending_consequences.get("puppet_mid_empathy_reward_gate")
-        core = story.pending_consequences.get("puppet_mid_empathy_core_event_gate")
+        kind = story.pending_consequences.get("puppet_mid_empathy_kind_event_gate")
         self.assertIsNotNone(shop)
         self.assertIsNotNone(trap)
         self.assertIsNotNone(reward)
-        self.assertIsNotNone(core)
+        self.assertIsNotNone(kind)
 
         self.assertTrue(shop.force_on_expire)
         self.assertEqual(shop.force_door_type, "SHOP")
@@ -578,11 +579,21 @@ class TestStorySystem(BaseTest):
         self.assertEqual(trap.force_door_type, "TRAP")
         self.assertTrue(reward.force_on_expire)
         self.assertEqual(reward.force_door_type, "REWARD")
-        self.assertTrue(core.force_on_expire)
-        self.assertEqual(core.force_door_type, "EVENT")
+        self.assertTrue(kind.force_on_expire)
+        self.assertEqual(kind.force_door_type, "EVENT")
         self.assertIn("consumed:puppet_mid_empathy_shop_gate", trap.required_flags)
         self.assertIn("consumed:puppet_mid_empathy_trap_gate", reward.required_flags)
-        self.assertIn("consumed:puppet_mid_empathy_reward_gate", core.required_flags)
+        self.assertIn("consumed:puppet_mid_empathy_reward_gate", kind.required_flags)
+        self.assertEqual(kind.payload.get("event_key"), "puppet_kind_echo_event")
+
+    def test_puppet_kind_echo_choice_can_reduce_evil_value(self):
+        story = self.controller.story
+        story.puppet_evil_value = 60
+        self.controller.round_count = 21
+        PuppetKindEchoEvent(self.controller).resolve_choice(0)
+        self.assertLess(story.puppet_evil_value, 60)
+        pending_ids = set(story.pending_consequences.keys())
+        self.assertTrue(any(cid.startswith("puppet_kind_echo_trust_rift_gate") for cid in pending_ids))
 
     def test_puppet_dark_boss_can_be_weakened_by_kind_persona(self):
         story = self.controller.story
