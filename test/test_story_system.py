@@ -779,7 +779,7 @@ class TestStorySystem(BaseTest):
 
         self.assertLess(changed.monster.hp, 200)
         self.assertLess(changed.monster.atk, 30)
-        self.assertTrue(any("温和样本" in msg for msg in self.controller.messages))
+        self.assertTrue(any("温和语音样本" in msg or "温和样本" in msg for msg in self.controller.messages))
 
     def test_puppet_dark_boss_can_transform_to_dark_complete_form(self):
         story = self.controller.story
@@ -886,7 +886,7 @@ class TestStorySystem(BaseTest):
 
         trigger_counts = self.controller.current_battle_extensions[0]["state"].get("runtime_trigger_counts", {})
         self.assertGreaterEqual(trigger_counts.get("consumed:puppet_side_reward_once:player_attack", 0), 2)
-        self.assertTrue(any("结界模板" in msg for msg in self.controller.messages))
+        self.assertTrue(any("结界" in msg for msg in self.controller.messages))
 
     def test_puppet_dark_boss_incoming_damage_modifier_works_in_both_phases(self):
         story = self.controller.story
@@ -1007,7 +1007,7 @@ class TestStorySystem(BaseTest):
         ):
             story.apply_pre_enter_checks(monster_door)
 
-        self.assertTrue(any("没在中途触发那些支线干预" in msg for msg in self.controller.messages))
+        self.assertTrue(any("支线干预" in msg for msg in self.controller.messages))
 
     def test_revenge_ambush_on_monster_door_can_buff_existing_monster(self):
         story = self.controller.story

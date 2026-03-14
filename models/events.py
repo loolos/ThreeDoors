@@ -1416,7 +1416,7 @@ class MirrorTheaterEvent(Event):
         if random.random() < 0.6:
             item = create_random_item()
             item.acquire(player=p)
-            self.add_message(f"你把剧本撕成纸雨，幕后人沉默片刻后反而鼓掌离席，只在台口留下了 {item.name}。")
+            self.add_message(f"你把剧本撕成纸雨，幕后人沉默片刻后反而鼓掌离席，你走近一看，他留下了 {item.name}。")
         else:
             dmg = 10
             p.take_damage(dmg)
@@ -1685,10 +1685,10 @@ class ClockworkBazaarEvent(Event):
     def __init__(self, controller):
         super().__init__(controller)
         self.title = "Clockwork Bazaar"
-        self.description = "一列会自行换轨的摊车停在岔路口。这里的移动黑市不认身份，只认你能带来多少'可兑现的经历'：修好它的机关可换信誉，篡改规则能赚快钱，砸摊则会立刻树敌。主持人敲钟，催你马上选一种做法。"
+        self.description = "一列会自行换轨的商贩车停在岔路口。这个的移动黑市不认身份，只认你能带来多少'可兑现的经历'，但自动售货机已经坏掉：修好它的机关可换信誉，也可以趁机偷看优惠码赚快钱，砸掉它则会立刻树敌。你需要马上选一种做法。"
         self.choices = [
             EventChoice("校准摊位机械，换取信誉", self.calibrate),
-            EventChoice("偷改优惠码", self.hack_coupon),
+            EventChoice("偷看优惠码，赚取快钱", self.hack_coupon),
             EventChoice("破坏竞品摊位", self.sabotage),
         ]
 
@@ -1701,12 +1701,12 @@ class ClockworkBazaarEvent(Event):
                 shop_effect="black_market_discount",
                 ratio=0.68,
                 hunter_name="食人魔",
-                shop_message="你留下的调校参数通过了总账验证，后续摊位把你标记为可靠客户。",
+                shop_message="你修好的调校参数通过了总账验证，后续摊位把你标记为可靠客户。",
             ),
         )
         tip = 12
         self.get_player().gold += tip
-        self.add_message(f"你把卡死的计价机关重新校到同频，主持人当众给你别上齿轮徽章，并付了 {tip}G 调校费。")
+        self.add_message(f"你把卡死的计价机关重新校到同频，摊主看到后当众给你别上齿轮徽章，并付了 {tip}G 调校费。")
         return "Event Completed"
 
     def hack_coupon(self):
@@ -1723,7 +1723,7 @@ class ClockworkBazaarEvent(Event):
         )
         gain = 16
         self.get_player().gold += gain
-        self.add_message(f"你偷改了校验齿轮，伪码在短窗口内生效，先白赚 {gain}G；但系统回滚的倒计时已经亮起。")
+        self.add_message(f"你偷了优惠码，他们在在短窗口内生效，先白赚 {gain}G；但系统回滚的倒计时已经亮起。")
         return "Event Completed"
 
     def sabotage(self):
@@ -2427,8 +2427,8 @@ def _register_puppet_side_consequences(controller):
             "consume_on_defeat": True,
             "hunter_name": "锈蚀追猎偶",
             "hunter_hint": "金属摩擦声忽远忽近，像有一台小型追猎体在你周围绕圈校准。",
-            "message": "门缝刚开，一只锈蚀小木偶就扑了出来，逼得你当场应战。",
-            "log_trigger": "你手刚碰到门把，门内先传来急促抓挠声，紧接着整道门被反锁改写。你原本选中的门被小弟战斗覆盖，这次只能先把它打掉。",
+            "message": "门缝刚开，一只锈迹斑斑的小木偶就扑了出来，逼得你当场应战。",
+            "log_trigger": "你手刚碰到门把，门内先传来急促抓挠声，紧接着整道门被反锁，过了一段时间才缓缓打开。",
             "evil_value_delta": 8,
         },
     )
@@ -2444,7 +2444,7 @@ def _register_puppet_side_consequences(controller):
         forbidden_flags=common_forbidden,
         payload={
             "event_key": "puppet_signal_event",
-            "hint": "前情：你刚拆掉小弟追猎体，墙缝里开始回放失真童谣。",
+            "hint": "前情：你此前拆掉了锈迹斑斑的小木偶，墙缝里开始回放失真童谣。",
             "message": "你之前摆脱的追猎偶，导致失真信号占据了门系统，下一扇门被强制改写成信号室。",
             "log_trigger": "你按下门把，忽然听到墙里的童谣倒放，门牌号被篡改成信号室编号。原路线被系统强制覆盖，你被拖进了木偶留下的信号节点。",
             "evil_value_delta": -5,
@@ -2542,10 +2542,10 @@ class PuppetAbandonmentEvent(Event):
         self.description = (
             "你在昏暗走廊尽头看见一具被丢弃的机器人木偶，胸口还挂着半截编号牌。"
             f"屏幕闪烁着两行人格标签：蓝光侧【{kind_name}】、红噪侧【{dark_name}】。"
-            "它在黑暗中游荡，碰到障碍物就一拳砸裂墙面，你确认现在绝不能正面和它对抗。"
+            "它在黑暗中游荡，碰到障碍物就一拳砸裂，你确认现在绝不能正面和它对抗。"
         )
         self.choices = [
-            EventChoice("钻进检修井盖，贴墙潜行躲避", self.hide_in_shaft),
+            EventChoice("钻进井盖，潜行躲避", self.hide_in_shaft),
             EventChoice("拉闸熄灯，趁黑撤离", self.cut_power_and_escape),
             EventChoice("丢出诱饵芯片，反向引开它", self.throw_decoy),
         ]
@@ -2834,7 +2834,7 @@ class PuppetCoreDescentEvent(Event):
                     "effect_key": "puppet_dark_boss",
                     "chance": 1.0,
                     "priority": 130,
-                    "trigger_door_types": ["MONSTER", "EVENT"],
+                    "trigger_door_types": ["MONSTER", "EVENT", "TRAP", "SHOP", "REWARD"],
                     "min_round": current_round + 20,
                     "max_round": current_round + 30,
                     "force_on_expire": True,
@@ -2870,9 +2870,9 @@ class PuppetCoreDescentEvent(Event):
                         "hint": "前情：核心下潜结束，最深处那扇门正在锁定。门后是木偶黑暗人格本体。",
                         "message": "核心阀门一节节闭合，走廊尽头只剩一扇被红线封死的门。你知道，门后就是它的本体。",
                         "log_trigger": "你打算要推开门，突然发现整条走廊被红色封锁线覆盖。正要推开的一刹那，整个走廊都开始震动，三扇门在黑暗中重组成了一个巨大的机械人偶。",
-                        "kind_awaken_message": f"你先前留下的修复指令在最后一秒生效。{kind_name}短暂夺回控制，他眼里闪过一丝蓝光，替你压低了黑暗核心输出。",
-                        "dark_overload_message": f"你喂给它的黑暗指令全部生效，{dark_name}彻底接管本体，气势瞬间暴涨。",
-                        "neutral_message": f"{kind_name}与{dark_name}仍在互咬，但黑暗侧握着主导权。它缓缓抬头，战斗不可避免。",
+                        "kind_awaken_message": f"你一路对蓝光侧的选择在最后一秒有了回响。{kind_name}短暂夺回控制，机偶眼中闪过一丝蓝光，替你压低了黑暗核心输出。",
+                        "dark_overload_message": f"你先前的选择不断喂养黑暗协议，{dark_name}彻底接管本体，气势瞬间暴涨。",
+                        "neutral_message": f"{kind_name}与{dark_name}仍在互相撕扯，但黑暗侧握着主导权。机偶缓缓抬头，战斗不可避免。",
                     },
                 }
             ],
@@ -2986,7 +2986,7 @@ def _elf_grant_dynamic_boon(controller):
 
     if roll < 0.68:
         heal = _elf_percent_hp(p, 0.14)
-        p.hp = min(100, p.hp + heal)
+        p.hp = p.hp + heal
         return f"她把止血粉和绑带塞给你，顺手重新缠好护腕，然后道：'你受伤了，先包扎一下。'（+{heal}HP）。"
 
     item = create_reward_door_item()
@@ -3117,7 +3117,7 @@ class ElfShadowMarkEvent(Event):
             "你推开门，她果然在门后的阴影里等着，没动你身上的东西，只冲你抬了抬下巴。"
         )
         self.choices = [
-            EventChoice("和她交换情报", self.share_info),
+            EventChoice("和她深入交换目前所知情报", self.share_info),
             EventChoice("追问她真实目的", self.ask_intent),
             EventChoice("放冷话：再见就算账", self.threaten),
         ]
@@ -3126,15 +3126,15 @@ class ElfShadowMarkEvent(Event):
         gain = _elf_percent_gold(self.get_player(), 0.1)
         self.get_player().gold += gain
         _adjust_elf_relation(self.controller, 2)
-        self.add_message(f"你们互通了怪物巢穴路线的情报，她提醒你绕开最毒的陷阱层；你按图摸到遗漏的财宝（+{gain}G）。")
+        self.add_message(f"你们互通了冒险路线的情报，她提醒你绕开最毒的陷阱层；你按图摸到遗漏的财宝（+{gain}G）。")
         _schedule_next_elf_event(self.controller, "elf_shadow_mark_event")
         return "Event Completed"
 
     def ask_intent(self):
         heal = _elf_percent_hp(self.get_player(), 0.12)
-        self.get_player().hp = min(100, self.get_player().hp + heal)
+        self.get_player().hp = self.get_player().hp + heal
         _adjust_elf_relation(self.controller, 1)
-        self.add_message(f"她丢来药包：'目的？先活下来，才配知道目的。'（+{heal}HP）")
+        self.add_message(f"她丢来药包：'目的？你得先活下来，才配知道目的。'（+{heal}HP）")
         _schedule_next_elf_event(self.controller, "elf_shadow_mark_event")
         return "Event Completed"
 
@@ -3172,7 +3172,7 @@ class ElfRooftopDuelEvent(Event):
 
     def go_easy(self):
         heal = _elf_percent_hp(self.get_player(), 0.1)
-        self.get_player().hp = min(100, self.get_player().hp + heal)
+        self.get_player().hp = self.get_player().hp + heal
         _adjust_elf_relation(self.controller, 1)
         self.add_message(f"她看穿你在放水，却还是把跌打药塞进你怀里（+{heal}HP）。")
         _schedule_next_elf_event(self.controller, "elf_rooftop_duel_event")
@@ -3241,7 +3241,7 @@ class ElfMonsterStageEvent(Event):
 
     def train_dodge(self):
         heal = _elf_percent_hp(self.get_player(), 0.1)
-        self.get_player().hp = min(100, self.get_player().hp + heal)
+        self.get_player().hp = self.get_player().hp + heal
         _adjust_elf_relation(self.controller, 1)
         self.add_message(f"你学会了借门框卸力，体力恢复了 {heal} 点。")
         _schedule_next_elf_event(self.controller, "elf_monster_stage_event")
@@ -3282,7 +3282,7 @@ class ElfNightCampEvent(Event):
 
     def promise_help(self):
         heal = _elf_percent_hp(self.get_player(), 0.14)
-        self.get_player().hp = min(100, self.get_player().hp + heal)
+        self.get_player().hp = self.get_player().hp + heal
         _adjust_elf_relation(self.controller, 2)
         self.add_message(f"她难得正经地点头，把多烤的肉递给你：'好，我也记你一份人情。'（+{heal}HP）")
         _schedule_next_elf_event(self.controller, "elf_night_camp_event")
@@ -3322,7 +3322,7 @@ class ElfTrapRescueEvent(Event):
         rel = getattr(_get_elf_chain_state(self.controller), "elf_relation", 0)
         if rel >= 2:
             heal = _elf_percent_hp(self.get_player(), 0.16)
-            self.get_player().hp = min(100, self.get_player().hp + heal)
+            self.get_player().hp = self.get_player().hp + heal
             self.add_message(f"她精准切断绞索，还顺手包扎了你的手腕（+{heal}HP）。")
         elif rel <= -2:
             dmg = _elf_percent_hp(self.get_player(), 0.14)
@@ -3486,7 +3486,7 @@ class ElfEpilogueEvent(Event):
         rel = getattr(story, "elf_relation", 0) if story else 0
         boon_text = _elf_grant_dynamic_boon(self.controller)
         extra_heal = _elf_percent_hp(self.get_player(), 0.08 if rel >= 2 else 0.05)
-        self.get_player().hp = min(100, self.get_player().hp + extra_heal)
+        self.get_player().hp = self.get_player().hp + extra_heal
         self.add_message(
             f"你把银羽徽记系在护腕上。她把手按在你肩上：'以后见暗号，算自己人。'"
             f" 临别前她又补了一手急救（+{extra_heal}HP）。{boon_text}"

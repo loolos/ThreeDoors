@@ -901,8 +901,7 @@ class StorySystem:
             return True, door
 
         if effect == "puppet_dark_boss":
-            if getattr(getattr(door, "enum", None), "name", "") != "MONSTER":
-                return False, door
+            door_is_monster = getattr(getattr(door, "enum", None), "name", "") == "MONSTER"
             from models.monster import Monster, _apply_player_match_scaling, estimate_player_power
 
             base_hp = max(80, int(payload.get("base_hp", 220)))
@@ -915,14 +914,18 @@ class StorySystem:
 
             default_kind_flags = {
                 "puppet_intro_hide",
-                "puppet_signal_empathy",
-                "puppet_signal_analyze",
+                "puppet_signal_soft",
+                "puppet_kind_echo_trust",
+                "puppet_kind_echo_comfort",
+                "puppet_rift_kind",
                 "puppet_descent_patch",
             }
             default_dark_flags = {
                 "puppet_intro_blackout",
                 "puppet_intro_decoy",
-                "puppet_signal_sellout",
+                "puppet_signal_resell",
+                "puppet_kind_echo_exploit",
+                "puppet_rift_dark",
                 "puppet_descent_cut_emotion",
                 "puppet_descent_dark_feed",
             }
@@ -990,7 +993,7 @@ class StorySystem:
                     self._resolve_message(
                         payload,
                         "no_side_event_message",
-                        "你几乎没在中途触发那些支线干预，它的最终参数按核心读数直接结算。",
+                        "你几乎没在中途触发那些支线干预，它的最终参数按核心读数直接结算，战斗走势更加不可预测。",
                     )
                 )
             if awakened_kind:
@@ -1036,21 +1039,28 @@ class StorySystem:
                 "monster_ref": boss,
                 "state": puppet_state,
             }
-            if hasattr(door, "add_battle_extension"):
-                door.add_battle_extension(extension_cfg)
+            if door_is_monster:
+                if hasattr(door, "add_battle_extension"):
+                    door.add_battle_extension(extension_cfg)
+                else:
+                    door.battle_extensions = [extension_cfg]
+                door.monster = boss
+                target_door = door
             else:
-                # 兼容可能缺少扩展窗口的旧门实现
-                door.battle_extensions = [extension_cfg]
-
-            door.monster = boss
+                # 选中的是事件门等非怪物门：创建新的怪物门并挂上 Boss，保证与 log_trigger 一致
+                target_door = DoorEnum.MONSTER.create_instance(
+                    controller=self.controller,
+                    monster=boss,
+                    battle_extensions=[extension_cfg],
+                )
             hint = payload.get("hunter_hint") or payload.get("hint")
             if isinstance(hint, str) and hint.strip():
-                door.hint = hint.strip()
+                target_door.hint = hint.strip()
             self._log_effect_result(
                 consequence,
                 f"{boss.name} 降临（邪恶值 {evil_value}/100），生命 {boss.hp}，攻击 {boss.atk}",
             )
-            return True, door
+            return True, target_door
 
         return False, door
 
@@ -1150,49 +1160,49 @@ class StorySystem:
             phase=1,
             target="boss_atk",
             direction="down",
-            message="【阶段1前情】你拆过追猎小弟，开场节奏被你读穿，黑暗木偶攻击降低 {percent}%。",
+            message="你拆过锈蚀的小木偶，开场节奏被你读穿，黑暗木偶攻击降低 {percent}%。",
         )
         _add_entry(
             "puppet_signal_soft",
             phase=1,
             target="boss_hp",
             direction="down",
-            message="【阶段1前情】温和样本仍在生效，核心输出收敛，黑暗木偶生命降低 {percent}%。",
+            message="你此前重放的温和语音样本仍在生效，核心输出收敛，黑暗木偶生命降低 {percent}%。",
         )
         _add_entry(
             "puppet_signal_soft",
             phase=1,
             target="boss_atk",
             direction="down",
-            message="【阶段1前情】温和样本干扰了抬手节奏，黑暗木偶攻击降低 {percent}%。",
+            message="你此前重放的温和语音样本干扰了抬手节奏，黑暗木偶攻击降低 {percent}%。",
         )
         _add_entry(
             "puppet_signal_log",
             phase=1,
             target="boss_atk",
             direction="down",
-            message="【阶段1前情】你提前解析战术日志，黑暗木偶攻击降低 {percent}%。",
+            message="你此前分析过战术日志并补齐反制参数，黑暗木偶攻击降低 {percent}%。",
         )
         _add_entry(
             "puppet_kind_echo_trust",
             phase=1,
             target="boss_atk",
             direction="down",
-            message="【阶段1前情】善良人格仍在底层牵制，黑暗木偶攻击降低 {percent}%。",
+            message="你曾按善良人格给的路线前进，它仍在底层牵制，黑暗木偶攻击降低 {percent}%。",
         )
         _add_entry(
             "puppet_rift_kind",
             phase=1,
             target="boss_hp",
             direction="down",
-            message="【阶段1前情】裂隙中你偏向善良侧，黑暗木偶生命降低 {percent}%。",
+            message="裂隙中你护住了善良侧信号通道，黑暗木偶生命降低 {percent}%。",
         )
         _add_entry(
             "puppet_descent_patch",
             phase=1,
             target="boss_hp",
             direction="down",
-            message="【阶段1前情】修复补丁残留生效，黑暗木偶生命降低 {percent}%。",
+            message="你此前写入的修复补丁残留生效，黑暗木偶生命降低 {percent}%。",
         )
 
         # 阶段二开场：部分前情延迟到“完全体爆发”时结算。
@@ -1201,49 +1211,49 @@ class StorySystem:
             phase=2,
             target="boss_hp",
             direction="up",
-            message="【阶段2前情】黑市替它补了装甲片，完全体生命上升 {percent}%。",
+            message="黑市替它补了装甲片，完全体生命上升 {percent}%。",
         )
         _add_entry(
             "consumed:puppet_side_shop_once",
             phase=2,
             target="boss_atk",
             direction="up",
-            message="【阶段2前情】装甲驱动联动完成，完全体攻击上升 {percent}%。",
+            message="装甲驱动联动完成，完全体攻击上升 {percent}%。",
         )
         _add_entry(
             "puppet_signal_resell",
             phase=2,
             target="boss_hp",
             direction="up",
-            message="【阶段2前情】你转卖过污染片段，完全体病毒回灌，生命上升 {percent}%。",
+            message="你曾把污染片段打包转卖，完全体病毒回灌，生命上升 {percent}%。",
         )
         _add_entry(
             "puppet_rift_dark",
             phase=2,
             target="boss_atk",
             direction="up",
-            message="【阶段2前情】裂隙里你偏向黑暗侧，完全体攻击上升 {percent}%。",
+            message="裂隙里你向黑暗侧喂过自毁协议，完全体攻击上升 {percent}%。",
         )
         _add_entry(
             "puppet_descent_dark_feed",
             phase=2,
             target="boss_hp",
             direction="up",
-            message="【阶段2前情】你喂入的黑暗指令集中兑现，完全体生命上升 {percent}%。",
+            message="你曾随机录入指令试图控制木偶，指令集中兑现，完全体生命上升 {percent}%。",
         )
         _add_entry(
             "puppet_descent_dark_feed",
             phase=2,
             target="boss_atk",
             direction="up",
-            message="【阶段2前情】黑暗协议彻底放开限制，完全体攻击上升 {percent}%。",
+            message="你此前录入的随机指令彻底放开限制，完全体攻击上升 {percent}%。",
         )
         _add_entry(
             "puppet_kind_echo_comfort",
             phase=2,
             target="player_hp",
             direction="up",
-            message="【阶段2前情】你安抚过被遗弃记忆，蓝光回路在爆发瞬间回补你 {percent}% 当前生命。",
+            message="你曾追问它被抛弃的过去并稳定情绪，蓝光回路在爆发瞬间回补你 {percent}% 当前生命。",
         )
 
         # 运行时连锁：玩家攻击 / 木偶出招时可重复触发。
@@ -1251,7 +1261,7 @@ class StorySystem:
             "consumed:puppet_side_trap_once",
             trigger="monster_attack",
             direction="up",
-            message="【连锁触发】陷阱回廊数据在出招时重放，本次木偶伤害提高 {percent}%。",
+            message="陷阱回廊里木偶病毒曾劫持过你的节拍，在出招时重放，本次木偶伤害提高 {percent}%。",
             chance=0.33,
             active_phase=0,
         )
@@ -1259,7 +1269,7 @@ class StorySystem:
             "consumed:puppet_side_reward_once",
             trigger="player_attack",
             direction="up",
-            message="【连锁触发】你拿到的结界模板在挥击时校准受力，本次玩家伤害提高 {percent}%。",
+            message="你曾拿到的应急结界发生器在挥击时校准受力，本次玩家伤害提高 {percent}%。",
             chance=0.36,
             active_phase=0,
         )
@@ -1267,7 +1277,7 @@ class StorySystem:
             "consumed:puppet_side_reward_once",
             trigger="monster_attack",
             direction="down",
-            message="【连锁触发】结界模板在受击瞬间展开，本次木偶伤害降低 {percent}%。",
+            message="应急结界在受击瞬间展开，本次木偶伤害降低 {percent}%。",
             chance=0.34,
             active_phase=0,
         )
@@ -1275,7 +1285,7 @@ class StorySystem:
             "puppet_signal_soft",
             trigger="monster_attack",
             direction="down",
-            message="【连锁触发】温和样本拖慢了黑暗抬手，本次木偶伤害降低 {percent}%。",
+            message="你此前重放的温和语音样本拖慢了黑暗抬手，本次木偶伤害降低 {percent}%。",
             chance=0.35,
             active_phase=0,
         )
@@ -1283,7 +1293,7 @@ class StorySystem:
             "puppet_signal_log",
             trigger="player_attack",
             direction="up",
-            message="【连锁触发】战术日志提示了破绽，本次玩家伤害提高 {percent}%。",
+            message="你此前分析战术日志补齐的反制参数提示了破绽，本次玩家伤害提高 {percent}%。",
             chance=0.4,
             active_phase=0,
         )
@@ -1291,7 +1301,7 @@ class StorySystem:
             "puppet_kind_echo_trust",
             trigger="monster_attack",
             direction="down",
-            message="【连锁触发】善良人格再次短暂争夺控制，本次木偶伤害降低 {percent}%。",
+            message="你曾相信善良人格给的路线，它再次短暂争夺控制，本次木偶伤害降低 {percent}%。",
             chance=0.32,
             active_phase=0,
         )
@@ -1299,7 +1309,7 @@ class StorySystem:
             "puppet_kind_echo_exploit",
             trigger="monster_attack",
             direction="up",
-            message="【连锁触发】你曾利用的创伤被反向放大，本次木偶伤害提高 {percent}%。",
+            message="你曾记录的情感弱点被反向放大，本次木偶伤害提高 {percent}%。",
             chance=0.34,
             active_phase=0,
         )
@@ -1307,7 +1317,7 @@ class StorySystem:
             "puppet_rift_balance",
             trigger="player_attack",
             direction="up",
-            message="【连锁触发】你在裂隙保留的平衡参数生效，本次玩家伤害提高 {percent}%。",
+            message="你在裂隙维持的双侧平衡参数生效，本次玩家伤害提高 {percent}%。",
             chance=0.28,
             active_phase=0,
         )
@@ -1315,7 +1325,7 @@ class StorySystem:
             "consumed:puppet_side_shop_once",
             trigger="player_attack",
             direction="down",
-            message="【连锁触发】黑市装甲片抵消了部分冲击，本次玩家伤害降低 {percent}%。",
+            message="黑市装甲片抵消了部分冲击，本次玩家伤害降低 {percent}%。",
             chance=0.35,
             active_phase=2,
         )
@@ -1323,7 +1333,7 @@ class StorySystem:
             "puppet_signal_resell",
             trigger="monster_attack",
             direction="up",
-            message="【连锁触发】污染扩散在完全体中继续发酵，本次木偶伤害提高 {percent}%。",
+            message="你此前转卖的污染片段在完全体中继续发酵，本次木偶伤害提高 {percent}%。",
             chance=0.37,
             active_phase=0,
         )
@@ -1331,7 +1341,7 @@ class StorySystem:
             "puppet_descent_cut_emotion",
             trigger="monster_attack",
             direction="up",
-            message="【连锁触发】情感模块已被切断，本次木偶伤害提高 {percent}%。",
+            message="你此前切断了情感模块，完全体再无牵制，本次木偶伤害提高 {percent}%。",
             chance=0.4,
             active_phase=2,
         )
@@ -1339,7 +1349,7 @@ class StorySystem:
             "puppet_descent_patch",
             trigger="monster_attack",
             direction="down",
-            message="【连锁触发】修复补丁在关键节点阻断杀意，本次木偶伤害降低 {percent}%。",
+            message="你此前写入的修复补丁在关键节点阻断杀意，本次木偶伤害降低 {percent}%。",
             chance=0.3,
             active_phase=0,
         )
