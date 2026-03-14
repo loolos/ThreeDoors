@@ -2848,6 +2848,8 @@ class PuppetCoreDescentEvent(Event):
                         "boss_name": f"{dark_name}·堕暗机偶",
                         "base_hp": 980,
                         "base_atk": 96,
+                        "phase2_burst_heal_ratio": 0.46,
+                        "phase2_min_hp_ratio": 0.62,
                         "tier": 6,
                         "evil_value": evil_value,
                         "kind_persona_name": kind_name,

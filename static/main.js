@@ -817,6 +817,7 @@ function getMonsterEmoji(name) {
     "天使": "😇", "混沌巫师": "🌀", "远古守卫": "🛡️",
     "克拉肯": "🐙", "天启骑士": "☠️", "世界之蛇": "🌐", "深渊领主": "🦑",
     "创世神官": "✨", "混沌之主": "💫", "永恒守护者": "🔮",
+    "裂齿·夜魇·堕暗机偶": "👹", "裂齿·夜魇·黑暗完全体": "☠️",
   };
   if (emojiMap[name]) return emojiMap[name];
   // 关键词回退
@@ -829,6 +830,8 @@ function getMonsterEmoji(name) {
   if (name.includes("鸟")) return "🦅";
   if (name.includes("花")) return "🌸";
   if (name.includes("蜥蜴")) return "🦎";
+  if (name.includes("黑暗完全体")) return "☠️";
+  if (name.includes("堕暗机偶") || name.includes("木偶")) return "👹";
   if (name.includes("人") || name.includes("骑")) return "⚔️";
   if (name.includes("鬼") || name.includes("灵")) return "👻";
   if (name.includes("魔") || name.includes("妖")) return "😈";

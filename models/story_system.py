@@ -370,25 +370,42 @@ class StorySystem:
         if evil <= 25:
             bonus_gold = 90
             bonus_items = ["revive_scroll", "barrier"]
-            ending_text = "【木偶结局·晨光修复】你把它从最深的噪声里拽了回来。善良人格保留了最后的名字，向你献上封存宝物。"
+            ending_text = "【木偶结局·晨光修复】你把它从最深的噪声里拽了回来。机偶胸腔里残存的蓝色灯丝一根根亮起，善良人格把最后的控制权塞回你的手里。"
         elif evil <= 45:
             bonus_gold = 65
             bonus_items = ["attack_up_scroll"]
-            ending_text = "【木偶结局·带伤停机】黑暗协议被压住大半，机偶在熄火前向你开放了补给仓。"
+            ending_text = "【木偶结局·带伤停机】黑暗协议被压住大半，裂开的外壳还在冒火花。它靠着墙缓慢坐下，把补给仓权限转交给你。"
         elif evil <= 70:
             bonus_gold = 40
-            ending_text = "【木偶结局·灰烬停摆】两个人格互相磨灭，留下可回收的战利品。"
+            ending_text = "【木偶结局·灰烬停摆】两个人格在同一段噪声里互相撕扯，最终同时沉默，只剩下可回收的战利品与断续电流声。"
         else:
             bonus_gold = 18
-            ending_text = "【木偶结局·暗噪回响】你虽然赢了，但黑暗协议已散入地城深处，只留下零碎报酬。"
+            ending_text = "【木偶结局·暗噪回响】你虽然赢了，但黑暗协议早把自身切成碎片散入地城深处。走廊尽头只回荡着失真的童谣。"
+
+        ending_variants = []
+        if "puppet_descent_patch" in flags and evil <= 45:
+            ending_variants.append("善良人格在消散前留下一句：‘别让下一扇门只剩黑色。’ 余音落下后，蓝光像灰一样飘散。")
+        if "puppet_rift_kind" in flags and evil <= 45:
+            ending_variants.append("你在裂隙中保住的那道蓝色回路没有白费，核心日志里保留了她的签名与一句简短的谢谢。")
+        if "puppet_signal_soft" in flags:
+            ending_variants.append("你曾回放过的温和语音被自动归档成‘最后的人类样本’，机偶在停机前反复播放了三遍。")
+        if "puppet_descent_cut_emotion" in flags and evil >= 55:
+            ending_variants.append("你亲手切断情感模块的记录被标红锁定，黑暗侧用它完成了最后一次自我复制。")
+        if "puppet_signal_resell" in flags and evil >= 55:
+            ending_variants.append("你倒卖过的战术信号被反向追踪，结算日志上多出一行：‘债务已由下一位闯入者继承。’")
+        if "puppet_descent_dark_feed" in flags and evil >= 70:
+            ending_variants.append("你喂给核心的自毁协议并未彻底死去，地城远处传来新的机械心跳。")
 
         # 让此前选择也影响文本
         if low_hits >= 3 and evil <= 45:
-            ending_text += " 你先前多次选择保留善良侧信号，因此得到额外宝物。"
+            ending_variants.append("你先前多次选择保留善良侧信号，停机前系统向你弹出了隐藏物资权限。")
             bonus_items.append("giant_scroll")
         if high_hits >= 4 and evil >= 55:
-            ending_text += " 你曾多次借黑暗牟利，清算过程吞掉了一部分战利品。"
+            ending_variants.append("你曾多次借黑暗牟利，清算过程吞掉了一部分战利品。")
             bonus_gold = max(0, bonus_gold - 12)
+
+        if ending_variants:
+            ending_text = f"{ending_text} {' '.join(ending_variants)}"
 
         player.gold += bonus_gold
         item_names = []
@@ -1114,6 +1131,11 @@ class StorySystem:
         except (TypeError, ValueError):
             burst_atk_ratio = 1.12
         burst_atk_ratio = max(1.03, min(1.5, burst_atk_ratio))
+        try:
+            phase2_min_hp_ratio = float(payload.get("phase2_min_hp_ratio", 0.0))
+        except (TypeError, ValueError):
+            phase2_min_hp_ratio = 0.0
+        phase2_min_hp_ratio = max(0.0, min(0.85, phase2_min_hp_ratio))
 
         state: Dict[str, Any] = {
             "phase": 1,
@@ -1122,6 +1144,7 @@ class StorySystem:
             "phase2_threshold_ratio": threshold,
             "phase2_burst_heal_ratio": burst_heal_ratio,
             "phase2_burst_atk_ratio": burst_atk_ratio,
+            "phase2_min_hp_ratio": phase2_min_hp_ratio,
             "phase1_entry_modifiers": [],
             "phase2_entry_modifiers": [],
             "runtime_modifiers": [],
@@ -1463,7 +1486,9 @@ class StorySystem:
 
         burst_heal_ratio = float(state.get("phase2_burst_heal_ratio", 0.22))
         burst_heal = max(1, int(round(phase1_max_hp * burst_heal_ratio)))
-        monster.hp = max(1, int(monster.hp)) + burst_heal
+        phase2_min_hp_ratio = float(state.get("phase2_min_hp_ratio", 0.0))
+        phase2_floor_hp = max(1, int(round(phase1_max_hp * max(0.0, phase2_min_hp_ratio))))
+        monster.hp = max(max(1, int(monster.hp)) + burst_heal, phase2_floor_hp)
 
         old_atk = max(1, int(monster.atk))
         burst_atk_ratio = float(state.get("phase2_burst_atk_ratio", 1.12))
