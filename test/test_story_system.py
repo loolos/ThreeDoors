@@ -743,6 +743,19 @@ class TestStorySystem(BaseTest):
         self.assertTrue(any("木偶终战奖励" in msg for msg in self.controller.messages))
         self.assertTrue(any("木偶结局·晨光修复" in msg for msg in self.controller.messages))
 
+    def test_puppet_final_boss_ending_contains_kind_persona_farewell_when_choices_are_kind(self):
+        story = self.controller.story
+        story.puppet_evil_value = 22
+        story.choice_flags.update({"puppet_descent_patch", "puppet_rift_kind", "puppet_signal_soft"})
+        monster = Monster(name="裂齿·夜魇·堕暗机偶", hp=10, atk=2, tier=2)
+        setattr(monster, "story_puppet_final_boss", True)
+
+        story.resolve_battle_consequence(monster, defeated=True)
+
+        ending_logs = "\n".join(self.controller.messages)
+        self.assertIn("善良人格在消散前留下一句", ending_logs)
+        self.assertIn("最后的人类样本", ending_logs)
+
     def test_puppet_final_boss_defeat_high_evil_has_lower_reward(self):
         story = self.controller.story
         story.puppet_evil_value = 90
@@ -794,6 +807,7 @@ class TestStorySystem(BaseTest):
                 "phase2_name": "裂齿·夜魇·黑暗完全体",
                 "base_hp": 200,
                 "base_atk": 30,
+                "phase2_min_hp_ratio": 0.62,
                 "evil_value": 55,
             },
         )
@@ -820,6 +834,7 @@ class TestStorySystem(BaseTest):
         self.assertEqual(monster.name, "裂齿·夜魇·黑暗完全体")
         self.assertEqual(state.get("phase"), 2)
         self.assertGreater(monster.hp, 0)
+        self.assertGreaterEqual(monster.hp, int(round(state.get("phase1_max_hp", 1) * state.get("phase2_min_hp_ratio", 0.0))))
         self.assertTrue(any("阶段切换" in msg for msg in self.controller.messages))
 
     def test_puppet_dark_boss_applies_shop_side_buff_when_entering_phase_two(self):
