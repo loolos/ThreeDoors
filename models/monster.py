@@ -1,3 +1,5 @@
+"""怪物定义：类型与 tier、生成、战力估算与战斗相关逻辑。"""
+
 from models.items import Item, ItemType, Equipment, HealingScroll, DamageReductionScroll, AttackUpScroll, HealingPotion, create_random_item, GoldBag
 from typing import Optional, TYPE_CHECKING
 from models.game_config import GameConfig
@@ -24,7 +26,7 @@ def estimate_player_power(player=None, current_round=0):
     return float(base_atk * 0.1 + hp * 0.08 + min(gold, 400) * 0.02 + round_score)
 
 class Monster:
-    # 怪物类型定义
+    """怪物实体：名称、血量、攻击、tier、掉落与战斗行为。"""
     MONSTER_TYPES = {
         1: [  # 初级怪物
             ("小哥布林", 15, 3),      # 弱小但数量多的生物

@@ -1,9 +1,12 @@
+"""商店逻辑：商品生成、价格浮动与购买。"""
+
 from models.items import ItemType
 from models import items
 import random
 
+
 class Shop:
-    # 商店配置
+    """商店：根据玩家资金生成若干商品，支持购买与价格修正。"""
     SHOP_ITEM_COUNT = 3  # 商店物品数量
     SHOP_PRICE_MULTIPLIER = (0.8, 1.2)  # 价格浮动范围
     MAX_INVENTORY_SIZE = 10  # 最大物品栏数量

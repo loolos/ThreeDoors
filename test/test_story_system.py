@@ -814,6 +814,7 @@ class TestStorySystem(BaseTest):
         ), unittest.mock.patch("models.story_system.random.random", return_value=0.9):
             defeated = self.player.attack(monster)
 
+        self.assertGreater(len(self.controller.current_battle_extensions), 0, "expected one battle extension")
         state = self.controller.current_battle_extensions[0]["state"]
         self.assertFalse(defeated)
         self.assertEqual(monster.name, "裂齿·夜魇·黑暗完全体")
@@ -849,6 +850,7 @@ class TestStorySystem(BaseTest):
         ), unittest.mock.patch("models.story_system.random.random", return_value=0.9):
             defeated = self.player.attack(monster)
 
+        self.assertGreater(len(self.controller.current_battle_extensions), 0, "expected one battle extension")
         state = self.controller.current_battle_extensions[0]["state"]
         self.assertFalse(defeated)
         self.assertEqual(state.get("phase"), 2)
@@ -884,6 +886,7 @@ class TestStorySystem(BaseTest):
             self.player.attack(monster)
             self.player.attack(monster)
 
+        self.assertGreater(len(self.controller.current_battle_extensions), 0, "expected one battle extension")
         trigger_counts = self.controller.current_battle_extensions[0]["state"].get("runtime_trigger_counts", {})
         self.assertGreaterEqual(trigger_counts.get("consumed:puppet_side_reward_once:player_attack", 0), 2)
         self.assertTrue(any("结界" in msg for msg in self.controller.messages))
@@ -909,6 +912,7 @@ class TestStorySystem(BaseTest):
             changed = story.apply_pre_enter_checks(monster_door)
         monster = changed.monster
         self.controller.current_battle_extensions = getattr(changed, "battle_extensions", [])
+        self.assertGreater(len(self.controller.current_battle_extensions), 0, "expected one battle extension")
         extension = self.controller.current_battle_extensions[0]
 
         with unittest.mock.patch("models.story_system.random.uniform", return_value=0.1), unittest.mock.patch(
@@ -959,6 +963,7 @@ class TestStorySystem(BaseTest):
             changed = story.apply_pre_enter_checks(monster_door)
         monster = changed.monster
         self.controller.current_battle_extensions = getattr(changed, "battle_extensions", [])
+        self.assertGreater(len(self.controller.current_battle_extensions), 0, "expected one battle extension")
         extension = self.controller.current_battle_extensions[0]
 
         with unittest.mock.patch("models.story_system.random.uniform", return_value=0.1), unittest.mock.patch(

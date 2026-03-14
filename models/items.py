@@ -1,3 +1,5 @@
+"""物品定义：类型枚举、基类与具体物品（药水、卷轴、战斗道具等）。"""
+
 import random
 from enum import Enum
 from models.game_config import GameConfig
@@ -8,12 +10,17 @@ if TYPE_CHECKING:
     from models.player import Player
     from models.monster import Monster
 
+
 class ItemType(Enum):
+    """物品大类：消耗品、战斗用、被动常驻。"""
     CONSUMABLE = "consumable"  # 消耗品
     BATTLE = "battle"  # 战斗物品
     PASSIVE = "passive"  # 被动物品
 
+
 class Item:
+    """物品基类：名称、类型、价格及 effect/acquire 接口。"""
+
     def __init__(self, name: str, **kwargs):
         self.name = name
         self.item_type = kwargs.get('item_type')

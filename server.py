@@ -1,4 +1,5 @@
 # server.py
+"""ThreeDoors 服务端：Flask 应用、游戏控制器与 API 路由。"""
 from flask import Flask, render_template, session, request, jsonify, redirect, url_for
 from flask_session import Session
 import random, string, os, time, threading
@@ -27,6 +28,8 @@ Session(app)
 
 
 class GameController:
+    """游戏主控制器：管理玩家、剧情、场景与回合状态。"""
+
     def __init__(self):
         self.game_config = GameConfig()
         
@@ -170,6 +173,7 @@ class GameController:
 # -------------------------------
 
 def get_game():
+    """根据 session 获取或创建当前对局对应的 GameController。"""
     if "game_id" not in session:
         session["game_id"] = "".join(random.choices(string.ascii_lowercase + string.digits, k=8))
     gid = session["game_id"]
@@ -181,16 +185,21 @@ games_store = {}
 
 @app.route("/")
 def index():
+    """渲染游戏主页面。"""
     return render_template("index.html")
+
 
 @app.route("/startOver", methods=["POST"])
 def start_over():
+    """重置当前对局并返回确认。"""
     g = get_game()
     g.reset_game()
     return jsonify({"log": "游戏已重置"})
 
+
 @app.route("/getState")
 def get_state():
+    """返回当前游戏状态（回合、玩家、按钮、场景、消息等）。仅对 AJAX 请求在返回后清空消息。"""
     g = get_game()
     p = g.player
     scn = g.scene_manager.current_scene
@@ -245,13 +254,18 @@ def get_state():
         
         return jsonify(state)
     except Exception as e:
-        print(f"Error in get_state: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return jsonify({"error": str(e)}), 500
+
 
 @app.route("/buttonAction", methods=["POST"])
 def button_action():
+    """处理前端按钮点击：解析 index，交给当前场景处理并返回结果与日志。"""
     g = get_game()
     scn = g.scene_manager.current_scene
+    if not scn:
+        return jsonify({"status": "error", "outcome": None, "log": "当前无场景"}), 400
     data = request.json or {}
     raw_index = data.get("index", 0)
     try:
@@ -259,11 +273,8 @@ def button_action():
     except (TypeError, ValueError):
         index = 0
     index = max(0, min(2, index))
-    
-    # 获取当前场景名称
-    scn_name = scn.__class__.__name__ if scn else "None"
-    
-    # 处理按钮选择
+
+    scn_name = scn.__class__.__name__
     outcome = None
     if scn_name in ["DoorScene", "BattleScene", "ShopScene", "UseItemScene", "GameOverScene", "EventScene"]:
         outcome = scn.handle_choice(index)
@@ -280,6 +291,7 @@ def button_action():
 
 @app.route("/exitGame", methods=["POST"])
 def exit_game():
+    """清除当前会话并关闭服务器进程（开发时慎用）。"""
     g = get_game()
     # 清除游戏会话
     if "game_id" in session:

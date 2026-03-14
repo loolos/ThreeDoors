@@ -1,14 +1,20 @@
+"""剧情事件系统：随机事件、剧情链（木偶/精灵等）及事件选项与回调。"""
 
 import random
 from models.items import create_random_item, create_reward_door_item
 from models.status import StatusName
 
+
 class EventChoice:
+    """单个事件选项：展示文案与选中时的回调。"""
+
     def __init__(self, text, callback):
         self.text = text
         self.callback = callback
 
+
 class Event:
+    """剧情事件基类：标题、描述、选项及触发条件（回合、概率等）。"""
     TRIGGER_BASE_PROBABILITY = 0.1
     MIN_TRIGGER_ROUND = 0
     MAX_TRIGGER_ROUND = None

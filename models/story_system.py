@@ -536,6 +536,13 @@ class StorySystem:
             return True, reward_door
 
         if effect == "puppet_side_minion":
+            self.controller.add_message(
+                self._resolve_message(
+                    payload,
+                    "message",
+                    "金属摩擦声忽远忽近，门后有一只锈蚀的木偶在等你。",
+                )
+            )
             minion = self._create_puppet_minion_monster()
             minion.story_consequence_id = consequence.consequence_id
             minion.story_consume_on_defeat = True

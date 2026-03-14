@@ -1,3 +1,4 @@
+"""场景与场景管理：选门、战斗、商店、道具使用、游戏结束与事件场景。"""
 from models.door import Door, DoorEnum
 from models.monster import Monster, get_random_monster
 from models.status import Status, StatusName
@@ -74,7 +75,8 @@ class DoorScene(Scene):
         door.enter()
 
         # 某些门在 enter 中会主动切场景（如被改写成剧情事件的商店门）
-        if c.scene_manager.current_scene.enum != SceneType.DOOR:
+        cur = c.scene_manager.current_scene
+        if not cur or cur.enum != SceneType.DOOR:
             return door.enum.name
         
         # 检查玩家生命值
@@ -135,8 +137,8 @@ class DoorScene(Scene):
             # 随机打乱三扇门的顺序
             random.shuffle(self.doors)
         
-        # 更新按钮文本
-        if self.doors:
+        # 更新按钮文本（仅当至少 3 扇门时按索引访问，避免 IndexError）
+        if len(self.doors) >= 3:
             self.button_texts = [
                 f"门1 - {self.doors[0].hint}",
                 f"门2 - {self.doors[1].hint}",
@@ -146,6 +148,8 @@ class DoorScene(Scene):
             self.button_texts = ["门1", "门2", "门3"]
 
 class BattleScene(Scene):
+    """战斗场景：与当前怪物战斗（攻击/使用道具/逃跑）。"""
+
     def __init__(self, controller):
         super().__init__(controller)
         self.monster = None
@@ -158,6 +162,10 @@ class BattleScene(Scene):
         self.monster = self.controller.current_monster
 
     def handle_choice(self, index):
+        if self.monster is None:
+            self.controller.add_message("未找到怪物，返回选门。")
+            self.controller.scene_manager.go_to("door_scene")
+            return
         p = self.controller.player
         if p.has_status(StatusName.STUN):
             # 玩家晕眩时，怪物进行攻击
@@ -223,10 +231,13 @@ class BattleScene(Scene):
         self.controller.add_message("进入使用道具界面")
 
 class ShopScene(Scene):
+    """商店场景：购买当前商店中的三件商品之一。"""
+
     def __init__(self, controller):
         super().__init__(controller)
         self.button_texts = ["购买物品1", "购买物品2", "购买物品3"]
         self.enum = SceneType.SHOP
+
     def on_enter(self):
         """进入商店场景时的处理"""
         shop = self.controller.current_shop
@@ -248,10 +259,16 @@ class ShopScene(Scene):
 
     def handle_choice(self, index):
         logic = self.controller.current_shop
-        success = logic.purchase_item(index)
+        if logic is None:
+            self.controller.add_message("商店未就绪，返回选门。")
+            self.controller.scene_manager.go_to("door_scene")
+            return
+        logic.purchase_item(index)
         self.controller.scene_manager.go_to("door_scene")
 
 class UseItemScene(Scene):
+    """使用道具场景：从战斗场景进入，选择一件战斗道具使用后返回战斗。"""
+
     def __init__(self, controller):
         super().__init__(controller)
         self.active_items = []
@@ -302,6 +319,8 @@ class UseItemScene(Scene):
         self.controller.scene_manager.resume_scene()
 
 class GameOverScene(Scene):
+    """游戏结束场景：可重启、使用复活卷轴或退出游戏。"""
+
     def __init__(self, controller):
         super().__init__(controller)
         self.button_texts = ["重启游戏", "使用复活卷轴", "退出游戏"]
@@ -338,6 +357,8 @@ class GameOverScene(Scene):
             return "EXIT_GAME"
 
 class EventScene(Scene):
+    """事件场景：展示当前剧情事件选项并处理选择。"""
+
     def __init__(self, controller):
         super().__init__(controller)
         self.enum = SceneType.EVENT
@@ -376,6 +397,7 @@ class SceneType(Enum):
 
     @staticmethod
     def get_name_scene_dict():
+        """返回场景名称到场景类的映射。"""
         return {
             "door_scene": DoorScene,
             "battle_scene": BattleScene,
@@ -385,20 +407,28 @@ class SceneType(Enum):
             "event_scene": EventScene
         }
 
-    def is_scene_name(name: str)->bool:
+    @staticmethod
+    def is_scene_name(name: str) -> bool:
+        """判断给定名称是否为已注册的场景名。"""
         return name in SceneType.get_name_scene_dict().keys()
-    
-    def get_scene_class_by_name(name: str)->Scene:
+
+    @staticmethod
+    def get_scene_class_by_name(name: str) -> type:
+        """根据场景名返回对应的场景类，未找到则返回 None。"""
         return SceneType.get_name_scene_dict().get(name)
 
+
 class SceneManager:
+    """管理当前场景、上一场景及场景切换。"""
+
     def __init__(self):
         self.current_scene = None
         self.last_scene = None
         self.game_controller = None
         self.scene_dict = {}
-    
+
     def set_game_controller(self, game_controller):
+        """设置场景所依赖的游戏控制器。"""
         self.game_controller = game_controller
     
     def initialize_scenes(self):

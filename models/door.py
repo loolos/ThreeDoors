@@ -1,3 +1,4 @@
+"""门类型与门实例：陷阱/奖励/怪物/商店/事件门及提示配置。"""
 import random
 from .monster import get_random_monster
 from typing import Optional, Dict, Any, List
@@ -18,14 +19,17 @@ class DoorEnum(Enum):
     EVENT = "event"
     
     def create_instance(self, **kwargs):
-        """创建门实例"""
-        return {
+        """根据枚举创建对应门类型的实例；若枚举未注册则抛出 ValueError。"""
+        factory = {
             DoorEnum.TRAP: TrapDoor,
             DoorEnum.REWARD: RewardDoor,
             DoorEnum.MONSTER: MonsterDoor,
             DoorEnum.SHOP: ShopDoor,
-            DoorEnum.EVENT: EventDoor
-        }.get(self)(**kwargs)
+            DoorEnum.EVENT: EventDoor,
+        }.get(self)
+        if factory is None:
+            raise ValueError(f"Unsupported door type for create_instance: {self}")
+        return factory(**kwargs)
     
     @classmethod
     def is_valid_door_type(cls, door_type: Any) -> bool:
@@ -474,7 +478,10 @@ def get_mixed_door_hint(door_enums):
         return ""
     if len(door_enums) == 1:
         single_enum = next(iter(door_enums))
-        return random.choice(HINT_CONFIGS["default"][single_enum])
+        default_hints = HINT_CONFIGS["default"].get(
+            single_enum, ["空气中弥漫着神秘的气息..."]
+        )
+        return random.choice(default_hints)
     door_enums_list = list(door_enums)
     selected_enums = []
     selected_enums.append(door_enums_list.pop(random.randint(0, len(door_enums_list) - 1)))
