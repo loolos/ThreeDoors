@@ -328,7 +328,7 @@ class StorySystem:
         self._queue_chain_followups(consequence)
 
     def _should_defer_consumption(self, consequence: PendingConsequence, door: Any) -> bool:
-        if consequence.effect_key != "revenge_ambush":
+        if consequence.effect_key not in ("revenge_ambush", "puppet_side_minion"):
             return False
         monster = getattr(door, "monster", None)
         if not monster:
@@ -534,6 +534,19 @@ class StorySystem:
             reward_desc = self._describe_reward(reward_door)
             self._log_effect_result(consequence, f"谢礼是 {reward_desc}")
             return True, reward_door
+
+        if effect == "puppet_side_minion":
+            minion = self._create_puppet_minion_monster()
+            minion.story_consequence_id = consequence.consequence_id
+            minion.story_consume_on_defeat = True
+            hint = (payload.get("hunter_hint") or payload.get("hint") or "").strip() or "金属摩擦声忽远忽近，像有一台小型追猎体在你周围绕圈校准。"
+            minion_door = DoorEnum.MONSTER.create_instance(
+                controller=self.controller,
+                monster=minion,
+                hint=hint,
+            )
+            self._log_effect_result(consequence, minion.name)
+            return True, minion_door
 
         if effect == "revenge_ambush":
             stage = self._get_progress_stage()
@@ -808,9 +821,15 @@ class StorySystem:
             chance = max(0.0, min(1.0, float(chance)))
             if random.random() >= chance:
                 return False, door
-            monster = getattr(door, "monster", None)
-            if monster is None:
-                return False, door
+            # 精灵飞贼需要帮助才说得通：按当前 tier 选一只较强的怪物替换门内怪
+            from models.monster import Monster, _get_round_limited_max_tier
+            current_round = getattr(self.controller, "round_count", 0) or 0
+            unlocked = getattr(self.controller, "unlocked_monster_tier", 1) or 1
+            round_cap = _get_round_limited_max_tier(current_round)
+            strong_tier = max(2, min(round_cap, unlocked, GameConfig.MONSTER_MAX_TIER))
+            strong_monster = Monster(tier=strong_tier)
+            door.monster = strong_monster
+            monster = strong_monster
             hint = payload.get("hint")
             hint_text = hint.strip() if isinstance(hint, str) and hint.strip() else ""
             self._attach_door_extension(
@@ -1807,6 +1826,24 @@ class StorySystem:
         (20, [("狼人", 38, 8), ("食人魔", 40, 7), ("美杜莎", 32, 9), ("幽灵", 28, 10), ("吸血鬼", 42, 10)]),
         (999, [("暗影刺客", 56, 16), ("死亡骑士", 55, 14), ("冥界使者", 62, 15), ("海妖", 52, 14), ("雷鸟", 58, 13)]),
     ]
+
+    def _create_puppet_minion_monster(self):
+        """木偶支线专用：锈蚀追猎偶，独立于一般追猎复仇的数值。"""
+        from models.monster import Monster
+
+        round_count = getattr(self.controller, "round_count", 0)
+        stage = self._get_progress_stage()
+        name = "锈蚀追猎偶"
+        if round_count <= 10:
+            m = Monster(name=name, hp=42, atk=10, tier=2)
+        elif round_count <= 20:
+            m = Monster(name=name, hp=58, atk=14, tier=3)
+        else:
+            m = Monster(name=name, hp=76, atk=20, tier=4)
+        if stage > 0:
+            m.hp = max(1, int(m.hp * (1 + stage * 0.08)))
+            m.atk = max(1, int(m.atk * (1 + stage * 0.06)))
+        return m
 
     def _create_hunter_monster(self, preferred_name: Optional[str] = None):
         from models.monster import Monster

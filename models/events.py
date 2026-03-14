@@ -2416,16 +2416,13 @@ def _register_puppet_side_consequences(controller):
     story.register_consequence(
         choice_flag="puppet_side_reg",
         consequence_id="puppet_side_minion_once",
-        effect_key="revenge_ambush",
+        effect_key="puppet_side_minion",
         chance=0.32,
         priority=86,
         trigger_door_types=["MONSTER", "EVENT"],
         required_flags=common_required,
         forbidden_flags=common_forbidden,
         payload={
-            "force_hunter": True,
-            "consume_on_defeat": True,
-            "hunter_name": "锈蚀追猎偶",
             "hunter_hint": "金属摩擦声忽远忽近，像有一台小型追猎体在你周围绕圈校准。",
             "message": "门缝刚开，一只锈迹斑斑的小木偶就扑了出来，逼得你当场应战。",
             "log_trigger": "你手刚碰到门把，门内先传来急促抓挠声，紧接着整道门被反锁，过了一段时间才缓缓打开。",

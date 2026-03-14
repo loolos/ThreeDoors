@@ -674,7 +674,7 @@ class TestStorySystem(BaseTest):
 
     def test_puppet_dark_boss_can_be_weakened_by_kind_persona(self):
         story = self.controller.story
-        story.choice_flags.update({"puppet_intro_hide", "puppet_signal_empathy", "puppet_descent_patch"})
+        story.choice_flags.update({"puppet_intro_hide", "puppet_signal_soft", "puppet_descent_patch"})
         story.register_consequence(
             choice_flag="puppet_test",
             consequence_id="puppet_final_kind_case",
@@ -704,7 +704,7 @@ class TestStorySystem(BaseTest):
             {
                 "puppet_intro_blackout",
                 "puppet_intro_decoy",
-                "puppet_signal_sellout",
+                "puppet_signal_resell",
                 "puppet_descent_dark_feed",
             }
         )
