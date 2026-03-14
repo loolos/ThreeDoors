@@ -1007,7 +1007,7 @@ class TestStorySystem(BaseTest):
         ):
             story.apply_pre_enter_checks(monster_door)
 
-        self.assertTrue(any("支线干预" in msg for msg in self.controller.messages))
+        self.assertTrue(any("核心读数" in msg for msg in self.controller.messages))
 
     def test_revenge_ambush_on_monster_door_can_buff_existing_monster(self):
         story = self.controller.story
