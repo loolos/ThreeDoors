@@ -59,6 +59,14 @@ class TestAllEvents(BaseTest):
         self.player.gold = 0
         self._run_choice(StrangerEvent, 0)
 
+        # 3.1 Help - Exactly 10 Gold should always be enough (cost is fixed at 10G)
+        self.controller.round_count = 50
+        self.player.gold = 10
+        mock_random.return_value = 0.1
+        self._run_choice(StrangerEvent, 0)
+        self.assertEqual(self.player.gold, 0)
+        self.assertIn("花费10金币", self.controller.messages[-3])
+
         # 4. Rob - Success (< 0.6)
         self.player.hp = 100
         mock_random.return_value = 0.1
@@ -504,4 +512,3 @@ class TestAllEvents(BaseTest):
             weight = events_module._build_event_weight(self.controller, TimePawnshopEvent)
         expected = 0.5 * events_module.LONG_EVENT_STARTER_FIRST_TIME_BONUS
         self.assertAlmostEqual(weight, expected)
-

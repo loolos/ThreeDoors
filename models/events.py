@@ -122,7 +122,8 @@ class StrangerEvent(Event):
 
     def help_stranger(self):
         p = self.get_player()
-        help_cost = self.scale_value(10, positive=False)
+        # 该事件文案明确写的是 10 金币，保持固定费用避免与玩家认知不一致。
+        help_cost = 10
         self.register_story_choice(
             choice_flag="stranger_helped",
             moral_delta=8,
