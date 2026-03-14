@@ -112,18 +112,18 @@ class StrangerEvent(Event):
 
     def __init__(self, controller):
         super().__init__(controller)
+        self.help_cost = random.randint(10, 15)
         self.title = "Injured Stranger"
         self.description = "你看到一个满身是血的陌生人倒在路边，看起来非常虚弱。"
         self.choices = [
-            EventChoice("救助他 (失去10金币)", self.help_stranger),
+            EventChoice(f"救助他 (失去{self.help_cost}金币)", self.help_stranger),
             EventChoice("抢劫他", self.rob_stranger),
             EventChoice("无视离开", self.ignore_stranger)
         ]
 
     def help_stranger(self):
         p = self.get_player()
-        # 该事件文案明确写的是 10 金币，保持固定费用避免与玩家认知不一致。
-        help_cost = 10
+        help_cost = self.help_cost
         self.register_story_choice(
             choice_flag="stranger_helped",
             moral_delta=8,
