@@ -2462,8 +2462,8 @@ def _register_puppet_side_consequences(controller):
         forbidden_flags=common_forbidden,
         payload={
             "ratio": 1.18,
-            "message": "你携带的木偶日志被黑市识别为高风险污染样本，商人当场给你上调了风险价。",
-            "log_trigger": "你本想走普通商店，但门后柜台亮起红灯，显示“污染样本处理费”。你挑的门没按原计划结算，被木偶线的交易后果改写。",
+            "message": "你之前和木偶的交互使得被黑市识别为高风险污染样本，商人当场给你上调了风险价。",
+            "log_trigger": "你本想走普通商店，但门后柜台亮起红灯，显示“污染样本处理费”。",
             "evil_value_delta": 6,
         },
     )
@@ -2563,7 +2563,7 @@ class PuppetAbandonmentEvent(Event):
             from_stage="intro",
             next_event_key="puppet_persona_rift_event",
             hint="前情：你侥幸甩开了弃线木偶，但墙后仍回荡着蓝红交替的心跳。",
-            message="前情提要：你从弃线木偶手下脱身了。那道被压住的人格裂隙并未消失，会在 20~30 回合后再次撕开。",
+            message="前情提要：你此前从弃线木偶手下脱身了，然而木偶那黑暗的人格裂隙并未消失。",
         )
         self.add_message(msg)
         return "Event Completed"
