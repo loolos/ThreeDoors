@@ -3113,11 +3113,11 @@ class ElfShadowMarkEvent(Event):
         super().__init__(controller)
         self.title = "银羽暗号"
         self.description = (
-            "你正要选一扇事件门时，发现门框背面有熟悉的银羽刻痕——那是她上次分别时约好的记号，意思是「今晚不偷你，聊聊」。"
+            "你正要选一扇事件门时，发现门框背面有熟悉的银羽刻痕——那是她的记号，下面有一行小字：「今晚不偷你，聊聊」。"
             "你推开门，她果然在门后的阴影里等着，没动你身上的东西，只冲你抬了抬下巴。"
         )
         self.choices = [
-            EventChoice("交换情报", self.share_info),
+            EventChoice("和她交换情报", self.share_info),
             EventChoice("追问她真实目的", self.ask_intent),
             EventChoice("放冷话：再见就算账", self.threaten),
         ]
@@ -3126,7 +3126,7 @@ class ElfShadowMarkEvent(Event):
         gain = _elf_percent_gold(self.get_player(), 0.1)
         self.get_player().gold += gain
         _adjust_elf_relation(self.controller, 2)
-        self.add_message(f"你们互通了怪物巢穴路线，她提醒你绕开最毒的陷阱层；你按图摸到遗漏的财宝（+{gain}G）。")
+        self.add_message(f"你们互通了怪物巢穴路线的情报，她提醒你绕开最毒的陷阱层；你按图摸到遗漏的财宝（+{gain}G）。")
         _schedule_next_elf_event(self.controller, "elf_shadow_mark_event")
         return "Event Completed"
 
