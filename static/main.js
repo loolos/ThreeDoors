@@ -663,11 +663,13 @@ function renderState(state) {
   buttonArea.innerHTML = ''; // Clear old buttons
 
   let emoji = "❓";
+  let emojiMarkup = "";
   let desc = "";
 
   // Special Handling for Door Scene
   if (sceneInfo.type === "DOOR") {
     emoji = ""; // No main emoji, cards are the focus
+    emojiMarkup = "";
     desc = "命运三岔口：选择你的道路...";
 
     doorArea.style.display = 'flex';
@@ -710,15 +712,21 @@ function renderState(state) {
     // Standard Scenes (Battle, Shop, Event, etc)
     switch (sceneInfo.type) {
       case "BATTLE":
-        emoji = getMonsterEmoji(sceneInfo.monster_name);
+        {
+          const monsterDisplay = getMonsterEmojiDisplay(sceneInfo.monster_name);
+          emoji = monsterDisplay.emoji;
+          emojiMarkup = monsterDisplay.markup;
+        }
         desc = `遭遇 ${sceneInfo.monster_name} ！`;
         break;
       case "SHOP":
         emoji = "🛒";
+        emojiMarkup = "";
         desc = "神秘商人的店铺";
         break;
       case "EVENT":
         emoji = getEventEmoji(state.event_info ? state.event_info.title : "");
+        emojiMarkup = "";
         if (state.event_info && state.event_info.description) {
           desc = state.event_info.description;
         } else {
@@ -727,10 +735,12 @@ function renderState(state) {
         break;
       case "GAME_OVER":
         emoji = "💀";
+        emojiMarkup = "";
         desc = "胜败乃兵家常事...";
         break;
       case "USE_ITEM":
         emoji = "🎒";
+        emojiMarkup = "";
         desc = "打开背包...";
         break;
     }
@@ -746,7 +756,7 @@ function renderState(state) {
     });
   }
 
-  sceneEmojiDiv.textContent = emoji;
+  renderSceneEmoji(sceneEmojiDiv, emoji, emojiMarkup);
 
   const currentSceneKey = `${sceneInfo.type}_${sceneInfo.monster_name || ""}`;
   if (desc && currentSceneKey !== lastSceneKey) {
@@ -798,6 +808,42 @@ function renderState(state) {
   if (state.last_message) {
     addLog(state.last_message);
   }
+}
+
+function renderSceneEmoji(sceneEmojiDiv, emojiText, emojiMarkup = "") {
+  if (!sceneEmojiDiv) return;
+  if (emojiMarkup) {
+    sceneEmojiDiv.innerHTML = emojiMarkup;
+    sceneEmojiDiv.classList.add("emoji-composite-mode");
+    return;
+  }
+  sceneEmojiDiv.classList.remove("emoji-composite-mode");
+  sceneEmojiDiv.textContent = emojiText || "";
+}
+
+function getPuppetBossEmojiMarkup(name) {
+  if (!name) return "";
+  const isPhaseTwo = name.includes("黑暗完全体");
+  const baseClass = isPhaseTwo ? "puppet-boss-icon phase-two" : "puppet-boss-icon phase-one";
+  return `
+    <span class="${baseClass}" aria-label="${name}">
+      <span class="puppet-part crown">${isPhaseTwo ? "🩸" : "🧵"}</span>
+      <span class="puppet-part core">${isPhaseTwo ? "☠️" : "👹"}</span>
+      <span class="puppet-part eye left">${isPhaseTwo ? "💢" : "🔥"}</span>
+      <span class="puppet-part eye right">${isPhaseTwo ? "💢" : "🔥"}</span>
+      <span class="puppet-part jaw">${isPhaseTwo ? "🦷" : "⚙️"}</span>
+      <span class="puppet-part claw left">${isPhaseTwo ? "🗡️" : "🪝"}</span>
+      <span class="puppet-part claw right">${isPhaseTwo ? "🗡️" : "🪝"}</span>
+    </span>
+  `;
+}
+
+function getMonsterEmojiDisplay(name) {
+  const emoji = getMonsterEmoji(name);
+  if (name && (name.includes("堕暗机偶") || name.includes("黑暗完全体"))) {
+    return { emoji, markup: getPuppetBossEmojiMarkup(name) };
+  }
+  return { emoji, markup: "" };
 }
 
 function getMonsterEmoji(name) {
