@@ -34,8 +34,10 @@ class TestAllEvents(BaseTest):
 
     @unittest.mock.patch('models.events.create_random_item')
     @unittest.mock.patch('models.events.random.random')
-    def test_stranger_choices(self, mock_random, mock_create):
+    @unittest.mock.patch('models.events.random.randint')
+    def test_stranger_choices(self, mock_randint, mock_random, mock_create):
         mock_create.return_value = FlyingHammer("TestHammer")
+        mock_randint.return_value = 12
         
         # 1. Help - Success (< 0.7)
         self.player.hp = 100
@@ -58,6 +60,18 @@ class TestAllEvents(BaseTest):
         # 3. Help - No Gold
         self.player.gold = 0
         self._run_choice(StrangerEvent, 0)
+
+        # 3.1 Help - Cost text should match dynamic cost, and exact cost should be enough
+        self.controller.round_count = 50
+        event = StrangerEvent(self.controller)
+        self.assertIn("失去12金币", event.get_choices()[0])
+
+        self.player.gold = 12
+        mock_random.return_value = 0.1
+        self.controller.current_event = event
+        event.resolve_choice(0)
+        self.assertEqual(self.player.gold, 0)
+        self.assertIn("花费12金币", "".join(self.controller.messages[-3:]))
 
         # 4. Rob - Success (< 0.6)
         self.player.hp = 100
@@ -504,4 +518,3 @@ class TestAllEvents(BaseTest):
             weight = events_module._build_event_weight(self.controller, TimePawnshopEvent)
         expected = 0.5 * events_module.LONG_EVENT_STARTER_FIRST_TIME_BONUS
         self.assertAlmostEqual(weight, expected)
-
