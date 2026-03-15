@@ -162,6 +162,22 @@ class TestSceneSystem(BaseTest):
         self.assertIn(consequence_id, story.consumed_consequences)
         self.assertNotIn(consequence_id, story.pending_consequences)
 
+    def test_escape_from_puppet_final_boss_only_records_finale_parameters(self):
+        self.controller.scene_manager.go_to("battle_scene")
+        monster = Monster(name="裂齿·夜魇·堕暗机偶", hp=200, atk=1, tier=4)
+        setattr(monster, "story_puppet_final_boss", True)
+        self.controller.current_monster = monster
+        self.controller.scene_manager.current_scene.on_enter()
+
+        with mock.patch("models.player.random.random", return_value=0.0):
+            self.controller.scene_manager.current_scene.handle_choice(2)
+
+        self.assertIsInstance(self.controller.scene_manager.current_scene, DoorScene)
+        self.assertIsNone(getattr(self.controller, "game_clear_info", None))
+        self.assertEqual(getattr(self.controller.story, "puppet_final_outcome", ""), "escaped")
+        self.assertEqual(getattr(self.controller.story, "puppet_patrol_state", ""), "active")
+        self.assertIn("走廊中来回游荡", getattr(self.controller.story, "puppet_patrol_note", ""))
+
     def test_tier_unlock_check_runs_every_five_rounds(self):
         """tier 解锁检测应仅在每5回合触发，并写入日志。解锁条件：min(攻击, 生命/2) 达到对应门槛。"""
         self.controller.round_count = 4

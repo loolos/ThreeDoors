@@ -205,6 +205,7 @@ class BattleScene(Scene):
                 escaped = p.try_escape(self.monster)
                 if escaped:
                     if hasattr(self.controller, "story") and self.controller.story:
+                        self.controller.story.resolve_battle_consequence(self.monster, defeated=False)
                         self.controller.story.record_elf_side_monster_outcome(self.monster, defeated=False)
                     p.clear_battle_status()
                     self.monster.clear_battle_status()

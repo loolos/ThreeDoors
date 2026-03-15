@@ -102,12 +102,14 @@ class GameController:
         for ext in extensions:
             story.handle_battle_extension_post_player_attack(extension=ext, target=target)
 
-    def trigger_game_clear(self, ending_key: str, ending_title: str, ending_description: str) -> None:
+    def trigger_game_clear(self, ending_key: str, ending_title: str, ending_description: str, ending_meta=None) -> None:
         """触发通关结局并跳转到结算场景。"""
+        extra_meta = ending_meta if isinstance(ending_meta, dict) else {}
         self.game_clear_info = {
             "ending_key": str(ending_key or "unknown"),
             "ending_title": str(ending_title or "结局"),
             "ending_description": str(ending_description or ""),
+            "ending_meta": extra_meta,
         }
         self.scene_manager.go_to("game_over_scene")
 
