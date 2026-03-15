@@ -1970,6 +1970,33 @@ class StorySystem:
         self.story_tags.add("ending:puppet_final_defeated")
         self.puppet_evil_value = 30
 
+    def setup_test_gate_stage_curtain_power(self) -> None:
+        """测试用：将控制器与剧情状态设为「接管谢幕」分支前置（不挂载门，仅改状态）。
+        条件：回合 190、玩家 HP 800 / ATK 200、飞贼线已完结但未拿钥匙（敌对收束）、
+        木偶线已完结且为击败结局（非逃跑），并设置较高邪恶值。
+        调用方需在第 200 回合调用 ensure_default_normal_ending_schedule() 以挂载回声/接管结局门。"""
+        c = self.controller
+        c.round_count = 190
+        p = getattr(c, "player", None)
+        if p is not None:
+            p.hp = 800
+            p._atk = 200
+            if hasattr(c, "player_peak_hp"):
+                c.player_peak_hp = 800
+            if hasattr(c, "player_peak_atk"):
+                c.player_peak_atk = 200
+        self.elf_chain_ended = True
+        self.elf_relation = 0
+        self.elf_key_obtained = False
+        self.story_tags.add("elf_chain_ended")
+        self.story_tags.add("elf_outcome:hostile")
+        self.story_tags.discard("elf_key_obtained")
+        self.choice_flags.add("elf_outcome_hostile")
+        self.story_tags.discard("puppet_arc_active")
+        self.story_tags.discard("ending:puppet_final_escape_recorded")
+        self.story_tags.add("ending:puppet_final_defeated")
+        self.puppet_evil_value = 55
+
     def _build_puppet_battle_state(
         self,
         payload: Dict[str, Any],

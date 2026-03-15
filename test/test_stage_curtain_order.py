@@ -43,6 +43,36 @@ def setup_controller_for_stage_curtain_order(controller, round_count=190):
     story.puppet_evil_value = 30
 
 
+def setup_controller_for_stage_curtain_power(controller, round_count=190):
+    """
+    将控制器与剧情状态设为「接管谢幕」分支前置条件（与 server --test-gate=stage_curtain_power 一致）。
+
+    - round_count: 当前回合，默认 190
+    - 玩家: HP 800, ATK 200
+    - 精灵飞贼: elf_chain_ended=True, elf_relation=0, elf_key_obtained=False, elf_outcome:hostile
+    - 黑暗木偶: ending:puppet_final_defeated（并明确非逃跑结局）, puppet_evil_value=55
+    - 不设置 curtain_call_script_recovered（未拿钥匙无法取回剧本）
+    """
+    controller.round_count = round_count
+    controller.player.hp = 800
+    controller.player._atk = 200
+    controller.player_peak_hp = 800
+    controller.player_peak_atk = 200
+
+    story = controller.story
+    story.elf_chain_ended = True
+    story.elf_relation = 0
+    story.elf_key_obtained = False
+    story.story_tags.add("elf_chain_ended")
+    story.story_tags.add("elf_outcome:hostile")
+    story.story_tags.discard("elf_key_obtained")
+    story.choice_flags.add("elf_outcome_hostile")
+    story.story_tags.discard("puppet_arc_active")
+    story.story_tags.discard("ending:puppet_final_escape_recorded")
+    story.story_tags.add("ending:puppet_final_defeated")
+    story.puppet_evil_value = 55
+
+
 class TestStageCurtainOrderFlags(BaseTest):
     """补全谢幕路线 flag 与调度逻辑测试。"""
 
@@ -121,3 +151,43 @@ class TestStageCurtainOrderFlags(BaseTest):
             self.controller.story._is_kind_puppet_dialogue_ready(),
             "已拿剧本+已击败木偶+邪恶值≤45 时应可挂载与善良木偶对话门",
         )
+
+
+class TestStageCurtainPowerFlags(BaseTest):
+    """接管谢幕路线 flag 与调度逻辑测试。"""
+
+    def setUp(self):
+        super().setUp()
+        self.controller.scene_manager.go_to("door_scene")
+
+    def test_power_setup_matches_expected_state(self):
+        """setup 后应符合接管分支预期参数。"""
+        setup_controller_for_stage_curtain_power(self.controller, round_count=190)
+        self.assertEqual(self.controller.round_count, 190)
+        self.assertEqual(self.controller.player.hp, 800)
+        self.assertEqual(self.controller.player.atk, 200)
+        self.assertFalse(self.controller.story.elf_key_obtained)
+        self.assertIn("elf_outcome:hostile", self.controller.story.story_tags)
+        self.assertIn("elf_outcome_hostile", self.controller.story.choice_flags)
+        self.assertIn("ending:puppet_final_defeated", self.controller.story.story_tags)
+        self.assertNotIn("ending:puppet_final_escape_recorded", self.controller.story.story_tags)
+        self.assertEqual(self.controller.story.puppet_evil_value, 55)
+
+    def test_power_route_cannot_trigger_stage_curtain_preface(self):
+        """未拿钥匙且邪恶值高时，不应挂载银羽秘藏。"""
+        setup_controller_for_stage_curtain_power(self.controller, round_count=190)
+        story = self.controller.story
+        self.assertFalse(story._is_stage_curtain_route_ready())
+        self.assertFalse(story.ensure_stage_curtain_preface_schedule())
+        self.assertNotIn(story.STAGE_CURTAIN_FORCE_CONSEQUENCE_ID, story.pending_consequences)
+
+    def test_round_200_prefers_puppet_echo_gate_without_key(self):
+        """第 200 回合时，在无钥匙+高邪恶前置下应优先挂载木偶回声门。"""
+        setup_controller_for_stage_curtain_power(self.controller, round_count=190)
+        self.controller.round_count = 200
+        story = self.controller.story
+
+        scheduled = story.ensure_default_normal_ending_schedule()
+        self.assertTrue(scheduled)
+        self.assertIn("ending_puppet_echo_final_gate", story.pending_consequences)
+        self.assertNotIn("ending_power_curtain_dialogue_round200", story.pending_consequences)
