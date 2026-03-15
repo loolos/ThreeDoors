@@ -1283,6 +1283,58 @@ class TestStorySystem(BaseTest):
         self.assertEqual(forced_boss.monster.name, "选择困难症候群")
         self.assertTrue(getattr(forced_boss.monster, "story_default_final_boss", False))
 
+    def test_hostile_elf_chain_inserts_rival_gate_before_default_final_boss(self):
+        story = self.controller.story
+        story.elf_chain_ended = True
+        story.elf_relation = -5
+        story.story_tags.add("elf_outcome:hostile")
+
+        second_event = EndingFinalSecondGateEvent(self.controller)
+        second_event.resolve_choice(0)
+        self.assertIn("ending_elf_rival_final_gate", story.pending_consequences)
+
+        self.controller.round_count = 202
+        reward_door = DoorEnum.REWARD.create_instance(controller=self.controller)
+        forced_rival = story.apply_pre_enter_checks(reward_door)
+        self.assertEqual(forced_rival.enum.name, "MONSTER")
+        self.assertTrue(getattr(forced_rival.monster, "story_elf_rival_final_boss", False))
+        self.assertEqual(forced_rival.monster.name, "银羽飞贼·莱希娅")
+        self.assertGreaterEqual(len(getattr(forced_rival, "battle_extensions", [])), 1)
+
+    def test_elf_rival_final_battle_victory_grants_hint_and_consumes_gate(self):
+        story = self.controller.story
+        monster = Monster(name="银羽飞贼·莱希娅", hp=12, atk=4, tier=4)
+        setattr(monster, "story_elf_rival_final_boss", True)
+        setattr(monster, "story_consequence_id", "ending_elf_rival_final_gate")
+        setattr(monster, "story_consume_on_defeat", True)
+        setattr(monster, "story_elf_rival_hint", "终局门里的第一条提示往往是诱饵。")
+        story.register_consequence(
+            choice_flag="ending_default_second_gate_rival",
+            consequence_id="ending_elf_rival_final_gate",
+            effect_key="elf_rival_final_gate",
+            chance=1.0,
+            trigger_door_types=["MONSTER"],
+            payload={"relation": -5},
+        )
+
+        story.resolve_battle_consequence(monster, defeated=True)
+
+        self.assertIn("ending:elf_rival_final_victory", story.story_tags)
+        self.assertIn("ending_elf_rival_final_victory", story.choice_flags)
+        self.assertIn("ending_elf_rival_final_gate", story.consumed_consequences)
+        self.assertTrue(any("银羽提示" in msg for msg in self.controller.messages))
+
+    def test_elf_rival_final_battle_escape_marks_permanent_parting(self):
+        story = self.controller.story
+        monster = Monster(name="银羽飞贼·莱希娅", hp=12, atk=4, tier=4)
+        setattr(monster, "story_elf_rival_final_boss", True)
+
+        story.resolve_battle_consequence(monster, defeated=False)
+
+        self.assertIn("ending:elf_rival_parted", story.story_tags)
+        self.assertIn("ending_elf_rival_parted", story.choice_flags)
+        self.assertTrue(any("下次不用再见" in msg for msg in self.controller.messages))
+
     def test_defeating_default_final_boss_triggers_normal_ending_clear(self):
         story = self.controller.story
         monster = Monster(name="选择困难症候群", hp=10, atk=2, tier=4)

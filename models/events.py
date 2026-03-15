@@ -3825,6 +3825,71 @@ def _schedule_default_ending_final_boss(controller):
     )
 
 
+def _should_trigger_elf_rival_pre_final(controller):
+    """终局前插入飞贼对决：仅在精灵线结束且关系极差时触发。"""
+    story = getattr(controller, "story", None)
+    if story is None:
+        return False
+    if not bool(getattr(story, "elf_chain_ended", False)):
+        return False
+    rel = int(getattr(story, "elf_relation", 0))
+    if rel > -4:
+        return False
+    story_flags = set(getattr(story, "story_tags", set()))
+    choice_flags = set(getattr(story, "choice_flags", set()))
+    return (
+        "elf_outcome:hostile" in story_flags
+        or "elf_outcome_hostile" in choice_flags
+        or "ending_hook:elf_hostile" in story_flags
+    )
+
+
+def _schedule_elf_rival_final_gate(controller):
+    """在默认终局 Boss 前插入一次银羽飞贼追猎战。"""
+    story = getattr(controller, "story", None)
+    if story is None:
+        return False
+    if not _should_trigger_elf_rival_pre_final(controller):
+        return False
+    if (
+        "ending:elf_rival_final_gate_done" in story.story_tags
+        or "ending:elf_rival_parted" in story.story_tags
+    ):
+        return False
+    if "ending_elf_rival_final_gate" in story.pending_consequences:
+        return False
+    current_round = max(0, int(getattr(controller, "round_count", 0)))
+    all_door_types = ["TRAP", "REWARD", "MONSTER", "SHOP", "EVENT"]
+    rel = int(getattr(story, "elf_relation", 0))
+    style = "vengeful" if rel <= -5 else "trickster"
+    profile_extensions = []
+    if "ending_hook:elf_hostile" in story.story_tags:
+        profile_extensions.append("ending_hook_hunted")
+    if "elf_outcome_hostile" in story.choice_flags or "elf_outcome:hostile" in story.story_tags:
+        profile_extensions.append("hostile_outcome")
+    if rel <= -5:
+        profile_extensions.append("deep_grudge")
+    return story.register_consequence(
+        choice_flag="ending_default_second_gate_rival",
+        consequence_id="ending_elf_rival_final_gate",
+        effect_key="elf_rival_final_gate",
+        chance=1.0,
+        trigger_door_types=all_door_types,
+        min_round=current_round + 1,
+        max_round=current_round + 1,
+        force_on_expire=True,
+        force_door_type="MONSTER",
+        priority=1250,
+        payload={
+            "style": style,
+            "relation": rel,
+            "extensions": profile_extensions,
+            "hint": "风里有熟悉的银羽划痕，像是有人专程在终局前截住你。",
+            "message": "你刚推开第二道终局门，前方墙体忽然裂开一扇怪物门。银羽斗篷从阴影里掠出：'还没结束，我们把旧账在这里算清。'",
+        },
+    )
+
+
 class EndingFinalFirstGateEvent(Event):
     """普通结局主线：回合 200 强制进入的第一道终局门。"""
 
@@ -3895,11 +3960,15 @@ class EndingFinalSecondGateEvent(Event):
     def _record_choice_and_schedule(self, choice_flag, line):
         self.register_story_choice(choice_flag=choice_flag, moral_delta=0)
         self.add_message(line)
-        scheduled = _schedule_default_ending_final_boss(self.controller)
-        if scheduled:
-            self.add_message("前方只剩最后一扇门，门牌上写着：『请做出最终决定』。")
+        rival_scheduled = _schedule_elf_rival_final_gate(self.controller)
+        if rival_scheduled:
+            self.add_message("你刚迈步，走廊先被另一道杀意封死：有人要在最终门之前和你清算旧账。")
         else:
-            self.add_message("你听见门后有东西在笑，但走廊暂时没有继续变化。")
+            scheduled = _schedule_default_ending_final_boss(self.controller)
+            if scheduled:
+                self.add_message("前方只剩最后一扇门，门牌上写着：『请做出最终决定』。")
+            else:
+                self.add_message("你听见门后有东西在笑，但走廊暂时没有继续变化。")
         return "Event Completed"
 
     def pick_left_gate(self):
