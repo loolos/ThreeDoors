@@ -82,18 +82,21 @@ class StorySystem:
     STAGE_CURTAIN_FORCE_CONSEQUENCE_ID = PRE_FINAL_GATE_STORY_CONFIG["round200_stage_preface"]["consequence_id"]
     PUPPET_PRE_FINAL_CONSEQUENCE_ID = PRE_FINAL_GATE_STORY_CONFIG["puppet_rematch_gate"]["consequence_id"]
     ELF_RIVAL_PRE_FINAL_CONSEQUENCE_ID = PRE_FINAL_GATE_STORY_CONFIG["elf_rival_final_gate"]["consequence_id"]
+    DREAM_MIRROR_PRELUDE_CONSEQUENCE_ID = PRE_FINAL_GATE_STORY_CONFIG["dream_mirror_prelude_gate"]["consequence_id"]
 
     # 结局前倒数窗口内必须全部清空的事件；默认终局（选择困难症候群）必须在此列表无 pending 后才可挂载。触发顺序见下。
     PRE_FINAL_BLOCKING_CONSEQUENCE_IDS = frozenset({
         STAGE_CURTAIN_FORCE_CONSEQUENCE_ID,
         PUPPET_PRE_FINAL_CONSEQUENCE_ID,
         ELF_RIVAL_PRE_FINAL_CONSEQUENCE_ID,
+        DREAM_MIRROR_PRELUDE_CONSEQUENCE_ID,
     })
-    # 强制触发时的优先顺序：先银羽秘藏，再木偶补战，再飞贼清算；默认 Boss 最后（不在此列表，由 ensure_default_normal_ending_schedule 单独挂载）。
+    # 强制触发时的优先顺序：银羽秘藏 → 木偶补战 → 飞贼清算 → 梦境镜面回响；默认 Boss 最后（不在此列表，由 ensure_default_normal_ending_schedule 单独挂载）。
     PRE_FINAL_BLOCKING_ORDER = (
         STAGE_CURTAIN_FORCE_CONSEQUENCE_ID,
         PUPPET_PRE_FINAL_CONSEQUENCE_ID,
         ELF_RIVAL_PRE_FINAL_CONSEQUENCE_ID,
+        DREAM_MIRROR_PRELUDE_CONSEQUENCE_ID,
     )
 
     HIGH_MORAL_MONSTERS = {"树人", "天使", "创世神官", "幽灵", "精灵法师"}

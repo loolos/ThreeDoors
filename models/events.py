@@ -123,6 +123,21 @@ PRE_FINAL_GATE_STORY_CONFIG = {
             "message": "你刚推开第二道终局门，前方墙体忽然裂开一扇怪物门。银羽斗篷从阴影里掠出：'还没结束，我们把旧账在这里算清。'",
         },
     },
+    # 倒数窗口：梦境井+镜面剧场均完结后的结局前回响事件（阻塞，满足条件必须清掉才能进结局；仅事件门 EVENT 触发）
+    "dream_mirror_prelude_gate": {
+        "choice_flag": "ending_dream_mirror_prelude",
+        "consequence_id": "ending_dream_mirror_prelude_gate",
+        "effect_key": "force_story_event",
+        "trigger_door_types": ("EVENT",),
+        "force_door_type": "EVENT",
+        "priority": 1190,
+        "payload": {
+            "event_key": "dream_mirror_prelude_event",
+            "hint": "走廊尽头，你仿佛又沉入一场梦——哦不，是镜面剧场在梦里重放。",
+            "message": "你推开门，却像跌进一段梦。镜面剧场的预演厅在梦中一帧一帧回放你曾做过的选择；梦还未醒，终幕的答案已在镜前等你。",
+            "log_trigger": "梦境井与镜面剧场两条长链皆已收束，梦中排练录像事件已挂载。",
+        },
+    },
     # 默认终局链：黑暗木偶补战门（木偶线未完结或曾逃跑时插入）
     "puppet_rematch_gate": {
         "choice_flag": "ending_default_second_gate_puppet",
@@ -151,6 +166,7 @@ PRE_FINAL_GATE_STORY_CONFIG = {
 PRE_FINAL_DISPATCH_ORDER = (
     "puppet_rematch_gate",
     "elf_rival_final_gate",
+    "dream_mirror_prelude_gate",
     "default_final_boss_gate",
 )
 
@@ -994,7 +1010,7 @@ class WiseSageEvent(Event):
     def __init__(self, controller):
         super().__init__(controller)
         self.title = "智者"
-        self.description = "一位白胡子老者在走廊拦住了去路，像是旧剧本里的导师角色：'年轻的旅人，为了什么而踏上这舞台？'"
+        self.description = "一位白胡子老者在走廊拦住了去路：'年轻的旅人，为了什么而踏上这舞台？'"
         heal_hint = self.scale_value(50, positive=True)
         self.choices = [
             EventChoice("为了力量 (加攻击)", self.power),
@@ -4492,6 +4508,123 @@ class EndingStageKindPuppetDialogueEvent(Event):
         )
 
 
+def _get_curtain_prelude_echo_line(choice_key):
+    """谢幕结局时对「梦中排练录像」前奏选择的呼应句（不改写结局，仅剧情呼应）。"""
+    if choice_key == "order":
+        return "你曾在梦中对着镜里的排练录像默想过：终幕应当按既定的剧本收尾——此刻，那份默想与你的选择一同落定。"
+    if choice_key == "freedom":
+        return "你曾在梦中对着镜里的排练录像默想过：终幕应当由当下的选择写就——此刻，那份默想与你的选择一同落定。"
+    if choice_key == "power":
+        return "你曾在梦中对着镜里的排练录像默想过：终幕应当由能掌控舞台的人收束——此刻，那份默想与你的选择一同落定。"
+    return ""
+
+
+def _build_dream_mirror_rehearsal_flashback(story):
+    """梦中看到的「镜面剧场排练录像」：根据玩家在镜面剧场的选择，拼出梦中回放的内容。"""
+    flags = set(getattr(story, "choice_flags", set()))
+    parts = []
+    if "mirror_played_hero" in flags:
+        parts.append("你看见镜中的自己又一次接过英雄面具，戴好，谢幕时空席间响起掌声。")
+    elif "mirror_played_villain" in flags:
+        parts.append("你看见镜中的自己又一次攥紧恶徒的面具，导演把反派分成塞进你手里，退场时有人在素描本上勾勒你的脸。")
+    elif "mirror_tore_script" in flags:
+        parts.append("你看见镜中的自己又一次撕掉剧本，拒绝入戏，破碎的台词像回音钩在神经上。")
+    return " ".join(parts) if parts else "镜面在梦中闪烁，你看见自己在预演厅里一次次做出选择。"
+
+
+def _build_dream_mirror_well_echo(story):
+    """这段梦从何而来：梦境井的选择让「排练录像」得以在梦中浮现。"""
+    flags = set(getattr(story, "choice_flags", set()))
+    if "dream_well_drank" in flags:
+        if "echo_court_redeemed" in flags:
+            return "井水的回响从未真正散去；你赎回了回放，它们便在此刻的梦里重播。"
+        if "echo_court_taxed" in flags:
+            return "你曾为回放上缴过代价，梦却仍把旧画面还给你。"
+        if "echo_court_trading" in flags:
+            return "你卖掉了不少梦境，可镜前的这一段，买主从未拿走。"
+        return "喝下的井水让历代回放流入意识，此刻在梦中翻涌。"
+    if "dream_well_sealed" in flags:
+        return "你曾封住井口，把回放压进井底——它们却从裂缝里渗进这场梦。"
+    if "dream_well_sold" in flags:
+        return "你曾把梦境折价卖掉，唯独镜面剧场的那几帧，不知为何留在了梦的角落里。"
+    return "梦不知从何处涌来，镜中的排练录像一帧一帧重放。"
+
+
+def _get_prelude_choice_variants(story):
+    """根据梦境井+镜面剧场组合返回三选一文案的变体（秩序/即兴/接管）。"""
+    flags = set(getattr(story, "choice_flags", set()))
+    order_leaning = "dream_well_sealed" in flags or "echo_court_redeemed" in flags or "mirror_played_hero" in flags
+    power_leaning = "dream_well_sold" in flags or "echo_court_trading" in flags or "mirror_played_villain" in flags
+    if order_leaning and not power_leaning:
+        return (
+            "默想：终幕应当按既定的剧本收尾",
+            "默想：终幕也可以由当下的选择写就",
+            "默想：终幕或可由能掌控舞台的人收束",
+        )
+    if power_leaning and not order_leaning:
+        return (
+            "默想：终幕或可按既定的剧本收尾",
+            "默想：终幕也可以由当下的选择写就",
+            "默想：终幕应当由能掌控舞台的人收束",
+        )
+    return (
+        "默想：终幕应当按既定的剧本收尾",
+        "默想：终幕应当由当下的选择写就",
+        "默想：终幕应当由能掌控舞台的人收束",
+    )
+
+
+class DreamMirrorPreludeEvent(Event):
+    """结局前事件：在一场梦境中看到自己在镜面剧场的一次次选择（排练录像），并做与终幕相关的默想。"""
+    TRIGGER_BASE_PROBABILITY = 0.0
+
+    @classmethod
+    def is_trigger_condition_met(cls, controller):
+        return False
+
+    def __init__(self, controller):
+        super().__init__(controller)
+        story = getattr(controller, "story", None)
+        self.title = "梦中排练录像"
+        rehearsal = _build_dream_mirror_rehearsal_flashback(story) if story else ""
+        well_echo = _build_dream_mirror_well_echo(story) if story else ""
+        self.description = (
+            "你沉入一段梦境。\n\n"
+            "镜面剧场的预演厅在眼前一帧一帧重放——你看见自己在镜前伸手、选下面具、或撕掉剧本，"
+            "像是过去的自己在反复排练同一场戏。\n\n"
+            f"{rehearsal}\n\n"
+            f"{well_echo}\n\n"
+            "录像播完，梦还未醒。你站在梦里的镜前，心中浮现的只有一个问题：终幕，应当如何收束？"
+        )
+        order_t, freedom_t, power_t = _get_prelude_choice_variants(story) if story else (
+            "默想：终幕应当按既定的剧本收尾",
+            "默想：终幕应当由当下的选择写就",
+            "默想：终幕应当由能掌控舞台的人收束",
+        )
+        self.choices = [
+            EventChoice(order_t, self._pick_order),
+            EventChoice(freedom_t, self._pick_freedom),
+            EventChoice(power_t, self._pick_power),
+        ]
+
+    def _pick_order(self):
+        return self._apply_prelude_choice("order", "梦中你默想：终幕应当按既定的剧本收尾。镜面暗了下去。")
+
+    def _pick_freedom(self):
+        return self._apply_prelude_choice("freedom", "梦中你默想：终幕应当由当下的选择写就。镜面暗了下去。")
+
+    def _pick_power(self):
+        return self._apply_prelude_choice("power", "梦中你默想：终幕应当由能掌控舞台的人收束。镜面暗了下去。")
+
+    def _apply_prelude_choice(self, choice_key, line):
+        self.register_story_choice(choice_flag=f"curtain_prelude_{choice_key}", moral_delta=0)
+        story = getattr(self.controller, "story", None)
+        if story is not None:
+            setattr(story, "curtain_prelude_choice", choice_key)
+        self.add_message(line)
+        return "Event Completed"
+
+
 class EndingStageCurtainGateEvent(Event):
     """舞台谢幕链终局门：补全/即兴/接管三选一；若已与善良木偶约定则直接执行约定。"""
     TRIGGER_BASE_PROBABILITY = 0.0
@@ -4561,10 +4694,32 @@ class EndingStageCurtainGateEvent(Event):
         notes = ending_payload.get("notes", [])
         if notes:
             self.add_message(" ".join(notes[:2]))
+        prelude_choice = getattr(story, "curtain_prelude_choice", None)
+        if prelude_choice:
+            prelude_line = _get_curtain_prelude_echo_line(prelude_choice)
+            if prelude_line:
+                self.add_message(prelude_line)
         for scene_line in list(ending_payload.get("scene_lines", []) or []):
             line = str(scene_line).strip()
             if line:
                 self.add_message(line)
+
+        ending_meta = {
+            "stage_route_choice": route_key,
+            "stage_outcome": outcome_tag,
+            "stage_scores": {
+                "order": score_payload.get("order", 0),
+                "freedom": score_payload.get("freedom", 0),
+                "power": score_payload.get("power", 0),
+                "risk": score_payload.get("risk", 0),
+            },
+            "puppet_kind_rescued": bool(score_payload.get("puppet_kind_rescued", False)),
+            "stage_script_ready": bool(score_payload.get("stage_script_ready", False)),
+            "curtain_speciale": str(ending_payload.get("curtain_speciale", "")).strip(),
+            "script_truth_revealed": "curtain_call_truth_revealed" in story.story_tags,
+        }
+        if prelude_choice:
+            ending_meta["curtain_prelude_choice"] = prelude_choice
 
         trigger_clear = getattr(self.controller, "trigger_game_clear", None)
         if callable(trigger_clear):
@@ -4572,20 +4727,7 @@ class EndingStageCurtainGateEvent(Event):
                 ending_key=ending_payload.get("ending_key", "stage_curtain_collapse"),
                 ending_title=ending_payload.get("ending_title", "舞台谢幕"),
                 ending_description=ending_payload.get("ending_description", "终幕结束。"),
-                ending_meta={
-                    "stage_route_choice": route_key,
-                    "stage_outcome": outcome_tag,
-                    "stage_scores": {
-                        "order": score_payload.get("order", 0),
-                        "freedom": score_payload.get("freedom", 0),
-                        "power": score_payload.get("power", 0),
-                        "risk": score_payload.get("risk", 0),
-                    },
-                    "puppet_kind_rescued": bool(score_payload.get("puppet_kind_rescued", False)),
-                    "stage_script_ready": bool(score_payload.get("stage_script_ready", False)),
-                    "curtain_speciale": str(ending_payload.get("curtain_speciale", "")).strip(),
-                    "script_truth_revealed": "curtain_call_truth_revealed" in story.story_tags,
-                },
+                ending_meta=ending_meta,
             )
         else:
             self.controller.scene_manager.go_to("game_over_scene")
@@ -4670,6 +4812,56 @@ class EndingPowerCurtainDirectEvent(Event):
         else:
             self.controller.scene_manager.go_to("game_over_scene")
         return "Event Completed"
+
+
+def _dream_well_chain_done(story):
+    """梦境井长链是否已完结：封井/卖梦直接完结；喝下则需回声法庭任一选项。"""
+    flags = set(getattr(story, "choice_flags", set()))
+    if "dream_well_sealed" in flags or "dream_well_sold" in flags:
+        return True
+    if "dream_well_drank" in flags and (
+        "echo_court_redeemed" in flags or "echo_court_taxed" in flags or "echo_court_trading" in flags
+    ):
+        return True
+    return False
+
+
+def _mirror_theater_chain_done(story):
+    """镜面剧场长链是否已完结：英雄/恶徒/撕本任一选项。"""
+    flags = set(getattr(story, "choice_flags", set()))
+    return (
+        "mirror_played_hero" in flags
+        or "mirror_played_villain" in flags
+        or "mirror_tore_script" in flags
+    )
+
+
+def _should_trigger_dream_mirror_prelude(controller):
+    """是否挂载梦境镜面回响门：两长链皆已完结且在倒数窗口内。"""
+    story = getattr(controller, "story", None)
+    if story is None:
+        return False
+    if not _dream_well_chain_done(story):
+        return False
+    if not _mirror_theater_chain_done(story):
+        return False
+    cfg = _get_pre_final_gate_config("dream_mirror_prelude_gate")
+    cid = str(cfg.get("consequence_id", "ending_dream_mirror_prelude_gate"))
+    if cid in getattr(story, "pending_consequences", {}) or cid in getattr(story, "consumed_consequences", set()):
+        return False
+    return True
+
+
+def _schedule_dream_mirror_prelude_gate(controller, *, min_round=None, max_round=None):
+    """倒数窗口内挂载「梦境与镜面回响」事件门（非阻塞）。"""
+    if not _should_trigger_dream_mirror_prelude(controller):
+        return False
+    return _schedule_pre_final_gate(
+        controller=controller,
+        gate_key="dream_mirror_prelude_gate",
+        min_round=min_round,
+        max_round=max_round,
+    )
 
 
 def _should_trigger_elf_rival_pre_final(controller):
@@ -4793,6 +4985,9 @@ def schedule_next_pre_final_gate(
         elif gate_key == "elf_rival_final_gate":
             if _schedule_elf_rival_final_gate(controller, min_round=min_round, max_round=max_round):
                 return gate_key
+        elif gate_key == "dream_mirror_prelude_gate":
+            if _schedule_dream_mirror_prelude_gate(controller, min_round=min_round, max_round=max_round):
+                return gate_key
         elif gate_key == "default_final_boss_gate":
             if include_default_final_boss and _schedule_default_ending_final_boss(controller):
                 return gate_key
@@ -4913,6 +5108,7 @@ def get_story_event_by_key(event_key, controller):
         "elf_side_monster_event": ElfSideMonsterEvent,
         "elf_side_merchant_disguised_event": ElfSideMerchantDisguisedEvent,
         "elf_side_merchant_event": ElfSideMerchantEvent,
+        "dream_mirror_prelude_event": DreamMirrorPreludeEvent,
         "ending_stage_script_vault_event": EndingStageScriptVaultEvent,
         "ending_stage_kind_puppet_dialogue_event": EndingStageKindPuppetDialogueEvent,
         "ending_stage_curtain_gate_event": EndingStageCurtainGateEvent,

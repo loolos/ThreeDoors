@@ -43,6 +43,17 @@ class DoorScene(Scene):
             self.controller.scene_manager.go_to("game_over_scene")
             return
 
+        # 首次进入冒险世界（新局或重置后）：展示世界观与真相暗示
+        if self.controller.round_count == 0:
+            self.controller.add_message(
+                "你睁开眼，发现自己站在一条幽长的走廊里。眼前是三扇紧闭的门——"
+                "据说每一扇背后都藏着截然不同的命运：战斗、奇遇、或是陷阱。\n"
+                "这里无数走廊与门扉交织成一座没有出口的迷宫；"
+                "而你，是又一位被卷入其中的闯入者。\n"
+                "走廊深处传来若有若无的弦音与低语，像是早已写好的台词在暗处回响。\n"
+                "这场冒险的终幕，或许正取决于你即将做出的每一个选择。"
+            )
+
         if not self.has_initialized:
             self.generate_doors()
             self.has_initialized = True
@@ -336,7 +347,6 @@ class GameOverScene(Scene):
         clear_info = getattr(self.controller, "game_clear_info", None)
         if clear_info:
             self.button_texts = ["重启游戏", "结局已达成", "退出游戏"]
-            self.controller.add_message("【结局达成】")
             title = str(clear_info.get("ending_title", "")).strip()
             description = str(clear_info.get("ending_description", "")).strip()
             if title:

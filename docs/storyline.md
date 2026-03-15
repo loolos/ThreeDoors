@@ -25,10 +25,10 @@
 | 精灵飞贼（银羽飞贼） | 剧本盗取者 | 制造“无剧本演出”的起点 |
 | 黑暗木偶（弃线木偶） | 失去剧本控制的原主角演员 | 展示失控样本与悲剧后果 |
 | 月蚀通缉令 | 剧场安保回收系统 | 想追回剧本，但长期抓错人 |
-| 移动摊贩/黑市列车摊 | 门厅自动售票系统的故障分流终端 | 提供漏洞票并引出查票清算 |
+| 移动摊贩 | 门厅自动售票系统的故障分流终端 | 提供漏洞票并引出查票清算 |
 | 梦境井 | 历代演出的回放池 | 展示不同历史结局与代价 |
 | 假面剧场 | 主舞台与终幕场地 | 所有线索最终汇流并完成谢幕 |
-| 命运乐章/命运乐谱 | 剧本的剧中称谓 | 月蚀通缉与审判线中“被追回之物”的具体名称 |
+| 命运乐章 | 剧本的剧中称谓 | 月蚀通缉与审判线中“被追回之物”的具体名称 |
 
 ---
 
@@ -101,8 +101,8 @@
 ### 4.1 核心规则
 
 - **最终游戏结局**（进入终局回廊、打选择困难症候群，或接管谢幕直通）**必须**在**所有结局前倒数窗口事件**清空之后才会挂载。
-- 清空指：`PRE_FINAL_BLOCKING_CONSEQUENCE_IDS` 中的三个 consequence（银羽秘藏、木偶补战、飞贼清算）均不在 `pending_consequences` 中（已触发并消费或从未挂载）。
-- **触发顺序**：银羽秘藏 → 木偶补战 → 飞贼清算；**默认 Boss（选择困难症候群）**不在倒数窗口内挂载，在玩家进入**第二道终局门**并做出选择后由 `_schedule_default_ending_final_boss()` 挂载。
+- 清空指：`PRE_FINAL_BLOCKING_CONSEQUENCE_IDS` 中的四个 consequence（银羽秘藏、木偶补战、飞贼清算、梦境镜面回响）均不在 `pending_consequences` 中（已触发并消费或从未挂载）。
+- **触发顺序**：银羽秘藏 → 木偶补战 → 飞贼清算 → 梦境镜面回响；**默认 Boss（选择困难症候群）**不在倒数窗口内挂载，在玩家进入**第二道终局门**并做出选择后由 `_schedule_default_ending_final_boss()` 挂载。
 
 ### 4.2 倒数窗口定义
 
@@ -114,7 +114,7 @@
 
 ### 4.3 结局前阻塞事件与预挂载事件
 
-以下三种 consequence 在 **pending** 时，**不会**挂载默认终局入口（选择困难症候群 / 接管谢幕直通）。在窗口内（或超窗后强制）通过 `ensure_pre_final_event_schedule()` 挂进 `pending_consequences`，实际触发依赖**门型匹配**或 **force_on_expire**。
+以下四种 consequence 在 **pending** 时，**不会**挂载默认终局入口（选择困难症候群 / 接管谢幕直通）。在窗口内（或超窗后强制）通过 `ensure_pre_final_event_schedule()` 挂进 `pending_consequences`，实际触发依赖**门型匹配**或 **force_on_expire**。
 
 | 配置键 | consequence_id | 触发门型 | 效果 / 触发条件概要 |
 |--------|----------------|----------|----------------------|
@@ -122,8 +122,9 @@
 | **stage_curtain_kind_puppet_dialogue** | `ending_stage_kind_puppet_dialogue` | 事件门 EVENT | 秘藏取回剧本后若邪恶值≤45 则挂载；门改写为与善良木偶对话事件，三选一（即兴/补全且木偶谢幕/补全但自己上）。约定后挂载谢幕门 |
 | **puppet_rematch_gate** | `ending_puppet_pre_final_rematch_gate` | 仅怪物门 MONSTER | 木偶终战**曾逃跑**时挂载；门改为补战 Boss「裂齿·夜魇·游荡残响」，无二阶段，`pre_final_dispatch=True`。未完成补战、未击败木偶终战 |
 | **elf_rival_final_gate** | `ending_elf_rival_final_gate` | 仅怪物门 MONSTER | 精灵线已收束且**关系≤−4**时挂载；门改为银羽飞贼终局前对决（风格/扩展依 `elf_relation`）。未完成该 gate |
+| **dream_mirror_prelude_gate** | `ending_dream_mirror_prelude_gate` | 仅事件门 EVENT | **梦境井**与**镜面剧场**两长链均完结后才挂载；玩家在一场梦境中看到自己在镜面剧场的一次次选择（排练录像），并做与终幕相关的默想（秩序/即兴/接管）。选择仅作谢幕结局的剧情呼应，不改写结局类型。满足条件则必须清掉才能进结局。 |
 
-**强制触发顺序**（超窗后多事件同时待触发时）：按 `PRE_FINAL_BLOCKING_ORDER` —— 银羽秘藏 → 木偶补战 → 飞贼清算；全部清空后才可能挂载第 200 回合的“第一门”。
+**强制触发顺序**（超窗后多事件同时待触发时）：按 `PRE_FINAL_BLOCKING_ORDER` —— 银羽秘藏 → 木偶补战 → 飞贼清算 → 梦境镜面回响；全部清空后才可能挂载第 200 回合的“第一门”。
 
 ### 4.4 第 200 回合“第一门”挂载逻辑
 
@@ -141,7 +142,7 @@
 
 ### 4.5 调度顺序与相关常量
 
-- **`schedule_next_pre_final_gate()` 挂载顺序**（`PRE_FINAL_DISPATCH_ORDER`）：① puppet_rematch_gate（木偶补战）② elf_rival_final_gate（飞贼清算）③ default_final_boss_gate（仅当 `include_default_final_boss=True` 时尝试）。每次调用只挂载一个 gate；`ensure_pre_final_event_schedule()` 循环至多 4 次，把多个满足条件的 gate 依次挂进 pending。
+- **`schedule_next_pre_final_gate()` 挂载顺序**（`PRE_FINAL_DISPATCH_ORDER`）：① puppet_rematch_gate（木偶补战）② elf_rival_final_gate（飞贼清算）③ dream_mirror_prelude_gate（梦境镜面回响，仅当两长链皆完结时挂载，阻塞，对应事件门）④ default_final_boss_gate（仅当 `include_default_final_boss=True` 时尝试）。每次调用只挂载一个 gate；`ensure_pre_final_event_schedule()` 循环至多 4 次，把多个满足条件的 gate 依次挂进 pending。
 - **常量**（story_system.py）：`PRE_FINAL_WINDOW_START_OFFSET = 15`、`PRE_FINAL_WINDOW_END_OFFSET = 10`、`PRE_FINAL_RECHECK_INTERVAL = 5`、`DEFAULT_ENDING_FORCE_ROUND = 200`、`PRE_FINAL_BLOCKING_CONSEQUENCE_IDS`、`PRE_FINAL_BLOCKING_ORDER`。完整门配置见 `models/events.py` 中的 `PRE_FINAL_GATE_STORY_CONFIG`。
 
 ---
