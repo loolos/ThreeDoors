@@ -1358,6 +1358,7 @@ class TestStorySystem(BaseTest):
         self.assertEqual(forced_second.enum.name, "MONSTER")
         story.resolve_battle_consequence(forced_second.monster, defeated=True)
 
+        story.story_tags.discard("puppet_arc_active")
         scheduled_after = story.ensure_default_normal_ending_schedule()
         self.assertTrue(scheduled_after)
         self.assertIn("ending_default_force_gate_round_200", story.pending_consequences)
