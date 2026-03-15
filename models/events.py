@@ -1442,11 +1442,15 @@ class MoonBountyEvent(Event):
     def __init__(self, controller):
         super().__init__(controller)
         self.title = "月蚀通缉令"
-        self.description = "剧场走廊的墙上贴着一张会发光的通缉令，落款是安保回收系统：'月蚀前带回命运的盗取者，生死不论；命运的乐谱必须追回。'"
+        self.description = (
+            "剧场走廊的墙上贴着一张会发光的通缉令，落款是安保回收系统："
+            "'月蚀前带回命运乐谱大盗，生死不论；命运乐章必须追回。' "
+            "但角落里有被反复涂抹的批注：'目标身份待复核'。墨迹上还沾着细小银羽粉。"
+        )
         self.choices = [
-            EventChoice("接单追猎", self.accept_contract),
-            EventChoice("撕毁通缉令，暗中寻找线索，试图护送被通缉者离开", self.protect_target),
-            EventChoice("两头通吃，伪造线索，试图从通缉者和被通缉者两头都赚到钱", self.double_cross),
+            EventChoice("接单追猎，准备当场拿下“命运乐谱大盗”", self.accept_contract),
+            EventChoice("撕毁通缉令并暗中护送目标，先查清他是否被冤", self.protect_target),
+            EventChoice("两边伪造线索，等他们互咬后再收网", self.double_cross),
         ]
 
     def accept_contract(self):
@@ -1455,17 +1459,20 @@ class MoonBountyEvent(Event):
             moral_delta=-4,
             consequences=self._build_moon_chain(
                 route="accept",
-                shop_effect="black_market_discount",
-                shop_ratio=0.74,
-                hunter_name="野狼",
-                shop_message="你拿出的月蚀追猎印章被商人认出，货架立刻给出安保线人折扣。",
+                battle_mode="thief",
+                chain_message="前情：你选择了追猎通缉对象。门后的影子抱着一册旧谱，像是在等你先动手。",
+                chain_hint="前情：追猎令已经锁定目标，门后的人正死盯着你袖口里的通缉印章。",
+                verdict_hint="前情：你在追猎战后捡到一册旧日记，审判庭要求你立刻携证出庭。",
             ),
         )
         p = self.get_player()
         prep_cost = min(p.gold, 8)
         p.gold -= prep_cost
         if prep_cost > 0:
-            self.add_message(f"你先花了 {prep_cost}G 买线人情报，把通缉令折进袖口。有人在暗处轻轻点头，像是在确认你的身份。")
+            self.add_message(
+                f"你先花了 {prep_cost}G 买线人情报，把通缉令折进袖口。"
+                "线人只说了一句：'别太快下结论。'"
+            )
         else:
             self.add_message("你把通缉令折进袖口，但没钱买情报，只能硬着头皮追猎。")
         return "Event Completed"
@@ -1476,14 +1483,17 @@ class MoonBountyEvent(Event):
             moral_delta=6,
             consequences=self._build_moon_chain(
                 route="protect",
-                shop_effect="black_market_markup",
-                shop_ratio=1.32,
-                hunter_name="死亡骑士",
-                shop_message="你坏了安保追猎的规矩，商人把你列成高风险客户。",
+                battle_mode="guardian",
+                chain_message="前情：你决定护送通缉对象离场。门后甲胄摩擦声骤起，命运乐章守护者拦住了路。",
+                chain_hint="前情：你站在被通缉者一边，守护者把你视作共犯并举刃封门。",
+                verdict_hint="前情：你替被通缉者挡下守护者后拿到了他的旧日记，审判庭点名要你陈述。",
             ),
         )
         healed = self.get_player().heal(17)
-        self.add_message(f"你把通缉令撕成两半，护送行动让你重整呼吸，恢复 {healed} 点生命。风里传来一句低语：'那你就替他付账。'")
+        self.add_message(
+            f"你把通缉令撕成两半，护送行动让你重整呼吸，恢复 {healed} 点生命。"
+            "风里传来一句低语：'那你就替他付账。'"
+        )
         return "Event Completed"
 
     def double_cross(self):
@@ -1492,10 +1502,10 @@ class MoonBountyEvent(Event):
             moral_delta=-1,
             consequences=self._build_moon_chain(
                 route="double",
-                shop_effect="black_market_discount",
-                shop_ratio=0.82,
-                hunter_name="暗影刺客",
-                shop_message="你放出的假线索搅乱了追猎盘口，黑市一时分不清该杀你还是拉拢你。",
+                battle_mode="random",
+                chain_message="前情：你同时欺骗了两边。门后要么是被追猎者，要么是守护者，谁先到就谁先和你开战。",
+                chain_hint="前情：你放出的假线索反噬了自己，这扇门后只剩一场硬仗。",
+                verdict_hint="前情：无论你骗了谁，审判庭都要你带着战后那本日记本到场说明。",
             ),
         )
         p = self.get_player()
@@ -1504,42 +1514,30 @@ class MoonBountyEvent(Event):
         self.add_message("你把真假线索分别卖给两边，先赚到 48G；但双方都在试探你，你在撤离时受了 6 点伤害。")
         return "Event Completed"
 
-    def _build_moon_chain(self, route, shop_effect, shop_ratio, hunter_name, shop_message):
+    def _build_moon_chain(self, route, battle_mode, chain_message, chain_hint, verdict_hint):
         return [
             {
-                "consequence_id": f"moon_chain_{route}_hunter",
-                "effect_key": "revenge_ambush",
+                "consequence_id": f"moon_chain_{route}_mid_battle",
+                "effect_key": "moon_bounty_mid_battle",
                 "chance": 1.0,
                 "priority": 10,
-                "trigger_door_types": ["EVENT", "MONSTER"],
+                "trigger_door_types": ["EVENT", "MONSTER", "SHOP", "REWARD", "TRAP"],
                 "payload": {
-                    "force_hunter": True,
+                    "route": route,
+                    "battle_mode": battle_mode,
                     "consume_on_defeat": True,
-                    "hunter_name": hunter_name,
-                    "message": "前情：你刚在月蚀通缉令里做了站队选择。你刚迈过门槛，追猎令就被激活了，脚步声在你背后同步响起。",
-                    "hunter_hint": "前情：你的月蚀选择已被记档。猎杀钟摆开始摆动，你被迫跟着它的节奏走。",
+                    "message": chain_message,
+                    "hunter_hint": chain_hint,
                     "chain_followups": [
                         {
-                            "consequence_id": f"moon_chain_{route}_shop",
-                            "effect_key": shop_effect,
+                            "consequence_id": f"moon_chain_{route}_force_verdict",
+                            "effect_key": "force_story_event",
                             "chance": 1.0,
-                            "trigger_door_types": ["SHOP"],
+                            "trigger_door_types": ["EVENT"],
                             "payload": {
-                                "ratio": shop_ratio,
-                                "message": shop_message,
-                                "chain_followups": [
-                                    {
-                                        "consequence_id": f"moon_chain_{route}_force_verdict",
-                                        "effect_key": "force_story_event",
-                                        "chance": 1.0,
-                                        "trigger_door_types": ["EVENT"],
-                                        "payload": {
-                                            "event_key": "moon_verdict_event",
-                                            "hint": "前情：你已经历追猎与黑市结算，审判庭在等你签最后一笔账",
-                                            "message": "前情：你的通缉案已进入结算阶段。你发现一扇门后坐着记账人：'该结案了。'",
-                                        },
-                                    }
-                                ],
+                                "event_key": "moon_verdict_event",
+                                "hint": verdict_hint,
+                                "message": "前情：中间战斗结束后，案卷被强制推送至审判庭。你必须先出庭，才有资格继续后续任务。",
                             },
                         }
                     ],
@@ -1559,14 +1557,46 @@ class MoonVerdictEvent(Event):
     def __init__(self, controller):
         super().__init__(controller)
         self.title = "月蚀审判"
-        self.description = "你一路追着月蚀通缉链来到剧场安保的审判席。书记官推来三份结案文书——每一份都关乎命运剧本回收案的最终定论，要你签名。"
+        self.description = (
+            "你一路追着月蚀通缉链来到剧场安保的审判席。书记官推来三份结案文书——"
+            "每一份都关乎命运剧本回收案的最终定论，要你签名。"
+        )
+        diary_prelude = self._compose_diary_prelude()
+        if diary_prelude:
+            self.description = f"{self.description} {diary_prelude}"
         self.choices = [
             EventChoice("按规矩结案", self.file_clean),
             EventChoice("销毁证物", self.burn_records),
             EventChoice("反向勒索审判庭", self.extort_court),
         ]
 
+    def _compose_diary_prelude(self):
+        story = getattr(self.controller, "story", None)
+        if not story or "moon_bounty_diary_obtained" not in getattr(story, "story_tags", set()):
+            return ""
+        source = getattr(story, "moon_bounty_diary_source", "")
+        if source == "thief_body":
+            return "你把战后搜出的旧日记本放在证物盘里：里面只记着一个父亲寻找走失女儿的日期与路线。"
+        if source == "thief_testimony":
+            return "你把被通缉者托付的旧日记本放在证物盘里：里面是他寻找走失女儿的记录，以及他反复写下的‘我没偷那份乐章’。"
+        return "你把一册磨损的旧日记本放在证物盘里，准备在审判中作为补充证词。"
+
+    def _add_diary_court_remark(self):
+        story = getattr(self.controller, "story", None)
+        if not story or "moon_bounty_diary_obtained" not in getattr(story, "story_tags", set()):
+            return
+        source = getattr(story, "moon_bounty_diary_source", "")
+        if source == "thief_body":
+            self.add_message("你递上日记本。主审官快速翻阅后皱眉：'这只是一位父亲寻找女儿的私人记录。'")
+        elif source == "thief_testimony":
+            self.add_message("你递上日记本并转述大盗的自述。书记官记下笔录，却没有抬眼。")
+        else:
+            self.add_message("你递上日记本。书记官把它放进证物盘，翻了两页就合上。")
+        self.add_message("主审官冷声宣布：'这本日记不能证明命运乐章失窃案的真伪，只能作为背景材料。'")
+        self.add_message("旁听席有人低声提到“飞羽样本”仍在复核，但很快被法槌压了下去。")
+
     def file_clean(self):
+        self._add_diary_court_remark()
         self.register_story_choice(
             choice_flag="moon_verdict_clean",
             moral_delta=4,
@@ -1604,6 +1634,7 @@ class MoonVerdictEvent(Event):
         return "Event Completed"
 
     def burn_records(self):
+        self._add_diary_court_remark()
         self.register_story_choice(
             choice_flag="moon_verdict_burned",
             moral_delta=-5,
@@ -1641,6 +1672,7 @@ class MoonVerdictEvent(Event):
         return "Event Completed"
 
     def extort_court(self):
+        self._add_diary_court_remark()
         self.register_story_choice(
             choice_flag="moon_verdict_extorted",
             moral_delta=-2,

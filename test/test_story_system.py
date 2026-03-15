@@ -574,31 +574,48 @@ class TestStorySystem(BaseTest):
         self.assertEqual(outputs[0].get("index"), 1)
         self.assertEqual(mock_handler.call_count, 2)
 
-    def test_long_chain_can_progress_from_hunter_to_shop_to_forced_event(self):
+    def test_long_chain_can_progress_from_mid_battle_to_forced_verdict(self):
         story = self.controller.story
         moon_event = MoonBountyEvent(self.controller)
         moon_event.resolve_choice(0)
-        self.assertIn("moon_chain_accept_hunter", story.pending_consequences)
+        self.assertIn("moon_chain_accept_mid_battle", story.pending_consequences)
 
         first_event_door = DoorEnum.EVENT.create_instance(controller=self.controller)
         with unittest.mock.patch("models.story_system.random.uniform", return_value=0.0):
-            hunter_door = story.apply_pre_enter_checks(first_event_door)
-        self.assertEqual(hunter_door.enum.name, "MONSTER")
-        self.assertTrue(hasattr(hunter_door.monster, "story_consequence_id"))
-        self.assertIn("moon_chain_accept_hunter", story.pending_consequences)
+            mid_battle_door = story.apply_pre_enter_checks(first_event_door)
+        self.assertEqual(mid_battle_door.enum.name, "MONSTER")
+        self.assertEqual(mid_battle_door.monster.name, "命运乐谱大盗")
+        self.assertTrue(hasattr(mid_battle_door.monster, "story_consequence_id"))
+        self.assertIn("moon_chain_accept_mid_battle", story.pending_consequences)
 
-        story.resolve_battle_consequence(hunter_door.monster, defeated=True)
-        self.assertIn("moon_chain_accept_shop", story.pending_consequences)
-
-        shop_door = DoorEnum.SHOP.create_instance(controller=self.controller)
-        with unittest.mock.patch("models.story_system.random.uniform", return_value=0.0):
-            story.apply_pre_enter_checks(shop_door)
+        story.resolve_battle_consequence(mid_battle_door.monster, defeated=True)
         self.assertIn("moon_chain_accept_force_verdict", story.pending_consequences)
+        self.assertIn("moon_bounty_diary_obtained", story.story_tags)
+        self.assertEqual(getattr(story, "moon_bounty_diary_source", ""), "thief_body")
 
         second_event_door = DoorEnum.EVENT.create_instance(controller=self.controller)
         with unittest.mock.patch("models.story_system.random.uniform", return_value=0.0):
             forced_event_door = story.apply_pre_enter_checks(second_event_door)
         self.assertEqual(getattr(forced_event_door, "story_forced_event_key", ""), "moon_verdict_event")
+
+    def test_moon_protect_route_battle_sets_guardian_diary_state(self):
+        story = self.controller.story
+        moon_event = MoonBountyEvent(self.controller)
+        moon_event.resolve_choice(1)
+        self.assertIn("moon_chain_protect_mid_battle", story.pending_consequences)
+
+        event_door = DoorEnum.EVENT.create_instance(controller=self.controller)
+        with unittest.mock.patch("models.story_system.random.uniform", return_value=0.0):
+            mid_battle_door = story.apply_pre_enter_checks(event_door)
+        self.assertEqual(mid_battle_door.enum.name, "MONSTER")
+        self.assertEqual(mid_battle_door.monster.name, "命运乐章守护者")
+
+        story.resolve_battle_consequence(mid_battle_door.monster, defeated=True)
+        self.assertEqual(getattr(story, "moon_bounty_diary_source", ""), "thief_testimony")
+        self.assertIn("moon_chain_protect_force_verdict", story.pending_consequences)
+
+        verdict_event = MoonVerdictEvent(self.controller)
+        self.assertIn("我没偷那份乐章", verdict_event.description)
 
     def test_puppet_intro_schedules_mainline_rift_in_20_to_30_rounds(self):
         story = self.controller.story

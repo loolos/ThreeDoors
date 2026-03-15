@@ -328,7 +328,7 @@ class StorySystem:
         self._queue_chain_followups(consequence)
 
     def _should_defer_consumption(self, consequence: PendingConsequence, door: Any) -> bool:
-        if consequence.effect_key not in ("revenge_ambush", "puppet_side_minion"):
+        if consequence.effect_key not in ("revenge_ambush", "puppet_side_minion", "moon_bounty_mid_battle"):
             return False
         monster = getattr(door, "monster", None)
         if not monster:
@@ -352,6 +352,28 @@ class StorySystem:
         if not consequence:
             return
         self._consume_consequence(consequence)
+        self._resolve_moon_bounty_mid_outcome(monster)
+
+    def _resolve_moon_bounty_mid_outcome(self, monster: Any) -> None:
+        """月蚀链中继战斗收尾：记录日记证据并输出剧情提示。"""
+        if not monster or not bool(getattr(monster, "story_moon_bounty_mid", False)):
+            return
+        story_note = getattr(monster, "story_moon_bounty_diary_note", "")
+        truth_hint = getattr(monster, "story_moon_bounty_truth_hint", "")
+        diary_source = getattr(monster, "story_moon_bounty_diary_source", "")
+        route = getattr(monster, "story_moon_bounty_route", "")
+        if isinstance(story_note, str) and story_note.strip():
+            self.controller.add_message(story_note.strip())
+        if isinstance(truth_hint, str) and truth_hint.strip():
+            self.controller.add_message(truth_hint.strip())
+
+        self.story_tags.add("moon_bounty_mid_battle_cleared")
+        self.story_tags.add("moon_bounty_diary_obtained")
+        if isinstance(diary_source, str) and diary_source.strip():
+            self.story_tags.add(f"moon_bounty_diary_source:{diary_source.strip()}")
+            self.moon_bounty_diary_source = diary_source.strip()
+        if isinstance(route, str) and route.strip():
+            self.story_tags.add(f"moon_bounty_route:{route.strip()}")
 
     def _resolve_puppet_final_outcome(self) -> None:
         evil = max(0, min(100, int(getattr(self, "puppet_evil_value", 55))))
@@ -571,6 +593,60 @@ class StorySystem:
             )
             self._log_effect_result(consequence, minion.name)
             return True, minion_door
+
+        if effect == "moon_bounty_mid_battle":
+            mode = str(payload.get("battle_mode", "thief")).strip().lower()
+            route = str(payload.get("route", "")).strip().lower()
+            battle_profiles = {
+                "thief": {
+                    "name": "命运乐谱大盗",
+                    "entry_message": "你撞见了被通缉的‘命运乐谱大盗’。他先护住胸前那本旧册子，再举刀逼你后退。",
+                    "hint": "门后站着的男人满手旧伤，他怀里紧压着一本磨损日记本。",
+                    "diary_source": "thief_body",
+                    "diary_note": "你击败命运乐谱大盗后，在他身上只搜到一本普通日记本：每一页都在记录他失踪女儿的线索，和一次次扑空的日期。",
+                    "truth_hint": "案卷并没有因此更清楚——你只知道自己带走了一本父亲的日记，准备在月蚀审判上陈述。",
+                },
+                "guardian": {
+                    "name": "命运乐章守护者",
+                    "entry_message": "你刚把被通缉者推到身后，命运乐章守护者便持盾封住门口，宣称要当场清算。",
+                    "hint": "守护者的盔甲上刻着“证物优先”，它把你也列入了阻拦名单。",
+                    "diary_source": "thief_testimony",
+                    "diary_note": "守护者倒下后，大盗喘着气告诉你：命运乐章不是他偷的。他把随身日记本交给你，请你在月蚀审判时替他说话。",
+                    "truth_hint": "你翻开日记，只看到寻女记录与混乱的行程备注；真正的失窃线索仍像被人刻意擦去。",
+                },
+            }
+            if mode == "random":
+                selected_key = random.choice(["thief", "guardian"])
+            elif mode in battle_profiles:
+                selected_key = mode
+            else:
+                selected_key = "thief"
+            profile = battle_profiles[selected_key]
+            hunter = self._create_hunter_monster(preferred_name=profile["name"])
+            hunter.story_consequence_id = consequence.consequence_id
+            hunter.story_consume_on_defeat = bool(payload.get("consume_on_defeat", True))
+            hunter.story_moon_bounty_mid = True
+            hunter.story_moon_bounty_route = route
+            hunter.story_moon_bounty_diary_source = profile["diary_source"]
+            hunter.story_moon_bounty_diary_note = profile["diary_note"]
+            hunter.story_moon_bounty_truth_hint = profile["truth_hint"]
+            hint = payload.get("hunter_hint") or profile["hint"]
+            mid_battle_door = DoorEnum.MONSTER.create_instance(
+                controller=self.controller,
+                monster=hunter,
+                hint=hint,
+            )
+            self.controller.add_message(
+                self._resolve_message(
+                    payload,
+                    "message",
+                    profile["entry_message"],
+                )
+            )
+            if profile["entry_message"] != payload.get("message", ""):
+                self.controller.add_message(profile["entry_message"])
+            self._log_effect_result(consequence, hunter.name)
+            return True, mid_battle_door
 
         if effect == "revenge_ambush":
             stage = self._get_progress_stage()
