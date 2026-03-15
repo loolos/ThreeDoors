@@ -3480,27 +3480,38 @@ class ElfEpilogueEvent(Event):
     def __init__(self, controller):
         super().__init__(controller)
         self.title = "银羽余响"
-        rel = getattr(_get_elf_chain_state(controller), "elf_relation", 0)
-        if rel >= 2:
+        self.rel = getattr(_get_elf_chain_state(controller), "elf_relation", 0)
+        if self.rel >= 2:
             self.description = (
-                "门后是晨雾中的一处岔路。她在雾里现身，向你抛来半枚徽章："
-                "'以后你喊一声，我就来。'"
+                "门后她倚在一扇暗门旁，把一把旧钥匙稳稳递到你手里："
+                "'这是我之前偷来的宝物藏匿点。等你看到一扇带着我徽记的门，就用它打开。'"
             )
-        elif rel <= -2:
+            self.choices = [
+                EventChoice("接过钥匙并记下暗号", self.accept_bond),
+                EventChoice("礼貌道别：各走各路", self.close_clean),
+                EventChoice("怀疑有诈，当场拒绝", self.burn_bridge),
+            ]
+        elif self.rel <= -2:
             self.description = (
-                "门后墙上有一幅新涂鸦：一支折断的银羽，旁边写着你名字。"
-                "她没有露面，但你清楚这是她留下的句号。"
+                "门后只有她冷冷的笑声从阴影里传来："
+                "'好好看看你自己吧。你的一举一动，到底是你在选，还是一直被谁牵着走？'"
+                "'又或者，你只是照着某个早就写好的剧本在演。'"
             )
+            self.choices = [
+                EventChoice("压下火气，追问她话里的线索", self.accept_bond),
+                EventChoice("不再纠缠，沉默离开", self.close_clean),
+                EventChoice("正面回呛，彻底决裂", self.burn_bridge),
+            ]
         else:
             self.description = (
-                "门后她并没有现身，只在地上留了一袋补给和一张字条："
-                "'下次见面，再分胜负。'"
+                "门后她礼貌地向你点头道别：'这一路多谢照应。'"
+                "临走前她压低声音提醒你：'这个世界有些地方不太对劲，像是在一遍又一遍地重复。'"
             )
-        self.choices = [
-            EventChoice("把徽记收好：以后互相照应", self.accept_bond),
-            EventChoice("只收补给：这段关系到此为止", self.close_clean),
-            EventChoice("烧掉她的记号：彻底划清界线", self.burn_bridge),
-        ]
+            self.choices = [
+                EventChoice("认真记下提醒，与她友好作别", self.accept_bond),
+                EventChoice("收下补给，平静分开", self.close_clean),
+                EventChoice("不信她的提醒，冷淡转身", self.burn_bridge),
+            ]
 
     def _mark_elf_global_outcome(self, outcome_key, extra_tags=None):
         story = _get_elf_chain_state(self.controller)
@@ -3521,14 +3532,17 @@ class ElfEpilogueEvent(Event):
             "alliance",
             extra_tags={"ending_hook:elf_alliance", "ending_hook:ally_network"},
         )
-        rel = getattr(story, "elf_relation", 0) if story else 0
+        rel = getattr(story, "elf_relation", 0) if story else self.rel
         boon_text = _elf_grant_dynamic_boon(self.controller)
         extra_heal = _elf_percent_hp(self.get_player(), 0.08 if rel >= 2 else 0.05)
         self.get_player().hp = self.get_player().hp + extra_heal
-        self.add_message(
-            f"你把银羽徽记系在护腕上。她把手按在你肩上：'以后见暗号，算自己人。'"
-            f" 临别前她又补了一手急救（+{extra_heal}HP）。{boon_text}"
-        )
+        if rel >= 2:
+            msg = "你收好钥匙和徽记，她点头：'门会认得你。'"
+        elif rel <= -2:
+            msg = "你没有回嘴，只把她话里的每个字都记住。阴影里传来一声轻笑：'至少你终于开始自己想了。'"
+        else:
+            msg = "你向她颔首致意，把那句'重复'牢牢记下。她回了你一个克制却真诚的眼神。"
+        self.add_message(f"{msg} 临别前她还是给你留了点照应（+{extra_heal}HP）。{boon_text}")
         return "Event Completed"
 
     def close_clean(self):
@@ -3536,10 +3550,16 @@ class ElfEpilogueEvent(Event):
             "neutral",
             extra_tags={"ending_hook:elf_neutral", "ending_hook:lone_path"},
         )
-        rel = getattr(story, "elf_relation", 0) if story else 0
+        rel = getattr(story, "elf_relation", 0) if story else self.rel
         gain = _elf_percent_gold(self.get_player(), 0.12 if rel >= 0 else 0.08)
         self.get_player().gold += gain
-        self.add_message(f"你把这段同行留在身后，只收下她留的路费与补给（+{gain}G）。")
+        if rel >= 2:
+            msg = "你把钥匙小心收起，却没有再多问。你们在岔路口各自转身。"
+        elif rel <= -2:
+            msg = "你没有再回应她的嘲讽，只把这场对话留在身后。"
+        else:
+            msg = "你们礼貌告别，谁都没有再多说一句。"
+        self.add_message(f"{msg} 你收下路费与补给（+{gain}G）。")
         return "Event Completed"
 
     def burn_bridge(self):
@@ -3547,10 +3567,16 @@ class ElfEpilogueEvent(Event):
             "hostile",
             extra_tags={"ending_hook:elf_hostile", "ending_hook:hunted"},
         )
-        rel = getattr(story, "elf_relation", 0) if story else 0
+        rel = getattr(story, "elf_relation", 0) if story else self.rel
         dmg = _elf_percent_hp(self.get_player(), 0.12 if rel > -2 else 0.16)
         self.get_player().take_damage(dmg)
-        self.add_message(f"火光吞掉银羽记号，也点燃了她最后的敌意。你在撤离时被暗箭擦伤（-{dmg}HP）。")
+        if rel >= 2:
+            msg = "你当场推开她递来的钥匙，空气瞬间冷了下去。"
+        elif rel <= -2:
+            msg = "你被她的嘲讽彻底激怒，冲着阴影回敬了最狠的话。"
+        else:
+            msg = "你不信她关于'重复'的提醒，转身就走。"
+        self.add_message(f"{msg} 这份敌意很快化作追击，你在撤离时被暗箭擦伤（-{dmg}HP）。")
         return "Event Completed"
 
     def finish(self):
