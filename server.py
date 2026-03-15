@@ -33,6 +33,9 @@ for arg in sys.argv[1:]:
     if arg in ("--test-puppet-final-boss",):
         TEST_GATE = "puppet_final_boss"
         break
+    if arg in ("--test-stage-curtain-power",):
+        TEST_GATE = "stage_curtain_power"
+        break
 
 # -------------------------------
 # 2) 控制器及辅助类
@@ -88,6 +91,11 @@ class GameController:
             self.story.ensure_pre_final_event_schedule()
             self.scene_manager.go_to("door_scene")
             self.add_message("【测试模式】补全谢幕路线：回合 190，HP 800 / ATK 200，飞贼线收束+钥匙+木偶已击败+低邪恶值；下一扇宝物门将触发银羽秘藏。")
+        elif TEST_GATE == "stage_curtain_power":
+            self.story.setup_test_gate_stage_curtain_power()
+            self.story.ensure_pre_final_event_schedule()
+            self.scene_manager.go_to("door_scene")
+            self.add_message("【测试模式】接管谢幕路线：回合 190，HP 800 / ATK 200，飞贼线敌对收束且无钥匙+木偶线已完结（击败）+高邪恶值；第 200 回合将优先挂载木偶回声门并进入接管谢幕分支。")
 
     def add_message(self, msg):
         """添加消息到消息列表"""
