@@ -1526,7 +1526,7 @@ class TestStorySystem(BaseTest):
             unchanged = story.apply_pre_enter_checks(trap_door)
             self.assertEqual(unchanged.enum.name, "TRAP")
 
-        # 窗口结束后，未触发事件必须按序强制发生（优先级：木偶 -> 飞贼 -> 宝库）
+        # 窗口结束后，未触发事件必须按序强制发生（由优先级与配置共同决定）
         self.controller.round_count = 191
         forced_1 = story.apply_pre_enter_checks(DoorEnum.TRAP.create_instance(controller=self.controller))
         self.assertEqual(forced_1.enum.name, "MONSTER")
@@ -1535,14 +1535,14 @@ class TestStorySystem(BaseTest):
 
         self.controller.round_count = 192
         forced_2 = story.apply_pre_enter_checks(DoorEnum.TRAP.create_instance(controller=self.controller))
-        self.assertEqual(forced_2.enum.name, "MONSTER")
-        self.assertEqual(forced_2.monster.name, "银羽飞贼·莱希娅")
-        story.resolve_battle_consequence(forced_2.monster, defeated=True)
+        self.assertEqual(forced_2.enum.name, "EVENT")
+        self.assertEqual(getattr(forced_2, "story_forced_event_key", ""), "ending_stage_script_vault_event")
 
         self.controller.round_count = 193
         forced_3 = story.apply_pre_enter_checks(DoorEnum.TRAP.create_instance(controller=self.controller))
-        self.assertEqual(forced_3.enum.name, "EVENT")
-        self.assertEqual(getattr(forced_3, "story_forced_event_key", ""), "ending_stage_script_vault_event")
+        self.assertEqual(forced_3.enum.name, "MONSTER")
+        self.assertEqual(forced_3.monster.name, "银羽飞贼·莱希娅")
+        story.resolve_battle_consequence(forced_3.monster, defeated=True)
 
     def test_elf_rival_final_battle_victory_grants_hint_and_consumes_gate(self):
         story = self.controller.story
