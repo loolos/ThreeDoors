@@ -205,6 +205,18 @@ class BattleScene(Scene):
                     if getattr(self.controller, "game_clear_info", None):
                         self.controller.scene_manager.go_to("game_over_scene")
                         return
+                    # 若设置了战后事件（如击败木偶回声后的三选一事件门），先进入事件场景
+                    pending_key = getattr(self.controller, "pending_post_battle_event_key", None)
+                    if pending_key:
+                        from models.events import get_story_event_by_key
+                        event = get_story_event_by_key(pending_key, self.controller)
+                        setattr(self.controller, "pending_post_battle_event_key", None)
+                        if event is not None:
+                            self.controller.current_event = event
+                            if hasattr(self.controller, "clear_battle_extensions"):
+                                self.controller.clear_battle_extensions()
+                            self.controller.scene_manager.go_to("event_scene")
+                            return
                     p.clear_battle_status() # 战斗胜利，清除战斗状态
                     if hasattr(self.controller, "clear_battle_extensions"):
                         self.controller.clear_battle_extensions()

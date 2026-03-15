@@ -266,7 +266,7 @@ class StorySystem:
     PUPPET_HIGH_EVIL_FOR_POWER_DIRECT = 45
 
     def _is_power_curtain_direct_ready(self) -> bool:
-        """是否满足接管谢幕直通条件：飞贼事件未完结，或完结但关系为普通/恶劣；已击败黑暗木偶；邪恶值中高。"""
+        """是否满足接管谢幕直通条件：飞贼事件未完结，或完结但关系为普通/恶劣；已击败黑暗木偶；邪恶值中高。（保留供兼容，决策树首分支已改为木偶回声门。）"""
         if "ending:puppet_final_defeated" not in self.story_tags:
             return False
         try:
@@ -275,12 +275,84 @@ class StorySystem:
             evil = 55
         if evil <= self.PUPPET_HIGH_EVIL_FOR_POWER_DIRECT:
             return False
-        # 飞贼未完结
         if not bool(getattr(self, "elf_chain_ended", False)):
             return True
-        # 飞贼已完结但关系普通或恶劣（非友好）
         rel = int(getattr(self, "elf_relation", 0))
         return rel < self.ELF_RELATION_FRIENDLY_THRESHOLD
+
+    def _is_puppet_echo_gate_ready(self) -> bool:
+        """已击败木偶、未拿飞贼钥匙、与飞贼关系普通或不好时，第 200 回合挂载木偶回声怪物门；击败后即兴谢幕。"""
+        if "ending:puppet_final_defeated" not in self.story_tags:
+            return False
+        key_obtained = bool(getattr(self, "elf_key_obtained", False)) or ("elf_key_obtained" in self.story_tags)
+        if key_obtained:
+            return False
+        rel = int(getattr(self, "elf_relation", 0))
+        return rel < self.ELF_RELATION_FRIENDLY_THRESHOLD
+
+    def _is_kind_puppet_dialogue_ready(self) -> bool:
+        """满足「从飞贼宝藏取回剧本、击败木偶最终 Boss、木偶邪恶值较低」时，第 200 回合可挂载与善良木偶对话结局门。与「邪恶值普通或较高」的接管选择门互斥（本项要求 evil ≤ 45）。"""
+        if "curtain_call_script_recovered" not in self.story_tags:
+            return False
+        if "ending:puppet_final_defeated" not in self.story_tags:
+            return False
+        evil = max(0, min(100, int(getattr(self, "puppet_evil_value", 55))))
+        return evil <= self.PUPPET_LOW_EVIL_FOR_CURTAIN
+
+    def _is_power_curtain_dialogue_ready(self) -> bool:
+        """满足「已拿剧本、已击败木偶、邪恶值普通或较高（> 45）」时，第 200 回合可挂载接管谢幕选择门。与善良木偶对话门互斥（本项要求 evil > 45）。"""
+        if "curtain_call_script_recovered" not in self.story_tags:
+            return False
+        if "ending:puppet_final_defeated" not in self.story_tags:
+            return False
+        evil = max(0, min(100, int(getattr(self, "puppet_evil_value", 55))))
+        return evil > self.PUPPET_HIGH_EVIL_FOR_POWER_DIRECT
+
+    def _build_puppet_echo_lines(self, high_evil: bool = False) -> list:
+        """根据玩家在假面剧场、命运乐谱大盗、飞贼、梦境井、发条等事件中的选择，生成木偶回声战每回合的提及台词；high_evil 时用嘲讽语气，否则陈述。"""
+        flags = self.choice_flags.union(self.story_tags)
+        lines = []
+        # 假面剧场
+        if "mirror_played_hero" in flags:
+            lines.append("你在假面剧场戴上了英雄的面具。" if not high_evil else "呵，英雄面具戴得可还舒服？")
+        if "mirror_played_villain" in flags:
+            lines.append("你在假面剧场选择了反派的那一面。" if not high_evil else "反派那面选得挺顺手嘛。")
+        if "mirror_tore_script" in flags:
+            lines.append("你曾在镜前撕掉过剧本。" if not high_evil else "撕剧本的时候，可没见你手软。")
+        # 命运乐谱 / 大盗裁决
+        if "moon_verdict_clean" in flags:
+            lines.append("命运乐谱大盗的案子上，你判了清白。" if not high_evil else "判清白？你可真是个大善人。")
+        if "moon_verdict_burned" in flags:
+            lines.append("你在大盗的裁决里选择了焚烧证物。" if not high_evil else "一把火烧干净，省事啊。")
+        if "moon_verdict_extorted" in flags:
+            lines.append("你在大盗事件里选择了勒索或交易。" if not high_evil else "勒索那手玩得挺熟。")
+        # 梦境井 / 回声法庭
+        if "dream_well_sealed" in flags or "echo_court_redeemed" in flags:
+            lines.append("你封上了梦境井，或让回声法庭得以赎罪。" if not high_evil else "封井、赎罪——你以为这样就能抹平？")
+        if "dream_well_drank" in flags:
+            lines.append("你喝下了梦境井里的东西。" if not high_evil else "井里的东西你也敢喝。")
+        if "dream_well_sold" in flags or "echo_court_trading" in flags:
+            lines.append("你把梦卖给了回声法庭。" if not high_evil else "卖梦的滋味如何？")
+        # 发条 / 齿轮审计
+        if "clockwork_calibrated" in flags:
+            lines.append("你在发条事件里选择了校准与秩序。" if not high_evil else "校准、秩序——多听话啊。")
+        if "clockwork_hacked" in flags:
+            lines.append("你动过发条系统的黑手。" if not high_evil else "黑进发条的时候，可没见你讲规矩。")
+        if "clockwork_sabotaged" in flags:
+            lines.append("你选择了破坏发条。" if not high_evil else "搞破坏你倒是很在行。")
+        # 飞贼结局
+        if "elf_outcome:alliance" in flags or "elf_outcome_alliance" in flags:
+            lines.append("你和银羽飞贼结成了同盟。" if not high_evil else "跟飞贼同盟？可惜这儿没有钥匙给你。")
+        if "elf_outcome:neutral" in flags or "elf_outcome_neutral" in flags:
+            lines.append("你和飞贼以中立收场。" if not high_evil else "中立？到头来你什么也没握住。")
+        if "elf_outcome:hostile" in flags or "elf_outcome_hostile" in flags:
+            lines.append("你和飞贼以敌对收场。" if not high_evil else "跟飞贼闹翻，钥匙自然没你的份。")
+        # 木偶线
+        if "puppet_kind_echo_trust" in flags or "puppet_rift_kind" in flags:
+            lines.append("你曾偏向木偶善良侧的那条线。" if not high_evil else "善良侧？它已经没了。")
+        if "puppet_kind_echo_exploit" in flags or "puppet_rift_dark" in flags:
+            lines.append("你曾利用或助长了木偶的黑暗侧。" if not high_evil else "黑暗侧养得不错，最后还不是被你砍了。")
+        return lines
 
     def _is_stage_curtain_route_ready(self) -> bool:
         """舞台谢幕链前置：飞贼事件终结、已拿钥匙、已击败黑暗木偶终战且邪恶值偏低（善良人格占主导）。"""
@@ -432,8 +504,13 @@ class StorySystem:
         current_round = max(0, int(getattr(self.controller, "round_count", 0)))
         if current_round < self.DEFAULT_ENDING_FORCE_ROUND:
             return False
-        if self._is_power_curtain_direct_ready():
-            gate_key = "power_curtain_direct_gate"
+        # 结局门决策树（互斥）：木偶回声战（无钥匙+关系差）→ 善良木偶对话（有剧本+邪恶值低）→ 接管谢幕选择（有剧本+邪恶值高）→ 默认第一门
+        if self._is_puppet_echo_gate_ready():
+            gate_key = "puppet_echo_final_gate"
+        elif self._is_kind_puppet_dialogue_ready():
+            gate_key = "kind_puppet_dialogue_round200"
+        elif self._is_power_curtain_dialogue_ready():
+            gate_key = "power_curtain_dialogue_round200"
         else:
             gate_key = "round200_default_first_gate"
         cfg = PRE_FINAL_GATE_STORY_CONFIG.get(gate_key, {})
@@ -594,7 +671,7 @@ class StorySystem:
         self._queue_chain_followups(consequence)
 
     def _should_defer_consumption(self, consequence: PendingConsequence, door: Any) -> bool:
-        if consequence.effect_key not in ("revenge_ambush", "puppet_side_minion", "moon_bounty_mid_battle", "elf_rival_final_gate"):
+        if consequence.effect_key not in ("revenge_ambush", "puppet_side_minion", "moon_bounty_mid_battle", "elf_rival_final_gate", "puppet_echo_final_gate"):
             return False
         monster = getattr(door, "monster", None)
         if not monster:
@@ -609,6 +686,8 @@ class StorySystem:
             self._resolve_default_final_outcome()
         if defeated and bool(getattr(monster, "story_puppet_final_boss", False)):
             self._resolve_puppet_final_outcome()
+        if defeated and bool(getattr(monster, "story_puppet_echo_final_boss", False)):
+            self._resolve_puppet_echo_final_outcome()
         if (not defeated) and bool(getattr(monster, "story_puppet_final_boss", False)):
             self._resolve_puppet_final_escape_outcome()
         if bool(getattr(monster, "story_elf_rival_final_boss", False)):
@@ -630,6 +709,15 @@ class StorySystem:
             return
         self._consume_consequence(consequence)
         self._resolve_moon_bounty_mid_outcome(monster)
+
+    def _resolve_puppet_echo_final_outcome(self) -> None:
+        """击败木偶的回声后挂载后续事件门（三选一：两种即兴谢幕文案 + 选择困难症），由事件内触发结局。"""
+        if "ending:puppet_echo_final_done" in self.story_tags:
+            return
+        self.story_tags.add("ending:puppet_echo_final_done")
+        self.controller.add_message("木偶的回声在最后一击中碎裂，那些复诵过的选择也随之散入走廊的暗处。")
+        self.controller.add_message("你没有银羽的钥匙，也没有终幕的剧本；门廊尽头，你要如何收束这场终幕？")
+        setattr(self.controller, "pending_post_battle_event_key", "ending_puppet_echo_aftermath_event")
 
     def _resolve_elf_rival_final_victory(self, monster: Any) -> None:
         """终局前击败飞贼：给出少量终局提示。"""
@@ -1529,6 +1617,63 @@ class StorySystem:
             self._log_effect_result(consequence, f"{rival.name}拦路（关系 {relation}），生命 {rival.hp}，攻击 {rival.atk}")
             return True, target_door
 
+        if effect == "puppet_echo_final_gate":
+            from models.monster import Monster
+
+            door_type = getattr(getattr(door, "enum", None), "name", "")
+            door_is_monster = door_type == "MONSTER"
+            player = getattr(self.controller, "player", None)
+            player_atk = max(1, int(getattr(player, "atk", 10)))
+            # 血量至少为玩家攻击力的 5 倍；攻击力为玩家攻击力的一半，最高不超过 50
+            base_hp = max(5 * player_atk, int(payload.get("base_hp", 5 * player_atk)))
+            base_atk = min(50, max(1, player_atk // 2))
+            boss_name = str(payload.get("boss_name", "木偶的回声")).strip() or "木偶的回声"
+            echo_monster = Monster(
+                name=boss_name,
+                hp=base_hp,
+                atk=base_atk,
+                tier=max(3, int(payload.get("tier", 4))),
+                effect_probability=0.0,
+            )
+            evil = max(0, min(100, int(getattr(self, "puppet_evil_value", 55))))
+            high_evil = evil > self.PUPPET_HIGH_EVIL_FOR_POWER_DIRECT
+            echo_lines = self._build_puppet_echo_lines(high_evil=high_evil)
+            if not echo_lines:
+                echo_lines = ["回声在走廊里重复着你曾走过的路。"] if not high_evil else ["「呵……你做过的事，我可都记得。」"]
+            extension_cfg = {
+                "extension_type": "puppet_echo_final",
+                "monster_ref": echo_monster,
+                "state": {"echo_lines": echo_lines, "echo_index": 0, "high_evil": high_evil},
+            }
+            setattr(echo_monster, "story_puppet_echo_final_boss", True)
+            setattr(echo_monster, "story_consequence_id", consequence.consequence_id)
+            setattr(echo_monster, "story_consume_on_defeat", True)
+            if door_is_monster:
+                if hasattr(door, "add_battle_extension"):
+                    door.add_battle_extension(extension_cfg)
+                else:
+                    door.battle_extensions = [extension_cfg]
+                door.monster = echo_monster
+                target_door = door
+            else:
+                target_door = DoorEnum.MONSTER.create_instance(
+                    controller=self.controller,
+                    monster=echo_monster,
+                    battle_extensions=[extension_cfg],
+                )
+            hint_text = payload.get("hint") or "门后传来你一路抉择的回响。"
+            if isinstance(hint_text, str) and hint_text.strip():
+                target_door.hint = hint_text.strip()
+            self.controller.add_message(
+                self._resolve_message(
+                    payload,
+                    "message",
+                    "终局门前，你没有钥匙，也没有飞贼的约定；木偶虽败，其回声仍在。门扉推开，那些你曾做过的选择一句句被复诵。",
+                )
+            )
+            self._log_effect_result(consequence, f"{echo_monster.name}（生命 {echo_monster.hp}，攻击 {echo_monster.atk}）")
+            return True, target_door
+
         if effect == "default_final_boss":
             from models.monster import Monster, estimate_player_power, _apply_player_match_scaling
 
@@ -2370,6 +2515,17 @@ class StorySystem:
                 defender=defender,
                 damage=damage,
             )
+        if ext_type == "puppet_echo_final":
+            state = extension.get("state")
+            if isinstance(state, dict):
+                echo_lines = state.get("echo_lines") or []
+                idx = int(state.get("echo_index", 0))
+                if echo_lines:
+                    line = echo_lines[idx % len(echo_lines)]
+                    if isinstance(line, str) and line.strip():
+                        self.controller.add_message(f"木偶的回声低语：「{line}」")
+                    state["echo_index"] = idx + 1
+            return damage
         return damage
 
     def handle_battle_extension_post_player_attack(self, extension: Dict[str, Any], target: Any) -> None:

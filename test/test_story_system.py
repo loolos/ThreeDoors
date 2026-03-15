@@ -10,7 +10,9 @@ from models.events import (
     ElfRooftopDuelEvent,
     EndingStageScriptVaultEvent,
     EndingStageCurtainGateEvent,
+    EndingStageKindPuppetDialogueEvent,
     EndingPowerCurtainDirectEvent,
+    EndingPowerCurtainChoiceEvent,
     RefugeeCaravanEvent,
     PuppetAbandonmentEvent,
     PuppetSignalEvent,
@@ -856,7 +858,7 @@ class TestStorySystem(BaseTest):
         self.assertTrue(score_payload.get("script_recovered"))
         ending_payload = _resolve_stage_curtain_outcome("freedom", score_payload)
 
-        self.assertNotEqual(ending_payload.get("ending_key"), "impromptu_curtain_call")
+        self.assertEqual(ending_payload.get("ending_key"), "stage_curtain_freedom")
 
     def test_puppet_final_boss_escape_records_meta_for_later_final_ending(self):
         story = self.controller.story
@@ -1356,7 +1358,8 @@ class TestStorySystem(BaseTest):
         extension_types = [ext.get("extension_type") for ext in getattr(forced, "door_extensions", [])]
         self.assertIn("stage_curtain_script_vault", extension_types)
 
-    def test_stage_script_vault_marks_script_truth_and_schedules_stage_gate(self):
+    def test_stage_script_vault_marks_script_truth_no_longer_schedules_curtain_gate(self):
+        """取回剧本后不再在窗口内挂载谢幕门；与善良木偶对话结局门改在第 200 回合、倒数窗口清空后挂载。"""
         story = self.controller.story
         story.story_tags.add("moon_bounty_diary_obtained")
         story.moon_bounty_diary_source = "thief_testimony"
@@ -1367,10 +1370,7 @@ class TestStorySystem(BaseTest):
 
         self.assertIn("curtain_call_script_recovered", story.story_tags)
         self.assertIn("curtain_call_truth_revealed", story.story_tags)
-        self.assertIn("ending_stage_curtain_gate", story.pending_consequences)
-        pending = story.pending_consequences["ending_stage_curtain_gate"]
-        self.assertEqual(pending.min_round, 200)
-        self.assertEqual(pending.max_round, 200)
+        self.assertNotIn("ending_stage_curtain_gate", story.pending_consequences)
 
     def test_stage_curtain_gate_can_trigger_order_ending_clear(self):
         story = self.controller.story
@@ -1406,7 +1406,8 @@ class TestStorySystem(BaseTest):
         self.assertIn("最后一幕", clear_info.get("ending_description", ""))
         self.assertTrue(any("跑上前台" in msg for msg in self.controller.messages))
 
-    def test_stage_curtain_order_route_collapses_when_puppet_kind_persona_not_rescued(self):
+    def test_stage_curtain_order_route_still_succeeds_when_puppet_kind_persona_not_rescued(self):
+        """选补全谢幕时即使善良人格未救回仍为补全结局，仅文案不同。"""
         story = self.controller.story
         story.story_tags.update({"elf_outcome:alliance", "elf_key_obtained", "curtain_call_script_recovered"})
         story.choice_flags.update(
@@ -1423,9 +1424,9 @@ class TestStorySystem(BaseTest):
         event.resolve_choice(0)
 
         clear_info = getattr(self.controller, "game_clear_info", {})
-        self.assertEqual(clear_info.get("ending_key"), "stage_curtain_collapse")
-        self.assertEqual(clear_info.get("ending_meta", {}).get("stage_outcome"), "collapse")
-        self.assertIn("善良人格尚未被救回", clear_info.get("ending_description", ""))
+        self.assertEqual(clear_info.get("ending_key"), "stage_curtain_order")
+        self.assertEqual(clear_info.get("ending_meta", {}).get("stage_outcome"), "order")
+        self.assertIn("善良人格尚未归位", clear_info.get("ending_description", ""))
 
     def test_default_ending_is_forced_on_round_200_when_no_long_branch_started(self):
         self.controller.round_count = 200
@@ -1717,27 +1718,51 @@ class TestStorySystem(BaseTest):
         story.resolve_battle_consequence(monster, defeated=True)
         self.assertEqual(getattr(self.controller, "game_clear_info", {}).get("ending_key"), "default_normal")
 
-    def test_ending_power_curtain_direct_scheduled_when_puppet_defeated_high_evil_elf_not_friendly(self):
-        """已击败木偶、邪恶值>45、飞贼未完结或关系非友好时，回合200 应挂载接管谢幕直通门。"""
+    def test_puppet_echo_gate_scheduled_when_puppet_defeated_no_key_elf_not_friendly(self):
+        """已击败木偶、未拿钥匙、与飞贼关系普通或不好时，回合200 应挂载木偶回声怪物门。"""
         self.controller.round_count = 200
         story = self.controller.story
         story.story_tags.add("ending:puppet_final_defeated")
-        story.puppet_evil_value = 50
+        story.story_tags.discard("elf_key_obtained")
+        story.elf_key_obtained = False
         story.elf_chain_ended = True
         story.elf_relation = 0
+        self.assertTrue(story._is_puppet_echo_gate_ready())
         scheduled = story.ensure_default_normal_ending_schedule()
         self.assertTrue(scheduled)
-        self.assertIn("ending_power_curtain_direct", story.pending_consequences)
+        self.assertIn("ending_puppet_echo_final_gate", story.pending_consequences)
         self.assertNotIn("ending_default_force_gate_round_200", story.pending_consequences)
 
-    def test_ending_power_curtain_direct_event_triggers_stage_curtain_power(self):
-        """完成接管谢幕直通事件后，必须触发 ending_key=stage_curtain_power。"""
+    def test_puppet_echo_defeat_schedules_aftermath_event_then_choices_trigger_endings(self):
+        """击败木偶的回声后挂载事件门；前两选为即兴谢幕（文案不同），第三选为选择困难症。"""
+        from models.monster import Monster
+        from models.events import EndingPuppetEchoAftermathEvent
+
         story = self.controller.story
-        event = EndingPowerCurtainDirectEvent(self.controller)
+        echo = Monster("木偶的回声", hp=10, atk=2, tier=4)
+        setattr(echo, "story_puppet_echo_final_boss", True)
+        story.resolve_battle_consequence(echo, defeated=True)
+        self.assertIsNone(getattr(self.controller, "game_clear_info", None))
+        self.assertEqual(getattr(self.controller, "pending_post_battle_event_key", None), "ending_puppet_echo_aftermath_event")
+
+        event = EndingPuppetEchoAftermathEvent(self.controller)
+        self.assertEqual(len(event.choices), 3)
         event.resolve_choice(0)
         clear_info = getattr(self.controller, "game_clear_info", {})
-        self.assertEqual(clear_info.get("ending_key"), "stage_curtain_power")
-        self.assertTrue(clear_info.get("ending_meta", {}).get("power_curtain_direct"))
+        self.assertEqual(clear_info.get("ending_key"), "stage_curtain_freedom")
+        self.assertTrue(clear_info.get("ending_meta", {}).get("puppet_echo_final"))
+        self.controller.game_clear_info = None
+        story.story_tags.discard("ending:stage_curtain_completed")
+        event2 = EndingPuppetEchoAftermathEvent(self.controller)
+        event2.resolve_choice(1)
+        clear_info2 = getattr(self.controller, "game_clear_info", {})
+        self.assertEqual(clear_info2.get("ending_key"), "stage_curtain_freedom")
+        self.assertIn("即兴", clear_info2.get("ending_description", ""))
+        self.controller.game_clear_info = None
+        story.story_tags.discard("ending:stage_curtain_completed")
+        event3 = EndingPuppetEchoAftermathEvent(self.controller)
+        event3.resolve_choice(2)
+        self.assertEqual(getattr(self.controller, "game_clear_info", {}).get("ending_key"), "default_normal")
 
     def test_ending_stage_curtain_order_triggered_with_order_route_and_puppet_kind_rescued(self):
         """补全路线 + 善良人格已救回 + 秩序/风险达标时，选补全门必触发 stage_curtain_order。"""
@@ -1794,3 +1819,105 @@ class TestStorySystem(BaseTest):
         event = EndingStageCurtainGateEvent(self.controller)
         event.resolve_choice(2)
         self.assertEqual(getattr(self.controller, "game_clear_info", {}).get("ending_key"), "stage_curtain_power")
+
+    def test_kind_puppet_dialogue_round200_mounted_when_script_and_puppet_low_evil(self):
+        """第 200 回合、倒数窗口清空后，若已取回剧本+击败木偶+邪恶值低（且有钥匙，否则走木偶回声门），挂载与善良木偶对话结局门。"""
+        self.controller.round_count = 200
+        story = self.controller.story
+        story.story_tags.add("curtain_call_script_recovered")
+        story.story_tags.add("ending:puppet_final_defeated")
+        story.story_tags.add("elf_key_obtained")
+        story.elf_key_obtained = True
+        story.puppet_final_outcome = "defeated"
+        story.puppet_evil_value = 30
+        self.assertTrue(story._is_kind_puppet_dialogue_ready())
+        self.assertFalse(story._is_puppet_echo_gate_ready())
+        scheduled = story.ensure_default_normal_ending_schedule()
+        self.assertTrue(scheduled)
+        self.assertIn("ending_kind_puppet_dialogue_round200", story.pending_consequences)
+        self.assertNotIn("ending_default_force_gate_round_200", story.pending_consequences)
+
+    def test_kind_puppet_dialogue_three_choices_trigger_three_endings(self):
+        """与善良木偶对话事件门三选一：0=补全，1=即兴，2=选择困难症（default_normal）。"""
+        story = self.controller.story
+        story.story_tags.update({
+            "elf_outcome:alliance", "ending:puppet_final_defeated", "elf_key_obtained",
+            "curtain_call_script_recovered",
+        })
+        story.choice_flags.update({
+            "moon_verdict_clean", "clockwork_calibrated", "dream_well_sealed", "echo_court_redeemed",
+        })
+        story.puppet_final_outcome = "defeated"
+        story.puppet_evil_value = 20
+        story.moon_bounty_diary_source = "thief_testimony"
+        event = EndingStageKindPuppetDialogueEvent(self.controller)
+        self.assertEqual(len(event.choices), 3)
+        event.resolve_choice(0)
+        self.assertEqual(getattr(self.controller, "game_clear_info", {}).get("ending_key"), "stage_curtain_order")
+        self.controller.game_clear_info = None
+        event2 = EndingStageKindPuppetDialogueEvent(self.controller)
+        event2.resolve_choice(1)
+        self.assertEqual(getattr(self.controller, "game_clear_info", {}).get("ending_key"), "stage_curtain_freedom")
+        self.controller.game_clear_info = None
+        story.story_tags.discard("ending:stage_curtain_completed")
+        event3 = EndingStageKindPuppetDialogueEvent(self.controller)
+        event3.resolve_choice(2)
+        self.assertEqual(getattr(self.controller, "game_clear_info", {}).get("ending_key"), "default_normal")
+
+    def test_kind_and_power_curtain_dialogue_are_mutually_exclusive_by_evil(self):
+        """与善良木偶对话（邪恶值≤45）与接管谢幕选择门（邪恶值>45）互斥，决策树只挂载其一。"""
+        self.controller.round_count = 200
+        story = self.controller.story
+        story.story_tags.add("curtain_call_script_recovered")
+        story.story_tags.add("ending:puppet_final_defeated")
+        story.story_tags.add("elf_key_obtained")
+        story.elf_key_obtained = True
+        story.puppet_final_outcome = "defeated"
+        story.puppet_evil_value = 30
+        self.assertTrue(story._is_kind_puppet_dialogue_ready())
+        self.assertFalse(story._is_puppet_echo_gate_ready())
+        self.assertFalse(story._is_power_curtain_dialogue_ready())
+        scheduled = story.ensure_default_normal_ending_schedule()
+        self.assertTrue(scheduled)
+        self.assertIn("ending_kind_puppet_dialogue_round200", story.pending_consequences)
+        self.assertNotIn("ending_power_curtain_dialogue_round200", story.pending_consequences)
+
+        story.pending_consequences.clear()
+        story.consumed_consequences.discard("ending_kind_puppet_dialogue_round200")
+        story.story_tags.discard("ending:default_normal_scheduled")
+        story.puppet_evil_value = 50
+        story.elf_chain_ended = True
+        story.elf_relation = 2
+        self.assertFalse(story._is_kind_puppet_dialogue_ready())
+        self.assertFalse(story._is_power_curtain_direct_ready())
+        self.assertTrue(story._is_power_curtain_dialogue_ready())
+        scheduled2 = story.ensure_default_normal_ending_schedule()
+        self.assertTrue(scheduled2)
+        self.assertIn("ending_power_curtain_dialogue_round200", story.pending_consequences)
+        self.assertNotIn("ending_kind_puppet_dialogue_round200", story.pending_consequences)
+
+    def test_power_curtain_choice_event_three_options(self):
+        """接管谢幕选择门：0/1 均为 stage_curtain_power（剧情文案不同），2 为 default_normal。"""
+        story = self.controller.story
+        story.story_tags.add("curtain_call_script_recovered")
+        story.story_tags.add("ending:puppet_final_defeated")
+        story.puppet_final_outcome = "defeated"
+        story.puppet_evil_value = 50
+        event = EndingPowerCurtainChoiceEvent(self.controller)
+        self.assertEqual(len(event.choices), 3)
+        event.resolve_choice(0)
+        clear_info = getattr(self.controller, "game_clear_info", {})
+        self.assertEqual(clear_info.get("ending_key"), "stage_curtain_power")
+        self.assertEqual(clear_info.get("ending_meta", {}).get("power_curtain_choice_variant"), "order")
+        self.controller.game_clear_info = None
+        story.story_tags.discard("ending:stage_curtain_completed")
+        event2 = EndingPowerCurtainChoiceEvent(self.controller)
+        event2.resolve_choice(1)
+        clear_info2 = getattr(self.controller, "game_clear_info", {})
+        self.assertEqual(clear_info2.get("ending_key"), "stage_curtain_power")
+        self.assertEqual(clear_info2.get("ending_meta", {}).get("power_curtain_choice_variant"), "will")
+        self.controller.game_clear_info = None
+        story.story_tags.discard("ending:stage_curtain_completed")
+        event3 = EndingPowerCurtainChoiceEvent(self.controller)
+        event3.resolve_choice(2)
+        self.assertEqual(getattr(self.controller, "game_clear_info", {}).get("ending_key"), "default_normal")
