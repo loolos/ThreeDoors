@@ -112,17 +112,18 @@ class StrangerEvent(Event):
 
     def __init__(self, controller):
         super().__init__(controller)
+        self.help_cost = random.randint(10, 15)
         self.title = "Injured Stranger"
         self.description = "你看到一个满身是血的陌生人倒在路边，看起来非常虚弱。"
         self.choices = [
-            EventChoice("救助他 (失去10金币)", self.help_stranger),
+            EventChoice(f"救助他 (失去{self.help_cost}金币)", self.help_stranger),
             EventChoice("抢劫他", self.rob_stranger),
             EventChoice("无视离开", self.ignore_stranger)
         ]
 
     def help_stranger(self):
         p = self.get_player()
-        help_cost = self.scale_value(10, positive=False)
+        help_cost = self.help_cost
         self.register_story_choice(
             choice_flag="stranger_helped",
             moral_delta=8,
@@ -2847,6 +2848,8 @@ class PuppetCoreDescentEvent(Event):
                         "boss_name": f"{dark_name}·堕暗机偶",
                         "base_hp": 980,
                         "base_atk": 96,
+                        "phase2_burst_heal_ratio": 0.46,
+                        "phase2_min_hp_ratio": 0.62,
                         "tier": 6,
                         "evil_value": evil_value,
                         "kind_persona_name": kind_name,
