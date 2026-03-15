@@ -2,12 +2,157 @@
 
 import random
 from models.items import create_random_item, create_reward_door_item
-from models.pre_final_gate_config import (
-    ALL_PRE_FINAL_DOOR_TYPES,
-    PRE_FINAL_DISPATCH_ORDER,
-    PRE_FINAL_GATE_STORY_CONFIG,
-)
 from models.status import StatusName
+
+# 终局前门调度配置：统一维护事件门/战斗门文案与基础参数（原 pre_final_gate_config）
+ALL_PRE_FINAL_DOOR_TYPES = ("TRAP", "REWARD", "MONSTER", "SHOP", "EVENT")
+
+PRE_FINAL_GATE_STORY_CONFIG = {
+    # 回合 200：舞台谢幕链前置入口（宝物门，无事件选项，仅取剧本剧情）
+    "round200_stage_preface": {
+        "choice_flag": "ending_stage_curtain_route",
+        "consequence_id": "ending_stage_curtain_preface",
+        "effect_key": "stage_curtain_script_vault",
+        "force_door_type": "REWARD",
+        "priority": 1260,
+        "payload": {
+            "hint": "你怀里的旧钥匙忽然发热，像在指向终局前的一扇带徽记的宝物门。",
+            "message": "银羽留给你的钥匙突然自行转动，走廊侧墙弹出一扇带徽记的暗门。",
+            "log_trigger": "你触发了银羽秘藏前置事件，终局流程被改写。",
+        },
+    },
+    # 回合 200：接管谢幕直通门（飞贼未完结或关系普通/恶劣 + 已击败木偶 + 邪恶值中高时替代默认第一门）
+    "power_curtain_direct_gate": {
+        "choice_flag": "ending_power_curtain_direct",
+        "consequence_id": "ending_power_curtain_direct",
+        "effect_key": "force_story_event",
+        "force_door_type": "EVENT",
+        "priority": 1200,
+        "payload": {
+            "event_key": "ending_power_curtain_direct_event",
+            "hint": "你没有拿到终幕剧本，与飞贼也未曾结下信任；但黑暗木偶已被你压制，走廊尽头只剩一道由你主导的谢幕门。",
+            "message": "终局前走廊亮起时，没有银羽秘藏、没有三道选择——只有一扇门：以你的方式接管终幕。",
+            "log_trigger": "你触发了接管谢幕直通结局：飞贼线未收束或关系疏离，木偶已击败且黑暗侧仍占优，终幕由你强行收束。",
+        },
+    },
+    # 回合 200：默认终局入口（第一门）
+    "round200_default_first_gate": {
+        "choice_flag": "ending_default_normal_gate",
+        "consequence_id": "ending_default_force_gate_round_200",
+        "effect_key": "force_story_event",
+        "force_door_type": "EVENT",
+        "priority": 1200,
+        "payload": {
+            "event_key": "ending_final_first_gate_event",
+            "hint": "尽头只剩三扇刻着不同字句的门，像是迷宫在等你做最后一次选择。",
+            "message": "走廊尽头忽然亮起终焉指示灯，三扇最终门从墙体里缓缓推出。",
+            "log_trigger": "你正要按常规选门，整条走廊的门牌同时翻面，迷宫把你推向最后的抉择。",
+        },
+    },
+    # 默认终局链：第一门后强制第二门事件
+    "default_second_gate_event": {
+        "choice_flag": "ending_default_normal_route",
+        "consequence_id": "ending_default_second_gate",
+        "effect_key": "force_story_event",
+        "force_door_type": "EVENT",
+        "priority": 1200,
+        "payload": {
+            "event_key": "ending_final_second_gate_event",
+            "hint": "第二道终局门已经亮起，像在催促你继续做决定。",
+            "message": "你刚离开第一道门，前方又升起三扇写着不同命运注脚的门。",
+            "log_trigger": "你刚离开第一道门，前方又升起三扇写着不同命运注脚的门。",
+        },
+    },
+    # 舞台谢幕链：秘藏后与善良木偶对话（仅当剧本已取回且木偶善良侧归位时插入）
+    "stage_curtain_kind_puppet_dialogue": {
+        "choice_flag": "ending_stage_curtain_route",
+        "consequence_id": "ending_stage_kind_puppet_dialogue",
+        "effect_key": "force_story_event",
+        "force_door_type": "EVENT",
+        "priority": 1200,
+        "payload": {
+            "event_key": "ending_stage_kind_puppet_dialogue_event",
+            "hint": "剧本与木偶善良人格皆已就位，你可以在门廊与它对话决定谢幕方式。",
+            "message": "你收起剧本后，机偶胸腔里残存的蓝光人格主动与你联络，前方门廊被改写为与善良人格的约定之门。",
+            "log_trigger": "你与木偶善良人格对话，决定即兴谢幕或按剧本补全、以及最后一幕由谁上台。",
+        },
+    },
+    # 舞台谢幕链：秘藏后强制谢幕门
+    "stage_curtain_gate_event": {
+        "choice_flag": "ending_default_normal_route",
+        "consequence_id": "ending_stage_curtain_gate",
+        "effect_key": "force_story_event",
+        "force_door_type": "EVENT",
+        "priority": 1200,
+        "payload": {
+            "event_key": "ending_stage_curtain_gate_event",
+            "hint": "你怀里的剧本忽然发热，前方三扇门同时亮起：『补全』『即兴』『接管』。",
+            "message": "你收起剧本后，终局走廊被改写成了新的谢幕门廊。",
+            "log_trigger": "你收起剧本后，终局走廊被改写成了新的谢幕门廊。",
+        },
+    },
+    # 默认终局链：最终 Boss 门
+    "default_final_boss_gate": {
+        "choice_flag": "ending_default_normal_route",
+        "consequence_id": "ending_default_final_boss_gate",
+        "effect_key": "default_final_boss",
+        "force_door_type": "MONSTER",
+        "priority": 1200,
+        "payload": {
+            "boss_name": "选择困难症候群",
+            "hint": "门缝里传来嬉笑声：'看提示看了两百回合，终于舍得进来啦？'",
+            "message": "门后出现一张由问号拼成的笑脸。怪物弯腰行礼：'欢迎来到你的最终选择现场。'",
+            "taunts": [
+                "\u201c看提示看了两百回合，眼睛还好吗？\u201d",
+                "\u201c三扇门你每次都要想半天，这不就是选择困难症吗？\u201d",
+                "\u201c来吧，把我打倒，证明你终于会做决定了。\u201d",
+            ],
+            "log_trigger": "三扇终局门同时闭合，只剩中央一道裂隙。裂隙里钻出的怪物自报家门：『选择困难症候群』。",
+        },
+    },
+    # 默认终局链：敌对银羽拦截战
+    "elf_rival_final_gate": {
+        "choice_flag": "ending_default_second_gate_rival",
+        "consequence_id": "ending_elf_rival_final_gate",
+        "effect_key": "elf_rival_final_gate",
+        "trigger_door_types": ("MONSTER",),
+        "force_door_type": "MONSTER",
+        "priority": 1250,
+        "payload": {
+            "hint": "风里有熟悉的银羽划痕，像是有人专程在终局前截住你。",
+            "message": "你刚推开第二道终局门，前方墙体忽然裂开一扇怪物门。银羽斗篷从阴影里掠出：'还没结束，我们把旧账在这里算清。'",
+        },
+    },
+    # 默认终局链：黑暗木偶补战门（木偶线未完结或曾逃跑时插入）
+    "puppet_rematch_gate": {
+        "choice_flag": "ending_default_second_gate_puppet",
+        "consequence_id": "ending_puppet_pre_final_rematch_gate",
+        "effect_key": "puppet_dark_boss",
+        "trigger_door_types": ("MONSTER",),
+        "force_door_type": "MONSTER",
+        "priority": 1260,
+        "payload": {
+            "boss_name": "裂齿·夜魇·游荡残响",
+            "phase2_name": "裂齿·夜魇·游荡残响",
+            "base_hp": 880,
+            "base_atk": 40,
+            "tier": 5,
+            "hint": "你以为已经甩开那段童谣，门缝里却再度传来熟悉的低频拍点。",
+            "message": "你正准备走向最终门廊，侧墙忽然滑开一扇怪物门。失真的童谣再次响起：黑暗木偶追上来了。",
+            "no_side_event_message": "这一次它像在复读你曾见过的第一阶段战斗节拍，动作没有收束，只剩追猎意图。",
+            "neutral_message": "黑暗木偶没有再展开完全体，只是把旧战记录压缩成一段高频猎杀循环。",
+            "disable_phase_two": True,
+            "mark_as_final_boss": False,
+            "pre_final_dispatch": True,
+        },
+    },
+}
+
+PRE_FINAL_DISPATCH_ORDER = (
+    "puppet_rematch_gate",
+    "elf_rival_final_gate",
+    "default_final_boss_gate",
+)
 
 
 class EventChoice:
@@ -2407,6 +2552,54 @@ def _get_puppet_persona_names(controller):
     )
 
 
+def build_puppet_final_boss_payload(controller, phase2_burst_heal_ratio=None, **overrides):
+    """构建木偶最终 Boss 的 effect payload，供正式流程与测试 gate 共用。
+    phase2_burst_heal_ratio 若传入则覆盖默认 0.46；overrides 中键值会合并进 payload。"""
+    story = _get_puppet_chain_state(controller)
+    kind_name, dark_name = _get_puppet_persona_names(controller)
+    evil_value = int(getattr(story, "puppet_evil_value", 55)) if story is not None else 55
+    payload = {
+        "boss_name": f"{dark_name}·堕暗机偶",
+        "base_hp": 980,
+        "base_atk": 96,
+        "phase2_burst_heal_ratio": 0.46,
+        "phase2_min_hp_ratio": 0.62,
+        "tier": 6,
+        "evil_value": evil_value,
+        "kind_persona_name": kind_name,
+        "dark_persona_name": dark_name,
+        "kind_heal": 18,
+        "no_side_event_message": "你几乎没碰到那些支线干预，它的核心参数按默认流程直接结算，战斗走势更加不可预测。",
+        "kind_flags": [
+            "puppet_intro_hide",
+            "puppet_signal_soft",
+            "puppet_kind_echo_trust",
+            "puppet_kind_echo_comfort",
+            "puppet_rift_kind",
+            "puppet_descent_patch",
+        ],
+        "dark_flags": [
+            "puppet_intro_blackout",
+            "puppet_intro_decoy",
+            "puppet_signal_resell",
+            "puppet_kind_echo_exploit",
+            "puppet_rift_dark",
+            "puppet_descent_cut_emotion",
+            "puppet_descent_dark_feed",
+        ],
+        "hint": "前情：核心下潜结束，最深处那扇门正在锁定。门后是木偶黑暗人格本体。",
+        "message": "核心阀门一节节闭合，走廊尽头只剩一扇被红线封死的门。你知道，门后就是它的本体。",
+        "log_trigger": "你打算要推开门，突然发现整条走廊被红色封锁线覆盖。正要推开的一刹那，整个走廊都开始震动，三扇门在黑暗中重组成了一个巨大的机械人偶。",
+        "kind_awaken_message": f"你一路对蓝光侧的选择在最后一秒有了回响。{kind_name}短暂夺回控制，机偶眼中闪过一丝蓝光，替你压低了黑暗核心输出。",
+        "dark_overload_message": f"你先前的选择不断喂养黑暗协议，{dark_name}彻底接管本体，气势瞬间暴涨。",
+        "neutral_message": f"{kind_name}与{dark_name}仍在互相撕扯，但黑暗侧握着主导权。机偶缓缓抬头，战斗不可避免。",
+    }
+    if phase2_burst_heal_ratio is not None:
+        payload["phase2_burst_heal_ratio"] = phase2_burst_heal_ratio
+    payload.update(overrides)
+    return payload
+
+
 def _schedule_puppet_mainline_event(controller, from_stage, next_event_key, hint, message):
     story = _get_puppet_chain_state(controller)
     if story is None:
@@ -2439,9 +2632,9 @@ def _emit_puppet_audio_cue(controller, cue="event"):
     if controller is None or not hasattr(controller, "add_message"):
         return
     cue_map = {
-        "event": "【木偶音效】远处传来发条轻响与失真童谣。",
-        "rift": "【木偶音效】双声道人格在耳边重叠回响。",
-        "core": "【木偶音效】核心井深处传来低频轰鸣。",
+        "event": "远处传来发条轻响与失真童谣。",
+        "rift": "双声道人格在耳边重叠回响。",
+        "core": "核心井深处传来低频轰鸣。",
     }
     controller.add_message(cue_map.get(cue, cue_map["event"]))
 
@@ -2862,10 +3055,8 @@ class PuppetCoreDescentEvent(Event):
         ]
 
     def _queue_final_boss(self, route, moral_delta):
-        story = _get_puppet_chain_state(self.controller)
         current_round = max(0, int(getattr(self.controller, "round_count", 0)))
-        kind_name, dark_name = _get_puppet_persona_names(self.controller)
-        evil_value = int(getattr(story, "puppet_evil_value", 55)) if story is not None else 55
+        payload = build_puppet_final_boss_payload(self.controller)
         self.register_story_choice(
             choice_flag=f"puppet_descent_{route}",
             moral_delta=moral_delta,
@@ -2881,42 +3072,7 @@ class PuppetCoreDescentEvent(Event):
                     "force_on_expire": True,
                     "force_door_type": "MONSTER",
                     "required_flags": {"puppet_arc_active"},
-                    "payload": {
-                        "boss_name": f"{dark_name}·堕暗机偶",
-                        "base_hp": 980,
-                        "base_atk": 96,
-                        "phase2_burst_heal_ratio": 0.46,
-                        "phase2_min_hp_ratio": 0.62,
-                        "tier": 6,
-                        "evil_value": evil_value,
-                        "kind_persona_name": kind_name,
-                        "dark_persona_name": dark_name,
-                        "kind_heal": 18,
-                        "no_side_event_message": "你几乎没碰到那些支线干预，它的核心参数按默认流程直接结算，战斗走势更加不可预测。",
-                        "kind_flags": [
-                            "puppet_intro_hide",
-                            "puppet_signal_soft",
-                            "puppet_kind_echo_trust",
-                            "puppet_kind_echo_comfort",
-                            "puppet_rift_kind",
-                            "puppet_descent_patch",
-                        ],
-                        "dark_flags": [
-                            "puppet_intro_blackout",
-                            "puppet_intro_decoy",
-                            "puppet_signal_resell",
-                            "puppet_kind_echo_exploit",
-                            "puppet_rift_dark",
-                            "puppet_descent_cut_emotion",
-                            "puppet_descent_dark_feed",
-                        ],
-                        "hint": "前情：核心下潜结束，最深处那扇门正在锁定。门后是木偶黑暗人格本体。",
-                        "message": "核心阀门一节节闭合，走廊尽头只剩一扇被红线封死的门。你知道，门后就是它的本体。",
-                        "log_trigger": "你打算要推开门，突然发现整条走廊被红色封锁线覆盖。正要推开的一刹那，整个走廊都开始震动，三扇门在黑暗中重组成了一个巨大的机械人偶。",
-                        "kind_awaken_message": f"你一路对蓝光侧的选择在最后一秒有了回响。{kind_name}短暂夺回控制，机偶眼中闪过一丝蓝光，替你压低了黑暗核心输出。",
-                        "dark_overload_message": f"你先前的选择不断喂养黑暗协议，{dark_name}彻底接管本体，气势瞬间暴涨。",
-                        "neutral_message": f"{kind_name}与{dark_name}仍在互相撕扯，但黑暗侧握着主导权。机偶缓缓抬头，战斗不可避免。",
-                    },
+                    "payload": payload,
                 }
             ],
         )
@@ -3868,6 +4024,42 @@ def _schedule_stage_curtain_gate_event(controller):
     )
 
 
+def _should_schedule_kind_puppet_dialogue(controller):
+    """是否在取回剧本后插入“与善良木偶对话”事件：已拿剧本、已击败木偶终战且邪恶值偏低。"""
+    story = getattr(controller, "story", None)
+    if story is None:
+        return False
+    tags = set(getattr(story, "story_tags", set()))
+    flags = set(getattr(story, "choice_flags", set()))
+    script_recovered = "curtain_call_script_recovered" in tags or "curtain_call_script_recovered" in flags
+    if not script_recovered:
+        return False
+    puppet_defeated = "ending:puppet_final_defeated" in tags or getattr(story, "puppet_final_outcome", "") == "defeated"
+    if not puppet_defeated:
+        return False
+    try:
+        evil = max(0, min(100, int(getattr(story, "puppet_evil_value", 55))))
+    except (TypeError, ValueError):
+        evil = 55
+    return evil <= 45
+
+
+def _schedule_kind_puppet_dialogue_event(controller):
+    """秘藏取回剧本后，若木偶善良侧归位则挂载与善良人格对话门。"""
+    story = getattr(controller, "story", None)
+    if story is None:
+        return False
+    current_round = max(0, int(getattr(controller, "round_count", 0)))
+    ending_round = int(getattr(story, "DEFAULT_ENDING_FORCE_ROUND", 200))
+    schedule_round = max(current_round + 1, ending_round)
+    return _schedule_pre_final_gate(
+        controller=controller,
+        gate_key="stage_curtain_kind_puppet_dialogue",
+        min_round=schedule_round,
+        max_round=schedule_round,
+    )
+
+
 def _collect_stage_curtain_scores(story):
     flags = set(getattr(story, "choice_flags", set()))
     tags = set(getattr(story, "story_tags", set()))
@@ -4108,8 +4300,58 @@ def _resolve_stage_curtain_outcome(route_key, score_payload):
     }
 
 
+def run_script_vault_recovery(controller):
+    """宝物门进门时执行：仅剧情（得到剧本），无事件选项。用于倒数窗口内银羽秘藏宝物门。"""
+    story = getattr(controller, "story", None)
+    if story is None:
+        return
+    tags = set(getattr(story, "story_tags", set()))
+    diary_source = str(getattr(story, "moon_bounty_diary_source", "")).strip()
+    description = (
+        "你在终局前推开一扇刻着银羽暗号的宝物门。"
+        "旧钥匙刚碰到锁孔，整面墙就像布景般滑开。"
+        "秘藏室中央只有一只防尘匣，匣内并非金银，而是一整本终幕剧本。"
+    )
+    if "moon_bounty_diary_obtained" in tags:
+        if diary_source == "thief_testimony":
+            description = (
+                f"{description} 你把此前拿到的大盗证词日记摊在旁边，字句一一对上："
+                "通缉令里的『命运乐章』就是这本被银羽飞贼带走的剧本，那名大盗确实被冤枉了。"
+            )
+        elif diary_source == "thief_body":
+            description = (
+                f"{description} 你把从大盗身上搜出的日记逐页对照，终于确认："
+                "安保系统追错了人，所谓命运乐章正是这本失窃剧本。"
+            )
+        else:
+            description = (
+                f"{description} 你把旧日记本放在剧本旁边，残缺记录与正文相互咬合，"
+                "通缉案的错位真相终于浮出水面。"
+            )
+    controller.add_message(description)
+    story.register_choice(choice_flag="curtain_script_secured", moral_delta=1)
+    story.story_tags.add("curtain_call_script_recovered")
+    story.choice_flags.add("curtain_call_script_recovered")
+    if "moon_bounty_diary_obtained" in tags:
+        story.story_tags.add("curtain_call_truth_revealed")
+        controller.add_message("你终于能确认：命运乐章并非大盗赃物，而是银羽飞贼偷走的终幕剧本。")
+    controller.add_message("你把整本剧本收进防水袋，准备带着完整文本进入最终门廊。")
+    if _should_schedule_kind_puppet_dialogue(controller):
+        scheduled = _schedule_kind_puppet_dialogue_event(controller)
+        if scheduled:
+            controller.add_message("剧本翻到最后一页时，机偶胸腔里残存的蓝光人格向你传来信号——前方将出现与它的约定之门。")
+        else:
+            controller.add_message("你把剧本压进斗篷，走廊暂时恢复了沉默。")
+    else:
+        scheduled = _schedule_stage_curtain_gate_event(controller)
+        if scheduled:
+            controller.add_message("剧本翻到最后一页时，远处门廊的三道新门同时亮起。")
+        else:
+            controller.add_message("你把剧本压进斗篷，走廊暂时恢复了沉默。")
+
+
 class EndingStageScriptVaultEvent(Event):
-    """舞台谢幕链前置：银羽秘藏点，确认命运乐章就是失窃剧本。"""
+    """舞台谢幕链前置：银羽秘藏点，确认命运乐章就是失窃剧本（事件门形态，保留供兼容）。"""
     TRIGGER_BASE_PROBABILITY = 0.0
 
     @classmethod
@@ -4160,11 +4402,18 @@ class EndingStageScriptVaultEvent(Event):
                 story.story_tags.add("curtain_call_truth_revealed")
                 self.add_message("你终于能确认：命运乐章并非大盗赃物，而是银羽飞贼偷走的终幕剧本。")
         self.add_message(line)
-        scheduled = _schedule_stage_curtain_gate_event(self.controller)
-        if scheduled:
-            self.add_message("剧本翻到最后一页时，远处门廊的三道新门同时亮起。")
+        if _should_schedule_kind_puppet_dialogue(self.controller):
+            scheduled = _schedule_kind_puppet_dialogue_event(self.controller)
+            if scheduled:
+                self.add_message("剧本翻到最后一页时，机偶胸腔里残存的蓝光人格向你传来信号——前方将出现与它的约定之门。")
+            else:
+                self.add_message("你把剧本压进斗篷，走廊暂时恢复了沉默。")
         else:
-            self.add_message("你把剧本压进斗篷，走廊暂时恢复了沉默。")
+            scheduled = _schedule_stage_curtain_gate_event(self.controller)
+            if scheduled:
+                self.add_message("剧本翻到最后一页时，远处门廊的三道新门同时亮起。")
+            else:
+                self.add_message("你把剧本压进斗篷，走廊暂时恢复了沉默。")
         return "Event Completed"
 
     def secure_script(self):
@@ -4189,8 +4438,8 @@ class EndingStageScriptVaultEvent(Event):
         )
 
 
-class EndingStageCurtainGateEvent(Event):
-    """舞台谢幕链终局门：补全/即兴/接管三选一。"""
+class EndingStageKindPuppetDialogueEvent(Event):
+    """补全谢幕前置：与木偶善良人格对话，决定即兴或补全、以及最后一幕由谁谢幕。仅当飞贼终结+钥匙+击败木偶终战+邪恶值偏低时触发。"""
     TRIGGER_BASE_PROBABILITY = 0.0
 
     @classmethod
@@ -4199,17 +4448,101 @@ class EndingStageCurtainGateEvent(Event):
 
     def __init__(self, controller):
         super().__init__(controller)
-        self.title = "舞台谢幕·终幕门廊"
+        kind_name, _ = _get_puppet_persona_names(controller)
+        self.title = "与善良人格的约定"
         self.description = (
-            "你抱着刚取回的终幕剧本抵达门廊，三道门牌像舞台吊牌一样降下："
-            "『补全谢幕』『即兴谢幕』『接管谢幕』。"
-            "门框上的刻痕同时亮起，催你用自己的选择写下最终落幕。"
+            f"你已拿到终幕剧本，木偶篇中善良侧人格也已归位。"
+            f"机偶胸腔里残存的蓝光——{kind_name}——主动与你联络，"
+            "在门廊深处与你对话：最后一幕可以按剧本补全演完，也可以即兴收尾；"
+            "若选补全，还可决定是让它表演完最后一幕去谢幕，还是由你亲自上台。"
         )
         self.choices = [
-            EventChoice("走『补全谢幕』之门", self.pick_order),
-            EventChoice("走『即兴谢幕』之门", self.pick_freedom),
-            EventChoice("走『接管谢幕』之门", self.pick_power),
+            EventChoice("即兴的结局——最后一幕由我上", self.pick_impromptu),
+            EventChoice("补全的结局——让善良木偶表演完最后一幕去谢幕", self.pick_order_puppet_curtain),
+            EventChoice("补全的结局——但最后一幕由我上（即兴）", self.pick_order_self),
         ]
+
+    def _apply_choice(self, curtain_pre_choice, line):
+        self.add_message(line)
+        story = getattr(self.controller, "story", None)
+        if story is not None:
+            story.curtain_pre_choice = curtain_pre_choice
+            story.story_tags.add("ending:stage_curtain_pre_choice_made")
+        scheduled = _schedule_stage_curtain_gate_event(self.controller)
+        if scheduled:
+            self.add_message("约定已定，远处门廊的三道谢幕门同时亮起。")
+        return "Event Completed"
+
+    def pick_impromptu(self):
+        return self._apply_choice(
+            "freedom",
+            "你决定不按剧本收尾，最后一幕由自己即兴完成。善良人格轻声回应：那就把舞台交给你。",
+        )
+
+    def pick_order_puppet_curtain(self):
+        return self._apply_choice(
+            "order_puppet_curtain",
+            "你选择按剧本补全演完，并让善良人格表演最后一幕、去台前谢幕。它点头：我会把原定的终章演完。",
+        )
+
+    def pick_order_self(self):
+        return self._apply_choice(
+            "freedom",
+            "你选择按剧本补全结构，但最后一幕由自己上台即兴收尾。善良人格表示理解：那也算一种补全。",
+        )
+
+
+class EndingStageCurtainGateEvent(Event):
+    """舞台谢幕链终局门：补全/即兴/接管三选一；若已与善良木偶约定则直接执行约定。"""
+    TRIGGER_BASE_PROBABILITY = 0.0
+
+    @classmethod
+    def is_trigger_condition_met(cls, controller):
+        return False
+
+    def __init__(self, controller):
+        super().__init__(controller)
+        story = getattr(controller, "story", None)
+        pre_choice = getattr(story, "curtain_pre_choice", None) if story else None
+        if pre_choice in ("freedom", "order_puppet_curtain"):
+            self.title = "舞台谢幕·终幕门廊"
+            self.description = (
+                "你依照与善良人格的约定抵达门廊。"
+                "之前已选定的谢幕方式将在此兑现——只需推开门完成最后一幕。"
+            )
+            self.choices = [
+                EventChoice("依照约定，完成谢幕", self._trigger_pre_chosen_route),
+            ]
+        else:
+            self.title = "舞台谢幕·终幕门廊"
+            self.description = (
+                "你抱着刚取回的终幕剧本抵达门廊，三道门牌像舞台吊牌一样降下："
+                "『补全谢幕』『即兴谢幕』『接管谢幕』。"
+                "门框上的刻痕同时亮起，催你用自己的选择写下最终落幕。"
+            )
+            self.choices = [
+                EventChoice("走『补全谢幕』之门", self.pick_order),
+                EventChoice("走『即兴谢幕』之门", self.pick_freedom),
+                EventChoice("走『接管谢幕』之门", self.pick_power),
+            ]
+
+    def _trigger_pre_chosen_route(self):
+        """执行与善良木偶约定好的谢幕路线：order_puppet_curtain→补全且木偶谢幕，freedom→即兴。"""
+        story = getattr(self.controller, "story", None)
+        pre_choice = getattr(story, "curtain_pre_choice", None) if story else None
+        if story is not None:
+            story.curtain_pre_choice = None
+        if pre_choice == "order_puppet_curtain":
+            return self._trigger_stage_ending(
+                route_key="order",
+                choice_flag="ending_stage_gate_order_pre_chosen",
+                line="你依照与善良人格的约定，推开补全谢幕之门，由它演完最后一幕并谢幕。",
+            )
+        return self._trigger_stage_ending(
+            route_key="freedom",
+            choice_flag="ending_stage_gate_freedom_pre_chosen",
+            line="你依照与善良人格的约定，以即兴方式完成最后一幕并谢幕。",
+        )
 
     def _trigger_stage_ending(self, route_key, choice_flag, line):
         self.register_story_choice(choice_flag=choice_flag, moral_delta=0)
@@ -4227,7 +4560,7 @@ class EndingStageCurtainGateEvent(Event):
 
         notes = ending_payload.get("notes", [])
         if notes:
-            self.add_message("【谢幕线索】" + " ".join(notes[:2]))
+            self.add_message(" ".join(notes[:2]))
         for scene_line in list(ending_payload.get("scene_lines", []) or []):
             line = str(scene_line).strip()
             if line:
@@ -4278,6 +4611,65 @@ class EndingStageCurtainGateEvent(Event):
             choice_flag="ending_stage_gate_power",
             line="你把剧本卷成指挥棒，径直推开『接管谢幕』之门。",
         )
+
+
+class EndingPowerCurtainDirectEvent(Event):
+    """接管谢幕直通结局：飞贼未完结或关系普通/恶劣、已击败黑暗木偶、邪恶值中高时，终局门直接导向接管谢幕。"""
+    TRIGGER_BASE_PROBABILITY = 0.0
+
+    @classmethod
+    def is_trigger_condition_met(cls, controller):
+        return False
+
+    def __init__(self, controller):
+        super().__init__(controller)
+        self.title = "接管谢幕"
+        self.description = (
+            "你没有拿到终幕剧本，与银羽飞贼也未曾结下信任；"
+            "但黑暗木偶已被你击败，走廊尽头只剩一扇门——以你的方式接管终幕，强行收束演出。"
+        )
+        self.choices = [
+            EventChoice("完成接管谢幕", self._complete_power_curtain),
+        ]
+
+    def _complete_power_curtain(self):
+        self.register_story_choice(choice_flag="ending_power_curtain_direct", moral_delta=0)
+        self.add_message("你以导演代理人身份推开终幕之门，强行接管门廊规则，完成谢幕。")
+        story = getattr(self.controller, "story", None)
+        # 直通路径使用满足 power>=4、risk<=4 的 payload，确保解析为接管谢幕结局
+        score_payload = {
+            "power": 4,
+            "risk": 0,
+            "order": 0,
+            "freedom": 0,
+            "notes": [],
+        }
+        ending_payload = _resolve_stage_curtain_outcome("power", score_payload)
+        outcome_tag = ending_payload.get("outcome_tag", "power")
+        if story is not None:
+            story.story_tags.add("ending:stage_curtain_completed")
+            story.story_tags.add(f"ending:stage_curtain:{outcome_tag}")
+            story.choice_flags.add("ending_stage_curtain_power")
+        trigger_clear = getattr(self.controller, "trigger_game_clear", None)
+        if callable(trigger_clear):
+            trigger_clear(
+                ending_key=ending_payload.get("ending_key", "stage_curtain_power"),
+                ending_title=ending_payload.get("ending_title", "舞台谢幕·接管谢幕"),
+                ending_description=ending_payload.get("ending_description", "你以导演代理人身份接管门廊规则，强行完成谢幕。"),
+                ending_meta={
+                    "stage_route_choice": "power",
+                    "stage_outcome": outcome_tag,
+                    "stage_scores": {"order": 0, "freedom": 0, "power": 4, "risk": 0},
+                    "puppet_kind_rescued": False,
+                    "stage_script_ready": False,
+                    "curtain_speciale": "",
+                    "script_truth_revealed": False,
+                    "power_curtain_direct": True,
+                },
+            )
+        else:
+            self.controller.scene_manager.go_to("game_over_scene")
+        return "Event Completed"
 
 
 def _should_trigger_elf_rival_pre_final(controller):
@@ -4522,7 +4914,9 @@ def get_story_event_by_key(event_key, controller):
         "elf_side_merchant_disguised_event": ElfSideMerchantDisguisedEvent,
         "elf_side_merchant_event": ElfSideMerchantEvent,
         "ending_stage_script_vault_event": EndingStageScriptVaultEvent,
+        "ending_stage_kind_puppet_dialogue_event": EndingStageKindPuppetDialogueEvent,
         "ending_stage_curtain_gate_event": EndingStageCurtainGateEvent,
+        "ending_power_curtain_direct_event": EndingPowerCurtainDirectEvent,
         "ending_final_first_gate_event": EndingFinalFirstGateEvent,
         "ending_final_second_gate_event": EndingFinalSecondGateEvent,
     }

@@ -10,6 +10,7 @@ from models.events import (
     ElfRooftopDuelEvent,
     EndingStageScriptVaultEvent,
     EndingStageCurtainGateEvent,
+    EndingPowerCurtainDirectEvent,
     RefugeeCaravanEvent,
     PuppetAbandonmentEvent,
     PuppetSignalEvent,
@@ -764,8 +765,8 @@ class TestStorySystem(BaseTest):
         story.resolve_battle_consequence(monster, defeated=True)
 
         self.assertGreaterEqual(self.player.gold - gold_before, 90)
-        self.assertTrue(any("木偶终战奖励" in msg for msg in self.controller.messages))
-        self.assertTrue(any("木偶结局·晨光修复" in msg for msg in self.controller.messages))
+        self.assertTrue(any("你获得额外" in msg for msg in self.controller.messages))
+        self.assertTrue(any("晨光" in msg or "拽了回来" in msg for msg in self.controller.messages))
 
     def test_puppet_final_boss_ending_contains_kind_persona_farewell_when_choices_are_kind(self):
         story = self.controller.story
@@ -791,7 +792,7 @@ class TestStorySystem(BaseTest):
         story.resolve_battle_consequence(monster, defeated=True)
 
         self.assertLessEqual(self.player.gold - gold_before, 18)
-        self.assertTrue(any("木偶结局·暗噪回响" in msg for msg in self.controller.messages))
+        self.assertTrue(any("暗噪" in msg or "你虽然赢了" in msg for msg in self.controller.messages))
 
     def test_puppet_final_boss_no_script_writes_params_no_immediate_clear(self):
         """击败木偶且未拿剧本时只写终局参数，不立即触发结局。"""
@@ -880,7 +881,7 @@ class TestStorySystem(BaseTest):
         self.assertEqual(ending_meta.get("puppet_final_outcome"), "escaped")
         self.assertEqual(ending_meta.get("puppet_patrol_state"), "active")
         self.assertIn("走廊中来回游荡", ending_meta.get("puppet_patrol_note", ""))
-        self.assertTrue(any("木偶终战·撤离记录" in msg for msg in self.controller.messages))
+        self.assertTrue(any("抽身撤离" in msg or "最后一瞬" in msg for msg in self.controller.messages))
 
     def test_puppet_dark_boss_gets_direct_modifier_from_signal_soft(self):
         story = self.controller.story
@@ -948,7 +949,7 @@ class TestStorySystem(BaseTest):
         self.assertEqual(state.get("phase"), 2)
         self.assertGreater(monster.hp, 0)
         self.assertGreaterEqual(monster.hp, int(round(state.get("phase1_max_hp", 1) * state.get("phase2_min_hp_ratio", 0.0))))
-        self.assertTrue(any("阶段切换" in msg for msg in self.controller.messages))
+        self.assertTrue(any("完全体" in msg or "战斗主题开始" in msg for msg in self.controller.messages))
 
     def test_puppet_dark_boss_applies_shop_side_buff_when_entering_phase_two(self):
         story = self.controller.story
@@ -1312,6 +1313,8 @@ class TestStorySystem(BaseTest):
         story.elf_chain_ended = True
         story.elf_relation = 3
         story.elf_key_obtained = True
+        story.story_tags.add("ending:puppet_final_defeated")
+        story.puppet_evil_value = 30
 
         story.ensure_default_normal_ending_schedule()
         self.assertIn("ending_stage_curtain_preface", story.pending_consequences)
@@ -1326,8 +1329,9 @@ class TestStorySystem(BaseTest):
 
         reward_door = DoorEnum.REWARD.create_instance(controller=self.controller)
         changed_door = story.apply_pre_enter_checks(reward_door)
-        self.assertEqual(changed_door.enum.name, "EVENT")
-        self.assertEqual(getattr(changed_door, "story_forced_event_key", ""), "ending_stage_script_vault_event")
+        self.assertEqual(changed_door.enum.name, "REWARD")
+        extension_types = [ext.get("extension_type") for ext in getattr(changed_door, "door_extensions", [])]
+        self.assertIn("stage_curtain_script_vault", extension_types)
 
     def test_stage_curtain_preface_is_forced_before_final_when_reward_gate_not_hit(self):
         self.controller.round_count = 185
@@ -1335,6 +1339,8 @@ class TestStorySystem(BaseTest):
         story.elf_chain_ended = True
         story.elf_relation = 3
         story.elf_key_obtained = True
+        story.story_tags.add("ending:puppet_final_defeated")
+        story.puppet_evil_value = 30
         story.ensure_default_normal_ending_schedule()
 
         for round_count in range(185, 191):
@@ -1346,8 +1352,9 @@ class TestStorySystem(BaseTest):
         self.controller.round_count = 191
         trap_door = DoorEnum.TRAP.create_instance(controller=self.controller)
         forced = story.apply_pre_enter_checks(trap_door)
-        self.assertEqual(forced.enum.name, "EVENT")
-        self.assertEqual(getattr(forced, "story_forced_event_key", ""), "ending_stage_script_vault_event")
+        self.assertEqual(forced.enum.name, "REWARD")
+        extension_types = [ext.get("extension_type") for ext in getattr(forced, "door_extensions", [])]
+        self.assertIn("stage_curtain_script_vault", extension_types)
 
     def test_stage_script_vault_marks_script_truth_and_schedules_stage_gate(self):
         story = self.controller.story
@@ -1606,6 +1613,7 @@ class TestStorySystem(BaseTest):
         self.assertIn("ending_elf_rival_final_gate", story.pending_consequences)
 
     def test_after_window_all_remaining_pre_final_events_are_forced_sequentially(self):
+        # 木偶逃跑 + 飞贼敌对：不满足银羽秘藏前置（需击败木偶且邪恶值≤45），故只挂载木偶补战与飞贼清算
         story = self.controller.story
         story.story_tags.update({"ending:puppet_final_escape_recorded"})
         story.puppet_final_outcome = "escaped"
@@ -1615,7 +1623,6 @@ class TestStorySystem(BaseTest):
 
         self.controller.round_count = 185
         story.ensure_default_normal_ending_schedule()
-        self.assertIn("ending_stage_curtain_preface", story.pending_consequences)
         self.assertIn("ending_puppet_pre_final_rematch_gate", story.pending_consequences)
         self.assertIn("ending_elf_rival_final_gate", story.pending_consequences)
 
@@ -1626,7 +1633,7 @@ class TestStorySystem(BaseTest):
             unchanged = story.apply_pre_enter_checks(trap_door)
             self.assertEqual(unchanged.enum.name, "TRAP")
 
-        # 窗口结束后，未触发事件必须按序强制发生（由优先级与配置共同决定）
+        # 窗口结束后，未触发事件按序强制：先木偶补战，再飞贼清算
         self.controller.round_count = 191
         forced_1 = story.apply_pre_enter_checks(DoorEnum.TRAP.create_instance(controller=self.controller))
         self.assertEqual(forced_1.enum.name, "MONSTER")
@@ -1635,14 +1642,9 @@ class TestStorySystem(BaseTest):
 
         self.controller.round_count = 192
         forced_2 = story.apply_pre_enter_checks(DoorEnum.TRAP.create_instance(controller=self.controller))
-        self.assertEqual(forced_2.enum.name, "EVENT")
-        self.assertEqual(getattr(forced_2, "story_forced_event_key", ""), "ending_stage_script_vault_event")
-
-        self.controller.round_count = 193
-        forced_3 = story.apply_pre_enter_checks(DoorEnum.TRAP.create_instance(controller=self.controller))
-        self.assertEqual(forced_3.enum.name, "MONSTER")
-        self.assertEqual(forced_3.monster.name, "银羽飞贼·莱希娅")
-        story.resolve_battle_consequence(forced_3.monster, defeated=True)
+        self.assertEqual(forced_2.enum.name, "MONSTER")
+        self.assertEqual(forced_2.monster.name, "银羽飞贼·莱希娅")
+        story.resolve_battle_consequence(forced_2.monster, defeated=True)
 
     def test_elf_rival_final_battle_victory_grants_hint_and_consumes_gate(self):
         story = self.controller.story
@@ -1666,7 +1668,7 @@ class TestStorySystem(BaseTest):
         self.assertIn("ending_elf_rival_final_victory", story.choice_flags)
         self.assertIn("ending_elf_rival_final_gate", story.consumed_consequences)
         self.assertNotIn("ending_default_final_boss_gate", story.pending_consequences)
-        self.assertTrue(any("银羽提示" in msg for msg in self.controller.messages))
+        self.assertTrue(any("终局门里" in msg or "诱饵" in msg for msg in self.controller.messages))
 
     def test_elf_rival_final_battle_escape_marks_permanent_parting(self):
         story = self.controller.story
@@ -1689,3 +1691,106 @@ class TestStorySystem(BaseTest):
         self.assertEqual(self.controller.scene_manager.current_scene.enum.name, "GAME_OVER")
         self.assertEqual(getattr(self.controller, "game_clear_info", {}).get("ending_key"), "default_normal")
         self.assertIn("ending:default_normal_completed", story.story_tags)
+
+    # ---------- 结局触发确定性测试：参数满足时对应结局必须能触发 ----------
+
+    def test_ending_default_normal_scheduled_and_triggered_when_no_long_branch(self):
+        """无长线分支、回合200、无阻塞时，必须挂载默认第一门，完成两门+Boss 后触发 default_normal。"""
+        self.controller.round_count = 200
+        story = self.controller.story
+        scheduled = story.ensure_default_normal_ending_schedule()
+        self.assertTrue(scheduled, "应挂载默认终局入口")
+        self.assertIn("ending_default_force_gate_round_200", story.pending_consequences)
+        cfg = story.pending_consequences["ending_default_force_gate_round_200"]
+        self.assertEqual(cfg.payload.get("event_key"), "ending_final_first_gate_event")
+
+        first = EndingFinalFirstGateEvent(self.controller)
+        first.resolve_choice(1)
+        self.assertIn("ending_default_second_gate", story.pending_consequences)
+        self.controller.round_count = 201
+        second = EndingFinalSecondGateEvent(self.controller)
+        second.resolve_choice(2)
+        self.assertIn("ending_default_final_boss_gate", story.pending_consequences)
+        self.controller.round_count = 202
+        monster = Monster("选择困难症候群", hp=10, atk=2, tier=4)
+        setattr(monster, "story_default_final_boss", True)
+        story.resolve_battle_consequence(monster, defeated=True)
+        self.assertEqual(getattr(self.controller, "game_clear_info", {}).get("ending_key"), "default_normal")
+
+    def test_ending_power_curtain_direct_scheduled_when_puppet_defeated_high_evil_elf_not_friendly(self):
+        """已击败木偶、邪恶值>45、飞贼未完结或关系非友好时，回合200 应挂载接管谢幕直通门。"""
+        self.controller.round_count = 200
+        story = self.controller.story
+        story.story_tags.add("ending:puppet_final_defeated")
+        story.puppet_evil_value = 50
+        story.elf_chain_ended = True
+        story.elf_relation = 0
+        scheduled = story.ensure_default_normal_ending_schedule()
+        self.assertTrue(scheduled)
+        self.assertIn("ending_power_curtain_direct", story.pending_consequences)
+        self.assertNotIn("ending_default_force_gate_round_200", story.pending_consequences)
+
+    def test_ending_power_curtain_direct_event_triggers_stage_curtain_power(self):
+        """完成接管谢幕直通事件后，必须触发 ending_key=stage_curtain_power。"""
+        story = self.controller.story
+        event = EndingPowerCurtainDirectEvent(self.controller)
+        event.resolve_choice(0)
+        clear_info = getattr(self.controller, "game_clear_info", {})
+        self.assertEqual(clear_info.get("ending_key"), "stage_curtain_power")
+        self.assertTrue(clear_info.get("ending_meta", {}).get("power_curtain_direct"))
+
+    def test_ending_stage_curtain_order_triggered_with_order_route_and_puppet_kind_rescued(self):
+        """补全路线 + 善良人格已救回 + 秩序/风险达标时，选补全门必触发 stage_curtain_order。"""
+        story = self.controller.story
+        story.story_tags.update({
+            "elf_outcome:alliance", "ending:puppet_final_defeated", "elf_key_obtained",
+            "curtain_call_script_recovered",
+        })
+        story.choice_flags.update({
+            "moon_verdict_clean", "clockwork_calibrated", "dream_well_sealed", "echo_court_redeemed",
+        })
+        story.puppet_final_outcome = "defeated"
+        story.puppet_evil_value = 20
+        story.moon_bounty_diary_source = "thief_testimony"
+        event = EndingStageCurtainGateEvent(self.controller)
+        event.resolve_choice(0)
+        self.assertEqual(getattr(self.controller, "game_clear_info", {}).get("ending_key"), "stage_curtain_order")
+
+    def test_ending_stage_curtain_freedom_triggered_with_freedom_route_and_scores(self):
+        """即兴路线 + freedom>=4, risk<=3 时，选即兴门必触发 stage_curtain_freedom。"""
+        story = self.controller.story
+        story.story_tags.update({
+            "elf_outcome:alliance", "ending:puppet_final_defeated", "elf_key_obtained",
+            "curtain_call_script_recovered",
+        })
+        story.choice_flags.update({
+            "moon_verdict_clean", "clockwork_calibrated", "dream_well_sealed", "echo_court_redeemed",
+            "dream_well_drank", "puppet_signal_soft", "puppet_kind_echo_trust",
+        })
+        story.puppet_final_outcome = "defeated"
+        story.puppet_evil_value = 30
+        story.moon_bounty_diary_source = "thief_testimony"
+        payload = _collect_stage_curtain_scores(story)
+        self.assertGreaterEqual(payload.get("freedom", 0), 4)
+        self.assertLessEqual(payload.get("risk", 10), 3)
+        event = EndingStageCurtainGateEvent(self.controller)
+        event.resolve_choice(1)
+        self.assertEqual(getattr(self.controller, "game_clear_info", {}).get("ending_key"), "stage_curtain_freedom")
+
+    def test_ending_stage_curtain_power_triggered_with_power_route_and_scores(self):
+        """接管路线 + power>=4, risk<=4 时，选接管门必触发 stage_curtain_power。"""
+        story = self.controller.story
+        story.story_tags.update({
+            "ending:puppet_final_defeated", "elf_key_obtained", "curtain_call_script_recovered",
+        })
+        story.choice_flags.update({
+            "moon_verdict_extorted", "clockwork_hacked", "dream_well_sold", "mirror_played_villain",
+        })
+        story.puppet_final_outcome = "defeated"
+        story.puppet_evil_value = 50
+        payload = _collect_stage_curtain_scores(story)
+        self.assertGreaterEqual(payload.get("power", 0), 4)
+        self.assertLessEqual(payload.get("risk", 10), 4)
+        event = EndingStageCurtainGateEvent(self.controller)
+        event.resolve_choice(2)
+        self.assertEqual(getattr(self.controller, "game_clear_info", {}).get("ending_key"), "stage_curtain_power")

@@ -14,7 +14,7 @@ from models.items import (
     ReviveScroll,
     create_random_item,
 )
-from models.pre_final_gate_config import ALL_PRE_FINAL_DOOR_TYPES, PRE_FINAL_GATE_STORY_CONFIG
+from models.events import ALL_PRE_FINAL_DOOR_TYPES, PRE_FINAL_GATE_STORY_CONFIG
 from models.status import StatusName
 
 
@@ -82,6 +82,19 @@ class StorySystem:
     STAGE_CURTAIN_FORCE_CONSEQUENCE_ID = PRE_FINAL_GATE_STORY_CONFIG["round200_stage_preface"]["consequence_id"]
     PUPPET_PRE_FINAL_CONSEQUENCE_ID = PRE_FINAL_GATE_STORY_CONFIG["puppet_rematch_gate"]["consequence_id"]
     ELF_RIVAL_PRE_FINAL_CONSEQUENCE_ID = PRE_FINAL_GATE_STORY_CONFIG["elf_rival_final_gate"]["consequence_id"]
+
+    # 结局前倒数窗口内必须全部清空的事件；默认终局（选择困难症候群）必须在此列表无 pending 后才可挂载。触发顺序见下。
+    PRE_FINAL_BLOCKING_CONSEQUENCE_IDS = frozenset({
+        STAGE_CURTAIN_FORCE_CONSEQUENCE_ID,
+        PUPPET_PRE_FINAL_CONSEQUENCE_ID,
+        ELF_RIVAL_PRE_FINAL_CONSEQUENCE_ID,
+    })
+    # 强制触发时的优先顺序：先银羽秘藏，再木偶补战，再飞贼清算；默认 Boss 最后（不在此列表，由 ensure_default_normal_ending_schedule 单独挂载）。
+    PRE_FINAL_BLOCKING_ORDER = (
+        STAGE_CURTAIN_FORCE_CONSEQUENCE_ID,
+        PUPPET_PRE_FINAL_CONSEQUENCE_ID,
+        ELF_RIVAL_PRE_FINAL_CONSEQUENCE_ID,
+    )
 
     HIGH_MORAL_MONSTERS = {"树人", "天使", "创世神官", "幽灵", "精灵法师"}
     LOW_MORAL_MONSTERS = {"土匪", "狼人", "食人魔", "冥界使者", "暗影刺客"}
@@ -242,12 +255,45 @@ class StorySystem:
                 return True
         return False
 
+    # 银羽秘藏（补全谢幕前置）仅当飞贼线收束、有钥匙、击败木偶终战且邪恶值偏低（善良人格主导）时挂载
+    PUPPET_LOW_EVIL_FOR_CURTAIN = 45
+    # 精灵关系友好：elf_relation >= 2；普通或恶劣：<= 1
+    ELF_RELATION_FRIENDLY_THRESHOLD = 2
+    # 邪恶值中高：> 45
+    PUPPET_HIGH_EVIL_FOR_POWER_DIRECT = 45
+
+    def _is_power_curtain_direct_ready(self) -> bool:
+        """是否满足接管谢幕直通条件：飞贼事件未完结，或完结但关系为普通/恶劣；已击败黑暗木偶；邪恶值中高。"""
+        if "ending:puppet_final_defeated" not in self.story_tags:
+            return False
+        try:
+            evil = max(0, min(100, int(getattr(self, "puppet_evil_value", 55))))
+        except (TypeError, ValueError):
+            evil = 55
+        if evil <= self.PUPPET_HIGH_EVIL_FOR_POWER_DIRECT:
+            return False
+        # 飞贼未完结
+        if not bool(getattr(self, "elf_chain_ended", False)):
+            return True
+        # 飞贼已完结但关系普通或恶劣（非友好）
+        rel = int(getattr(self, "elf_relation", 0))
+        return rel < self.ELF_RELATION_FRIENDLY_THRESHOLD
+
     def _is_stage_curtain_route_ready(self) -> bool:
-        """舞台谢幕链前置：只要求已拿到飞贼钥匙。"""
+        """舞台谢幕链前置：飞贼事件终结、已拿钥匙、已击败黑暗木偶终战且邪恶值偏低（善良人格占主导）。"""
         if "curtain_call_script_recovered" in self.story_tags:
             return False
         key_obtained = bool(getattr(self, "elf_key_obtained", False)) or ("elf_key_obtained" in self.story_tags)
-        return key_obtained
+        if not key_obtained:
+            return False
+        if not bool(getattr(self, "elf_chain_ended", False)):
+            return False
+        if "ending:puppet_final_defeated" not in self.story_tags:
+            return False
+        evil = max(0, min(100, int(getattr(self, "puppet_evil_value", 55))))
+        if evil > self.PUPPET_LOW_EVIL_FOR_CURTAIN:
+            return False
+        return True
 
     def ensure_stage_curtain_preface_schedule(self) -> bool:
         """满足前置时将“银羽秘藏”纳入终局前倒数窗口调度（宝物门命中，超窗强制）。"""
@@ -293,12 +339,12 @@ class StorySystem:
         return registered
 
     def _has_pending_blocking_pre_final_events(self) -> bool:
-        blocking_ids = {
-            self.STAGE_CURTAIN_FORCE_CONSEQUENCE_ID,
-            self.PUPPET_PRE_FINAL_CONSEQUENCE_ID,
-            self.ELF_RIVAL_PRE_FINAL_CONSEQUENCE_ID,
-        }
-        return any(cid in self.pending_consequences for cid in blocking_ids)
+        """是否存在未清空的结局前倒数窗口事件；有则不能挂载默认终局（选择困难症候群）第一门。"""
+        return any(cid in self.pending_consequences for cid in self.PRE_FINAL_BLOCKING_CONSEQUENCE_IDS)
+
+    def _all_pre_final_blocking_cleared(self) -> bool:
+        """所有结局前倒数窗口事件已清空，可挂载默认终局。"""
+        return not self._has_pending_blocking_pre_final_events()
 
     def _should_run_pre_final_recheck(self, *, current_round: int, window_start: int, ending_round: int) -> bool:
         """倒数窗口统一检查：窗口起点 + 每隔固定回合 + 终局回合兜底。"""
@@ -362,29 +408,35 @@ class StorySystem:
             scheduled_any = True
             scheduled_keys.append(scheduled_key)
         if "elf_rival_final_gate" in scheduled_keys:
-            self.controller.add_message("【终局前事件】你在门廊里嗅到熟悉银羽杀意，飞贼清算战即将插入。")
+            self.controller.add_message("你在门廊里嗅到熟悉银羽杀意，飞贼清算战即将插入。")
         if "puppet_rematch_gate" in scheduled_keys:
-            self.controller.add_message("【终局前事件】红噪门框开始闪烁，黑暗木偶补战正在逼近。")
+            self.controller.add_message("红噪门框开始闪烁，黑暗木偶补战正在逼近。")
         self.pre_final_last_check_round = current_round
         return scheduled_any
 
     def ensure_default_normal_ending_schedule(self) -> bool:
-        """在第 200 回合且未开启分支时，强制挂载默认终局入口事件。"""
+        """在第 200 回合且未开启分支时，强制挂载默认终局入口事件（选择困难症候群），
+        或当满足「飞贼未完结/关系普通或恶劣 + 已击败木偶 + 邪恶值中高」时挂载接管谢幕直通门。"""
         self.ensure_pre_final_event_schedule()
-        # 终局前事件未清空时，阻止任何结局入口事件挂载。
-        if self._has_pending_blocking_pre_final_events():
+        if not self._all_pre_final_blocking_cleared():
             return False
         if self._has_started_long_story_branch():
             return False
         if "ending:default_normal_completed" in self.story_tags:
             return False
+        if "ending:stage_curtain_completed" in self.story_tags:
+            return False
         current_round = max(0, int(getattr(self.controller, "round_count", 0)))
         if current_round < self.DEFAULT_ENDING_FORCE_ROUND:
             return False
-        consequence_id = self.DEFAULT_ENDING_FORCE_CONSEQUENCE_ID
+        if self._is_power_curtain_direct_ready():
+            gate_key = "power_curtain_direct_gate"
+        else:
+            gate_key = "round200_default_first_gate"
+        cfg = PRE_FINAL_GATE_STORY_CONFIG.get(gate_key, {})
+        consequence_id = str(cfg.get("consequence_id", "ending_default_force_gate_round_200"))
         if consequence_id in self.pending_consequences or consequence_id in self.consumed_consequences:
             return False
-        cfg = PRE_FINAL_GATE_STORY_CONFIG.get("round200_default_first_gate", {})
         payload = cfg.get("payload", {})
         registered = self.register_consequence(
             choice_flag=str(cfg.get("choice_flag", "ending_default_normal_gate")),
@@ -417,13 +469,26 @@ class StorySystem:
             c for c in all_pending if c.should_force_trigger(round_count=round_count, story_flags=story_flags)
         ]
         if forced_candidates:
-            forced_candidates.sort(
-                key=lambda c: (
+            # 结局前倒数窗口事件按 PRE_FINAL_BLOCKING_ORDER 优先强制触发（银羽秘藏→木偶补战→飞贼清算），再按回合、优先级。
+            order = self.PRE_FINAL_BLOCKING_ORDER
+            blocking_ids = self.PRE_FINAL_BLOCKING_CONSEQUENCE_IDS
+
+            def _forced_key(c):
+                if c.consequence_id in blocking_ids:
+                    try:
+                        idx = order.index(c.consequence_id)
+                    except (ValueError, TypeError):
+                        idx = 999
+                else:
+                    idx = 999
+                return (
+                    idx,
                     c.max_round if c.max_round is not None else 10**9,
                     -int(c.priority),
                     c.consequence_id,
                 )
-            )
+
+            forced_candidates.sort(key=_forced_key)
             chosen = forced_candidates[0]
             apply_door = self._coerce_forced_door(door, chosen)
             return self._apply_chosen_consequence(chosen=chosen, door=apply_door, fallback_door=door, forced=True)
@@ -571,12 +636,12 @@ class StorySystem:
         self.story_tags.add("ending:elf_rival_final_gate_done")
         self.choice_flags.add("ending_elf_rival_final_victory")
         self.elf_final_outcome = "rival_defeated"
-        self.controller.add_message("【银羽终局·战败】她单膝撑地，笑得很勉强：'行，你这次赢了。'")
+        self.controller.add_message("她单膝撑地，笑得很勉强：'行，你这次赢了。'")
         hint = str(getattr(monster, "story_elf_rival_hint", "")).strip()
         if hint:
-            self.controller.add_message(f"【银羽提示】{hint}")
+            self.controller.add_message(hint)
         else:
-            self.controller.add_message("【银羽提示】她低声提醒：'终局门里别被第一层答案骗了，真正的出口常藏在第二次选择之后。'")
+            self.controller.add_message("她低声提醒：'终局门里别被第一层答案骗了，真正的出口常藏在第二次选择之后。'")
         self._schedule_next_pre_final_gate(after_battle=True, defeated=True)
 
     def _resolve_elf_rival_final_escape(self, monster: Any) -> None:
@@ -587,7 +652,7 @@ class StorySystem:
         self.story_tags.add("ending:elf_rival_final_gate_done")
         self.choice_flags.add("ending_elf_rival_parted")
         self.elf_final_outcome = "rival_parted"
-        self.controller.add_message("【银羽终局·错身】你借着烟幕撤离，她没有追上来，只在远处抛下一句：'下次不用再见了。'")
+        self.controller.add_message("你借着烟幕撤离，她没有追上来，只在远处抛下一句：'下次不用再见了。'")
         self._schedule_next_pre_final_gate(after_battle=True, defeated=False)
 
     def _resolve_moon_bounty_mid_outcome(self, monster: Any) -> None:
@@ -630,17 +695,17 @@ class StorySystem:
         if evil <= 25:
             bonus_gold = 90
             bonus_items = ["revive_scroll", "barrier"]
-            ending_text = "【木偶结局·晨光修复】你把它从最深的噪声里拽了回来。机偶胸腔里残存的蓝色灯丝一根根亮起，善良人格把最后的控制权塞回你的手里。"
+            ending_text = "你把它从最深的噪声里拽了回来。机偶胸腔里残存的蓝色灯丝一根根亮起，善良人格把最后的控制权塞回你的手里。"
         elif evil <= 45:
             bonus_gold = 65
             bonus_items = ["attack_up_scroll"]
-            ending_text = "【木偶结局·带伤停机】黑暗协议被压住大半，裂开的外壳还在冒火花。它靠着墙缓慢坐下，把补给仓权限转交给你。"
+            ending_text = "黑暗协议被压住大半，裂开的外壳还在冒火花。它靠着墙缓慢坐下，把补给仓权限转交给你。"
         elif evil <= 70:
             bonus_gold = 40
-            ending_text = "【木偶结局·灰烬停摆】两个人格在同一段噪声里互相撕扯，最终同时沉默，只剩下可回收的战利品与断续电流声。"
+            ending_text = "两个人格在同一段噪声里互相撕扯，最终同时沉默，只剩下可回收的战利品与断续电流声。"
         else:
             bonus_gold = 18
-            ending_text = "【木偶结局·暗噪回响】你虽然赢了，但黑暗协议早把自身切成碎片散入地城深处。走廊尽头只回荡着失真的童谣。"
+            ending_text = "你虽然赢了，但黑暗协议早把自身切成碎片散入地城深处。走廊尽头只回荡着失真的童谣。"
 
         ending_variants = []
         if "puppet_descent_patch" in flags and evil <= 45:
@@ -676,12 +741,20 @@ class StorySystem:
             player.add_item(item)
             item_names.append(getattr(item, "name", item_key))
 
-        self.controller.add_message("【木偶终曲】怪物倒下后，走廊响起一段残缺却温柔的收束旋律。")
+        self.controller.add_message("怪物倒下后，走廊响起一段残缺却温柔的收束旋律。")
         self.controller.add_message(ending_text)
         reward_msg = f"你获得额外 {bonus_gold}G。"
         if item_names:
             reward_msg += f" 额外宝物：{', '.join(item_names)}。"
-        self.controller.add_message(f"【木偶终战奖励】邪恶值 {evil}/100，{reward_msg}")
+        if evil <= 25:
+            evil_hint = "核心趋于平稳，蓝光曾短暂夺回主导。"
+        elif evil <= 45:
+            evil_hint = "核心暗噪被压至低语，暗侧未再抬头。"
+        elif evil <= 70:
+            evil_hint = "核心在红蓝撕扯后归于沉寂，余波未散。"
+        else:
+            evil_hint = "核心深处仍回荡着强控的余波，暗噪未散。"
+        self.controller.add_message(f"{evil_hint} {reward_msg}")
 
     def _resolve_puppet_final_escape_outcome(self) -> None:
         """木偶终战逃跑分支：记录后续结局参数，不单独触发结局。"""
@@ -693,12 +766,12 @@ class StorySystem:
         self.puppet_patrol_state = "active"
         self.puppet_patrol_note = "木偶仍在走廊中来回游荡"
         escape_text = (
-            "【木偶终战·撤离记录】你在最后一瞬选择抽身撤离。"
+            "你在最后一瞬选择抽身撤离。"
             "机偶没有倒下，它仍沿着那条昏暗走廊来回游荡，"
             "每次转身都像在寻找一个从未兑现的指令。"
             "你离开了战场，却把那段失真童谣永远留在了门后。"
         )
-        self.controller.add_message("【木偶终曲】你借着火花与烟尘冲出核心井，脚步声在空廊里被无限拉长。")
+        self.controller.add_message("你借着火花与烟尘冲出核心井，脚步声在空廊里被无限拉长。")
         self.controller.add_message(escape_text)
 
     def _schedule_next_pre_final_gate(self, *, after_battle: bool, defeated: bool) -> None:
@@ -719,12 +792,12 @@ class StorySystem:
         if not after_battle:
             return
         if scheduled_key == "elf_rival_final_gate":
-            self.controller.add_message("【终局调度】你刚脱离战斗，走廊另一端又出现一抹银羽杀意。")
+            self.controller.add_message("你刚脱离战斗，走廊另一端又出现一抹银羽杀意。")
         elif scheduled_key == "puppet_rematch_gate":
             if defeated:
-                self.controller.add_message("【终局调度】你刚压住战场余震，红噪门框再次亮起：木偶还没彻底罢手。")
+                self.controller.add_message("你刚压住战场余震，红噪门框再次亮起：木偶还没彻底罢手。")
             else:
-                self.controller.add_message("【终局调度】你抽身退开后，失真童谣又在前方门廊回荡。")
+                self.controller.add_message("你抽身退开后，失真童谣又在前方门廊回荡。")
 
     def _build_final_ending_meta(self) -> Dict[str, Any]:
         """聚合可交给最终结局展示层的剧情参数。"""
@@ -746,7 +819,7 @@ class StorySystem:
             return
         self.story_tags.add("ending:default_normal_completed")
         self.choice_flags.add("ending_default_normal_completed")
-        self.controller.add_message("【普通结局】你击倒了“选择困难症候群”。")
+        self.controller.add_message("你击倒了“选择困难症候群”。")
         self.controller.add_message("你抵达了这座迷宫的出口，从出口离开了。")
         trigger_clear = getattr(self.controller, "trigger_game_clear", None)
         if callable(trigger_clear):
@@ -1206,6 +1279,25 @@ class StorySystem:
             self._log_effect_result(consequence, "")
             return True, event_door
 
+        if effect == "stage_curtain_script_vault":
+            door_type = getattr(getattr(door, "enum", None), "name", "")
+            if door_type != "REWARD":
+                return False, door
+            hint = payload.get("hint")
+            self._attach_door_extension(
+                door=door,
+                extension_config={
+                    "extension_type": "stage_curtain_script_vault",
+                    "hint": hint,
+                },
+                apply_on_attach=True,
+            )
+            self.controller.add_message(
+                self._resolve_message(payload, "message", "银羽留给你的钥匙突然自行转动，走廊侧墙弹出一扇带徽记的暗门。")
+            )
+            self._log_effect_result(consequence, "")
+            return True, door
+
         if effect == "elf_side_reward_mark":
             door_type = getattr(getattr(door, "enum", None), "name", "")
             if door_type != "REWARD":
@@ -1383,8 +1475,8 @@ class StorySystem:
                     "debuff_turns": [2],
                     "debuff_mode": "weak",
                     "lines": {
-                        "shadowstep": "【银羽招式·裂影突袭】她踩墙折返，连斩逼得你后撤。",
-                        "debuff": "【银羽招式·割喉假动作】她借假动作压低你的重心，你的出手明显发软。",
+                        "shadowstep": "她踩墙折返，连斩逼得你后撤。",
+                        "debuff": "她借假动作压低你的重心，你的出手明显发软。",
                     },
                 }
             else:
@@ -1397,8 +1489,8 @@ class StorySystem:
                     "debuff_turns": [2],
                     "debuff_mode": "poison" if "ending_hook_hunted" in extensions else "weak",
                     "lines": {
-                        "shadowstep": "【银羽招式·回身夺隙】她借你的攻击空档贴身反刺。",
-                        "debuff": "【银羽招式·银羽粉】她扬起一把细碎粉末，呼吸与挥刀都被干扰。",
+                        "shadowstep": "她借你的攻击空档贴身反刺。",
+                        "debuff": "她扬起一把细碎粉末，呼吸与挥刀都被干扰。",
                     },
                 }
 
@@ -1569,7 +1661,7 @@ class StorySystem:
             if bool(payload.get("pre_final_dispatch", False)):
                 setattr(boss, "story_pre_final_dispatch", True)
                 self.story_tags.add("ending:puppet_rematch_gate_done")
-            self.controller.add_message("【木偶音效】警报弦音与重低鼓点同时拉响。")
+            self.controller.add_message("警报弦音与重低鼓点同时拉响。")
             if side_hit_count <= 0:
                 self.controller.add_message(
                     self._resolve_message(
@@ -1638,9 +1730,19 @@ class StorySystem:
             hint = payload.get("hunter_hint") or payload.get("hint")
             if isinstance(hint, str) and hint.strip():
                 target_door.hint = hint.strip()
+            if evil_value <= 25:
+                core_hint = "核心读数偏稳，蓝光尚存"
+            elif evil_value <= 45:
+                core_hint = "核心暗噪被压至低语"
+            elif evil_value <= 65:
+                core_hint = "核心在红蓝之间剧烈摆动"
+            elif evil_value <= 85:
+                core_hint = "核心深处暗侧占优"
+            else:
+                core_hint = "核心暴走，黑暗协议主导"
             self._log_effect_result(
                 consequence,
-                f"{boss.name} 降临（邪恶值 {evil_value}/100），生命 {boss.hp}，攻击 {boss.atk}",
+                f"{boss.name} 降临（{core_hint}），生命 {boss.hp}，攻击 {boss.atk}",
             )
             return True, target_door
 
@@ -1648,13 +1750,19 @@ class StorySystem:
 
     def setup_test_gate_puppet_final_boss(self) -> Optional[Any]:
         """测试用：直接构建木偶最终 Boss 门（含扩展），不经过 pending_consequences 触发。
-        返回可调用 enter() 的门实例；失败返回 None。"""
+        从 events.build_puppet_final_boss_payload 取得与正式流程一致的参数，仅将二阶段 burst heal 比例调高以便测试。"""
+        from models.events import build_puppet_final_boss_payload
+
+        payload = build_puppet_final_boss_payload(
+            self.controller,
+            phase2_burst_heal_ratio=0.58,
+        )
         consequence = PendingConsequence(
             consequence_id="test_puppet_final_boss",
             source_flag="test",
             effect_key="puppet_dark_boss",
             description="测试用木偶终战",
-            payload={},
+            payload=payload,
         )
         dummy_door = DoorEnum.EVENT.create_instance(controller=self.controller)
         applied, new_door = self._apply_effect(consequence, dummy_door)
@@ -2052,9 +2160,9 @@ class StorySystem:
         monster.atk = max(1, int(round(old_atk * burst_atk_ratio)))
 
         self.controller.add_message(
-            f"【阶段切换】{old_name}核心炸裂，{monster.name}爆发登场！恢复 {burst_heal} 点生命，攻击抬升至 {monster.atk}。"
+            f"{old_name}核心炸裂，{monster.name}爆发登场！恢复 {burst_heal} 点生命，攻击抬升至 {monster.atk}。"
         )
-        self.controller.add_message("【木偶音效】失真童谣被重低音撕开，完全体战斗主题开始。")
+        self.controller.add_message("失真童谣被重低音撕开，完全体战斗主题开始。")
         self._apply_puppet_entry_modifiers(monster=monster, state=state, phase=2)
         return True
 
@@ -2122,7 +2230,7 @@ class StorySystem:
             self.controller.add_message(msg)
         if adjusted != raw_damage:
             actor = "木偶" if trigger == "monster_attack" else "玩家"
-            self.controller.add_message(f"【连锁结算】{actor}本次伤害 {raw_damage}→{adjusted}。")
+            self.controller.add_message(f"{actor}本次伤害 {raw_damage}→{adjusted}。")
         return adjusted
 
     def apply_door_extension(
@@ -2196,6 +2304,20 @@ class StorySystem:
             if not isinstance(resolved_reward, dict):
                 resolved_reward = {}
             door.reward = dict(resolved_reward)
+            runtime["reward_written"] = True
+            return {"applied": True}
+
+        if ext_type == "stage_curtain_script_vault":
+            if door_type != "REWARD":
+                return {}
+            if runtime.get("reward_written"):
+                return {"applied": True}
+            try:
+                from models.events import run_script_vault_recovery
+                run_script_vault_recovery(self.controller)
+            except Exception:
+                pass
+            door.reward = {}
             runtime["reward_written"] = True
             return {"applied": True}
 
@@ -2304,7 +2426,7 @@ class StorySystem:
                 line = lines.get("shadowstep", "")
                 if isinstance(line, str) and line.strip():
                     self.controller.add_message(line.strip())
-                self.controller.add_message(f"【银羽连携】她抓住你的一瞬迟疑，伤害 {damage}→{adjusted}。")
+                self.controller.add_message(f"她抓住你的一瞬迟疑，伤害 {damage}→{adjusted}。")
             counts["monster_attack"] = idx + 1
         return adjusted
 
@@ -2333,7 +2455,7 @@ class StorySystem:
         if isinstance(line, str) and line.strip():
             self.controller.add_message(line.strip())
         label = "中毒" if effect == StatusName.POISON else "虚弱"
-        self.controller.add_message(f"【银羽压制】你的节奏被打断，获得{label}（{duration}回合）。")
+        self.controller.add_message(f"你的节奏被打断，获得{label}（{duration}回合）。")
         counts["post_player_attack"] = idx + 1
 
     def _queue_chain_followups(self, consequence: PendingConsequence) -> None:
@@ -2435,6 +2557,8 @@ class StorySystem:
             self.controller.add_message(f"这笔旧账终究要还：{detail}。")
             return
         if effect == "force_story_event":
+            return
+        if effect == "stage_curtain_script_vault":
             return
         if effect == "treasure_marked_item":
             self.controller.add_message(f"宝物门里的陈设明显被提前动过手脚：{detail}。")
