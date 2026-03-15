@@ -1263,6 +1263,26 @@ class TestStorySystem(BaseTest):
         self.assertEqual(changed_door.enum.name, "EVENT")
         self.assertEqual(getattr(changed_door, "story_forced_event_key", ""), "ending_stage_script_vault_event")
 
+    def test_stage_curtain_preface_is_forced_before_final_when_reward_gate_not_hit(self):
+        self.controller.round_count = 185
+        story = self.controller.story
+        story.elf_chain_ended = True
+        story.elf_relation = 3
+        story.elf_key_obtained = True
+        story.ensure_default_normal_ending_schedule()
+
+        for round_count in range(185, 190):
+            self.controller.round_count = round_count
+            trap_door = DoorEnum.TRAP.create_instance(controller=self.controller)
+            unchanged = story.apply_pre_enter_checks(trap_door)
+            self.assertEqual(unchanged.enum.name, "TRAP")
+
+        self.controller.round_count = 190
+        trap_door = DoorEnum.TRAP.create_instance(controller=self.controller)
+        forced = story.apply_pre_enter_checks(trap_door)
+        self.assertEqual(forced.enum.name, "EVENT")
+        self.assertEqual(getattr(forced, "story_forced_event_key", ""), "ending_stage_script_vault_event")
+
     def test_stage_script_vault_marks_script_truth_and_schedules_stage_gate(self):
         story = self.controller.story
         story.story_tags.add("moon_bounty_diary_obtained")
@@ -1321,11 +1341,11 @@ class TestStorySystem(BaseTest):
         story.elf_relation = -5
         story.ensure_default_normal_ending_schedule()
         self.assertIn("ending_puppet_pre_final_rematch_gate", story.pending_consequences)
-        self.assertIn("ending_elf_rival_final_gate", story.pending_consequences)
 
         self.controller.round_count = 200
         scheduled = story.ensure_default_normal_ending_schedule()
         self.assertFalse(scheduled)
+        self.assertIn("ending_elf_rival_final_gate", story.pending_consequences)
         self.assertNotIn("ending_default_force_gate_round_200", story.pending_consequences)
 
         trap_door = DoorEnum.TRAP.create_instance(controller=self.controller)

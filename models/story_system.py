@@ -1162,14 +1162,15 @@ class StorySystem:
             return True, door
 
         if effect == "force_story_event":
-            if getattr(getattr(door, "enum", None), "name", "") != "EVENT":
-                return False, door
+            event_door = door
+            if getattr(getattr(event_door, "enum", None), "name", "") != "EVENT":
+                event_door = DoorEnum.EVENT.create_instance(controller=self.controller)
             event_key = payload.get("event_key")
             if not isinstance(event_key, str) or not event_key.strip():
                 return False, door
             hint = payload.get("hint")
             self._attach_door_extension(
-                door=door,
+                door=event_door,
                 extension_config={
                     "extension_type": "force_story_event",
                     "event_key": event_key.strip(),
@@ -1181,7 +1182,7 @@ class StorySystem:
                 self._resolve_message(payload, "message", "命运突然偏转，下一扇事件门被写上了你的名字。")
             )
             self._log_effect_result(consequence, "")
-            return True, door
+            return True, event_door
 
         if effect == "elf_side_reward_mark":
             door_type = getattr(getattr(door, "enum", None), "name", "")
