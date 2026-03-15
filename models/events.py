@@ -3854,9 +3854,17 @@ def _schedule_default_ending_final_boss(controller):
 
 
 def _schedule_stage_curtain_gate_event(controller):
-    return _schedule_default_ending_forced_event(
+    story = getattr(controller, "story", None)
+    current_round = max(0, int(getattr(controller, "round_count", 0)))
+    ending_round = 200
+    if story is not None:
+        ending_round = int(getattr(story, "DEFAULT_ENDING_FORCE_ROUND", 200))
+    schedule_round = max(current_round + 1, ending_round)
+    return _schedule_pre_final_gate(
         controller=controller,
         gate_key="stage_curtain_gate_event",
+        min_round=schedule_round,
+        max_round=schedule_round,
     )
 
 

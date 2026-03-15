@@ -79,6 +79,8 @@ class StorySystem:
     PRE_FINAL_WINDOW_END_OFFSET = 10
     DEFAULT_ENDING_FORCE_CONSEQUENCE_ID = PRE_FINAL_GATE_STORY_CONFIG["round200_default_first_gate"]["consequence_id"]
     STAGE_CURTAIN_FORCE_CONSEQUENCE_ID = PRE_FINAL_GATE_STORY_CONFIG["round200_stage_preface"]["consequence_id"]
+    PUPPET_PRE_FINAL_CONSEQUENCE_ID = PRE_FINAL_GATE_STORY_CONFIG["puppet_rematch_gate"]["consequence_id"]
+    ELF_RIVAL_PRE_FINAL_CONSEQUENCE_ID = PRE_FINAL_GATE_STORY_CONFIG["elf_rival_final_gate"]["consequence_id"]
 
     HIGH_MORAL_MONSTERS = {"树人", "天使", "创世神官", "幽灵", "精灵法师"}
     LOW_MORAL_MONSTERS = {"土匪", "狼人", "食人魔", "冥界使者", "暗影刺客"}
@@ -251,7 +253,7 @@ class StorySystem:
         return key_obtained
 
     def ensure_stage_curtain_preface_schedule(self) -> bool:
-        """回合 200 时满足前置则强制先进入“银羽秘藏”事件门。"""
+        """满足前置时将“银羽秘藏”纳入终局前倒数窗口调度（宝物门命中，超窗强制）。"""
         if not self._is_stage_curtain_route_ready():
             return False
         if "ending:default_normal_completed" in self.story_tags:
@@ -259,8 +261,17 @@ class StorySystem:
         if "ending:stage_curtain_completed" in self.story_tags:
             return False
         current_round = max(0, int(getattr(self.controller, "round_count", 0)))
-        if current_round < self.DEFAULT_ENDING_FORCE_ROUND:
+        ending_round = int(self.DEFAULT_ENDING_FORCE_ROUND)
+        window_start = max(0, ending_round - int(self.PRE_FINAL_WINDOW_START_OFFSET))
+        window_end = max(0, ending_round - int(self.PRE_FINAL_WINDOW_END_OFFSET))
+        if current_round < window_start:
             return False
+        if current_round <= window_end:
+            min_round = current_round
+            max_round = window_end
+        else:
+            min_round = current_round
+            max_round = current_round
         consequence_id = self.STAGE_CURTAIN_FORCE_CONSEQUENCE_ID
         if consequence_id in self.pending_consequences or consequence_id in self.consumed_consequences:
             return False
@@ -271,9 +282,9 @@ class StorySystem:
             consequence_id=consequence_id,
             effect_key=str(cfg.get("effect_key", "force_story_event")),
             chance=1.0,
-            trigger_door_types=list(ALL_PRE_FINAL_DOOR_TYPES),
-            min_round=self.DEFAULT_ENDING_FORCE_ROUND,
-            max_round=self.DEFAULT_ENDING_FORCE_ROUND,
+            trigger_door_types=["REWARD"],
+            min_round=min_round,
+            max_round=max_round,
             force_on_expire=True,
             force_door_type=str(cfg.get("force_door_type", "EVENT")),
             priority=int(cfg.get("priority", 1260)),
@@ -282,6 +293,14 @@ class StorySystem:
         if registered:
             self.story_tags.add("ending:stage_curtain_scheduled")
         return registered
+
+    def _has_pending_blocking_pre_final_events(self) -> bool:
+        blocking_ids = {
+            self.STAGE_CURTAIN_FORCE_CONSEQUENCE_ID,
+            self.PUPPET_PRE_FINAL_CONSEQUENCE_ID,
+            self.ELF_RIVAL_PRE_FINAL_CONSEQUENCE_ID,
+        }
+        return any(cid in self.pending_consequences for cid in blocking_ids)
 
     def ensure_pre_final_event_schedule(self) -> bool:
         """在终局前倒数 15~10 回合预挂载前置战，未命中时在结局前强制触发。"""
@@ -294,13 +313,16 @@ class StorySystem:
         ending_round = int(self.DEFAULT_ENDING_FORCE_ROUND)
         window_start = max(0, ending_round - int(self.PRE_FINAL_WINDOW_START_OFFSET))
         window_end = max(0, ending_round - int(self.PRE_FINAL_WINDOW_END_OFFSET))
-        if current_round < window_start or current_round >= ending_round:
+        if current_round < window_start:
             return False
+
+        # 舞台谢幕钥匙线也纳入终局前事件窗口（宝物门命中，超窗强制）
+        stage_scheduled = self.ensure_stage_curtain_preface_schedule()
 
         try:
             from models.events import schedule_next_pre_final_gate
         except Exception:
-            return False
+            return stage_scheduled
 
         if current_round <= window_end:
             min_round = current_round
@@ -322,13 +344,14 @@ class StorySystem:
             self.controller.add_message("【终局前事件】你在门廊里嗅到熟悉银羽杀意，飞贼清算战即将插入。")
         elif scheduled_key == "puppet_rematch_gate":
             self.controller.add_message("【终局前事件】红噪门框开始闪烁，黑暗木偶补战正在逼近。")
-        return True
+        return bool(scheduled_key) or stage_scheduled
 
     def ensure_default_normal_ending_schedule(self) -> bool:
         """在第 200 回合且未开启分支时，强制挂载默认终局入口事件。"""
         self.ensure_pre_final_event_schedule()
-        if self.ensure_stage_curtain_preface_schedule():
-            return True
+        # 终局前事件未清空时，阻止任何结局入口事件挂载。
+        if self._has_pending_blocking_pre_final_events():
+            return False
         if self._has_started_long_story_branch():
             return False
         if "ending:default_normal_completed" in self.story_tags:

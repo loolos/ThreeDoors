@@ -1240,17 +1240,23 @@ class TestStorySystem(BaseTest):
         self.assertGreater(self.player.get_inventory_size(), before_items)
         self.assertTrue(any("飞锤" in msg for msg in self.controller.messages))
 
-    def test_stage_curtain_preface_is_forced_on_round_200_when_elf_key_route_ready(self):
-        self.controller.round_count = 200
+    def test_stage_curtain_preface_is_scheduled_in_pre_final_window_with_reward_gate_only(self):
+        self.controller.round_count = 185
         story = self.controller.story
         story.elf_chain_ended = True
         story.elf_relation = 3
         story.elf_key_obtained = True
 
-        scheduled = story.ensure_default_normal_ending_schedule()
-        self.assertTrue(scheduled)
+        story.ensure_default_normal_ending_schedule()
         self.assertIn("ending_stage_curtain_preface", story.pending_consequences)
-        self.assertNotIn("ending_default_force_gate_round_200", story.pending_consequences)
+        pending = story.pending_consequences["ending_stage_curtain_preface"]
+        self.assertEqual(pending.min_round, 185)
+        self.assertEqual(pending.max_round, 190)
+        self.assertEqual(pending.trigger_door_types, {"REWARD"})
+
+        event_door = DoorEnum.EVENT.create_instance(controller=self.controller)
+        unchanged = story.apply_pre_enter_checks(event_door)
+        self.assertEqual(unchanged.enum.name, "EVENT")
 
         reward_door = DoorEnum.REWARD.create_instance(controller=self.controller)
         changed_door = story.apply_pre_enter_checks(reward_door)
@@ -1269,6 +1275,9 @@ class TestStorySystem(BaseTest):
         self.assertIn("curtain_call_script_recovered", story.story_tags)
         self.assertIn("curtain_call_truth_revealed", story.story_tags)
         self.assertIn("ending_stage_curtain_gate", story.pending_consequences)
+        pending = story.pending_consequences["ending_stage_curtain_gate"]
+        self.assertEqual(pending.min_round, 200)
+        self.assertEqual(pending.max_round, 200)
 
     def test_stage_curtain_gate_can_trigger_order_ending_clear(self):
         story = self.controller.story
@@ -1303,6 +1312,35 @@ class TestStorySystem(BaseTest):
         changed_door = story.apply_pre_enter_checks(reward_door)
         self.assertEqual(changed_door.enum.name, "EVENT")
         self.assertEqual(getattr(changed_door, "story_forced_event_key", ""), "ending_final_first_gate_event")
+
+    def test_default_ending_is_blocked_until_all_pre_final_events_are_resolved(self):
+        self.controller.round_count = 185
+        story = self.controller.story
+        story.story_tags.update({"puppet_arc_active", "elf_outcome:hostile"})
+        story.elf_chain_ended = True
+        story.elf_relation = -5
+        story.ensure_default_normal_ending_schedule()
+        self.assertIn("ending_puppet_pre_final_rematch_gate", story.pending_consequences)
+        self.assertIn("ending_elf_rival_final_gate", story.pending_consequences)
+
+        self.controller.round_count = 200
+        scheduled = story.ensure_default_normal_ending_schedule()
+        self.assertFalse(scheduled)
+        self.assertNotIn("ending_default_force_gate_round_200", story.pending_consequences)
+
+        trap_door = DoorEnum.TRAP.create_instance(controller=self.controller)
+        forced_first = story.apply_pre_enter_checks(trap_door)
+        self.assertEqual(forced_first.enum.name, "MONSTER")
+        story.resolve_battle_consequence(forced_first.monster, defeated=True)
+
+        trap_door = DoorEnum.TRAP.create_instance(controller=self.controller)
+        forced_second = story.apply_pre_enter_checks(trap_door)
+        self.assertEqual(forced_second.enum.name, "MONSTER")
+        story.resolve_battle_consequence(forced_second.monster, defeated=True)
+
+        scheduled_after = story.ensure_default_normal_ending_schedule()
+        self.assertTrue(scheduled_after)
+        self.assertIn("ending_default_force_gate_round_200", story.pending_consequences)
 
     def test_default_ending_is_not_scheduled_after_any_long_branch_started(self):
         self.controller.round_count = 200
