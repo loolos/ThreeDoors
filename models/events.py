@@ -2,6 +2,11 @@
 
 import random
 from models.items import create_random_item, create_reward_door_item
+from models.pre_final_gate_config import (
+    ALL_PRE_FINAL_DOOR_TYPES,
+    PRE_FINAL_DISPATCH_ORDER,
+    PRE_FINAL_GATE_STORY_CONFIG,
+)
 from models.status import StatusName
 
 
@@ -3786,70 +3791,59 @@ class ElfSideMerchantEvent(Event):
         return "Event Completed"
 
 
-def _schedule_default_ending_forced_event(controller, consequence_id, next_event_key, hint, trigger_message):
+def _get_pre_final_gate_config(gate_key):
+    cfg = PRE_FINAL_GATE_STORY_CONFIG.get(gate_key, {})
+    return dict(cfg) if isinstance(cfg, dict) else {}
+
+
+def _schedule_pre_final_gate(
+    controller,
+    gate_key,
+    *,
+    min_round_offset=1,
+    max_round_offset=1,
+    extra_payload=None,
+):
     story = getattr(controller, "story", None)
     if story is None:
         return False
+    cfg = _get_pre_final_gate_config(gate_key)
+    if not cfg:
+        return False
+    base_payload = cfg.get("payload", {})
+    payload = dict(base_payload) if isinstance(base_payload, dict) else {}
+    if isinstance(extra_payload, dict):
+        payload.update(extra_payload)
     current_round = max(0, int(getattr(controller, "round_count", 0)))
-    all_door_types = ["TRAP", "REWARD", "MONSTER", "SHOP", "EVENT"]
+    min_round = current_round + max(0, int(min_round_offset))
+    max_round = current_round + max(0, int(max_round_offset))
     return story.register_consequence(
-        choice_flag="ending_default_normal_route",
-        consequence_id=consequence_id,
-        effect_key="force_story_event",
+        choice_flag=str(cfg.get("choice_flag", "ending_default_normal_route")),
+        consequence_id=str(cfg.get("consequence_id", f"pre_final:{gate_key}")),
+        effect_key=str(cfg.get("effect_key", "force_story_event")),
         chance=1.0,
-        trigger_door_types=all_door_types,
-        min_round=current_round + 1,
-        max_round=current_round + 1,
+        trigger_door_types=list(ALL_PRE_FINAL_DOOR_TYPES),
+        min_round=min_round,
+        max_round=max_round,
         force_on_expire=True,
-        force_door_type="EVENT",
-        priority=1200,
-        payload={
-            "event_key": next_event_key,
-            "hint": hint,
-            "message": trigger_message,
-            "log_trigger": trigger_message,
-        },
+        force_door_type=str(cfg.get("force_door_type", "EVENT")),
+        priority=int(cfg.get("priority", 1200)),
+        payload=payload,
     )
+
+
+def _schedule_default_ending_forced_event(controller, gate_key):
+    return _schedule_pre_final_gate(controller=controller, gate_key=gate_key)
 
 
 def _schedule_default_ending_final_boss(controller):
-    story = getattr(controller, "story", None)
-    if story is None:
-        return False
-    current_round = max(0, int(getattr(controller, "round_count", 0)))
-    all_door_types = ["TRAP", "REWARD", "MONSTER", "SHOP", "EVENT"]
-    return story.register_consequence(
-        choice_flag="ending_default_normal_route",
-        consequence_id="ending_default_final_boss_gate",
-        effect_key="default_final_boss",
-        chance=1.0,
-        trigger_door_types=all_door_types,
-        min_round=current_round + 1,
-        max_round=current_round + 1,
-        force_on_expire=True,
-        force_door_type="MONSTER",
-        priority=1200,
-        payload={
-            "boss_name": "选择困难症候群",
-            "hint": "门缝里传来嬉笑声：'看提示看了两百回合，终于舍得进来啦？'",
-            "message": "门后出现一张由问号拼成的笑脸。怪物弯腰行礼：'欢迎来到你的最终选择现场。'",
-            "taunts": [
-                "“看提示看了两百回合，眼睛还好吗？”",
-                "“三扇门你每次都要想半天，这不就是选择困难症吗？”",
-                "“来吧，把我打倒，证明你终于会做决定了。”",
-            ],
-            "log_trigger": "三扇终局门同时闭合，只剩中央一道裂隙。裂隙里钻出的怪物自报家门：『选择困难症候群』。",
-        },
-    )
+    return _schedule_pre_final_gate(controller=controller, gate_key="default_final_boss_gate")
 
 
 def _schedule_stage_curtain_gate_event(controller):
     return _schedule_default_ending_forced_event(
         controller=controller,
-        consequence_id="ending_stage_curtain_gate",
-        next_event_key="ending_stage_curtain_gate_event",
-        hint="你怀里的剧本忽然发热，前方三扇门同时亮起：『补全』『即兴』『接管』。",
-        trigger_message="你收起剧本后，终局走廊被改写成了新的谢幕门廊。",
+        gate_key="stage_curtain_gate_event",
     )
 
 
@@ -4197,10 +4191,10 @@ def _schedule_elf_rival_final_gate(controller):
         or "ending:elf_rival_parted" in story.story_tags
     ):
         return False
-    if "ending_elf_rival_final_gate" in story.pending_consequences:
+    cfg = _get_pre_final_gate_config("elf_rival_final_gate")
+    consequence_id = str(cfg.get("consequence_id", "ending_elf_rival_final_gate"))
+    if consequence_id in story.pending_consequences or consequence_id in getattr(story, "consumed_consequences", set()):
         return False
-    current_round = max(0, int(getattr(controller, "round_count", 0)))
-    all_door_types = ["TRAP", "REWARD", "MONSTER", "SHOP", "EVENT"]
     rel = int(getattr(story, "elf_relation", 0))
     style = "vengeful" if rel <= -5 else "trickster"
     profile_extensions = []
@@ -4210,25 +4204,89 @@ def _schedule_elf_rival_final_gate(controller):
         profile_extensions.append("hostile_outcome")
     if rel <= -5:
         profile_extensions.append("deep_grudge")
-    return story.register_consequence(
-        choice_flag="ending_default_second_gate_rival",
-        consequence_id="ending_elf_rival_final_gate",
-        effect_key="elf_rival_final_gate",
-        chance=1.0,
-        trigger_door_types=all_door_types,
-        min_round=current_round + 1,
-        max_round=current_round + 1,
-        force_on_expire=True,
-        force_door_type="MONSTER",
-        priority=1250,
-        payload={
+    payload = {
             "style": style,
             "relation": rel,
             "extensions": profile_extensions,
-            "hint": "风里有熟悉的银羽划痕，像是有人专程在终局前截住你。",
-            "message": "你刚推开第二道终局门，前方墙体忽然裂开一扇怪物门。银羽斗篷从阴影里掠出：'还没结束，我们把旧账在这里算清。'",
-        },
+    }
+    return _schedule_pre_final_gate(
+        controller=controller,
+        gate_key="elf_rival_final_gate",
+        extra_payload=payload,
     )
+
+
+def _should_trigger_puppet_pre_final_gate(controller):
+    """木偶链未收束/曾逃跑时，在默认终局前插入一次黑暗木偶补战。"""
+    story = getattr(controller, "story", None)
+    if story is None:
+        return False
+    tags = set(getattr(story, "story_tags", set()))
+    if "ending:default_normal_completed" in tags or "ending:stage_curtain_completed" in tags:
+        return False
+    if "ending:puppet_rematch_gate_done" in tags:
+        return False
+    if "ending:puppet_final_defeated" in tags:
+        return False
+    cfg = _get_pre_final_gate_config("puppet_rematch_gate")
+    consequence_id = str(cfg.get("consequence_id", "ending_puppet_pre_final_rematch_gate"))
+    if consequence_id in getattr(story, "pending_consequences", {}):
+        return False
+    if consequence_id in getattr(story, "consumed_consequences", set()):
+        return False
+    arc_started = "puppet_arc_active" in tags or bool(getattr(story, "puppet_side_registered", False))
+    if not arc_started:
+        return False
+    outcome = str(getattr(story, "puppet_final_outcome", "")).strip()
+    escaped = outcome == "escaped" or "ending:puppet_final_escape_recorded" in tags
+    unfinished = outcome != "defeated"
+    return escaped or unfinished
+
+
+def _schedule_puppet_pre_final_gate(controller):
+    story = getattr(controller, "story", None)
+    if story is None:
+        return False
+    if not _should_trigger_puppet_pre_final_gate(controller):
+        return False
+    tags = set(getattr(story, "story_tags", set()))
+    escaped_before = (
+        "ending:puppet_final_escape_recorded" in tags
+        or str(getattr(story, "puppet_final_outcome", "")).strip() == "escaped"
+    )
+    if escaped_before:
+        payload = {
+            "hint": "你刚摸到最终门把，背后又响起那段熟悉的失真童谣——它追来了。",
+            "message": "你以为上次抽身就算结束，结果走廊再次弹出怪物门。黑暗木偶拖着火花扑来：'还没轮到你谢幕。'",
+        }
+    else:
+        payload = {
+            "hint": "木偶线仍未收束，门框上的红噪光纹提示你必须先清掉这段旧账。",
+            "message": "你准备进入最终结局前，回廊先被红噪信号改写：一扇黑暗木偶战斗门强行升起。",
+        }
+    scheduled = _schedule_pre_final_gate(
+        controller=controller,
+        gate_key="puppet_rematch_gate",
+        extra_payload=payload,
+    )
+    if scheduled:
+        story.story_tags.add("ending:puppet_rematch_gate_pending")
+    return scheduled
+
+
+def schedule_next_pre_final_gate(controller):
+    """统一调度最终结局前的事件门/战斗门链。"""
+    for gate_key in PRE_FINAL_DISPATCH_ORDER:
+        if gate_key == "puppet_rematch_gate":
+            if _schedule_puppet_pre_final_gate(controller):
+                return gate_key
+        elif gate_key == "elf_rival_final_gate":
+            if _schedule_elf_rival_final_gate(controller):
+                return gate_key
+        elif gate_key == "default_final_boss_gate":
+            if _schedule_default_ending_final_boss(controller):
+                return gate_key
+    return None
 
 
 class EndingFinalFirstGateEvent(Event):
@@ -4252,10 +4310,7 @@ class EndingFinalFirstGateEvent(Event):
         self.add_message(line)
         scheduled = _schedule_default_ending_forced_event(
             controller=self.controller,
-            consequence_id="ending_default_second_gate",
-            next_event_key="ending_final_second_gate_event",
-            hint="第二道终局门已经亮起，像在催促你继续做决定。",
-            trigger_message="你刚离开第一道门，前方又升起三扇写着不同命运注脚的门。",
+            gate_key="default_second_gate_event",
         )
         if scheduled:
             self.add_message("门后的走廊折叠成新的岔路，下一轮你还得再选一次。")
@@ -4301,15 +4356,15 @@ class EndingFinalSecondGateEvent(Event):
     def _record_choice_and_schedule(self, choice_flag, line):
         self.register_story_choice(choice_flag=choice_flag, moral_delta=0)
         self.add_message(line)
-        rival_scheduled = _schedule_elf_rival_final_gate(self.controller)
-        if rival_scheduled:
+        scheduled_gate = schedule_next_pre_final_gate(self.controller)
+        if scheduled_gate == "puppet_rematch_gate":
+            self.add_message("你刚准备继续前进，回廊先被红噪信号劫持：一场旧账补战抢在最终门前爆发。")
+        elif scheduled_gate == "elf_rival_final_gate":
             self.add_message("你刚迈步，走廊先被另一道杀意封死：有人要在最终门之前和你清算旧账。")
+        elif scheduled_gate == "default_final_boss_gate":
+            self.add_message("前方只剩最后一扇门，门牌上写着：『请做出最终决定』。")
         else:
-            scheduled = _schedule_default_ending_final_boss(self.controller)
-            if scheduled:
-                self.add_message("前方只剩最后一扇门，门牌上写着：『请做出最终决定』。")
-            else:
-                self.add_message("你听见门后有东西在笑，但走廊暂时没有继续变化。")
+            self.add_message("你听见门后有东西在笑，但走廊暂时没有继续变化。")
         return "Event Completed"
 
     def pick_left_gate(self):
