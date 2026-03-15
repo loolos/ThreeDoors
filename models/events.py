@@ -3742,6 +3742,159 @@ class ElfSideMerchantEvent(Event):
         return "Event Completed"
 
 
+def _schedule_default_ending_forced_event(controller, consequence_id, next_event_key, hint, trigger_message):
+    story = getattr(controller, "story", None)
+    if story is None:
+        return False
+    current_round = max(0, int(getattr(controller, "round_count", 0)))
+    all_door_types = ["TRAP", "REWARD", "MONSTER", "SHOP", "EVENT"]
+    return story.register_consequence(
+        choice_flag="ending_default_normal_route",
+        consequence_id=consequence_id,
+        effect_key="force_story_event",
+        chance=1.0,
+        trigger_door_types=all_door_types,
+        min_round=current_round + 1,
+        max_round=current_round + 1,
+        force_on_expire=True,
+        force_door_type="EVENT",
+        priority=1200,
+        payload={
+            "event_key": next_event_key,
+            "hint": hint,
+            "message": trigger_message,
+            "log_trigger": trigger_message,
+        },
+    )
+
+
+def _schedule_default_ending_final_boss(controller):
+    story = getattr(controller, "story", None)
+    if story is None:
+        return False
+    current_round = max(0, int(getattr(controller, "round_count", 0)))
+    all_door_types = ["TRAP", "REWARD", "MONSTER", "SHOP", "EVENT"]
+    return story.register_consequence(
+        choice_flag="ending_default_normal_route",
+        consequence_id="ending_default_final_boss_gate",
+        effect_key="default_final_boss",
+        chance=1.0,
+        trigger_door_types=all_door_types,
+        min_round=current_round + 1,
+        max_round=current_round + 1,
+        force_on_expire=True,
+        force_door_type="MONSTER",
+        priority=1200,
+        payload={
+            "boss_name": "选择困难症候群",
+            "hint": "门缝里传来嬉笑声：'看提示看了两百回合，终于舍得进来啦？'",
+            "message": "门后出现一张由问号拼成的笑脸。怪物弯腰行礼：'欢迎来到你的最终选择现场。'",
+            "taunts": [
+                "“看提示看了两百回合，眼睛还好吗？”",
+                "“三扇门你每次都要想半天，这不就是选择困难症吗？”",
+                "“来吧，把我打倒，证明你终于会做决定了。”",
+            ],
+            "log_trigger": "三扇终局门同时闭合，只剩中央一道裂隙。裂隙里钻出的怪物自报家门：『选择困难症候群』。",
+        },
+    )
+
+
+class EndingFinalFirstGateEvent(Event):
+    """普通结局主线：回合 200 强制进入的第一道终局门。"""
+
+    def __init__(self, controller):
+        super().__init__(controller)
+        self.title = "终局回廊·第一门"
+        self.description = (
+            "你走到迷宫尽头，墙体翻转出三道写着不同字句的门。"
+            "门牌像在嘲笑你此前的犹豫：『快一点』『再想想』『都可以』。"
+        )
+        self.choices = [
+            EventChoice("推开『快一点』之门", self.pick_hasty_gate),
+            EventChoice("推开『再想想』之门", self.pick_hesitate_gate),
+            EventChoice("推开『都可以』之门", self.pick_whatever_gate),
+        ]
+
+    def _record_choice_and_schedule(self, choice_flag, line):
+        self.register_story_choice(choice_flag=choice_flag, moral_delta=0)
+        self.add_message(line)
+        scheduled = _schedule_default_ending_forced_event(
+            controller=self.controller,
+            consequence_id="ending_default_second_gate",
+            next_event_key="ending_final_second_gate_event",
+            hint="第二道终局门已经亮起，像在催促你继续做决定。",
+            trigger_message="你刚离开第一道门，前方又升起三扇写着不同命运注脚的门。",
+        )
+        if scheduled:
+            self.add_message("门后的走廊折叠成新的岔路，下一轮你还得再选一次。")
+        else:
+            self.add_message("走廊短暂震动后恢复平静，像是在等待你继续前进。")
+        return "Event Completed"
+
+    def pick_hasty_gate(self):
+        return self._record_choice_and_schedule(
+            choice_flag="ending_default_first_gate_hasty",
+            line="你咬牙加速，先推开了写着『快一点』的门。",
+        )
+
+    def pick_hesitate_gate(self):
+        return self._record_choice_and_schedule(
+            choice_flag="ending_default_first_gate_hesitate",
+            line="你还是停下来反复确认，最终推开了『再想想』那扇门。",
+        )
+
+    def pick_whatever_gate(self):
+        return self._record_choice_and_schedule(
+            choice_flag="ending_default_first_gate_whatever",
+            line="你叹了口气：'都到这了随便吧。' 然后推开了『都可以』之门。",
+        )
+
+
+class EndingFinalSecondGateEvent(Event):
+    """普通结局主线：第二道终局门，汇合到默认 Boss。"""
+
+    def __init__(self, controller):
+        super().__init__(controller)
+        self.title = "终局回廊·第二门"
+        self.description = (
+            "第二段走廊更安静，三道门上只剩简短刻痕：『左』『中』『右』。"
+            "你意识到无论怎么选，迷宫都在逼你把犹豫走完。"
+        )
+        self.choices = [
+            EventChoice("走左门", self.pick_left_gate),
+            EventChoice("走中门", self.pick_middle_gate),
+            EventChoice("走右门", self.pick_right_gate),
+        ]
+
+    def _record_choice_and_schedule(self, choice_flag, line):
+        self.register_story_choice(choice_flag=choice_flag, moral_delta=0)
+        self.add_message(line)
+        scheduled = _schedule_default_ending_final_boss(self.controller)
+        if scheduled:
+            self.add_message("前方只剩最后一扇门，门牌上写着：『请做出最终决定』。")
+        else:
+            self.add_message("你听见门后有东西在笑，但走廊暂时没有继续变化。")
+        return "Event Completed"
+
+    def pick_left_gate(self):
+        return self._record_choice_and_schedule(
+            choice_flag="ending_default_second_gate_left",
+            line="你把手按在左门门把上，深呼吸后推门而入。",
+        )
+
+    def pick_middle_gate(self):
+        return self._record_choice_and_schedule(
+            choice_flag="ending_default_second_gate_middle",
+            line="你盯着中央那扇门看了许久，最终还是把它推开。",
+        )
+
+    def pick_right_gate(self):
+        return self._record_choice_and_schedule(
+            choice_flag="ending_default_second_gate_right",
+            line="你快步走向右门，像是怕自己又反悔。",
+        )
+
+
 def get_story_event_by_key(event_key, controller):
     event_map = {
         "moon_verdict_event": MoonVerdictEvent,
@@ -3763,6 +3916,8 @@ def get_story_event_by_key(event_key, controller):
         "elf_side_monster_event": ElfSideMonsterEvent,
         "elf_side_merchant_disguised_event": ElfSideMerchantDisguisedEvent,
         "elf_side_merchant_event": ElfSideMerchantEvent,
+        "ending_final_first_gate_event": EndingFinalFirstGateEvent,
+        "ending_final_second_gate_event": EndingFinalSecondGateEvent,
     }
     event_cls = event_map.get(event_key)
     if not event_cls or not _is_event_available(controller, event_cls):

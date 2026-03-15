@@ -93,6 +93,20 @@ class TestSceneSystem(BaseTest):
         
         self.assertIsInstance(self.controller.scene_manager.current_scene, GameOverScene)
 
+    def test_game_clear_mode_disables_revive_option(self):
+        self.controller.trigger_game_clear(
+            ending_key="default_normal",
+            ending_title="普通结局·迷宫出口",
+            ending_description="测试结局描述",
+        )
+        scene = self.controller.scene_manager.current_scene
+        self.assertIsInstance(scene, GameOverScene)
+        self.assertEqual(scene.button_texts[1], "结局已达成")
+
+        self.controller.clear_messages()
+        scene.handle_choice(1)
+        self.assertIn("无需使用复活卷轴", "\n".join(self.controller.messages))
+
     def test_button_text_door(self):
         """测试门场景按钮文本"""
         scene = self.controller.scene_manager.current_scene

@@ -14,6 +14,8 @@ from models.events import (
     PuppetKindEchoEvent,
     PuppetPersonaRiftEvent,
     PuppetCoreDescentEvent,
+    EndingFinalFirstGateEvent,
+    EndingFinalSecondGateEvent,
 )
 from models.items import FlyingHammer
 from models.monster import Monster
@@ -1210,3 +1212,59 @@ class TestStorySystem(BaseTest):
 
         self.assertGreater(self.player.get_inventory_size(), before_items)
         self.assertTrue(any("飞锤" in msg for msg in self.controller.messages))
+
+    def test_default_ending_is_forced_on_round_200_when_no_long_branch_started(self):
+        self.controller.round_count = 200
+        story = self.controller.story
+
+        scheduled = story.ensure_default_normal_ending_schedule()
+        self.assertTrue(scheduled)
+        self.assertIn("ending_default_force_gate_round_200", story.pending_consequences)
+
+        reward_door = DoorEnum.REWARD.create_instance(controller=self.controller)
+        changed_door = story.apply_pre_enter_checks(reward_door)
+        self.assertEqual(changed_door.enum.name, "EVENT")
+        self.assertEqual(getattr(changed_door, "story_forced_event_key", ""), "ending_final_first_gate_event")
+
+    def test_default_ending_is_not_scheduled_after_any_long_branch_started(self):
+        self.controller.round_count = 200
+        self.controller.event_trigger_counts["MoonBountyEvent"] = 1
+        story = self.controller.story
+
+        scheduled = story.ensure_default_normal_ending_schedule()
+        self.assertFalse(scheduled)
+        self.assertNotIn("ending_default_force_gate_round_200", story.pending_consequences)
+
+    def test_default_ending_two_gate_events_can_chain_to_final_boss(self):
+        story = self.controller.story
+        first_event = EndingFinalFirstGateEvent(self.controller)
+        first_event.resolve_choice(1)
+        self.assertIn("ending_default_second_gate", story.pending_consequences)
+
+        self.controller.round_count = 201
+        event_door = DoorEnum.EVENT.create_instance(controller=self.controller)
+        forced_second = story.apply_pre_enter_checks(event_door)
+        self.assertEqual(forced_second.enum.name, "EVENT")
+        self.assertEqual(getattr(forced_second, "story_forced_event_key", ""), "ending_final_second_gate_event")
+
+        second_event = EndingFinalSecondGateEvent(self.controller)
+        second_event.resolve_choice(2)
+        self.assertIn("ending_default_final_boss_gate", story.pending_consequences)
+
+        self.controller.round_count = 202
+        trap_door = DoorEnum.TRAP.create_instance(controller=self.controller)
+        forced_boss = story.apply_pre_enter_checks(trap_door)
+        self.assertEqual(forced_boss.enum.name, "MONSTER")
+        self.assertEqual(forced_boss.monster.name, "选择困难症候群")
+        self.assertTrue(getattr(forced_boss.monster, "story_default_final_boss", False))
+
+    def test_defeating_default_final_boss_triggers_normal_ending_clear(self):
+        story = self.controller.story
+        monster = Monster(name="选择困难症候群", hp=10, atk=2, tier=4)
+        setattr(monster, "story_default_final_boss", True)
+
+        story.resolve_battle_consequence(monster, defeated=True)
+
+        self.assertEqual(self.controller.scene_manager.current_scene.enum.name, "GAME_OVER")
+        self.assertEqual(getattr(self.controller, "game_clear_info", {}).get("ending_key"), "default_normal")
+        self.assertIn("ending:default_normal_completed", story.story_tags)

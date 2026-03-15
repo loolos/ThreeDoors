@@ -41,6 +41,7 @@ class GameController:
         self.current_monster = None
         self.current_battle_extensions = []
         self.current_event = None
+        self.game_clear_info = None
         self.round_count = 0
         self.messages = []
         self.recent_event_classes = []  # 最近触发的事件类名，用于非后续事件门去重
@@ -100,6 +101,15 @@ class GameController:
             return
         for ext in extensions:
             story.handle_battle_extension_post_player_attack(extension=ext, target=target)
+
+    def trigger_game_clear(self, ending_key: str, ending_title: str, ending_description: str) -> None:
+        """触发通关结局并跳转到结算场景。"""
+        self.game_clear_info = {
+            "ending_key": str(ending_key or "unknown"),
+            "ending_title": str(ending_title or "结局"),
+            "ending_description": str(ending_description or ""),
+        }
+        self.scene_manager.go_to("game_over_scene")
 
     def update_player_power_peaks(self):
         """记录玩家历史最高生命与攻击，用于 tier 解锁判定。"""
