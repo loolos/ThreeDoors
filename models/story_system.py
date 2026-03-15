@@ -393,7 +393,7 @@ class StorySystem:
         self._queue_chain_followups(consequence)
 
     def _should_defer_consumption(self, consequence: PendingConsequence, door: Any) -> bool:
-        if consequence.effect_key not in ("revenge_ambush", "puppet_side_minion", "moon_bounty_mid_battle"):
+        if consequence.effect_key not in ("revenge_ambush", "puppet_side_minion", "moon_bounty_mid_battle", "elf_rival_final_gate"):
             return False
         monster = getattr(door, "monster", None)
         if not monster:
@@ -410,6 +410,11 @@ class StorySystem:
             self._resolve_puppet_final_outcome()
         if (not defeated) and bool(getattr(monster, "story_puppet_final_boss", False)):
             self._resolve_puppet_final_escape_outcome()
+        if bool(getattr(monster, "story_elf_rival_final_boss", False)):
+            if defeated:
+                self._resolve_elf_rival_final_victory(monster)
+            else:
+                self._resolve_elf_rival_final_escape(monster)
         cid = getattr(monster, "story_consequence_id", None)
         if not cid:
             return
@@ -422,6 +427,31 @@ class StorySystem:
             return
         self._consume_consequence(consequence)
         self._resolve_moon_bounty_mid_outcome(monster)
+
+    def _resolve_elf_rival_final_victory(self, monster: Any) -> None:
+        """终局前击败飞贼：给出少量终局提示。"""
+        if "ending:elf_rival_final_victory" in self.story_tags:
+            return
+        self.story_tags.add("ending:elf_rival_final_victory")
+        self.story_tags.add("ending:elf_rival_final_gate_done")
+        self.choice_flags.add("ending_elf_rival_final_victory")
+        self.elf_final_outcome = "rival_defeated"
+        self.controller.add_message("【银羽终局·战败】她单膝撑地，笑得很勉强：'行，你这次赢了。'")
+        hint = str(getattr(monster, "story_elf_rival_hint", "")).strip()
+        if hint:
+            self.controller.add_message(f"【银羽提示】{hint}")
+        else:
+            self.controller.add_message("【银羽提示】她低声提醒：'终局门里别被第一层答案骗了，真正的出口常藏在第二次选择之后。'")
+
+    def _resolve_elf_rival_final_escape(self, monster: Any) -> None:
+        """终局前从飞贼战斗撤离：两人彻底别过。"""
+        if "ending:elf_rival_parted" in self.story_tags:
+            return
+        self.story_tags.add("ending:elf_rival_parted")
+        self.story_tags.add("ending:elf_rival_final_gate_done")
+        self.choice_flags.add("ending_elf_rival_parted")
+        self.elf_final_outcome = "rival_parted"
+        self.controller.add_message("【银羽终局·错身】你借着烟幕撤离，她没有追上来，只在远处抛下一句：'下次不用再见了。'")
 
     def _resolve_moon_bounty_mid_outcome(self, monster: Any) -> None:
         """月蚀链中继战斗收尾：记录日记证据并输出剧情提示。"""
@@ -1138,6 +1168,106 @@ class StorySystem:
                 "宝物已被掏空",
             )
             return True, door
+
+        if effect == "elf_rival_final_gate":
+            from models.monster import Monster, estimate_player_power, _apply_player_match_scaling
+
+            door_type = getattr(getattr(door, "enum", None), "name", "")
+            door_is_monster = door_type == "MONSTER"
+            player = getattr(self.controller, "player", None)
+            relation = int(payload.get("relation", getattr(self, "elf_relation", -4)))
+            style = str(payload.get("style", "trickster")).strip().lower()
+            extensions = payload.get("extensions", [])
+            if not isinstance(extensions, list):
+                extensions = []
+
+            base_hp = 138
+            base_atk = 24
+            hp_scale = 1.18
+            atk_scale = 1.14
+            if relation <= -5:
+                hp_scale += 0.08
+                atk_scale += 0.08
+            if "deep_grudge" in extensions:
+                hp_scale += 0.05
+                atk_scale += 0.05
+
+            rival = Monster(
+                name="银羽飞贼·莱希娅",
+                hp=max(1, int(base_hp * hp_scale)),
+                atk=max(1, int(base_atk * atk_scale)),
+                tier=max(3, int(payload.get("tier", 4))),
+                effect_probability=0.42,
+            )
+            round_count = max(0, int(getattr(self.controller, "round_count", 0)))
+            power_score = estimate_player_power(player=player, current_round=round_count)
+            _apply_player_match_scaling(
+                monster=rival,
+                player=player,
+                current_round=round_count,
+                power_score=power_score,
+            )
+
+            if style == "vengeful":
+                dialogue = "莱希娅甩开斗篷，语气像刀锋：'我不是来谈条件的。'"
+                hint = "她喘着血气压低声音：'终局第二门后的笑声在引你犯错，别把第一反应当答案。'"
+                state = {
+                    "profile": "vengeful",
+                    "extensions": extensions,
+                    "shadowstep_boost": [0.30, 0.22],
+                    "debuff_turns": [2],
+                    "debuff_mode": "weak",
+                    "lines": {
+                        "shadowstep": "【银羽招式·裂影突袭】她踩墙折返，连斩逼得你后撤。",
+                        "debuff": "【银羽招式·割喉假动作】她借假动作压低你的重心，你的出手明显发软。",
+                    },
+                }
+            else:
+                dialogue = "莱希娅指尖一转匕首：'你总算走到这里了，先把我们之间的账清掉。'"
+                hint = "她抬手拭血，冷笑道：'终局门里真正致命的不是怪物，是你以为自己已经选对。'"
+                state = {
+                    "profile": "trickster",
+                    "extensions": extensions,
+                    "shadowstep_boost": [0.24],
+                    "debuff_turns": [2],
+                    "debuff_mode": "poison" if "ending_hook_hunted" in extensions else "weak",
+                    "lines": {
+                        "shadowstep": "【银羽招式·回身夺隙】她借你的攻击空档贴身反刺。",
+                        "debuff": "【银羽招式·银羽粉】她扬起一把细碎粉末，呼吸与挥刀都被干扰。",
+                    },
+                }
+
+            setattr(rival, "story_elf_rival_final_boss", True)
+            setattr(rival, "story_consequence_id", consequence.consequence_id)
+            setattr(rival, "story_consume_on_defeat", True)
+            setattr(rival, "story_elf_rival_hint", hint)
+            extension_cfg = {
+                "extension_type": "elf_rival_final_boss",
+                "monster_ref": rival,
+                "state": state,
+            }
+
+            if door_is_monster:
+                if hasattr(door, "add_battle_extension"):
+                    door.add_battle_extension(extension_cfg)
+                else:
+                    door.battle_extensions = [extension_cfg]
+                door.monster = rival
+                target_door = door
+            else:
+                target_door = DoorEnum.MONSTER.create_instance(
+                    controller=self.controller,
+                    monster=rival,
+                    battle_extensions=[extension_cfg],
+                )
+
+            hint_text = payload.get("hint") or "银羽残痕在门槛上交错，像是一封迟到的决斗书。"
+            if isinstance(hint_text, str) and hint_text.strip():
+                target_door.hint = hint_text.strip()
+            self.controller.add_message(self._resolve_message(payload, "message", "走廊尽头忽然多出一扇怪物门，银羽斗篷从阴影里掠出。"))
+            self.controller.add_message(dialogue)
+            self._log_effect_result(consequence, f"{rival.name}拦路（关系 {relation}），生命 {rival.hp}，攻击 {rival.atk}")
+            return True, target_door
 
         if effect == "default_final_boss":
             from models.monster import Monster, estimate_player_power, _apply_player_match_scaling
@@ -1920,6 +2050,14 @@ class StorySystem:
                 defender=defender,
                 damage=damage,
             )
+        if ext_type == "elf_rival_final_boss":
+            return self._apply_elf_rival_runtime_modifiers(
+                extension=extension,
+                trigger=trigger,
+                attacker=attacker,
+                defender=defender,
+                damage=damage,
+            )
         return damage
 
     def handle_battle_extension_post_player_attack(self, extension: Dict[str, Any], target: Any) -> None:
@@ -1929,6 +2067,8 @@ class StorySystem:
         ext_type = extension.get("extension_type")
         if ext_type == "puppet_dark_boss":
             self._try_trigger_puppet_phase_two(extension=extension, target=target)
+        if ext_type == "elf_rival_final_boss":
+            self._try_trigger_elf_rival_counter(extension=extension, target=target)
 
     # 兼容旧接口：若调用方仍直接走 StorySystem，则透传到当前战斗扩展。
     def apply_puppet_combat_modifiers(self, trigger: str, attacker: Any, defender: Any, damage: int) -> int:
@@ -1950,6 +2090,64 @@ class StorySystem:
         for ext in extensions:
             switched = self._try_trigger_puppet_phase_two(extension=ext, target=monster) or switched
         return switched
+
+    def _apply_elf_rival_runtime_modifiers(
+        self,
+        extension: Dict[str, Any],
+        trigger: str,
+        attacker: Any,
+        defender: Any,
+        damage: int,
+    ) -> int:
+        """银羽终局战斗扩展：根据关系分支提供台词与招式。"""
+        state = extension.get("state")
+        if not isinstance(state, dict):
+            return damage
+        runtime = state.setdefault("runtime", {})
+        counts = runtime.setdefault("trigger_counts", {})
+
+        adjusted = max(1, int(damage))
+        if trigger == "monster_attack":
+            idx = int(counts.get("monster_attack", 0))
+            boosts = state.get("shadowstep_boost", [])
+            lines = state.get("lines", {}) if isinstance(state.get("lines", {}), dict) else {}
+            if idx < len(boosts):
+                boost = max(0.0, float(boosts[idx]))
+                adjusted = max(1, int(round(adjusted * (1.0 + boost))))
+                line = lines.get("shadowstep", "")
+                if isinstance(line, str) and line.strip():
+                    self.controller.add_message(line.strip())
+                self.controller.add_message(f"【银羽连携】她抓住你的一瞬迟疑，伤害 {damage}→{adjusted}。")
+            counts["monster_attack"] = idx + 1
+        return adjusted
+
+    def _try_trigger_elf_rival_counter(self, extension: Dict[str, Any], target: Any) -> None:
+        """玩家攻击后判定银羽的扰敌技。"""
+        if not target or not bool(getattr(target, "story_elf_rival_final_boss", False)):
+            return
+        state = extension.get("state")
+        if not isinstance(state, dict):
+            return
+        runtime = state.setdefault("runtime", {})
+        counts = runtime.setdefault("trigger_counts", {})
+        idx = int(counts.get("post_player_attack", 0))
+        turn_cfg = state.get("debuff_turns", [])
+        if idx >= len(turn_cfg):
+            return
+        duration = max(1, int(turn_cfg[idx]))
+        mode = str(state.get("debuff_mode", "weak")).strip().lower()
+        player = getattr(self.controller, "player", None)
+        if player is None:
+            return
+        effect = StatusName.POISON if mode == "poison" else StatusName.WEAK
+        player.apply_status(effect.create_instance(duration=duration, target=player))
+        lines = state.get("lines", {}) if isinstance(state.get("lines", {}), dict) else {}
+        line = lines.get("debuff", "")
+        if isinstance(line, str) and line.strip():
+            self.controller.add_message(line.strip())
+        label = "中毒" if effect == StatusName.POISON else "虚弱"
+        self.controller.add_message(f"【银羽压制】你的节奏被打断，获得{label}（{duration}回合）。")
+        counts["post_player_attack"] = idx + 1
 
     def _queue_chain_followups(self, consequence: PendingConsequence) -> None:
         """链式扩展端口：某个后续触发后再挂新的后续影响。"""
