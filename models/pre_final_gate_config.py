@@ -84,6 +84,7 @@ PRE_FINAL_GATE_STORY_CONFIG = {
         "choice_flag": "ending_default_second_gate_rival",
         "consequence_id": "ending_elf_rival_final_gate",
         "effect_key": "elf_rival_final_gate",
+        "trigger_door_types": ("MONSTER",),
         "force_door_type": "MONSTER",
         "priority": 1250,
         "payload": {
@@ -96,6 +97,7 @@ PRE_FINAL_GATE_STORY_CONFIG = {
         "choice_flag": "ending_default_second_gate_puppet",
         "consequence_id": "ending_puppet_pre_final_rematch_gate",
         "effect_key": "puppet_dark_boss",
+        "trigger_door_types": ("MONSTER",),
         "force_door_type": "MONSTER",
         "priority": 1260,
         "payload": {
