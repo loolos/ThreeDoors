@@ -1612,6 +1612,68 @@ class TestStorySystem(BaseTest):
         story.ensure_default_normal_ending_schedule()
         self.assertIn("ending_elf_rival_final_gate", story.pending_consequences)
 
+    def test_pre_final_countdown_pending_events_have_eighty_percent_priority(self):
+        story = self.controller.story
+        self.controller.round_count = 190
+
+        story.register_consequence(
+            choice_flag="pre_final_priority_case",
+            consequence_id="ending_elf_rival_final_gate",
+            effect_key="force_story_event",
+            chance=1.0,
+            trigger_door_types=["EVENT"],
+            payload={"event_key": "moon_verdict_event"},
+        )
+        story.register_consequence(
+            choice_flag="pre_final_priority_case",
+            consequence_id="non_blocking_event",
+            effect_key="force_story_event",
+            chance=1.0,
+            trigger_door_types=["EVENT"],
+            payload={"event_key": "moon_bounty_event"},
+        )
+
+        event_door = DoorEnum.EVENT.create_instance(controller=self.controller)
+        with unittest.mock.patch("models.story_system.random.random", return_value=0.0), unittest.mock.patch(
+            "models.story_system.random.uniform", return_value=0.0
+        ):
+            changed = story.apply_pre_enter_checks(event_door)
+
+        self.assertEqual(getattr(changed, "story_forced_event_key", ""), "moon_verdict_event")
+        self.assertIn("ending_elf_rival_final_gate", story.consumed_consequences)
+        self.assertIn("non_blocking_event", story.pending_consequences)
+
+    def test_pre_final_countdown_priority_is_not_guaranteed(self):
+        story = self.controller.story
+        self.controller.round_count = 190
+
+        story.register_consequence(
+            choice_flag="pre_final_priority_case",
+            consequence_id="ending_elf_rival_final_gate",
+            effect_key="force_story_event",
+            chance=0.01,
+            trigger_door_types=["EVENT"],
+            payload={"event_key": "moon_verdict_event"},
+        )
+        story.register_consequence(
+            choice_flag="pre_final_priority_case",
+            consequence_id="non_blocking_event",
+            effect_key="force_story_event",
+            chance=1.0,
+            trigger_door_types=["EVENT"],
+            payload={"event_key": "moon_bounty_event"},
+        )
+
+        event_door = DoorEnum.EVENT.create_instance(controller=self.controller)
+        with unittest.mock.patch("models.story_system.random.random", return_value=0.95), unittest.mock.patch(
+            "models.story_system.random.uniform", return_value=1.0
+        ):
+            changed = story.apply_pre_enter_checks(event_door)
+
+        self.assertEqual(getattr(changed, "story_forced_event_key", ""), "moon_bounty_event")
+        self.assertIn("non_blocking_event", story.consumed_consequences)
+        self.assertIn("ending_elf_rival_final_gate", story.pending_consequences)
+
     def test_after_window_all_remaining_pre_final_events_are_forced_sequentially(self):
         # 木偶逃跑 + 飞贼敌对：不满足银羽秘藏前置（需击败木偶且邪恶值≤45），故只挂载木偶补战与飞贼清算
         story = self.controller.story
