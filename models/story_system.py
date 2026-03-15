@@ -77,6 +77,7 @@ class StorySystem:
     DEFAULT_ENDING_FORCE_ROUND = 200
     PRE_FINAL_WINDOW_START_OFFSET = 15
     PRE_FINAL_WINDOW_END_OFFSET = 10
+    PRE_FINAL_RECHECK_INTERVAL = 5
     DEFAULT_ENDING_FORCE_CONSEQUENCE_ID = PRE_FINAL_GATE_STORY_CONFIG["round200_default_first_gate"]["consequence_id"]
     STAGE_CURTAIN_FORCE_CONSEQUENCE_ID = PRE_FINAL_GATE_STORY_CONFIG["round200_stage_preface"]["consequence_id"]
     PUPPET_PRE_FINAL_CONSEQUENCE_ID = PRE_FINAL_GATE_STORY_CONFIG["puppet_rematch_gate"]["consequence_id"]
@@ -242,11 +243,7 @@ class StorySystem:
         return False
 
     def _is_stage_curtain_route_ready(self) -> bool:
-        """舞台谢幕链前置：精灵线收束、关系良好且拿到钥匙。"""
-        if not bool(getattr(self, "elf_chain_ended", False)):
-            return False
-        if int(getattr(self, "elf_relation", 0)) < 2:
-            return False
+        """舞台谢幕链前置：只要求已拿到飞贼钥匙。"""
         if "curtain_call_script_recovered" in self.story_tags:
             return False
         key_obtained = bool(getattr(self, "elf_key_obtained", False)) or ("elf_key_obtained" in self.story_tags)
@@ -302,6 +299,17 @@ class StorySystem:
         }
         return any(cid in self.pending_consequences for cid in blocking_ids)
 
+    def _should_run_pre_final_recheck(self, *, current_round: int, window_start: int, ending_round: int) -> bool:
+        """倒数窗口统一检查：窗口起点 + 每隔固定回合 + 终局回合兜底。"""
+        if current_round == ending_round:
+            return True
+        if current_round == window_start:
+            return True
+        last_round = getattr(self, "pre_final_last_check_round", None)
+        if not isinstance(last_round, int):
+            return True
+        return (current_round - last_round) >= int(self.PRE_FINAL_RECHECK_INTERVAL)
+
     def ensure_pre_final_event_schedule(self) -> bool:
         """在终局前倒数 15~10 回合预挂载前置战，未命中时在结局前强制触发。"""
         if "ending:default_normal_completed" in self.story_tags:
@@ -314,6 +322,12 @@ class StorySystem:
         window_start = max(0, ending_round - int(self.PRE_FINAL_WINDOW_START_OFFSET))
         window_end = max(0, ending_round - int(self.PRE_FINAL_WINDOW_END_OFFSET))
         if current_round < window_start:
+            return False
+        if not self._should_run_pre_final_recheck(
+            current_round=current_round,
+            window_start=window_start,
+            ending_round=ending_round,
+        ):
             return False
 
         # 舞台谢幕钥匙线也纳入终局前事件窗口（宝物门命中，超窗强制）
@@ -332,19 +346,25 @@ class StorySystem:
             min_round = current_round
             max_round = current_round
 
-        scheduled_key = schedule_next_pre_final_gate(
-            self.controller,
-            include_default_final_boss=False,
-            min_round=min_round,
-            max_round=max_round,
-        )
-        if not scheduled_key:
-            return False
-        if scheduled_key == "elf_rival_final_gate":
+        scheduled_any = bool(stage_scheduled)
+        scheduled_keys = []
+        for _ in range(4):
+            scheduled_key = schedule_next_pre_final_gate(
+                self.controller,
+                include_default_final_boss=False,
+                min_round=min_round,
+                max_round=max_round,
+            )
+            if not scheduled_key:
+                break
+            scheduled_any = True
+            scheduled_keys.append(scheduled_key)
+        if "elf_rival_final_gate" in scheduled_keys:
             self.controller.add_message("【终局前事件】你在门廊里嗅到熟悉银羽杀意，飞贼清算战即将插入。")
-        elif scheduled_key == "puppet_rematch_gate":
+        if "puppet_rematch_gate" in scheduled_keys:
             self.controller.add_message("【终局前事件】红噪门框开始闪烁，黑暗木偶补战正在逼近。")
-        return bool(scheduled_key) or stage_scheduled
+        self.pre_final_last_check_round = current_round
+        return scheduled_any
 
     def ensure_default_normal_ending_schedule(self) -> bool:
         """在第 200 回合且未开启分支时，强制挂载默认终局入口事件。"""

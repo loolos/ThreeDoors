@@ -4182,22 +4182,14 @@ class EndingStageCurtainGateEvent(Event):
 
 
 def _should_trigger_elf_rival_pre_final(controller):
-    """终局前插入飞贼对决：仅在精灵线结束且关系极差时触发。"""
+    """终局前插入飞贼对决：精灵线收束且关系极差时触发。"""
     story = getattr(controller, "story", None)
     if story is None:
         return False
     if not bool(getattr(story, "elf_chain_ended", False)):
         return False
     rel = int(getattr(story, "elf_relation", 0))
-    if rel > -4:
-        return False
-    story_flags = set(getattr(story, "story_tags", set()))
-    choice_flags = set(getattr(story, "choice_flags", set()))
-    return (
-        "elf_outcome:hostile" in story_flags
-        or "elf_outcome_hostile" in choice_flags
-        or "ending_hook:elf_hostile" in story_flags
-    )
+    return rel <= -4
 
 
 def _schedule_elf_rival_final_gate(controller, *, min_round=None, max_round=None):
@@ -4240,7 +4232,7 @@ def _schedule_elf_rival_final_gate(controller, *, min_round=None, max_round=None
 
 
 def _should_trigger_puppet_pre_final_gate(controller):
-    """木偶链未收束/曾逃跑时，在默认终局前插入一次黑暗木偶补战。"""
+    """木偶终战曾逃跑时，在默认终局前插入一次黑暗木偶补战。"""
     story = getattr(controller, "story", None)
     if story is None:
         return False
@@ -4257,13 +4249,9 @@ def _should_trigger_puppet_pre_final_gate(controller):
         return False
     if consequence_id in getattr(story, "consumed_consequences", set()):
         return False
-    arc_started = "puppet_arc_active" in tags or bool(getattr(story, "puppet_side_registered", False))
-    if not arc_started:
-        return False
     outcome = str(getattr(story, "puppet_final_outcome", "")).strip()
     escaped = outcome == "escaped" or "ending:puppet_final_escape_recorded" in tags
-    unfinished = outcome != "defeated"
-    return escaped or unfinished
+    return escaped
 
 
 def _schedule_puppet_pre_final_gate(controller, *, min_round=None, max_round=None):
