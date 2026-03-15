@@ -1441,11 +1441,11 @@ class MoonBountyEvent(Event):
     def __init__(self, controller):
         super().__init__(controller)
         self.title = "Moon Bounty"
-        self.description = "你在墙上看到一张会发光的通缉令：'月蚀前带回叛徒，生死不论。'"
+        self.description = "你在墙上看到一张会发光的通缉令：'月蚀前带回叛徒，生死不论，但东西要抢回来。'"
         self.choices = [
             EventChoice("接单追猎", self.accept_contract),
-            EventChoice("暗中护送叛徒", self.protect_target),
-            EventChoice("两头通吃，伪造线索", self.double_cross),
+            EventChoice("撕毁通缉令，暗中寻找线索，试图护送被通缉者离开", self.protect_target),
+            EventChoice("两头通吃，伪造线索，试图从通缉者和被通缉者两头都赚到钱", self.double_cross),
         ]
 
     def accept_contract(self):
@@ -1481,7 +1481,7 @@ class MoonBountyEvent(Event):
                 shop_message="你坏了悬赏行会的规矩，商人把你列成高风险客户。",
             ),
         )
-        healed = self.get_player().heal(10)
+        healed = self.get_player().heal(17)
         self.add_message(f"你把通缉令撕成两半，护送行动让你重整呼吸，恢复 {healed} 点生命。风里传来一句低语：'那你就替他付账。'")
         return "Event Completed"
 
@@ -1498,9 +1498,9 @@ class MoonBountyEvent(Event):
             ),
         )
         p = self.get_player()
-        p.gold += 18
+        p.gold += 48
         p.take_damage(6)
-        self.add_message("你把真假线索分别卖给两边，先赚到 18G；但双方都在试探你，你在撤离时受了 6 点伤害。")
+        self.add_message("你把真假线索分别卖给两边，先赚到 48G；但双方都在试探你，你在撤离时受了 6 点伤害。")
         return "Event Completed"
 
     def _build_moon_chain(self, route, shop_effect, shop_ratio, hunter_name, shop_message):
@@ -1691,11 +1691,11 @@ class ClockworkBazaarEvent(Event):
     def __init__(self, controller):
         super().__init__(controller)
         self.title = "Clockwork Bazaar"
-        self.description = "一列会自行换轨的商贩车停在岔路口。这个的移动黑市不认身份，只认你能带来多少'可兑现的经历'，但自动售货机已经坏掉：修好它的机关可换信誉，也可以趁机偷看优惠码赚快钱，砸掉它则会立刻树敌。你需要马上选一种做法。"
+        self.description = "一列会自行换轨的商贩车停在岔路口。这个的移动黑市不认身份，而卖出的是一种'可兑现的经历'，但自动售货机已经坏掉：修好它的机关可换经历，也可以趁机偷看优惠码赚快钱，砸掉它则会立刻树敌，但可能会得到一些材料。你需要马上选一种做法。"
         self.choices = [
-            EventChoice("校准摊位机械，换取信誉", self.calibrate),
+            EventChoice("校准摊位机械，换取和经历", self.calibrate),
             EventChoice("偷看优惠码，赚取快钱", self.hack_coupon),
-            EventChoice("破坏竞品摊位", self.sabotage),
+            EventChoice("破坏竞品摊位，抢走材料", self.sabotage),
         ]
 
     def calibrate(self):
@@ -1712,7 +1712,7 @@ class ClockworkBazaarEvent(Event):
         )
         tip = 12
         self.get_player().gold += tip
-        self.add_message(f"你把卡死的计价机关重新校到同频，摊主看到后当众给你别上齿轮徽章，并付了 {tip}G 调校费。")
+        self.add_message(f"你把卡死的计价机关修好，并重新校到同频，摊主看到后当众给你的手臂上印上了认证徽章，并给了你折扣的 {tip}G 调校费。")
         return "Event Completed"
 
     def hack_coupon(self):
@@ -1741,7 +1741,7 @@ class ClockworkBazaarEvent(Event):
                 shop_effect="black_market_markup",
                 ratio=1.35,
                 hunter_name="死亡骑士",
-                shop_message="你砸摊的画面被市场广播循环播放，几乎所有摊位都把你列进高风险名单并抬价。",
+                shop_message="你砸摊的画面被广播循环播放，几乎所有摊位都把你列进高风险名单并抬价。",
             ),
         )
         p = self.get_player()
@@ -1873,7 +1873,7 @@ class ClockworkBazaarEvent(Event):
                             "trigger_door_types": ["TRAP", "MONSTER"],
                             "payload": {
                                 "duration": 2,
-                                "message": "前情：你先前改坏了黑市机关。故障反馈反向干扰你的动作节奏，让你出手变得迟滞。",
+                                "message": "前情：你先前改坏了摊位机关。故障反馈反向干扰你的动作节奏，让你出手变得迟滞。",
                             },
                         },
                         {
@@ -1902,10 +1902,10 @@ class CogAuditEvent(Event):
     def __init__(self, controller):
         super().__init__(controller)
         self.title = "Cog Audit"
-        self.description = "你在齿轮黑市留下的每一步操作都被总账追踪，如今正式触发审计。审计员把账本摊到你面前：要么补税认账、要么继续做假账硬闯、要么花钱买断风声。你必须当场给出结算方案。"
+        self.description = "你在移动摊位留下的每一步操作都被总账追踪，如今正式触发审计。计价员把账本摊到你面前：要么补款认账、要么继续做假硬闯、要么贿赂计价员花钱买断风声。你必须当场给出结算方案。"
         self.choices = [
-            EventChoice("补税结清", self.pay_tax),
-            EventChoice("做假账", self.fake_ledger),
+            EventChoice("补款结清", self.pay_tax),
+            EventChoice("做假通行证", self.fake_ledger),
             EventChoice("买断风声", self.buy_silence),
         ]
 
@@ -1942,7 +1942,7 @@ class CogAuditEvent(Event):
         p = self.get_player()
         paid = min(p.gold, 18)
         p.gold -= paid
-        self.add_message(f"你先按章补缴了 {paid}G。审计员在你通行证上盖了一个'已清算'。")
+        self.add_message(f"你先按章补缴了 {paid}G。审计员在你通行证上盖了一个'已付款'。")
         return "Event Completed"
 
     def fake_ledger(self):
@@ -1956,7 +1956,7 @@ class CogAuditEvent(Event):
                     "chance": 1.0,
                     "trigger_door_types": ["REWARD"],
                     "payload": {
-                        "message": "前情：你在审计环节选择做假账。假账生效了，但你的宝物门也被系统判定为'异常库存'并清空。",
+                        "message": "前情：你在审计环节选择做假。假通行证生效了，但你的宝物门也被系统判定为'异常库存'并清空。",
                         "chain_followups": [
                             {
                                 "consequence_id": "cog_audit_fake_fine",
@@ -1965,7 +1965,7 @@ class CogAuditEvent(Event):
                                 "trigger_door_types": ["EVENT", "SHOP"],
                                 "payload": {
                                     "amount": 35,
-                                    "message": "前情：你的假账被系统标记并进入追缴。延迟罚款追到了你，金币被直接划扣。",
+                                    "message": "前情：你的假通行证被系统标记并进入追缴。延迟罚款追到了你，金币被直接划扣。",
                                 },
                             }
                         ],
@@ -1975,7 +1975,7 @@ class CogAuditEvent(Event):
         )
         gain = 24
         self.get_player().gold += gain
-        self.add_message(f"你在账本里塞进了假齿轮。它转得很顺，但声音很假——你先套走了 {gain}G。")
+        self.add_message(f"你在通行证里里塞进了假数据。你因此获利了 {gain}G。")
         return "Event Completed"
 
     def buy_silence(self):
@@ -1991,7 +1991,7 @@ class CogAuditEvent(Event):
                     "payload": {
                         "item_key": "barrier",
                         "gold_bonus": 10,
-                        "message": "前情：你在审计桌上选择买断风声。对方收了封口费，回赠你一枚战斗结界发生器。",
+                        "message": "前情：你在计价员那里选择贿赂买断风声。对方收了封口费，回赠你一些赠品。",
                         "chain_followups": [
                             {
                                 "consequence_id": "cog_audit_silence_hunt",
@@ -2003,7 +2003,7 @@ class CogAuditEvent(Event):
                                     "hunter_name": "暗影刺客",
                                     "hp_ratio": 1.14,
                                     "atk_ratio": 1.15,
-                                    "message": "前情：你用封口费压住了明面审计。买断风声只挡住台面，补丁猎手从后台追上来了。",
+                                    "message": "前情：你用封口费压住了明面上的审计计价。买断风声只挡住台面，补丁猎手从后台追上来了。",
                                 },
                             }
                         ],
@@ -2036,9 +2036,9 @@ class DreamWellEvent(Event):
         self.title = "Dream Well"
         self.description = "梦井的水面映出的不是你的脸，而是被提前剪好的三段结局。传闻井水会把你的念头放大成现实，所以每个选择都会留下可追踪的后果：喝下它、封住它，或把梦折价卖给行脚商。你得现在决定要把哪条线继续下去。"
         self.choices = [
-            EventChoice("喝下梦井水", self.drink_dream),
+            EventChoice("记录并读取梦井水", self.drink_dream),
             EventChoice("封住井口", self.seal_well),
-            EventChoice("把梦卖给行脚商", self.sell_dream),
+            EventChoice("把梦卖掉变现", self.sell_dream),
         ]
 
     def drink_dream(self):
@@ -3273,7 +3273,7 @@ class ElfNightCampEvent(Event):
         self.description = (
             "门后是一处坍塌神像的背风面，她生了堆小火，正在烤一只蘑菇鸡。"
             "她示意你坐下，沉默了很久才开口：追她的不是普通赏金客，而是同一个组织里被她反咬过的人。"
-            "她当年偷走了他们用来买命的账册，里面记着谁给怪物门送祭品、谁拿平民换通行。"
+            "她当年偷走了他们的账册，里面记着谁给怪物送祭品，以及组织的各种秘密。"
             "现在那群人放话：要么拿回账册，要么把见过账册的人全埋进地底。"
             "火光映着她的侧脸，她把一半烤肉推给你：'所以你今晚要选，跟我一起扛，拿钱只做一单，还是听完就当没见过我。'"
         )
