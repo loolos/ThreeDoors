@@ -1449,12 +1449,14 @@ class TestStorySystem(BaseTest):
         self.assertIn("ending_puppet_pre_final_rematch_gate", story.pending_consequences)
         self.assertIn("ending_elf_rival_final_gate", story.pending_consequences)
 
+        self.controller.round_count = 190
         reward_door = DoorEnum.MONSTER.create_instance(controller=self.controller)
         forced_rematch = story.apply_pre_enter_checks(reward_door)
+        self.assertEqual(forced_rematch.monster.name, "裂齿·夜魇·游荡残响")
         story.resolve_battle_consequence(forced_rematch.monster, defeated=True)
         self.assertIn("ending_elf_rival_final_gate", story.pending_consequences)
 
-        self.controller.round_count = 186
+        self.controller.round_count = 191
         event_door = DoorEnum.MONSTER.create_instance(controller=self.controller)
         forced_rival = story.apply_pre_enter_checks(event_door)
         story.resolve_battle_consequence(forced_rival.monster, defeated=True)
