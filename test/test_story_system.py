@@ -8,6 +8,8 @@ from models.events import (
     ElfThiefIntroEvent,
     ElfSideMerchantDisguisedEvent,
     ElfRooftopDuelEvent,
+    EndingStageScriptVaultEvent,
+    EndingStageCurtainGateEvent,
     RefugeeCaravanEvent,
     PuppetAbandonmentEvent,
     PuppetSignalEvent,
@@ -1237,6 +1239,57 @@ class TestStorySystem(BaseTest):
 
         self.assertGreater(self.player.get_inventory_size(), before_items)
         self.assertTrue(any("飞锤" in msg for msg in self.controller.messages))
+
+    def test_stage_curtain_preface_is_forced_on_round_200_when_elf_key_route_ready(self):
+        self.controller.round_count = 200
+        story = self.controller.story
+        story.elf_chain_ended = True
+        story.elf_relation = 3
+        story.elf_key_obtained = True
+
+        scheduled = story.ensure_default_normal_ending_schedule()
+        self.assertTrue(scheduled)
+        self.assertIn("ending_stage_curtain_preface", story.pending_consequences)
+        self.assertNotIn("ending_default_force_gate_round_200", story.pending_consequences)
+
+        reward_door = DoorEnum.REWARD.create_instance(controller=self.controller)
+        changed_door = story.apply_pre_enter_checks(reward_door)
+        self.assertEqual(changed_door.enum.name, "EVENT")
+        self.assertEqual(getattr(changed_door, "story_forced_event_key", ""), "ending_stage_script_vault_event")
+
+    def test_stage_script_vault_marks_script_truth_and_schedules_stage_gate(self):
+        story = self.controller.story
+        story.story_tags.add("moon_bounty_diary_obtained")
+        story.moon_bounty_diary_source = "thief_testimony"
+
+        event = EndingStageScriptVaultEvent(self.controller)
+        self.assertIn("被冤枉", event.description)
+        event.resolve_choice(1)
+
+        self.assertIn("curtain_call_script_recovered", story.story_tags)
+        self.assertIn("curtain_call_truth_revealed", story.story_tags)
+        self.assertIn("ending_stage_curtain_gate", story.pending_consequences)
+
+    def test_stage_curtain_gate_can_trigger_order_ending_clear(self):
+        story = self.controller.story
+        story.story_tags.add("elf_outcome:alliance")
+        story.choice_flags.update(
+            {
+                "moon_verdict_clean",
+                "clockwork_calibrated",
+                "dream_well_sealed",
+                "echo_court_redeemed",
+            }
+        )
+        story.moon_bounty_diary_source = "thief_testimony"
+
+        event = EndingStageCurtainGateEvent(self.controller)
+        event.resolve_choice(0)
+
+        clear_info = getattr(self.controller, "game_clear_info", {})
+        self.assertEqual(clear_info.get("ending_key"), "stage_curtain_order")
+        self.assertIn("ending:stage_curtain_completed", story.story_tags)
+        self.assertEqual(clear_info.get("ending_meta", {}).get("stage_outcome"), "order")
 
     def test_default_ending_is_forced_on_round_200_when_no_long_branch_started(self):
         self.controller.round_count = 200
