@@ -408,6 +408,8 @@ class StorySystem:
             self._resolve_default_final_outcome()
         if defeated and bool(getattr(monster, "story_puppet_final_boss", False)):
             self._resolve_puppet_final_outcome()
+        if (not defeated) and bool(getattr(monster, "story_puppet_final_boss", False)):
+            self._resolve_puppet_final_escape_outcome()
         cid = getattr(monster, "story_consequence_id", None)
         if not cid:
             return
@@ -512,6 +514,38 @@ class StorySystem:
             reward_msg += f" 额外宝物：{', '.join(item_names)}。"
         self.controller.add_message(f"【木偶终战奖励】邪恶值 {evil}/100，{reward_msg}")
 
+    def _resolve_puppet_final_escape_outcome(self) -> None:
+        """木偶终战逃跑分支：记录后续结局参数，不单独触发结局。"""
+        if "ending:puppet_final_escape_recorded" in self.story_tags:
+            return
+        self.story_tags.add("ending:puppet_final_escape_recorded")
+        self.choice_flags.add("puppet_final_escape")
+        self.puppet_final_outcome = "escaped"
+        self.puppet_patrol_state = "active"
+        self.puppet_patrol_note = "木偶仍在走廊中来回游荡"
+        escape_text = (
+            "【木偶终战·撤离记录】你在最后一瞬选择抽身撤离。"
+            "机偶没有倒下，它仍沿着那条昏暗走廊来回游荡，"
+            "每次转身都像在寻找一个从未兑现的指令。"
+            "你离开了战场，却把那段失真童谣永远留在了门后。"
+        )
+        self.controller.add_message("【木偶终曲】你借着火花与烟尘冲出核心井，脚步声在空廊里被无限拉长。")
+        self.controller.add_message(escape_text)
+
+    def _build_final_ending_meta(self) -> Dict[str, Any]:
+        """聚合可交给最终结局展示层的剧情参数。"""
+        final_meta: Dict[str, Any] = {}
+        outcome = str(getattr(self, "puppet_final_outcome", "")).strip()
+        patrol_state = str(getattr(self, "puppet_patrol_state", "")).strip()
+        patrol_note = str(getattr(self, "puppet_patrol_note", "")).strip()
+        if outcome:
+            final_meta["puppet_final_outcome"] = outcome
+        if patrol_state:
+            final_meta["puppet_patrol_state"] = patrol_state
+        if patrol_note:
+            final_meta["puppet_patrol_note"] = patrol_note
+        return final_meta
+
     def _resolve_default_final_outcome(self) -> None:
         """普通结局：击败“选择困难症候群”后离开迷宫。"""
         if "ending:default_normal_completed" in self.story_tags:
@@ -526,6 +560,7 @@ class StorySystem:
                 ending_key="default_normal",
                 ending_title="普通结局·迷宫出口",
                 ending_description="你在回合二百的终局门廊做出选择，击倒“选择困难症候群”后终于离开了迷宫。",
+                ending_meta=self._build_final_ending_meta(),
             )
         else:
             self.controller.scene_manager.go_to("game_over_scene")

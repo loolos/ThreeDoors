@@ -789,6 +789,31 @@ class TestStorySystem(BaseTest):
         self.assertLessEqual(self.player.gold - gold_before, 18)
         self.assertTrue(any("木偶结局·暗噪回响" in msg for msg in self.controller.messages))
 
+    def test_puppet_final_boss_escape_records_meta_for_later_final_ending(self):
+        story = self.controller.story
+        puppet_boss = Monster(name="裂齿·夜魇·堕暗机偶", hp=10, atk=2, tier=2)
+        setattr(puppet_boss, "story_puppet_final_boss", True)
+
+        story.resolve_battle_consequence(puppet_boss, defeated=False)
+
+        self.assertIn("ending:puppet_final_escape_recorded", story.story_tags)
+        self.assertEqual(getattr(story, "puppet_final_outcome", ""), "escaped")
+        self.assertEqual(getattr(story, "puppet_patrol_state", ""), "active")
+        self.assertIn("走廊中来回游荡", getattr(story, "puppet_patrol_note", ""))
+        self.assertIsNone(getattr(self.controller, "game_clear_info", None))
+
+        default_boss = Monster(name="选择困难症候群", hp=10, atk=2, tier=4)
+        setattr(default_boss, "story_default_final_boss", True)
+        story.resolve_battle_consequence(default_boss, defeated=True)
+
+        clear_info = getattr(self.controller, "game_clear_info", {})
+        self.assertEqual(clear_info.get("ending_key"), "default_normal")
+        ending_meta = clear_info.get("ending_meta", {})
+        self.assertEqual(ending_meta.get("puppet_final_outcome"), "escaped")
+        self.assertEqual(ending_meta.get("puppet_patrol_state"), "active")
+        self.assertIn("走廊中来回游荡", ending_meta.get("puppet_patrol_note", ""))
+        self.assertTrue(any("木偶终战·撤离记录" in msg for msg in self.controller.messages))
+
     def test_puppet_dark_boss_gets_direct_modifier_from_signal_soft(self):
         story = self.controller.story
         story.choice_flags.add("puppet_signal_soft")
