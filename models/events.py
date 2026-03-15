@@ -3508,7 +3508,7 @@ class ElfEpilogueEvent(Event):
                 "临走前她压低声音提醒你：'这个世界有些地方不太对劲，像是在一遍又一遍地重复。'"
             )
             self.choices = [
-                EventChoice("认真记下提醒，与她友好作别", self.accept_bond),
+                EventChoice("认真记下提醒，与她友好作别", self.close_clean),
                 EventChoice("收下补给，平静分开", self.close_clean),
                 EventChoice("不信她的提醒，冷淡转身", self.burn_bridge),
             ]
