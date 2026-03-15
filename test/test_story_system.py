@@ -8,7 +8,7 @@ from models.events import (
     ElfThiefIntroEvent,
     ElfSideMerchantDisguisedEvent,
     ElfRooftopDuelEvent,
-    EndingStageScriptVaultEvent,
+    run_script_vault_recovery,
     EndingStageCurtainGateEvent,
     EndingStageKindPuppetDialogueEvent,
     EndingPowerCurtainDirectEvent,
@@ -1364,13 +1364,12 @@ class TestStorySystem(BaseTest):
         story.story_tags.add("moon_bounty_diary_obtained")
         story.moon_bounty_diary_source = "thief_testimony"
 
-        event = EndingStageScriptVaultEvent(self.controller)
-        self.assertIn("被冤枉", event.description)
-        event.resolve_choice(1)
+        run_script_vault_recovery(self.controller)
 
         self.assertIn("curtain_call_script_recovered", story.story_tags)
         self.assertIn("curtain_call_truth_revealed", story.story_tags)
         self.assertNotIn("ending_stage_curtain_gate", story.pending_consequences)
+        self.assertTrue(any("被冤枉" in msg for msg in self.controller.messages))
 
     def test_stage_curtain_gate_can_trigger_order_ending_clear(self):
         story = self.controller.story

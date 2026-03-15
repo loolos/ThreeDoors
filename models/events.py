@@ -18,7 +18,7 @@ PRE_FINAL_GATE_STORY_CONFIG = {
         "payload": {
             "hint": "你怀里的旧钥匙忽然发热，像在指向终局前的一扇带徽记的宝物门。",
             "message": "银羽留给你的钥匙突然自行转动，走廊侧墙弹出一扇带徽记的暗门。",
-            "log_trigger": "你触发了银羽秘藏前置事件，终局流程被改写。",
+            "log_trigger": "推开门前，你注意到了一个门上有银色的羽毛徽记，你似乎找到了那个飞贼藏起来的宝物。",
         },
     },
     # 回合 200：木偶回声怪物门（已击败木偶、未拿钥匙、与飞贼关系普通或不好；击败后即兴谢幕）
@@ -4340,22 +4340,22 @@ def _resolve_stage_curtain_outcome(route_key, score_payload):
 
 
 def run_script_vault_recovery(controller):
-    """宝物门进门时执行：仅剧情（得到剧本），无事件选项。用于倒数窗口内银羽秘藏宝物门。"""
+    """宝物门进门时执行：仅剧情（得到剧本 + 飞贼遗留宝物金币），无事件选项。用于倒数窗口内银羽秘藏宝物门。"""
     story = getattr(controller, "story", None)
     if story is None:
         return
     tags = set(getattr(story, "story_tags", set()))
     diary_source = str(getattr(story, "moon_bounty_diary_source", "")).strip()
     description = (
-        "你在终局前推开一扇刻着银羽暗号的宝物门。"
-        "旧钥匙刚碰到锁孔，整面墙就像布景般滑开。"
-        "秘藏室中央只有一只防尘匣，匣内并非金银，而是一整本终幕剧本。"
+        "你推开了那扇刻着银羽暗号的宝物门。"
+        "旧钥匙刚进入锁孔，整面墙就像布景般滑开。"
+        "秘藏室中央只有一只防尘匣，匣内并非金银，而看起来是一本破旧的笔记本，这是一本剧本。"
     )
     if "moon_bounty_diary_obtained" in tags:
         if diary_source == "thief_testimony":
             description = (
                 f"{description} 你把此前拿到的大盗证词日记摊在旁边，字句一一对上："
-                "通缉令里的『命运乐章』就是这本被银羽飞贼带走的剧本，那名大盗确实被冤枉了。"
+                "通缉令里的『命运乐章』就是这本被银羽飞贼带走的“命运乐谱”，那名大盗确实被冤枉了。"
             )
         elif diary_source == "thief_body":
             description = (
@@ -4368,91 +4368,19 @@ def run_script_vault_recovery(controller):
                 "通缉案的错位真相终于浮出水面。"
             )
     controller.add_message(description)
+    # 飞贼在秘藏室还留了一些宝物，玩家获得金币
+    player = getattr(controller, "player", None)
+    if player is not None:
+        bonus_gold = random.randint(40, 70)
+        player.gold += bonus_gold
+        controller.add_message(f"角落里还有飞贼留下的一些零散宝物，你收了起来，获得 {bonus_gold} 金币。")
     story.register_choice(choice_flag="curtain_script_secured", moral_delta=1)
     story.story_tags.add("curtain_call_script_recovered")
     story.choice_flags.add("curtain_call_script_recovered")
     if "moon_bounty_diary_obtained" in tags:
         story.story_tags.add("curtain_call_truth_revealed")
-        controller.add_message("你终于能确认：命运乐章并非大盗赃物，而是银羽飞贼偷走的终幕剧本。")
-    controller.add_message("你把整本剧本收进防水袋，准备带着完整文本进入最终门廊。")
-    controller.add_message("待所有倒数窗口事件清空、进入第 200 回合时，若满足条件将出现与善良木偶对话的结局门。")
-
-
-class EndingStageScriptVaultEvent(Event):
-    """舞台谢幕链前置：银羽秘藏点，确认命运乐章就是失窃剧本（事件门形态，保留供兼容）。"""
-    TRIGGER_BASE_PROBABILITY = 0.0
-
-    @classmethod
-    def is_trigger_condition_met(cls, controller):
-        return False
-
-    def __init__(self, controller):
-        super().__init__(controller)
-        self.title = "银羽秘藏"
-        story = getattr(controller, "story", None)
-        tags = set(getattr(story, "story_tags", set())) if story else set()
-        diary_source = str(getattr(story, "moon_bounty_diary_source", "")).strip() if story else ""
-
-        self.description = (
-            "你在终局前推开一扇刻着银羽暗号的事件门。"
-            "旧钥匙刚碰到锁孔，整面墙就像布景般滑开。"
-            "秘藏室中央只有一只防尘匣，匣内并非金银，而是一整本终幕剧本。"
-        )
-        if "moon_bounty_diary_obtained" in tags:
-            if diary_source == "thief_testimony":
-                self.description = (
-                    f"{self.description} 你把此前拿到的大盗证词日记摊在旁边，字句一一对上："
-                    "通缉令里的『命运乐章』就是这本被银羽飞贼带走的剧本，那名大盗确实被冤枉了。"
-                )
-            elif diary_source == "thief_body":
-                self.description = (
-                    f"{self.description} 你把从大盗身上搜出的日记逐页对照，终于确认："
-                    "安保系统追错了人，所谓命运乐章正是这本失窃剧本。"
-                )
-            else:
-                self.description = (
-                    f"{self.description} 你把旧日记本放在剧本旁边，残缺记录与正文相互咬合，"
-                    "通缉案的错位真相终于浮出水面。"
-                )
-        self.choices = [
-            EventChoice("收好剧本，准备终幕谢幕", self.secure_script),
-            EventChoice("先核对日记再封存剧本", self.verify_and_secure),
-            EventChoice("撕下关键页贴身携带", self.take_core_pages),
-        ]
-
-    def _finish_recovery(self, choice_flag, line, moral_delta=0):
-        self.register_story_choice(choice_flag=choice_flag, moral_delta=moral_delta)
-        story = getattr(self.controller, "story", None)
-        if story is not None:
-            story.story_tags.add("curtain_call_script_recovered")
-            story.choice_flags.add("curtain_call_script_recovered")
-            if "moon_bounty_diary_obtained" in story.story_tags:
-                story.story_tags.add("curtain_call_truth_revealed")
-                self.add_message("你终于能确认：命运乐章并非大盗赃物，而是银羽飞贼偷走的终幕剧本。")
-        self.add_message(line)
-        self.add_message("待所有倒数窗口事件清空、进入第 200 回合时，若满足条件将出现与善良木偶对话的结局门。")
-        return "Event Completed"
-
-    def secure_script(self):
-        return self._finish_recovery(
-            choice_flag="curtain_script_secured",
-            moral_delta=1,
-            line="你把整本剧本收进防水袋，准备带着完整文本进入最终门廊。",
-        )
-
-    def verify_and_secure(self):
-        return self._finish_recovery(
-            choice_flag="curtain_script_verified",
-            moral_delta=2,
-            line="你把日记与剧本逐页对照后重新封存，证词链条变得更完整。",
-        )
-
-    def take_core_pages(self):
-        return self._finish_recovery(
-            choice_flag="curtain_script_core_pages",
-            moral_delta=-1,
-            line="你只撕走最关键的谢幕段落贴身携带，剩余正文留在秘藏室里。",
-        )
+        controller.add_message("你终于能确认：命运乐章正是银羽飞贼偷走的终幕剧本。")
+    controller.add_message("你把整本剧本收进口袋，继续前进。")
 
 
 class EndingStageKindPuppetDialogueEvent(Event):
@@ -5380,7 +5308,6 @@ def get_story_event_by_key(event_key, controller):
         "elf_side_merchant_disguised_event": ElfSideMerchantDisguisedEvent,
         "elf_side_merchant_event": ElfSideMerchantEvent,
         "dream_mirror_prelude_event": DreamMirrorPreludeEvent,
-        "ending_stage_script_vault_event": EndingStageScriptVaultEvent,
         "ending_stage_kind_puppet_dialogue_event": EndingStageKindPuppetDialogueEvent,
         "ending_stage_curtain_gate_event": EndingStageCurtainGateEvent,
         "ending_power_curtain_direct_event": EndingPowerCurtainDirectEvent,

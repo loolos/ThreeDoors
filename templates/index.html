@@ -63,6 +63,7 @@
   </div>
   <script>window.TEST_GATE = {{ (test_gate or '')|tojson }};</script>
   <script src="https://cdn.jsdelivr.net/npm/tone@14.8.49/build/Tone.js"></script>
+  <script src="{{ url_for('static', filename='sound.js') }}"></script>
   <script src="{{ url_for('static', filename='main.js') }}"></script>
 </body>
 
