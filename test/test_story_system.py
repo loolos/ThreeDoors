@@ -4,6 +4,7 @@ import random
 from models.door import DoorEnum
 from models.events import (
     MoonBountyEvent,
+    MoonVerdictEvent,
     ElfThiefIntroEvent,
     ElfSideMerchantDisguisedEvent,
     ElfRooftopDuelEvent,
