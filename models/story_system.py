@@ -75,6 +75,7 @@ class StorySystem:
     LOW_MORAL = -30
     DEFAULT_ENDING_FORCE_ROUND = 200
     DEFAULT_ENDING_FORCE_CONSEQUENCE_ID = "ending_default_force_gate_round_200"
+    STAGE_CURTAIN_FORCE_CONSEQUENCE_ID = "ending_stage_curtain_preface"
 
     HIGH_MORAL_MONSTERS = {"树人", "天使", "创世神官", "幽灵", "精灵法师"}
     LOW_MORAL_MONSTERS = {"土匪", "狼人", "食人魔", "冥界使者", "暗影刺客"}
@@ -235,8 +236,58 @@ class StorySystem:
                 return True
         return False
 
+    def _is_stage_curtain_route_ready(self) -> bool:
+        """舞台谢幕链前置：精灵线收束、关系良好且拿到钥匙。"""
+        if not bool(getattr(self, "elf_chain_ended", False)):
+            return False
+        if int(getattr(self, "elf_relation", 0)) < 2:
+            return False
+        if "curtain_call_script_recovered" in self.story_tags:
+            return False
+        key_obtained = bool(getattr(self, "elf_key_obtained", False)) or ("elf_key_obtained" in self.story_tags)
+        return key_obtained
+
+    def ensure_stage_curtain_preface_schedule(self) -> bool:
+        """回合 200 时满足前置则强制先进入“银羽秘藏”事件门。"""
+        if not self._is_stage_curtain_route_ready():
+            return False
+        if "ending:default_normal_completed" in self.story_tags:
+            return False
+        if "ending:stage_curtain_completed" in self.story_tags:
+            return False
+        current_round = max(0, int(getattr(self.controller, "round_count", 0)))
+        if current_round < self.DEFAULT_ENDING_FORCE_ROUND:
+            return False
+        consequence_id = self.STAGE_CURTAIN_FORCE_CONSEQUENCE_ID
+        if consequence_id in self.pending_consequences or consequence_id in self.consumed_consequences:
+            return False
+        all_door_types = [door_type.name for door_type in DoorEnum]
+        registered = self.register_consequence(
+            choice_flag="ending_stage_curtain_route",
+            consequence_id=consequence_id,
+            effect_key="force_story_event",
+            chance=1.0,
+            trigger_door_types=all_door_types,
+            min_round=self.DEFAULT_ENDING_FORCE_ROUND,
+            max_round=self.DEFAULT_ENDING_FORCE_ROUND,
+            force_on_expire=True,
+            force_door_type="EVENT",
+            priority=1260,
+            payload={
+                "event_key": "ending_stage_script_vault_event",
+                "hint": "你怀里的旧钥匙忽然发热，像在指向终局前的一扇隐藏事件门。",
+                "message": "【终局分歧】银羽留给你的钥匙突然自行转动，走廊侧墙弹出一扇带徽记的暗门。",
+                "log_trigger": "【回合200·舞台谢幕链】你触发了银羽秘藏前置事件，终局流程被改写。",
+            },
+        )
+        if registered:
+            self.story_tags.add("ending:stage_curtain_scheduled")
+        return registered
+
     def ensure_default_normal_ending_schedule(self) -> bool:
         """在第 200 回合且未开启分支时，强制挂载默认终局入口事件。"""
+        if self.ensure_stage_curtain_preface_schedule():
+            return True
         if self._has_started_long_story_branch():
             return False
         if "ending:default_normal_completed" in self.story_tags:

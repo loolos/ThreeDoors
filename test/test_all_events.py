@@ -252,6 +252,8 @@ class TestAllEvents(BaseTest):
         self.assertIn("elf_outcome:alliance", story.story_tags)
         self.assertIn("ending_hook:elf_alliance", story.story_tags)
         self.assertIn("elf_outcome_alliance", story.choice_flags)
+        self.assertTrue(getattr(story, "elf_key_obtained", False))
+        self.assertIn("elf_key_obtained", story.story_tags)
 
     def test_elf_epilogue_neutral_relation_choice_stays_neutral(self):
         event = get_story_event_by_key("elf_epilogue_event", self.controller)
@@ -262,6 +264,8 @@ class TestAllEvents(BaseTest):
         self.assertEqual(getattr(story, "elf_final_outcome", None), "neutral")
         self.assertIn("elf_outcome:neutral", story.story_tags)
         self.assertIn("ending_hook:elf_neutral", story.story_tags)
+        self.assertFalse(getattr(story, "elf_key_obtained", False))
+        self.assertNotIn("elf_key_obtained", story.story_tags)
 
     def test_new_long_chain_starter_event_choices(self):
         self.player.gold = 300

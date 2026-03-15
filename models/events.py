@@ -2984,6 +2984,8 @@ def _get_elf_chain_state(controller):
         story.elf_middle_queue = []
     if not hasattr(story, "elf_chain_ended"):
         story.elf_chain_ended = False
+    if not hasattr(story, "elf_key_obtained"):
+        story.elf_key_obtained = False
     return story
 
 
@@ -2993,6 +2995,19 @@ def _adjust_elf_relation(controller, delta):
         return 0
     story.elf_relation = max(-6, min(6, int(story.elf_relation) + int(delta)))
     return story.elf_relation
+
+
+def _set_elf_key_obtained(controller, obtained):
+    story = _get_elf_chain_state(controller)
+    if story is None:
+        return None
+    value = bool(obtained)
+    story.elf_key_obtained = value
+    if value:
+        story.story_tags.add("elf_key_obtained")
+    else:
+        story.story_tags.discard("elf_key_obtained")
+    return story
 
 
 def _elf_percent_gold(player, ratio, minimum=1):
@@ -3533,6 +3548,7 @@ class ElfEpilogueEvent(Event):
             extra_tags={"ending_hook:elf_alliance", "ending_hook:ally_network"},
         )
         rel = getattr(story, "elf_relation", 0) if story else self.rel
+        _set_elf_key_obtained(self.controller, rel >= 2)
         boon_text = _elf_grant_dynamic_boon(self.controller)
         extra_heal = _elf_percent_hp(self.get_player(), 0.08 if rel >= 2 else 0.05)
         self.get_player().hp = self.get_player().hp + extra_heal
@@ -3551,6 +3567,7 @@ class ElfEpilogueEvent(Event):
             extra_tags={"ending_hook:elf_neutral", "ending_hook:lone_path"},
         )
         rel = getattr(story, "elf_relation", 0) if story else self.rel
+        _set_elf_key_obtained(self.controller, rel >= 2)
         gain = _elf_percent_gold(self.get_player(), 0.12 if rel >= 0 else 0.08)
         self.get_player().gold += gain
         if rel >= 2:
@@ -3568,6 +3585,7 @@ class ElfEpilogueEvent(Event):
             extra_tags={"ending_hook:elf_hostile", "ending_hook:hunted"},
         )
         rel = getattr(story, "elf_relation", 0) if story else self.rel
+        _set_elf_key_obtained(self.controller, False)
         dmg = _elf_percent_hp(self.get_player(), 0.12 if rel > -2 else 0.16)
         self.get_player().take_damage(dmg)
         if rel >= 2:
@@ -3825,6 +3843,329 @@ def _schedule_default_ending_final_boss(controller):
     )
 
 
+def _schedule_stage_curtain_gate_event(controller):
+    return _schedule_default_ending_forced_event(
+        controller=controller,
+        consequence_id="ending_stage_curtain_gate",
+        next_event_key="ending_stage_curtain_gate_event",
+        hint="你怀里的剧本忽然发热，前方三扇门同时亮起：『补全』『即兴』『接管』。",
+        trigger_message="你收起剧本后，终局走廊被改写成了新的谢幕门廊。",
+    )
+
+
+def _collect_stage_curtain_scores(story):
+    flags = set(getattr(story, "choice_flags", set()))
+    tags = set(getattr(story, "story_tags", set()))
+    order = 0
+    freedom = 0
+    power = 0
+    risk = 0
+    notes = []
+
+    if "elf_outcome:alliance" in tags or "elf_outcome_alliance" in flags:
+        order += 1
+        freedom += 2
+        notes.append("银羽飞贼愿意把关键证词交给你。")
+    elif "elf_outcome:neutral" in tags or "elf_outcome_neutral" in flags:
+        order += 1
+        notes.append("银羽飞贼只留下了有限线索。")
+    elif "elf_outcome:hostile" in tags or "elf_outcome_hostile" in flags:
+        power += 1
+        risk += 3
+        notes.append("银羽飞贼与你决裂，终幕信任链被撕开。")
+
+    diary_source = str(getattr(story, "moon_bounty_diary_source", "")).strip()
+    if diary_source == "thief_testimony":
+        freedom += 2
+        notes.append("大盗证词与旧日记互相印证，冤案被翻出。")
+    elif diary_source == "thief_body":
+        order += 1
+        notes.append("你掌握了来自案发现场的旧日记证据。")
+
+    if "moon_verdict_clean" in flags:
+        order += 2
+    if "moon_verdict_burned" in flags:
+        power += 1
+        risk += 2
+    if "moon_verdict_extorted" in flags:
+        power += 2
+        risk += 1
+
+    if "clockwork_calibrated" in flags or "cog_audit_tax_paid" in flags:
+        order += 1
+    if "clockwork_hacked" in flags or "cog_audit_faked" in flags or "cog_audit_silenced" in flags:
+        power += 1
+        risk += 1
+    if "clockwork_sabotaged" in flags:
+        power += 1
+        risk += 2
+
+    if "dream_well_sealed" in flags or "echo_court_redeemed" in flags:
+        order += 1
+    if "dream_well_drank" in flags or "mirror_tore_script" in flags:
+        freedom += 1
+    if "dream_well_sold" in flags or "echo_court_trading" in flags:
+        power += 2
+        risk += 1
+    if "echo_court_taxed" in flags:
+        order += 1
+
+    if "mirror_played_hero" in flags:
+        order += 1
+    if "mirror_played_villain" in flags:
+        power += 1
+
+    kind_flags = {
+        "puppet_signal_soft",
+        "puppet_kind_echo_trust",
+        "puppet_kind_echo_comfort",
+        "puppet_rift_kind",
+        "puppet_descent_patch",
+    }
+    dark_flags = {
+        "puppet_signal_resell",
+        "puppet_kind_echo_exploit",
+        "puppet_rift_dark",
+        "puppet_descent_cut_emotion",
+        "puppet_descent_dark_feed",
+    }
+    kind_hits = len(kind_flags.intersection(flags))
+    dark_hits = len(dark_flags.intersection(flags))
+    if kind_hits >= 2:
+        freedom += 1
+        order += 1
+        notes.append("木偶善侧残响仍在，舞台暴走风险下降。")
+    if dark_hits >= 2:
+        power += 1
+        risk += 1
+        notes.append("木偶暗侧参数被你长期放大，终幕更偏强控。")
+
+    return {
+        "order": order,
+        "freedom": freedom,
+        "power": power,
+        "risk": risk,
+        "notes": notes,
+        "diary_source": diary_source,
+    }
+
+
+def _resolve_stage_curtain_outcome(route_key, score_payload):
+    order = int(score_payload.get("order", 0))
+    freedom = int(score_payload.get("freedom", 0))
+    power = int(score_payload.get("power", 0))
+    risk = int(score_payload.get("risk", 0))
+    notes = list(score_payload.get("notes", []))
+    suffix = f"（秩序{order}/自由{freedom}/权力{power}/风险{risk}）"
+
+    if risk >= 5:
+        return {
+            "ending_key": "stage_curtain_collapse",
+            "ending_title": "舞台谢幕·破场流产",
+            "ending_description": f"证词冲突与清算链同时爆发，假面剧场当场失稳，谢幕中断。{suffix}",
+            "outcome_tag": "collapse",
+            "notes": notes,
+        }
+
+    if route_key == "order" and order >= 4 and risk <= 3:
+        return {
+            "ending_key": "stage_curtain_order",
+            "ending_title": "舞台谢幕·补全谢幕",
+            "ending_description": f"你按证词与秩序补齐终幕结构，舞台平稳落幕。{suffix}",
+            "outcome_tag": "order",
+            "notes": notes,
+        }
+    if route_key == "freedom" and freedom >= 4 and risk <= 3:
+        return {
+            "ending_key": "stage_curtain_freedom",
+            "ending_title": "舞台谢幕·即兴谢幕",
+            "ending_description": f"你承认剧本无法完整复刻，带着众人的证词即兴完成终演。{suffix}",
+            "outcome_tag": "freedom",
+            "notes": notes,
+        }
+    if route_key == "power" and power >= 4 and risk <= 4:
+        return {
+            "ending_key": "stage_curtain_power",
+            "ending_title": "舞台谢幕·接管谢幕",
+            "ending_description": f"你以导演代理人身份接管门廊规则，强行完成谢幕。{suffix}",
+            "outcome_tag": "power",
+            "notes": notes,
+        }
+
+    return {
+        "ending_key": "stage_curtain_collapse",
+        "ending_title": "舞台谢幕·破场流产",
+        "ending_description": f"你选定的谢幕路线缺少足够前置支撑，终幕在冲突里提前崩塌。{suffix}",
+        "outcome_tag": "collapse",
+        "notes": notes,
+    }
+
+
+class EndingStageScriptVaultEvent(Event):
+    """舞台谢幕链前置：银羽秘藏点，确认命运乐章就是失窃剧本。"""
+    TRIGGER_BASE_PROBABILITY = 0.0
+
+    @classmethod
+    def is_trigger_condition_met(cls, controller):
+        return False
+
+    def __init__(self, controller):
+        super().__init__(controller)
+        self.title = "银羽秘藏"
+        story = getattr(controller, "story", None)
+        tags = set(getattr(story, "story_tags", set())) if story else set()
+        diary_source = str(getattr(story, "moon_bounty_diary_source", "")).strip() if story else ""
+
+        self.description = (
+            "你在终局前推开一扇刻着银羽暗号的事件门。"
+            "旧钥匙刚碰到锁孔，整面墙就像布景般滑开。"
+            "秘藏室中央只有一只防尘匣，匣内并非金银，而是一整本终幕剧本。"
+        )
+        if "moon_bounty_diary_obtained" in tags:
+            if diary_source == "thief_testimony":
+                self.description = (
+                    f"{self.description} 你把此前拿到的大盗证词日记摊在旁边，字句一一对上："
+                    "通缉令里的『命运乐章』就是这本被银羽飞贼带走的剧本，那名大盗确实被冤枉了。"
+                )
+            elif diary_source == "thief_body":
+                self.description = (
+                    f"{self.description} 你把从大盗身上搜出的日记逐页对照，终于确认："
+                    "安保系统追错了人，所谓命运乐章正是这本失窃剧本。"
+                )
+            else:
+                self.description = (
+                    f"{self.description} 你把旧日记本放在剧本旁边，残缺记录与正文相互咬合，"
+                    "通缉案的错位真相终于浮出水面。"
+                )
+        self.choices = [
+            EventChoice("收好剧本，准备终幕谢幕", self.secure_script),
+            EventChoice("先核对日记再封存剧本", self.verify_and_secure),
+            EventChoice("撕下关键页贴身携带", self.take_core_pages),
+        ]
+
+    def _finish_recovery(self, choice_flag, line, moral_delta=0):
+        self.register_story_choice(choice_flag=choice_flag, moral_delta=moral_delta)
+        story = getattr(self.controller, "story", None)
+        if story is not None:
+            story.story_tags.add("curtain_call_script_recovered")
+            story.choice_flags.add("curtain_call_script_recovered")
+            if "moon_bounty_diary_obtained" in story.story_tags:
+                story.story_tags.add("curtain_call_truth_revealed")
+                self.add_message("你终于能确认：命运乐章并非大盗赃物，而是银羽飞贼偷走的终幕剧本。")
+        self.add_message(line)
+        scheduled = _schedule_stage_curtain_gate_event(self.controller)
+        if scheduled:
+            self.add_message("剧本翻到最后一页时，远处门廊的三道新门同时亮起。")
+        else:
+            self.add_message("你把剧本压进斗篷，走廊暂时恢复了沉默。")
+        return "Event Completed"
+
+    def secure_script(self):
+        return self._finish_recovery(
+            choice_flag="curtain_script_secured",
+            moral_delta=1,
+            line="你把整本剧本收进防水袋，准备带着完整文本进入最终门廊。",
+        )
+
+    def verify_and_secure(self):
+        return self._finish_recovery(
+            choice_flag="curtain_script_verified",
+            moral_delta=2,
+            line="你把日记与剧本逐页对照后重新封存，证词链条变得更完整。",
+        )
+
+    def take_core_pages(self):
+        return self._finish_recovery(
+            choice_flag="curtain_script_core_pages",
+            moral_delta=-1,
+            line="你只撕走最关键的谢幕段落贴身携带，剩余正文留在秘藏室里。",
+        )
+
+
+class EndingStageCurtainGateEvent(Event):
+    """舞台谢幕链终局门：补全/即兴/接管三选一。"""
+    TRIGGER_BASE_PROBABILITY = 0.0
+
+    @classmethod
+    def is_trigger_condition_met(cls, controller):
+        return False
+
+    def __init__(self, controller):
+        super().__init__(controller)
+        self.title = "舞台谢幕·终幕门廊"
+        self.description = (
+            "你抱着刚取回的终幕剧本抵达门廊，三道门牌像舞台吊牌一样降下："
+            "『补全谢幕』『即兴谢幕』『接管谢幕』。"
+            "门框上的刻痕同时亮起，催你用自己的选择写下最终落幕。"
+        )
+        self.choices = [
+            EventChoice("走『补全谢幕』之门", self.pick_order),
+            EventChoice("走『即兴谢幕』之门", self.pick_freedom),
+            EventChoice("走『接管谢幕』之门", self.pick_power),
+        ]
+
+    def _trigger_stage_ending(self, route_key, choice_flag, line):
+        self.register_story_choice(choice_flag=choice_flag, moral_delta=0)
+        self.add_message(line)
+        story = getattr(self.controller, "story", None)
+        if story is None:
+            return "Event Completed"
+
+        score_payload = _collect_stage_curtain_scores(story)
+        ending_payload = _resolve_stage_curtain_outcome(route_key, score_payload)
+        outcome_tag = ending_payload.get("outcome_tag", "collapse")
+        story.story_tags.add("ending:stage_curtain_completed")
+        story.story_tags.add(f"ending:stage_curtain:{outcome_tag}")
+        story.choice_flags.add(f"ending_stage_curtain_{outcome_tag}")
+
+        notes = ending_payload.get("notes", [])
+        if notes:
+            self.add_message("【谢幕线索】" + " ".join(notes[:2]))
+
+        trigger_clear = getattr(self.controller, "trigger_game_clear", None)
+        if callable(trigger_clear):
+            trigger_clear(
+                ending_key=ending_payload.get("ending_key", "stage_curtain_collapse"),
+                ending_title=ending_payload.get("ending_title", "舞台谢幕"),
+                ending_description=ending_payload.get("ending_description", "终幕结束。"),
+                ending_meta={
+                    "stage_route_choice": route_key,
+                    "stage_outcome": outcome_tag,
+                    "stage_scores": {
+                        "order": score_payload.get("order", 0),
+                        "freedom": score_payload.get("freedom", 0),
+                        "power": score_payload.get("power", 0),
+                        "risk": score_payload.get("risk", 0),
+                    },
+                    "script_truth_revealed": "curtain_call_truth_revealed" in story.story_tags,
+                },
+            )
+        else:
+            self.controller.scene_manager.go_to("game_over_scene")
+        return "Event Completed"
+
+    def pick_order(self):
+        return self._trigger_stage_ending(
+            route_key="order",
+            choice_flag="ending_stage_gate_order",
+            line="你把剧本压平在掌心，推开了『补全谢幕』之门。",
+        )
+
+    def pick_freedom(self):
+        return self._trigger_stage_ending(
+            route_key="freedom",
+            choice_flag="ending_stage_gate_freedom",
+            line="你合上剧本只留一页索引，转身推开『即兴谢幕』之门。",
+        )
+
+    def pick_power(self):
+        return self._trigger_stage_ending(
+            route_key="power",
+            choice_flag="ending_stage_gate_power",
+            line="你把剧本卷成指挥棒，径直推开『接管谢幕』之门。",
+        )
+
+
 def _should_trigger_elf_rival_pre_final(controller):
     """终局前插入飞贼对决：仅在精灵线结束且关系极差时触发。"""
     story = getattr(controller, "story", None)
@@ -4011,6 +4352,8 @@ def get_story_event_by_key(event_key, controller):
         "elf_side_monster_event": ElfSideMonsterEvent,
         "elf_side_merchant_disguised_event": ElfSideMerchantDisguisedEvent,
         "elf_side_merchant_event": ElfSideMerchantEvent,
+        "ending_stage_script_vault_event": EndingStageScriptVaultEvent,
+        "ending_stage_curtain_gate_event": EndingStageCurtainGateEvent,
         "ending_final_first_gate_event": EndingFinalFirstGateEvent,
         "ending_final_second_gate_event": EndingFinalSecondGateEvent,
     }
