@@ -1240,22 +1240,48 @@ class TestStorySystem(BaseTest):
         self.assertGreater(self.player.get_inventory_size(), before_items)
         self.assertTrue(any("飞锤" in msg for msg in self.controller.messages))
 
-    def test_stage_curtain_preface_is_forced_on_round_200_when_elf_key_route_ready(self):
-        self.controller.round_count = 200
+    def test_stage_curtain_preface_is_scheduled_in_pre_final_window_with_reward_gate_only(self):
+        self.controller.round_count = 185
         story = self.controller.story
         story.elf_chain_ended = True
         story.elf_relation = 3
         story.elf_key_obtained = True
 
-        scheduled = story.ensure_default_normal_ending_schedule()
-        self.assertTrue(scheduled)
+        story.ensure_default_normal_ending_schedule()
         self.assertIn("ending_stage_curtain_preface", story.pending_consequences)
-        self.assertNotIn("ending_default_force_gate_round_200", story.pending_consequences)
+        pending = story.pending_consequences["ending_stage_curtain_preface"]
+        self.assertEqual(pending.min_round, 185)
+        self.assertEqual(pending.max_round, 191)
+        self.assertEqual(pending.trigger_door_types, {"REWARD"})
+
+        event_door = DoorEnum.EVENT.create_instance(controller=self.controller)
+        unchanged = story.apply_pre_enter_checks(event_door)
+        self.assertEqual(unchanged.enum.name, "EVENT")
 
         reward_door = DoorEnum.REWARD.create_instance(controller=self.controller)
         changed_door = story.apply_pre_enter_checks(reward_door)
         self.assertEqual(changed_door.enum.name, "EVENT")
         self.assertEqual(getattr(changed_door, "story_forced_event_key", ""), "ending_stage_script_vault_event")
+
+    def test_stage_curtain_preface_is_forced_before_final_when_reward_gate_not_hit(self):
+        self.controller.round_count = 185
+        story = self.controller.story
+        story.elf_chain_ended = True
+        story.elf_relation = 3
+        story.elf_key_obtained = True
+        story.ensure_default_normal_ending_schedule()
+
+        for round_count in range(185, 191):
+            self.controller.round_count = round_count
+            trap_door = DoorEnum.TRAP.create_instance(controller=self.controller)
+            unchanged = story.apply_pre_enter_checks(trap_door)
+            self.assertEqual(unchanged.enum.name, "TRAP")
+
+        self.controller.round_count = 191
+        trap_door = DoorEnum.TRAP.create_instance(controller=self.controller)
+        forced = story.apply_pre_enter_checks(trap_door)
+        self.assertEqual(forced.enum.name, "EVENT")
+        self.assertEqual(getattr(forced, "story_forced_event_key", ""), "ending_stage_script_vault_event")
 
     def test_stage_script_vault_marks_script_truth_and_schedules_stage_gate(self):
         story = self.controller.story
@@ -1269,6 +1295,9 @@ class TestStorySystem(BaseTest):
         self.assertIn("curtain_call_script_recovered", story.story_tags)
         self.assertIn("curtain_call_truth_revealed", story.story_tags)
         self.assertIn("ending_stage_curtain_gate", story.pending_consequences)
+        pending = story.pending_consequences["ending_stage_curtain_gate"]
+        self.assertEqual(pending.min_round, 200)
+        self.assertEqual(pending.max_round, 200)
 
     def test_stage_curtain_gate_can_trigger_order_ending_clear(self):
         story = self.controller.story
@@ -1304,6 +1333,36 @@ class TestStorySystem(BaseTest):
         self.assertEqual(changed_door.enum.name, "EVENT")
         self.assertEqual(getattr(changed_door, "story_forced_event_key", ""), "ending_final_first_gate_event")
 
+    def test_default_ending_is_blocked_until_all_pre_final_events_are_resolved(self):
+        self.controller.round_count = 185
+        story = self.controller.story
+        story.story_tags.update({"ending:puppet_final_escape_recorded"})
+        story.puppet_final_outcome = "escaped"
+        story.elf_chain_ended = True
+        story.elf_relation = -5
+        story.ensure_default_normal_ending_schedule()
+        self.assertIn("ending_puppet_pre_final_rematch_gate", story.pending_consequences)
+        self.assertIn("ending_elf_rival_final_gate", story.pending_consequences)
+
+        self.controller.round_count = 200
+        scheduled = story.ensure_default_normal_ending_schedule()
+        self.assertFalse(scheduled)
+        self.assertNotIn("ending_default_force_gate_round_200", story.pending_consequences)
+
+        trap_door = DoorEnum.TRAP.create_instance(controller=self.controller)
+        forced_first = story.apply_pre_enter_checks(trap_door)
+        self.assertEqual(forced_first.enum.name, "MONSTER")
+        story.resolve_battle_consequence(forced_first.monster, defeated=True)
+
+        trap_door = DoorEnum.TRAP.create_instance(controller=self.controller)
+        forced_second = story.apply_pre_enter_checks(trap_door)
+        self.assertEqual(forced_second.enum.name, "MONSTER")
+        story.resolve_battle_consequence(forced_second.monster, defeated=True)
+
+        scheduled_after = story.ensure_default_normal_ending_schedule()
+        self.assertTrue(scheduled_after)
+        self.assertIn("ending_default_force_gate_round_200", story.pending_consequences)
+
     def test_default_ending_is_not_scheduled_after_any_long_branch_started(self):
         self.controller.round_count = 200
         self.controller.event_trigger_counts["MoonBountyEvent"] = 1
@@ -1336,82 +1395,154 @@ class TestStorySystem(BaseTest):
         self.assertEqual(forced_boss.monster.name, "选择困难症候群")
         self.assertTrue(getattr(forced_boss.monster, "story_default_final_boss", False))
 
-    def test_default_second_gate_prioritizes_puppet_rematch_when_arc_unfinished(self):
+    def test_pre_final_window_schedules_puppet_rematch_and_uses_monster_gate(self):
         story = self.controller.story
-        story.story_tags.add("puppet_arc_active")
-        self.controller.round_count = 201
+        story.story_tags.add("ending:puppet_final_escape_recorded")
+        story.puppet_final_outcome = "escaped"
+        self.controller.round_count = 185
 
-        second_event = EndingFinalSecondGateEvent(self.controller)
-        second_event.resolve_choice(1)
+        story.ensure_default_normal_ending_schedule()
         self.assertIn("ending_puppet_pre_final_rematch_gate", story.pending_consequences)
-        self.assertNotIn("ending_default_final_boss_gate", story.pending_consequences)
+        pending = story.pending_consequences["ending_puppet_pre_final_rematch_gate"]
+        self.assertEqual(pending.min_round, 185)
+        self.assertEqual(pending.max_round, 191)
+        self.assertEqual(pending.trigger_door_types, {"MONSTER"})
 
-        self.controller.round_count = 202
-        trap_door = DoorEnum.TRAP.create_instance(controller=self.controller)
-        forced_rematch = story.apply_pre_enter_checks(trap_door)
+        monster_door = DoorEnum.MONSTER.create_instance(controller=self.controller)
+        forced_rematch = story.apply_pre_enter_checks(monster_door)
 
         self.assertEqual(forced_rematch.enum.name, "MONSTER")
         self.assertEqual(forced_rematch.monster.name, "裂齿·夜魇·游荡残响")
         self.assertFalse(getattr(forced_rematch.monster, "story_puppet_final_boss", False))
         self.assertTrue(getattr(forced_rematch.monster, "story_pre_final_dispatch", False))
-        self.assertIn("红噪", forced_rematch.hint)
+        self.assertTrue(any(token in forced_rematch.hint for token in ("红噪", "失真童谣")))
 
-    def test_puppet_rematch_then_elf_rival_then_default_final_boss_can_chain_dispatch(self):
+    def test_pre_final_window_forces_rematch_before_final_when_no_monster_gate_hit(self):
         story = self.controller.story
-        story.story_tags.update({"puppet_arc_active", "elf_outcome:hostile"})
-        story.elf_chain_ended = True
-        story.elf_relation = -5
-        self.controller.round_count = 201
+        story.story_tags.add("ending:puppet_final_escape_recorded")
+        story.puppet_final_outcome = "escaped"
 
-        second_event = EndingFinalSecondGateEvent(self.controller)
-        second_event.resolve_choice(0)
+        self.controller.round_count = 185
+        story.ensure_default_normal_ending_schedule()
         self.assertIn("ending_puppet_pre_final_rematch_gate", story.pending_consequences)
 
-        self.controller.round_count = 202
-        reward_door = DoorEnum.REWARD.create_instance(controller=self.controller)
+        for round_count in range(185, 191):
+            self.controller.round_count = round_count
+            trap_door = DoorEnum.TRAP.create_instance(controller=self.controller)
+            unchanged = story.apply_pre_enter_checks(trap_door)
+            self.assertEqual(unchanged.enum.name, "TRAP")
+
+        self.controller.round_count = 191
+        trap_door = DoorEnum.TRAP.create_instance(controller=self.controller)
+        forced_rematch = story.apply_pre_enter_checks(trap_door)
+        self.assertEqual(forced_rematch.enum.name, "MONSTER")
+        self.assertEqual(forced_rematch.monster.name, "裂齿·夜魇·游荡残响")
+
+    def test_puppet_rematch_then_elf_rival_can_chain_dispatch_without_early_default_boss(self):
+        story = self.controller.story
+        story.story_tags.update({"ending:puppet_final_escape_recorded"})
+        story.puppet_final_outcome = "escaped"
+        story.elf_chain_ended = True
+        story.elf_relation = -5
+        self.controller.round_count = 185
+        story.ensure_default_normal_ending_schedule()
+        self.assertIn("ending_puppet_pre_final_rematch_gate", story.pending_consequences)
+        self.assertIn("ending_elf_rival_final_gate", story.pending_consequences)
+
+        self.controller.round_count = 191
+        reward_door = DoorEnum.MONSTER.create_instance(controller=self.controller)
         forced_rematch = story.apply_pre_enter_checks(reward_door)
+        self.assertEqual(forced_rematch.monster.name, "裂齿·夜魇·游荡残响")
         story.resolve_battle_consequence(forced_rematch.monster, defeated=True)
         self.assertIn("ending_elf_rival_final_gate", story.pending_consequences)
 
-        self.controller.round_count = 203
-        event_door = DoorEnum.EVENT.create_instance(controller=self.controller)
+        self.controller.round_count = 192
+        event_door = DoorEnum.MONSTER.create_instance(controller=self.controller)
         forced_rival = story.apply_pre_enter_checks(event_door)
         story.resolve_battle_consequence(forced_rival.monster, defeated=True)
-        self.assertIn("ending_default_final_boss_gate", story.pending_consequences)
+        self.assertNotIn("ending_default_final_boss_gate", story.pending_consequences)
 
-    def test_puppet_escape_record_can_schedule_pre_final_rematch_then_default_boss(self):
+    def test_puppet_escape_record_can_schedule_pre_final_rematch_without_auto_default_boss(self):
         story = self.controller.story
-        story.story_tags.update({"puppet_arc_active", "ending:puppet_final_escape_recorded"})
+        story.story_tags.update({"ending:puppet_final_escape_recorded"})
         story.puppet_final_outcome = "escaped"
-        self.controller.round_count = 201
-
-        second_event = EndingFinalSecondGateEvent(self.controller)
-        second_event.resolve_choice(2)
+        self.controller.round_count = 185
+        story.ensure_default_normal_ending_schedule()
         self.assertIn("ending_puppet_pre_final_rematch_gate", story.pending_consequences)
 
-        self.controller.round_count = 202
-        shop_door = DoorEnum.SHOP.create_instance(controller=self.controller)
+        self.controller.round_count = 186
+        shop_door = DoorEnum.MONSTER.create_instance(controller=self.controller)
         forced_rematch = story.apply_pre_enter_checks(shop_door)
         story.resolve_battle_consequence(forced_rematch.monster, defeated=False)
-        self.assertIn("ending_default_final_boss_gate", story.pending_consequences)
+        self.assertNotIn("ending_default_final_boss_gate", story.pending_consequences)
 
-    def test_hostile_elf_chain_inserts_rival_gate_before_default_final_boss(self):
+    def test_hostile_elf_chain_inserts_rival_gate_in_pre_final_window(self):
         story = self.controller.story
         story.elf_chain_ended = True
         story.elf_relation = -5
-        story.story_tags.add("elf_outcome:hostile")
-
-        second_event = EndingFinalSecondGateEvent(self.controller)
-        second_event.resolve_choice(0)
+        self.controller.round_count = 185
+        story.ensure_default_normal_ending_schedule()
         self.assertIn("ending_elf_rival_final_gate", story.pending_consequences)
 
-        self.controller.round_count = 202
-        reward_door = DoorEnum.REWARD.create_instance(controller=self.controller)
-        forced_rival = story.apply_pre_enter_checks(reward_door)
-        self.assertEqual(forced_rival.enum.name, "MONSTER")
-        self.assertTrue(getattr(forced_rival.monster, "story_elf_rival_final_boss", False))
-        self.assertEqual(forced_rival.monster.name, "银羽飞贼·莱希娅")
-        self.assertGreaterEqual(len(getattr(forced_rival, "battle_extensions", [])), 1)
+    def test_pre_final_window_rechecks_every_five_rounds_for_newly_eligible_events(self):
+        story = self.controller.story
+        story.story_tags.add("ending:puppet_final_escape_recorded")
+        story.puppet_final_outcome = "escaped"
+        self.controller.round_count = 185
+        story.ensure_default_normal_ending_schedule()
+        self.assertIn("ending_puppet_pre_final_rematch_gate", story.pending_consequences)
+        self.assertNotIn("ending_elf_rival_final_gate", story.pending_consequences)
+
+        # 在倒数窗口中途才满足飞贼敌对条件；非 5 回合检查点时不应立即挂载
+        self.controller.round_count = 187
+        story.elf_chain_ended = True
+        story.elf_relation = -5
+        story.ensure_default_normal_ending_schedule()
+        self.assertNotIn("ending_elf_rival_final_gate", story.pending_consequences)
+
+        # 到达 5 回合检查点后重新评估并纳入窗口
+        self.controller.round_count = 190
+        story.ensure_default_normal_ending_schedule()
+        self.assertIn("ending_elf_rival_final_gate", story.pending_consequences)
+
+    def test_after_window_all_remaining_pre_final_events_are_forced_sequentially(self):
+        story = self.controller.story
+        story.story_tags.update({"ending:puppet_final_escape_recorded"})
+        story.puppet_final_outcome = "escaped"
+        story.elf_chain_ended = True
+        story.elf_relation = -5
+        story.elf_key_obtained = True
+
+        self.controller.round_count = 185
+        story.ensure_default_normal_ending_schedule()
+        self.assertIn("ending_stage_curtain_preface", story.pending_consequences)
+        self.assertIn("ending_puppet_pre_final_rematch_gate", story.pending_consequences)
+        self.assertIn("ending_elf_rival_final_gate", story.pending_consequences)
+
+        # 窗口期未踩中对应门，保持未触发
+        for round_count in range(185, 191):
+            self.controller.round_count = round_count
+            trap_door = DoorEnum.TRAP.create_instance(controller=self.controller)
+            unchanged = story.apply_pre_enter_checks(trap_door)
+            self.assertEqual(unchanged.enum.name, "TRAP")
+
+        # 窗口结束后，未触发事件必须按序强制发生（由优先级与配置共同决定）
+        self.controller.round_count = 191
+        forced_1 = story.apply_pre_enter_checks(DoorEnum.TRAP.create_instance(controller=self.controller))
+        self.assertEqual(forced_1.enum.name, "MONSTER")
+        self.assertEqual(forced_1.monster.name, "裂齿·夜魇·游荡残响")
+        story.resolve_battle_consequence(forced_1.monster, defeated=True)
+
+        self.controller.round_count = 192
+        forced_2 = story.apply_pre_enter_checks(DoorEnum.TRAP.create_instance(controller=self.controller))
+        self.assertEqual(forced_2.enum.name, "EVENT")
+        self.assertEqual(getattr(forced_2, "story_forced_event_key", ""), "ending_stage_script_vault_event")
+
+        self.controller.round_count = 193
+        forced_3 = story.apply_pre_enter_checks(DoorEnum.TRAP.create_instance(controller=self.controller))
+        self.assertEqual(forced_3.enum.name, "MONSTER")
+        self.assertEqual(forced_3.monster.name, "银羽飞贼·莱希娅")
+        story.resolve_battle_consequence(forced_3.monster, defeated=True)
 
     def test_elf_rival_final_battle_victory_grants_hint_and_consumes_gate(self):
         story = self.controller.story
@@ -1434,7 +1565,7 @@ class TestStorySystem(BaseTest):
         self.assertIn("ending:elf_rival_final_victory", story.story_tags)
         self.assertIn("ending_elf_rival_final_victory", story.choice_flags)
         self.assertIn("ending_elf_rival_final_gate", story.consumed_consequences)
-        self.assertIn("ending_default_final_boss_gate", story.pending_consequences)
+        self.assertNotIn("ending_default_final_boss_gate", story.pending_consequences)
         self.assertTrue(any("银羽提示" in msg for msg in self.controller.messages))
 
     def test_elf_rival_final_battle_escape_marks_permanent_parting(self):
