@@ -1301,7 +1301,41 @@ class TestStorySystem(BaseTest):
 
     def test_stage_curtain_gate_can_trigger_order_ending_clear(self):
         story = self.controller.story
-        story.story_tags.add("elf_outcome:alliance")
+        story.story_tags.update(
+            {
+                "elf_outcome:alliance",
+                "ending:puppet_final_defeated",
+                "elf_key_obtained",
+                "curtain_call_script_recovered",
+            }
+        )
+        story.choice_flags.update(
+            {
+                "moon_verdict_clean",
+                "clockwork_calibrated",
+                "dream_well_sealed",
+                "echo_court_redeemed",
+            }
+        )
+        story.puppet_final_outcome = "defeated"
+        story.puppet_evil_value = 20
+        story.moon_bounty_diary_source = "thief_testimony"
+
+        event = EndingStageCurtainGateEvent(self.controller)
+        event.resolve_choice(0)
+
+        clear_info = getattr(self.controller, "game_clear_info", {})
+        self.assertEqual(clear_info.get("ending_key"), "stage_curtain_order")
+        self.assertIn("ending:stage_curtain_completed", story.story_tags)
+        self.assertEqual(clear_info.get("ending_meta", {}).get("stage_outcome"), "order")
+        self.assertTrue(clear_info.get("ending_meta", {}).get("puppet_kind_rescued"))
+        self.assertTrue(clear_info.get("ending_meta", {}).get("stage_script_ready"))
+        self.assertIn("演完最后一幕", clear_info.get("ending_description", ""))
+        self.assertTrue(any("跑上前台" in msg for msg in self.controller.messages))
+
+    def test_stage_curtain_order_route_collapses_when_puppet_kind_persona_not_rescued(self):
+        story = self.controller.story
+        story.story_tags.update({"elf_outcome:alliance", "elf_key_obtained", "curtain_call_script_recovered"})
         story.choice_flags.update(
             {
                 "moon_verdict_clean",
@@ -1316,9 +1350,9 @@ class TestStorySystem(BaseTest):
         event.resolve_choice(0)
 
         clear_info = getattr(self.controller, "game_clear_info", {})
-        self.assertEqual(clear_info.get("ending_key"), "stage_curtain_order")
-        self.assertIn("ending:stage_curtain_completed", story.story_tags)
-        self.assertEqual(clear_info.get("ending_meta", {}).get("stage_outcome"), "order")
+        self.assertEqual(clear_info.get("ending_key"), "stage_curtain_collapse")
+        self.assertEqual(clear_info.get("ending_meta", {}).get("stage_outcome"), "collapse")
+        self.assertIn("善良人格尚未被救回", clear_info.get("ending_description", ""))
 
     def test_default_ending_is_forced_on_round_200_when_no_long_branch_started(self):
         self.controller.round_count = 200
