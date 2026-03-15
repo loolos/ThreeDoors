@@ -1916,6 +1916,28 @@ class StorySystem:
         applied, new_door = self._apply_effect(consequence, dummy_door)
         return new_door if applied else None
 
+    def setup_test_gate_stage_curtain_order(self) -> None:
+        """测试用：将控制器与剧情状态设为「补全谢幕」路线前置条件（不挂载门，仅改状态）。
+        条件：回合 190、玩家 HP 800 / ATK 200、精灵飞贼线已收束且关系高、已拿钥匙、
+        已击败黑暗木偶、邪恶值较低。调用方需在设置后调用 ensure_pre_final_event_schedule() 以挂载银羽秘藏。"""
+        c = self.controller
+        c.round_count = 190
+        p = getattr(c, "player", None)
+        if p is not None:
+            p.hp = 800
+            p._atk = 200
+            if hasattr(c, "player_peak_hp"):
+                c.player_peak_hp = 800
+            if hasattr(c, "player_peak_atk"):
+                c.player_peak_atk = 200
+        self.elf_chain_ended = True
+        self.elf_relation = 4
+        self.elf_key_obtained = True
+        self.story_tags.add("elf_chain_ended")
+        self.story_tags.add("elf_key_obtained")
+        self.story_tags.add("ending:puppet_final_defeated")
+        self.puppet_evil_value = 30
+
     def _build_puppet_battle_state(
         self,
         payload: Dict[str, Any],

@@ -99,6 +99,11 @@ class TestSceneSystem(BaseTest):
             ending_title="普通结局·迷宫出口",
             ending_description="测试结局描述",
         )
+        # 通关后先进入结局滚动场景，点击「继续」后进入 GameOverScene
+        scene = self.controller.scene_manager.current_scene
+        from scenes import EndingRollScene
+        self.assertIsInstance(scene, EndingRollScene)
+        scene.handle_choice(0)  # 继续
         scene = self.controller.scene_manager.current_scene
         self.assertIsInstance(scene, GameOverScene)
         self.assertEqual(scene.button_texts[1], "结局已达成")

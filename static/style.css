@@ -463,6 +463,76 @@ h1 {
   padding-top: 5px;
 }
 
+/* ========== 结局滚动画面 ========== */
+.ending-roll-hidden {
+  display: none !important;
+}
+
+#ending-roll-wrap.ending-roll-visible {
+  display: block !important;
+  margin: 1rem 0;
+  padding: 1rem;
+  background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%);
+  border-radius: 12px;
+  color: #e8e6e3;
+  box-shadow: inset 0 0 40px rgba(0, 0, 0, 0.3);
+}
+
+#ending-roll-viewport {
+  height: 52vh;
+  max-height: 380px;
+  overflow: hidden;
+  position: relative;
+  margin-bottom: 1rem;
+}
+
+#ending-roll-content {
+  padding: 1rem 0.5rem;
+  font-size: 1rem;
+  line-height: 1.85;
+  text-align: center;
+  white-space: pre-wrap;
+  animation: ending-roll-scroll linear forwards;
+}
+
+#ending-roll-content.ending-roll-animate {
+  animation-duration: 45s;
+}
+
+@keyframes ending-roll-scroll {
+  0% {
+    transform: translateY(100%);
+  }
+  100% {
+    transform: translateY(-100%);
+  }
+}
+
+#ending-roll-actions {
+  display: flex;
+  justify-content: center;
+}
+
+#ending-roll-wrap .ending-roll-continue {
+  min-width: 140px;
+  background: #4a6fa5;
+  color: #fff;
+}
+
+#ending-roll-wrap .ending-roll-continue:hover {
+  background: #5a7fb5;
+}
+
+/* 当显示结局滚动时，隐藏主场景区域与门区域 */
+body.ending-roll-active #scene-area,
+body.ending-roll-active #door-area,
+body.ending-roll-active #status-area,
+body.ending-roll-active #inventory-area,
+body.ending-roll-active #buttons,
+body.ending-roll-active #log-area {
+  display: none !important;
+}
+
 /* 响应式设计 */
 @media screen and (max-width: 480px) {
   .container {

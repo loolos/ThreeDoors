@@ -10,7 +10,8 @@ from models.player import Player
 from models.status import Status
 from models.shop import Shop
 from models.story_system import StorySystem
-from scenes import Scene, DoorScene, BattleScene, ShopScene, UseItemScene, GameOverScene, SceneManager
+from scenes import Scene, DoorScene, BattleScene, ShopScene, UseItemScene, EndingRollScene, GameOverScene, SceneManager
+from ending_roll import build_ending_roll_lines
 from models.game_config import GameConfig
 from models.items import ReviveScroll, FlyingHammer, GiantScroll, Barrier
 
@@ -57,6 +58,8 @@ class GameController:
         self.messages = []
         self.recent_event_classes = []  # 最近触发的事件类名，用于非后续事件门去重
         self.event_trigger_counts = {}  # 事件触发计数，用于权重衰减与单次事件控制
+        self.door_visit_counts = {"trap": 0, "reward": 0, "monster": 0, "shop": 0, "event": 0}
+        self.monsters_defeated = 0
         self.player = Player(self)
         self.player.reset()  # 重置玩家状态
         self.story = StorySystem(self)
@@ -80,6 +83,11 @@ class GameController:
                 door.enter()
                 self.scene_manager.go_to("battle_scene")
                 self.add_message("【测试模式】已直接进入木偶最终 Boss 战（回合 100，玩家 500 HP / 200 攻击）。")
+        elif TEST_GATE == "stage_curtain_order":
+            self.story.setup_test_gate_stage_curtain_order()
+            self.story.ensure_pre_final_event_schedule()
+            self.scene_manager.go_to("door_scene")
+            self.add_message("【测试模式】补全谢幕路线：回合 190，HP 800 / ATK 200，飞贼线收束+钥匙+木偶已击败+低邪恶值；下一扇宝物门将触发银羽秘藏。")
 
     def add_message(self, msg):
         """添加消息到消息列表"""
@@ -126,8 +134,19 @@ class GameController:
         for ext in extensions:
             story.handle_battle_extension_post_player_attack(extension=ext, target=target)
 
+    def record_door_visit(self, door_enum_value: str) -> None:
+        """记录一次门类型访问，用于结局统计。"""
+        counts = getattr(self, "door_visit_counts", None)
+        if counts is not None and door_enum_value in counts:
+            counts[door_enum_value] = counts[door_enum_value] + 1
+
+    def record_monster_defeated(self) -> None:
+        """记录击败一只怪物，用于结局统计。"""
+        if hasattr(self, "monsters_defeated"):
+            self.monsters_defeated = self.monsters_defeated + 1
+
     def trigger_game_clear(self, ending_key: str, ending_title: str, ending_description: str, ending_meta=None) -> None:
-        """触发通关结局并跳转到结算场景。"""
+        """触发通关结局并跳转到结局滚动画面，再进入结算场景。"""
         extra_meta = ending_meta if isinstance(ending_meta, dict) else {}
         self.game_clear_info = {
             "ending_key": str(ending_key or "unknown"),
@@ -135,7 +154,7 @@ class GameController:
             "ending_description": str(ending_description or ""),
             "ending_meta": extra_meta,
         }
-        self.scene_manager.go_to("game_over_scene")
+        self.scene_manager.go_to("ending_roll_scene")
 
     def update_player_power_peaks(self):
         """记录玩家历史最高生命与攻击，用于 tier 解锁判定。"""
@@ -280,6 +299,8 @@ def get_state():
                 }
                 for door in scn.doors
             ]
+        if scn and scn.enum and scn.enum.name == "ENDING_ROLL":
+            state["ending_roll_lines"] = build_ending_roll_lines(g)
         
         # 修改消息处理逻辑
         if g.messages:
@@ -312,7 +333,7 @@ def button_action():
 
     scn_name = scn.__class__.__name__
     outcome = None
-    if scn_name in ["DoorScene", "BattleScene", "ShopScene", "UseItemScene", "GameOverScene", "EventScene"]:
+    if scn_name in ["DoorScene", "BattleScene", "ShopScene", "UseItemScene", "EndingRollScene", "GameOverScene", "EventScene"]:
         outcome = scn.handle_choice(index)
     
     # 获取当前消息并清空

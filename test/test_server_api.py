@@ -55,7 +55,7 @@ class TestServerAPI(unittest.TestCase):
     def test_all_scenes_in_whitelist(self):
         """Ensure all defined scenes are handled by server.py whitelist logic"""
         from scenes import SceneType
-        expected = {"DoorScene", "BattleScene", "ShopScene", "UseItemScene", "GameOverScene", "EventScene"}
+        expected = {"DoorScene", "BattleScene", "ShopScene", "UseItemScene", "EndingRollScene", "GameOverScene", "EventScene"}
         scene_names = {s.__name__ for s in SceneType.get_name_scene_dict().values()}
         for name in scene_names:
             self.assertIn(name, expected, f"Scene {name} must be in button_action whitelist")

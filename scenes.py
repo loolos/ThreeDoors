@@ -86,6 +86,8 @@ class DoorScene(Scene):
             door = c.story.apply_pre_enter_checks(door)
             self.doors[index] = door
         door.enter()
+        if hasattr(c, "record_door_visit") and callable(getattr(c, "record_door_visit", None)):
+            c.record_door_visit(door.enum.value)
 
         # 某些门在 enter 中会主动切场景（如被改写成剧情事件的商店门）
         cur = c.scene_manager.current_scene
@@ -198,12 +200,14 @@ class BattleScene(Scene):
                 else:
                     # 处理怪物掉落
                     self.monster.process_loot(p)
+                    if hasattr(self.controller, "record_monster_defeated") and callable(getattr(self.controller, "record_monster_defeated", None)):
+                        self.controller.record_monster_defeated()
                     if hasattr(self.controller, "story") and self.controller.story:
                         self.controller.story.resolve_battle_consequence(self.monster, defeated=True)
                         self.controller.story.record_elf_side_monster_outcome(self.monster, defeated=True)
-                    # 若战斗收尾触发了结局（如即兴谢幕、普通结局），直接进入结局场景
+                    # 若战斗收尾触发了结局（如即兴谢幕、普通结局），直接进入结局滚动场景
                     if getattr(self.controller, "game_clear_info", None):
-                        self.controller.scene_manager.go_to("game_over_scene")
+                        self.controller.scene_manager.go_to("ending_roll_scene")
                         return
                     # 若设置了战后事件（如击败木偶回声后的三选一事件门），先进入事件场景
                     pending_key = getattr(self.controller, "pending_post_battle_event_key", None)
@@ -348,6 +352,22 @@ class UseItemScene(Scene):
         
         self.controller.scene_manager.resume_scene()
 
+class EndingRollScene(Scene):
+    """结局滚动画面：展示结局摘要文字（从下往上滚动），点击继续后进入游戏结束场景。"""
+
+    def __init__(self, controller):
+        super().__init__(controller)
+        self.button_texts = ["继续", "", ""]
+        self.enum = SceneType.ENDING_ROLL
+
+    def on_enter(self):
+        pass
+
+    def handle_choice(self, index):
+        if index == 0:
+            self.controller.scene_manager.go_to("game_over_scene")
+
+
 class GameOverScene(Scene):
     """游戏结束场景：可重启、使用复活卷轴或退出游戏。"""
 
@@ -437,6 +457,7 @@ class SceneType(Enum):
     BATTLE = BattleScene
     SHOP = ShopScene
     USE_ITEM = UseItemScene
+    ENDING_ROLL = EndingRollScene
     GAME_OVER = GameOverScene
     EVENT = EventScene
 
@@ -448,6 +469,7 @@ class SceneType(Enum):
             "battle_scene": BattleScene,
             "shop_scene": ShopScene,
             "use_item_scene": UseItemScene,
+            "ending_roll_scene": EndingRollScene,
             "game_over_scene": GameOverScene,
             "event_scene": EventScene
         }

@@ -674,6 +674,39 @@ function renderState(state) {
   buttonArea.style.display = 'flex';
   buttonArea.innerHTML = ''; // Clear old buttons
 
+  // 结局滚动画面：仅在 ENDING_ROLL 时显示
+  const endingRollWrap = document.getElementById("ending-roll-wrap");
+  const endingRollContent = document.getElementById("ending-roll-content");
+  const endingRollContinueBtn = document.getElementById("endingRollContinueBtn");
+  if (endingRollWrap && endingRollContent) {
+    if (sceneInfo.type === "ENDING_ROLL" && state.ending_roll_lines && Array.isArray(state.ending_roll_lines)) {
+      document.body.classList.add("ending-roll-active");
+      endingRollWrap.classList.remove("ending-roll-hidden");
+      endingRollWrap.classList.add("ending-roll-visible");
+      endingRollContent.innerHTML = "";
+      state.ending_roll_lines.forEach(line => {
+        const p = document.createElement("p");
+        p.className = "ending-roll-line";
+        p.textContent = line;
+        p.style.margin = line === "" ? "0.25em 0" : "0.35em 0";
+        endingRollContent.appendChild(p);
+      });
+      endingRollContent.classList.add("ending-roll-animate");
+      const lineCount = state.ending_roll_lines.length;
+      const duration = Math.min(90, Math.max(35, lineCount * 2.5));
+      endingRollContent.style.animationDuration = duration + "s";
+      if (endingRollContinueBtn) {
+        endingRollContinueBtn.onclick = () => buttonAction(0);
+      }
+    } else {
+      document.body.classList.remove("ending-roll-active");
+      endingRollWrap.classList.add("ending-roll-hidden");
+      endingRollWrap.classList.remove("ending-roll-visible");
+      endingRollContent.classList.remove("ending-roll-animate");
+      endingRollContent.innerHTML = "";
+    }
+  }
+
   let emoji = "❓";
   let emojiMarkup = "";
   let desc = "";

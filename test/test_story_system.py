@@ -1689,8 +1689,11 @@ class TestStorySystem(BaseTest):
 
         story.resolve_battle_consequence(monster, defeated=True)
 
-        self.assertEqual(self.controller.scene_manager.current_scene.enum.name, "GAME_OVER")
+        # 通关后先进入结局滚动场景，点击继续后才是 GameOverScene
+        self.assertEqual(self.controller.scene_manager.current_scene.enum.name, "ENDING_ROLL")
         self.assertEqual(getattr(self.controller, "game_clear_info", {}).get("ending_key"), "default_normal")
+        self.controller.scene_manager.current_scene.handle_choice(0)
+        self.assertEqual(self.controller.scene_manager.current_scene.enum.name, "GAME_OVER")
         self.assertIn("ending:default_normal_completed", story.story_tags)
 
     # ---------- 结局触发确定性测试：参数满足时对应结局必须能触发 ----------
