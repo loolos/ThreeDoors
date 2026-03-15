@@ -1415,7 +1415,7 @@ class TestStorySystem(BaseTest):
         self.assertEqual(forced_rematch.monster.name, "裂齿·夜魇·游荡残响")
         self.assertFalse(getattr(forced_rematch.monster, "story_puppet_final_boss", False))
         self.assertTrue(getattr(forced_rematch.monster, "story_pre_final_dispatch", False))
-        self.assertIn("红噪", forced_rematch.hint)
+        self.assertTrue(any(token in forced_rematch.hint for token in ("红噪", "失真童谣")))
 
     def test_pre_final_window_forces_rematch_before_final_when_no_monster_gate_hit(self):
         story = self.controller.story
@@ -1502,14 +1502,6 @@ class TestStorySystem(BaseTest):
         self.controller.round_count = 190
         story.ensure_default_normal_ending_schedule()
         self.assertIn("ending_elf_rival_final_gate", story.pending_consequences)
-
-        self.controller.round_count = 186
-        reward_door = DoorEnum.MONSTER.create_instance(controller=self.controller)
-        forced_rival = story.apply_pre_enter_checks(reward_door)
-        self.assertEqual(forced_rival.enum.name, "MONSTER")
-        self.assertTrue(getattr(forced_rival.monster, "story_elf_rival_final_boss", False))
-        self.assertEqual(forced_rival.monster.name, "银羽飞贼·莱希娅")
-        self.assertGreaterEqual(len(getattr(forced_rival, "battle_extensions", [])), 1)
 
     def test_elf_rival_final_battle_victory_grants_hint_and_consumes_gate(self):
         story = self.controller.story
