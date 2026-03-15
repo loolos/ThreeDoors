@@ -56,6 +56,8 @@ class DoorScene(Scene):
             
         c.round_count += 1
         c.add_message(f"第{c.round_count}回合：")
+        if hasattr(c, "story") and c.story and hasattr(c.story, "ensure_default_normal_ending_schedule"):
+            c.story.ensure_default_normal_ending_schedule()
         c.update_player_power_peaks()
         c.check_and_unlock_monster_tier()
         
@@ -326,14 +328,30 @@ class GameOverScene(Scene):
         self.button_texts = ["重启游戏", "使用复活卷轴", "退出游戏"]
         self.enum = SceneType.GAME_OVER
     def on_enter(self):
+        clear_info = getattr(self.controller, "game_clear_info", None)
+        if clear_info:
+            self.button_texts = ["重启游戏", "结局已达成", "退出游戏"]
+            self.controller.add_message("【结局达成】")
+            title = str(clear_info.get("ending_title", "")).strip()
+            description = str(clear_info.get("ending_description", "")).strip()
+            if title:
+                self.controller.add_message(title)
+            if description:
+                self.controller.add_message(description)
+            return
+        self.button_texts = ["重启游戏", "使用复活卷轴", "退出游戏"]
         self.controller.add_message("游戏结束！")
 
     def handle_choice(self, index):
+        clear_info = getattr(self.controller, "game_clear_info", None)
         if index == 0:  # 重启游戏
             self.controller.reset_game()
             self.controller.add_message("游戏已重置")
             self.controller.scene_manager.go_to("door_scene")
         elif index == 1:  # 使用复活卷轴
+            if clear_info:
+                self.controller.add_message("你已经抵达结局，无需使用复活卷轴。")
+                return
             p = self.controller.player
             # 检查是否有复活卷轴
             revive_scrolls = [item for item in p.get_items_by_type(ItemType.PASSIVE) 

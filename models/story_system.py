@@ -73,6 +73,8 @@ class StorySystem:
 
     HIGH_MORAL = 30
     LOW_MORAL = -30
+    DEFAULT_ENDING_FORCE_ROUND = 200
+    DEFAULT_ENDING_FORCE_CONSEQUENCE_ID = "ending_default_force_gate_round_200"
 
     HIGH_MORAL_MONSTERS = {"树人", "天使", "创世神官", "幽灵", "精灵法师"}
     LOW_MORAL_MONSTERS = {"土匪", "狼人", "食人魔", "冥界使者", "暗影刺客"}
@@ -204,6 +206,69 @@ class StorySystem:
             forbidden_flags=set(forbidden_flags or []),
         )
         return True
+
+    def _has_started_long_story_branch(self) -> bool:
+        """判断是否已开启任意长线分支，用于 200 回合默认结局分流。"""
+        if bool(getattr(self, "elf_chain_started", False)):
+            return True
+        if "puppet_arc_active" in self.story_tags:
+            return True
+
+        event_counts = getattr(self.controller, "event_trigger_counts", {}) or {}
+        if not isinstance(event_counts, dict) or not event_counts:
+            return False
+        try:
+            from models.events import LONG_EVENT_STARTER_CLASSES
+            starter_names = {event_cls.__name__ for event_cls in LONG_EVENT_STARTER_CLASSES}
+        except Exception:
+            starter_names = {
+                "TimePawnshopEvent",
+                "MirrorTheaterEvent",
+                "MoonBountyEvent",
+                "ClockworkBazaarEvent",
+                "DreamWellEvent",
+                "PuppetAbandonmentEvent",
+                "ElfThiefIntroEvent",
+            }
+        for event_name in starter_names:
+            if int(event_counts.get(event_name, 0)) > 0:
+                return True
+        return False
+
+    def ensure_default_normal_ending_schedule(self) -> bool:
+        """在第 200 回合且未开启分支时，强制挂载默认终局入口事件。"""
+        if self._has_started_long_story_branch():
+            return False
+        if "ending:default_normal_completed" in self.story_tags:
+            return False
+        current_round = max(0, int(getattr(self.controller, "round_count", 0)))
+        if current_round < self.DEFAULT_ENDING_FORCE_ROUND:
+            return False
+        consequence_id = self.DEFAULT_ENDING_FORCE_CONSEQUENCE_ID
+        if consequence_id in self.pending_consequences or consequence_id in self.consumed_consequences:
+            return False
+        all_door_types = [door_type.name for door_type in DoorEnum]
+        registered = self.register_consequence(
+            choice_flag="ending_default_normal_gate",
+            consequence_id=consequence_id,
+            effect_key="force_story_event",
+            chance=1.0,
+            trigger_door_types=all_door_types,
+            min_round=self.DEFAULT_ENDING_FORCE_ROUND,
+            max_round=self.DEFAULT_ENDING_FORCE_ROUND,
+            force_on_expire=True,
+            force_door_type="EVENT",
+            priority=1200,
+            payload={
+                "event_key": "ending_final_first_gate_event",
+                "hint": "尽头只剩三扇刻着不同字句的门，像是迷宫在等你做最后一次选择。",
+                "message": "【终局前兆】走廊尽头忽然亮起终焉指示灯，三扇最终门从墙体里缓缓推出。",
+                "log_trigger": "【回合200·终局锁定】你正要按常规选门，整条走廊的门牌同时翻面，迷宫把你推向最后的抉择。",
+            },
+        )
+        if registered:
+            self.story_tags.add("ending:default_normal_scheduled")
+        return registered
 
     def apply_pre_enter_checks(self, door: Any) -> Any:
         """选门后、入门前触发检查：先后续影响，再道德影响。"""
@@ -339,6 +404,8 @@ class StorySystem:
         """战斗收尾：击败特定目标时结算后续影响；木偶最终战额外结算结局与奖励。"""
         if not monster:
             return
+        if defeated and bool(getattr(monster, "story_default_final_boss", False)):
+            self._resolve_default_final_outcome()
         if defeated and bool(getattr(monster, "story_puppet_final_boss", False)):
             self._resolve_puppet_final_outcome()
         cid = getattr(monster, "story_consequence_id", None)
@@ -444,6 +511,24 @@ class StorySystem:
         if item_names:
             reward_msg += f" 额外宝物：{', '.join(item_names)}。"
         self.controller.add_message(f"【木偶终战奖励】邪恶值 {evil}/100，{reward_msg}")
+
+    def _resolve_default_final_outcome(self) -> None:
+        """普通结局：击败“选择困难症候群”后离开迷宫。"""
+        if "ending:default_normal_completed" in self.story_tags:
+            return
+        self.story_tags.add("ending:default_normal_completed")
+        self.choice_flags.add("ending_default_normal_completed")
+        self.controller.add_message("【普通结局】你击倒了“选择困难症候群”。")
+        self.controller.add_message("你抵达了这座迷宫的出口，从出口离开了。")
+        trigger_clear = getattr(self.controller, "trigger_game_clear", None)
+        if callable(trigger_clear):
+            trigger_clear(
+                ending_key="default_normal",
+                ending_title="普通结局·迷宫出口",
+                ending_description="你在回合二百的终局门廊做出选择，击倒“选择困难症候群”后终于离开了迷宫。",
+            )
+        else:
+            self.controller.scene_manager.go_to("game_over_scene")
 
     def record_elf_side_monster_outcome(self, monster: Any, defeated: bool) -> None:
         """银羽与利爪支线：根据击倒或逃跑给出不同提示并更新精灵关系。"""
@@ -1018,6 +1103,50 @@ class StorySystem:
                 "宝物已被掏空",
             )
             return True, door
+
+        if effect == "default_final_boss":
+            from models.monster import Monster, estimate_player_power, _apply_player_match_scaling
+
+            player = getattr(self.controller, "player", None)
+            stage = self._get_progress_stage()
+            base_hp = max(80, int(payload.get("base_hp", 170 + stage * 26)))
+            base_atk = max(10, int(payload.get("base_atk", 24 + stage * 4)))
+            boss_name = str(payload.get("boss_name", "选择困难症候群")).strip() or "选择困难症候群"
+            boss = Monster(
+                name=boss_name,
+                hp=base_hp,
+                atk=base_atk,
+                tier=max(3, int(payload.get("tier", 4))),
+            )
+            round_count = max(0, int(getattr(self.controller, "round_count", 0)))
+            power_score = estimate_player_power(player=player, current_round=round_count)
+            _apply_player_match_scaling(
+                monster=boss,
+                player=player,
+                current_round=round_count,
+                power_score=power_score,
+            )
+            setattr(boss, "story_default_final_boss", True)
+            hint = payload.get("hint") or "门后响起一阵咂舌声：'两百回合了，你还在犹豫？'"
+            final_door = DoorEnum.MONSTER.create_instance(
+                controller=self.controller,
+                monster=boss,
+                hint=hint,
+            )
+            self.controller.add_message(
+                self._resolve_message(
+                    payload,
+                    "message",
+                    "你推开最后一道门，一只披着问号披风的怪物拍手鼓掌：'终于肯进来了？'",
+                )
+            )
+            taunts = payload.get("taunts", [])
+            if isinstance(taunts, list):
+                for taunt in taunts:
+                    if isinstance(taunt, str) and taunt.strip():
+                        self.controller.add_message(taunt.strip())
+            self._log_effect_result(consequence, boss.name)
+            return True, final_door
 
         if effect == "puppet_dark_boss":
             door_is_monster = getattr(getattr(door, "enum", None), "name", "") == "MONSTER"
@@ -1892,6 +2021,9 @@ class StorySystem:
             return
         if effect == "treasure_vanish":
             self.controller.add_message(f"你只摸到一层冷灰，值钱的东西全没了：{detail}。")
+            return
+        if effect == "default_final_boss":
+            self.controller.add_message(f"终局门后的影子拍着手站起来了：{detail}。")
             return
 
         self.controller.add_message(f"命运的回声改写了这一刻：{detail}。")
