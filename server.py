@@ -3,6 +3,7 @@
 from flask import Flask, render_template, session, request, jsonify, redirect, url_for
 from flask_session import Session
 import random, string, os, time, threading
+import sys
 from models.door import Door
 from models.monster import Monster, get_random_monster
 from models.player import Player
@@ -21,6 +22,16 @@ app = Flask(__name__)
 app.secret_key = "SOME_SECRET"  # 用于加密 session
 app.config["SESSION_TYPE"] = "filesystem"  # 存储 session 到文件系统
 Session(app)
+
+# 测试用 gate：启动时通过 --test-gate=<name> 指定，进入/重置游戏后直接进入对应事件门（如木偶最终 Boss 战）
+TEST_GATE = None
+for arg in sys.argv[1:]:
+    if arg.startswith("--test-gate="):
+        TEST_GATE = arg.split("=", 1)[1].strip().lower() or None
+        break
+    if arg in ("--test-puppet-final-boss",):
+        TEST_GATE = "puppet_final_boss"
+        break
 
 # -------------------------------
 # 2) 控制器及辅助类
@@ -56,6 +67,19 @@ class GameController:
         self.unlocked_monster_tier = GameConfig.START_UNLOCKED_MONSTER_TIER
         self.player_peak_hp = self.player.hp
         self.player_peak_atk = self.player.atk
+
+        # 测试 gate：若启动时带了 --test-gate=...，直接进入对应事件门
+        if TEST_GATE == "puppet_final_boss":
+            self.round_count = 100
+            self.player.hp = 500
+            self.player._atk = 200
+            self.player_peak_hp = 500
+            self.player_peak_atk = 200
+            door = self.story.setup_test_gate_puppet_final_boss()
+            if door:
+                door.enter()
+                self.scene_manager.go_to("battle_scene")
+                self.add_message("【测试模式】已直接进入木偶最终 Boss 战（回合 100，玩家 500 HP / 200 攻击）。")
 
     def add_message(self, msg):
         """添加消息到消息列表"""
@@ -198,7 +222,7 @@ games_store = {}
 @app.route("/")
 def index():
     """渲染游戏主页面。"""
-    return render_template("index.html")
+    return render_template("index.html", test_gate=TEST_GATE)
 
 
 @app.route("/startOver", methods=["POST"])

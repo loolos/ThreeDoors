@@ -1646,6 +1646,20 @@ class StorySystem:
 
         return False, door
 
+    def setup_test_gate_puppet_final_boss(self) -> Optional[Any]:
+        """测试用：直接构建木偶最终 Boss 门（含扩展），不经过 pending_consequences 触发。
+        返回可调用 enter() 的门实例；失败返回 None。"""
+        consequence = PendingConsequence(
+            consequence_id="test_puppet_final_boss",
+            source_flag="test",
+            effect_key="puppet_dark_boss",
+            description="测试用木偶终战",
+            payload={},
+        )
+        dummy_door = DoorEnum.EVENT.create_instance(controller=self.controller)
+        applied, new_door = self._apply_effect(consequence, dummy_door)
+        return new_door if applied else None
+
     def _build_puppet_battle_state(
         self,
         payload: Dict[str, Any],

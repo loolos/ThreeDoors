@@ -190,6 +190,10 @@ class BattleScene(Scene):
                     if hasattr(self.controller, "story") and self.controller.story:
                         self.controller.story.resolve_battle_consequence(self.monster, defeated=True)
                         self.controller.story.record_elf_side_monster_outcome(self.monster, defeated=True)
+                    # 若战斗收尾触发了结局（如即兴谢幕、普通结局），直接进入结局场景
+                    if getattr(self.controller, "game_clear_info", None):
+                        self.controller.scene_manager.go_to("game_over_scene")
+                        return
                     p.clear_battle_status() # 战斗胜利，清除战斗状态
                     if hasattr(self.controller, "clear_battle_extensions"):
                         self.controller.clear_battle_extensions()

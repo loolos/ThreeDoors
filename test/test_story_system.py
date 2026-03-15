@@ -18,6 +18,8 @@ from models.events import (
     PuppetCoreDescentEvent,
     EndingFinalFirstGateEvent,
     EndingFinalSecondGateEvent,
+    _collect_stage_curtain_scores,
+    _resolve_stage_curtain_outcome,
 )
 from models.items import FlyingHammer
 from models.monster import Monster
@@ -790,6 +792,70 @@ class TestStorySystem(BaseTest):
 
         self.assertLessEqual(self.player.gold - gold_before, 18)
         self.assertTrue(any("木偶结局·暗噪回响" in msg for msg in self.controller.messages))
+
+    def test_puppet_final_boss_no_script_writes_params_no_immediate_clear(self):
+        """击败木偶且未拿剧本时只写终局参数，不立即触发结局。"""
+        story = self.controller.story
+        story.puppet_evil_value = 30
+        monster = Monster(name="裂齿·夜魇·堕暗机偶", hp=10, atk=2, tier=2)
+        setattr(monster, "story_puppet_final_boss", True)
+
+        story.resolve_battle_consequence(monster, defeated=True)
+
+        self.assertIsNone(getattr(self.controller, "game_clear_info", None))
+        self.assertIn("ending:puppet_final_defeated", story.story_tags)
+
+    def test_impromptu_curtain_call_triggered_when_finale_reads_params_low_evil(self):
+        """终局事件读取参数时：已击败木偶且未拿剧本、邪恶值低 → 即兴谢幕，善良人格鼓励。"""
+        story = self.controller.story
+        story.story_tags.add("ending:puppet_final_defeated")
+        story.puppet_final_outcome = "defeated"
+        story.puppet_evil_value = 30
+        self.assertNotIn("curtain_call_script_recovered", story.story_tags)
+        self.assertNotIn("curtain_call_script_recovered", story.choice_flags)
+
+        score_payload = _collect_stage_curtain_scores(story)
+        self.assertTrue(score_payload.get("puppet_final_defeated"))
+        self.assertFalse(score_payload.get("script_recovered"))
+        ending_payload = _resolve_stage_curtain_outcome("freedom", score_payload)
+
+        self.assertEqual(ending_payload.get("ending_key"), "impromptu_curtain_call")
+        self.assertEqual(ending_payload.get("ending_title"), "即兴谢幕")
+        desc = ending_payload.get("ending_description", "")
+        self.assertIn("没有剧本也没关系", desc)
+        self.assertIn("你早就比任何台词都更像主角", desc)
+        self.assertIn("即兴完成最后一幕", desc)
+        self.assertIn("谢幕", desc)
+
+    def test_impromptu_curtain_call_triggered_when_finale_reads_params_high_evil(self):
+        """终局事件读取参数时：已击败木偶且未拿剧本、邪恶值高 → 即兴谢幕，黑暗侧嘲讽。"""
+        story = self.controller.story
+        story.story_tags.add("ending:puppet_final_defeated")
+        story.puppet_final_outcome = "defeated"
+        story.puppet_evil_value = 70
+
+        score_payload = _collect_stage_curtain_scores(story)
+        ending_payload = _resolve_stage_curtain_outcome("freedom", score_payload)
+
+        self.assertEqual(ending_payload.get("ending_key"), "impromptu_curtain_call")
+        desc = ending_payload.get("ending_description", "")
+        self.assertIn("不过是顶替我的替身罢了", desc)
+        self.assertIn("即兴完成最后一幕", desc)
+
+    def test_puppet_final_boss_with_script_no_impromptu_on_finale_read(self):
+        """已拿剧本时终局事件读取参数不解析为即兴谢幕，走正常路线。"""
+        story = self.controller.story
+        story.story_tags.add("ending:puppet_final_defeated")
+        story.story_tags.add("curtain_call_script_recovered")
+        story.choice_flags.add("curtain_call_script_recovered")
+        story.puppet_final_outcome = "defeated"
+        story.puppet_evil_value = 30
+
+        score_payload = _collect_stage_curtain_scores(story)
+        self.assertTrue(score_payload.get("script_recovered"))
+        ending_payload = _resolve_stage_curtain_outcome("freedom", score_payload)
+
+        self.assertNotEqual(ending_payload.get("ending_key"), "impromptu_curtain_call")
 
     def test_puppet_final_boss_escape_records_meta_for_later_final_ending(self):
         story = self.controller.story

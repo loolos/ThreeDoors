@@ -405,7 +405,19 @@ async function catchupStateSync() {
 document.addEventListener("DOMContentLoaded", () => {
   initUI();
   initSoundControls();
-  initStartScreen();
+  if (window.TEST_GATE) {
+    // 测试模式：跳过开场动画，直接进入游戏
+    const startScreen = document.getElementById("start-screen");
+    const gameContainer = document.getElementById("game-container");
+    if (startScreen) startScreen.classList.add("hidden");
+    if (gameContainer) gameContainer.style.display = "block";
+    setTimeout(() => {
+      if (startScreen) startScreen.style.display = "none";
+      getStateAndRender();
+    }, 0);
+  } else {
+    initStartScreen();
+  }
   document.getElementById("startOverBtn").addEventListener("click", startOver);
   document.getElementById("exitGameBtn").addEventListener("click", exitGame);
 });

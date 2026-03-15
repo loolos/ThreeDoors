@@ -4004,7 +4004,34 @@ def _resolve_stage_curtain_outcome(route_key, score_payload):
     notes = list(score_payload.get("notes", []))
     puppet_kind_rescued = bool(score_payload.get("puppet_kind_rescued", False))
     stage_script_ready = bool(score_payload.get("stage_script_ready", False))
+    puppet_final_defeated = bool(score_payload.get("puppet_final_defeated", False))
+    script_recovered = bool(score_payload.get("script_recovered", False))
     suffix = f"（秩序{order}/自由{freedom}/权力{power}/风险{risk}）"
+
+    # 无剧本且已击败黑暗木偶：终局事件读取参数时触发即兴谢幕（按邪恶值分支文案）
+    if puppet_final_defeated and not script_recovered:
+        evil = max(0, min(100, int(score_payload.get("puppet_evil_value", 55))))
+        if evil <= 45:
+            persona_line = (
+                "残存的善良人格在消散前把最后一点信号传到你耳边："
+                "「没有剧本也没关系……你早就比任何台词都更像主角。去吧，把最后一幕演完。」"
+            )
+        else:
+            persona_line = (
+                "黑暗侧在彻底静默前挤出最后一段失真音："
+                "「你以为赢了？你连剧本都没见过，不过是顶替我的替身罢了……呵，那就看看你这即兴能撑到几时。」"
+            )
+        common_close = (
+            "灯光打在你身上。没有原定的台词，没有写好的终章——"
+            "你代替倒下的木偶站上舞台中央，即兴完成最后一幕，然后向虚空中的观众深深鞠躬，谢幕。"
+        )
+        return {
+            "ending_key": "impromptu_curtain_call",
+            "ending_title": "即兴谢幕",
+            "ending_description": f"{persona_line} {common_close}",
+            "outcome_tag": "impromptu",
+            "notes": notes,
+        }
 
     if risk >= 5:
         return {
