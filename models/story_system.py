@@ -14,6 +14,7 @@ from models.items import (
     ReviveScroll,
     create_random_item,
 )
+from models.pre_final_gate_config import ALL_PRE_FINAL_DOOR_TYPES, PRE_FINAL_GATE_STORY_CONFIG
 from models.status import StatusName
 
 
@@ -74,8 +75,8 @@ class StorySystem:
     HIGH_MORAL = 30
     LOW_MORAL = -30
     DEFAULT_ENDING_FORCE_ROUND = 200
-    DEFAULT_ENDING_FORCE_CONSEQUENCE_ID = "ending_default_force_gate_round_200"
-    STAGE_CURTAIN_FORCE_CONSEQUENCE_ID = "ending_stage_curtain_preface"
+    DEFAULT_ENDING_FORCE_CONSEQUENCE_ID = PRE_FINAL_GATE_STORY_CONFIG["round200_default_first_gate"]["consequence_id"]
+    STAGE_CURTAIN_FORCE_CONSEQUENCE_ID = PRE_FINAL_GATE_STORY_CONFIG["round200_stage_preface"]["consequence_id"]
 
     HIGH_MORAL_MONSTERS = {"树人", "天使", "创世神官", "幽灵", "精灵法师"}
     LOW_MORAL_MONSTERS = {"土匪", "狼人", "食人魔", "冥界使者", "暗影刺客"}
@@ -261,24 +262,20 @@ class StorySystem:
         consequence_id = self.STAGE_CURTAIN_FORCE_CONSEQUENCE_ID
         if consequence_id in self.pending_consequences or consequence_id in self.consumed_consequences:
             return False
-        all_door_types = [door_type.name for door_type in DoorEnum]
+        cfg = PRE_FINAL_GATE_STORY_CONFIG.get("round200_stage_preface", {})
+        payload = cfg.get("payload", {})
         registered = self.register_consequence(
-            choice_flag="ending_stage_curtain_route",
+            choice_flag=str(cfg.get("choice_flag", "ending_stage_curtain_route")),
             consequence_id=consequence_id,
-            effect_key="force_story_event",
+            effect_key=str(cfg.get("effect_key", "force_story_event")),
             chance=1.0,
-            trigger_door_types=all_door_types,
+            trigger_door_types=list(ALL_PRE_FINAL_DOOR_TYPES),
             min_round=self.DEFAULT_ENDING_FORCE_ROUND,
             max_round=self.DEFAULT_ENDING_FORCE_ROUND,
             force_on_expire=True,
-            force_door_type="EVENT",
-            priority=1260,
-            payload={
-                "event_key": "ending_stage_script_vault_event",
-                "hint": "你怀里的旧钥匙忽然发热，像在指向终局前的一扇隐藏事件门。",
-                "message": "【终局分歧】银羽留给你的钥匙突然自行转动，走廊侧墙弹出一扇带徽记的暗门。",
-                "log_trigger": "【回合200·舞台谢幕链】你触发了银羽秘藏前置事件，终局流程被改写。",
-            },
+            force_door_type=str(cfg.get("force_door_type", "EVENT")),
+            priority=int(cfg.get("priority", 1260)),
+            payload=dict(payload) if isinstance(payload, dict) else {},
         )
         if registered:
             self.story_tags.add("ending:stage_curtain_scheduled")
@@ -298,24 +295,20 @@ class StorySystem:
         consequence_id = self.DEFAULT_ENDING_FORCE_CONSEQUENCE_ID
         if consequence_id in self.pending_consequences or consequence_id in self.consumed_consequences:
             return False
-        all_door_types = [door_type.name for door_type in DoorEnum]
+        cfg = PRE_FINAL_GATE_STORY_CONFIG.get("round200_default_first_gate", {})
+        payload = cfg.get("payload", {})
         registered = self.register_consequence(
-            choice_flag="ending_default_normal_gate",
+            choice_flag=str(cfg.get("choice_flag", "ending_default_normal_gate")),
             consequence_id=consequence_id,
-            effect_key="force_story_event",
+            effect_key=str(cfg.get("effect_key", "force_story_event")),
             chance=1.0,
-            trigger_door_types=all_door_types,
+            trigger_door_types=list(ALL_PRE_FINAL_DOOR_TYPES),
             min_round=self.DEFAULT_ENDING_FORCE_ROUND,
             max_round=self.DEFAULT_ENDING_FORCE_ROUND,
             force_on_expire=True,
-            force_door_type="EVENT",
-            priority=1200,
-            payload={
-                "event_key": "ending_final_first_gate_event",
-                "hint": "尽头只剩三扇刻着不同字句的门，像是迷宫在等你做最后一次选择。",
-                "message": "【终局前兆】走廊尽头忽然亮起终焉指示灯，三扇最终门从墙体里缓缓推出。",
-                "log_trigger": "【回合200·终局锁定】你正要按常规选门，整条走廊的门牌同时翻面，迷宫把你推向最后的抉择。",
-            },
+            force_door_type=str(cfg.get("force_door_type", "EVENT")),
+            priority=int(cfg.get("priority", 1200)),
+            payload=dict(payload) if isinstance(payload, dict) else {},
         )
         if registered:
             self.story_tags.add("ending:default_normal_scheduled")
@@ -466,6 +459,8 @@ class StorySystem:
                 self._resolve_elf_rival_final_victory(monster)
             else:
                 self._resolve_elf_rival_final_escape(monster)
+        if bool(getattr(monster, "story_pre_final_dispatch", False)):
+            self._schedule_next_pre_final_gate(after_battle=True, defeated=defeated)
         cid = getattr(monster, "story_consequence_id", None)
         if not cid:
             return
@@ -493,6 +488,7 @@ class StorySystem:
             self.controller.add_message(f"【银羽提示】{hint}")
         else:
             self.controller.add_message("【银羽提示】她低声提醒：'终局门里别被第一层答案骗了，真正的出口常藏在第二次选择之后。'")
+        self._schedule_next_pre_final_gate(after_battle=True, defeated=True)
 
     def _resolve_elf_rival_final_escape(self, monster: Any) -> None:
         """终局前从飞贼战斗撤离：两人彻底别过。"""
@@ -503,6 +499,7 @@ class StorySystem:
         self.choice_flags.add("ending_elf_rival_parted")
         self.elf_final_outcome = "rival_parted"
         self.controller.add_message("【银羽终局·错身】你借着烟幕撤离，她没有追上来，只在远处抛下一句：'下次不用再见了。'")
+        self._schedule_next_pre_final_gate(after_battle=True, defeated=False)
 
     def _resolve_moon_bounty_mid_outcome(self, monster: Any) -> None:
         """月蚀链中继战斗收尾：记录日记证据并输出剧情提示。"""
@@ -530,6 +527,8 @@ class StorySystem:
         player = getattr(self.controller, "player", None)
         if player is None:
             return
+        self.puppet_final_outcome = "defeated"
+        self.story_tags.add("ending:puppet_final_defeated")
         low_flags = {"puppet_intro_hide", "puppet_signal_soft", "puppet_kind_echo_trust", "puppet_rift_kind", "puppet_descent_patch"}
         high_flags = {"puppet_intro_blackout", "puppet_intro_decoy", "puppet_signal_resell", "puppet_kind_echo_exploit", "puppet_rift_dark", "puppet_descent_dark_feed", "puppet_descent_cut_emotion"}
         flags = set(getattr(self, "choice_flags", set()))
@@ -612,6 +611,27 @@ class StorySystem:
         )
         self.controller.add_message("【木偶终曲】你借着火花与烟尘冲出核心井，脚步声在空廊里被无限拉长。")
         self.controller.add_message(escape_text)
+
+    def _schedule_next_pre_final_gate(self, *, after_battle: bool, defeated: bool) -> None:
+        """统一调度终局前门链：战后可继续挂载剩余门。"""
+        try:
+            from models.events import schedule_next_pre_final_gate
+        except Exception:
+            return
+        scheduled_key = schedule_next_pre_final_gate(self.controller)
+        if not scheduled_key:
+            return
+        if not after_battle:
+            return
+        if scheduled_key == "default_final_boss_gate":
+            self.controller.add_message("【终局调度】前方只剩最后一扇门：『请做出最终决定』。")
+        elif scheduled_key == "elf_rival_final_gate":
+            self.controller.add_message("【终局调度】你刚脱离战斗，走廊另一端又出现一抹银羽杀意。")
+        elif scheduled_key == "puppet_rematch_gate":
+            if defeated:
+                self.controller.add_message("【终局调度】你刚压住战场余震，红噪门框再次亮起：木偶还没彻底罢手。")
+            else:
+                self.controller.add_message("【终局调度】你抽身退开后，失真童谣又在前方门廊回荡。")
 
     def _build_final_ending_meta(self) -> Dict[str, Any]:
         """聚合可交给最终结局展示层的剧情参数。"""
@@ -1450,7 +1470,11 @@ class StorySystem:
                 current_round=round_count,
                 power_score=power_score,
             )
-            setattr(boss, "story_puppet_final_boss", True)
+            mark_as_final_boss = bool(payload.get("mark_as_final_boss", True))
+            setattr(boss, "story_puppet_final_boss", mark_as_final_boss)
+            if bool(payload.get("pre_final_dispatch", False)):
+                setattr(boss, "story_pre_final_dispatch", True)
+                self.story_tags.add("ending:puppet_rematch_gate_done")
             self.controller.add_message("【木偶音效】警报弦音与重低鼓点同时拉响。")
             if side_hit_count <= 0:
                 self.controller.add_message(
@@ -1557,10 +1581,12 @@ class StorySystem:
         except (TypeError, ValueError):
             phase2_min_hp_ratio = 0.0
         phase2_min_hp_ratio = max(0.0, min(0.85, phase2_min_hp_ratio))
+        phase2_enabled = not bool(payload.get("disable_phase_two", False))
 
         state: Dict[str, Any] = {
             "phase": 1,
             "phase2_started": False,
+            "phase2_enabled": phase2_enabled,
             "phase2_name": phase2_name.strip() if isinstance(phase2_name, str) and phase2_name.strip() else f"{dark_name}·黑暗完全体",
             "phase2_threshold_ratio": threshold,
             "phase2_burst_heal_ratio": burst_heal_ratio,
@@ -1891,6 +1917,8 @@ class StorySystem:
         monster = extension.get("monster_ref")
         state = extension.get("state")
         if monster is None or target is not monster or not isinstance(state, dict):
+            return False
+        if not bool(state.get("phase2_enabled", True)):
             return False
         if int(state.get("phase", 1)) >= 2:
             return False
