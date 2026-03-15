@@ -1251,7 +1251,7 @@ class TestStorySystem(BaseTest):
         self.assertIn("ending_stage_curtain_preface", story.pending_consequences)
         pending = story.pending_consequences["ending_stage_curtain_preface"]
         self.assertEqual(pending.min_round, 185)
-        self.assertEqual(pending.max_round, 190)
+        self.assertEqual(pending.max_round, 191)
         self.assertEqual(pending.trigger_door_types, {"REWARD"})
 
         event_door = DoorEnum.EVENT.create_instance(controller=self.controller)
@@ -1271,13 +1271,13 @@ class TestStorySystem(BaseTest):
         story.elf_key_obtained = True
         story.ensure_default_normal_ending_schedule()
 
-        for round_count in range(185, 190):
+        for round_count in range(185, 191):
             self.controller.round_count = round_count
             trap_door = DoorEnum.TRAP.create_instance(controller=self.controller)
             unchanged = story.apply_pre_enter_checks(trap_door)
             self.assertEqual(unchanged.enum.name, "TRAP")
 
-        self.controller.round_count = 190
+        self.controller.round_count = 191
         trap_door = DoorEnum.TRAP.create_instance(controller=self.controller)
         forced = story.apply_pre_enter_checks(trap_door)
         self.assertEqual(forced.enum.name, "EVENT")
@@ -1405,7 +1405,7 @@ class TestStorySystem(BaseTest):
         self.assertIn("ending_puppet_pre_final_rematch_gate", story.pending_consequences)
         pending = story.pending_consequences["ending_puppet_pre_final_rematch_gate"]
         self.assertEqual(pending.min_round, 185)
-        self.assertEqual(pending.max_round, 190)
+        self.assertEqual(pending.max_round, 191)
         self.assertEqual(pending.trigger_door_types, {"MONSTER"})
 
         monster_door = DoorEnum.MONSTER.create_instance(controller=self.controller)
@@ -1426,13 +1426,13 @@ class TestStorySystem(BaseTest):
         story.ensure_default_normal_ending_schedule()
         self.assertIn("ending_puppet_pre_final_rematch_gate", story.pending_consequences)
 
-        for round_count in range(185, 190):
+        for round_count in range(185, 191):
             self.controller.round_count = round_count
             trap_door = DoorEnum.TRAP.create_instance(controller=self.controller)
             unchanged = story.apply_pre_enter_checks(trap_door)
             self.assertEqual(unchanged.enum.name, "TRAP")
 
-        self.controller.round_count = 190
+        self.controller.round_count = 191
         trap_door = DoorEnum.TRAP.create_instance(controller=self.controller)
         forced_rematch = story.apply_pre_enter_checks(trap_door)
         self.assertEqual(forced_rematch.enum.name, "MONSTER")
@@ -1449,14 +1449,14 @@ class TestStorySystem(BaseTest):
         self.assertIn("ending_puppet_pre_final_rematch_gate", story.pending_consequences)
         self.assertIn("ending_elf_rival_final_gate", story.pending_consequences)
 
-        self.controller.round_count = 190
+        self.controller.round_count = 191
         reward_door = DoorEnum.MONSTER.create_instance(controller=self.controller)
         forced_rematch = story.apply_pre_enter_checks(reward_door)
         self.assertEqual(forced_rematch.monster.name, "裂齿·夜魇·游荡残响")
         story.resolve_battle_consequence(forced_rematch.monster, defeated=True)
         self.assertIn("ending_elf_rival_final_gate", story.pending_consequences)
 
-        self.controller.round_count = 191
+        self.controller.round_count = 192
         event_door = DoorEnum.MONSTER.create_instance(controller=self.controller)
         forced_rival = story.apply_pre_enter_checks(event_door)
         story.resolve_battle_consequence(forced_rival.monster, defeated=True)
@@ -1504,6 +1504,45 @@ class TestStorySystem(BaseTest):
         self.controller.round_count = 190
         story.ensure_default_normal_ending_schedule()
         self.assertIn("ending_elf_rival_final_gate", story.pending_consequences)
+
+    def test_after_window_all_remaining_pre_final_events_are_forced_sequentially(self):
+        story = self.controller.story
+        story.story_tags.update({"ending:puppet_final_escape_recorded"})
+        story.puppet_final_outcome = "escaped"
+        story.elf_chain_ended = True
+        story.elf_relation = -5
+        story.elf_key_obtained = True
+
+        self.controller.round_count = 185
+        story.ensure_default_normal_ending_schedule()
+        self.assertIn("ending_stage_curtain_preface", story.pending_consequences)
+        self.assertIn("ending_puppet_pre_final_rematch_gate", story.pending_consequences)
+        self.assertIn("ending_elf_rival_final_gate", story.pending_consequences)
+
+        # 窗口期未踩中对应门，保持未触发
+        for round_count in range(185, 191):
+            self.controller.round_count = round_count
+            trap_door = DoorEnum.TRAP.create_instance(controller=self.controller)
+            unchanged = story.apply_pre_enter_checks(trap_door)
+            self.assertEqual(unchanged.enum.name, "TRAP")
+
+        # 窗口结束后，未触发事件必须按序强制发生（优先级：木偶 -> 飞贼 -> 宝库）
+        self.controller.round_count = 191
+        forced_1 = story.apply_pre_enter_checks(DoorEnum.TRAP.create_instance(controller=self.controller))
+        self.assertEqual(forced_1.enum.name, "MONSTER")
+        self.assertEqual(forced_1.monster.name, "裂齿·夜魇·游荡残响")
+        story.resolve_battle_consequence(forced_1.monster, defeated=True)
+
+        self.controller.round_count = 192
+        forced_2 = story.apply_pre_enter_checks(DoorEnum.TRAP.create_instance(controller=self.controller))
+        self.assertEqual(forced_2.enum.name, "MONSTER")
+        self.assertEqual(forced_2.monster.name, "银羽飞贼·莱希娅")
+        story.resolve_battle_consequence(forced_2.monster, defeated=True)
+
+        self.controller.round_count = 193
+        forced_3 = story.apply_pre_enter_checks(DoorEnum.TRAP.create_instance(controller=self.controller))
+        self.assertEqual(forced_3.enum.name, "EVENT")
+        self.assertEqual(getattr(forced_3, "story_forced_event_key", ""), "ending_stage_script_vault_event")
 
     def test_elf_rival_final_battle_victory_grants_hint_and_consumes_gate(self):
         story = self.controller.story

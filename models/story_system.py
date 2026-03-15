@@ -265,7 +265,8 @@ class StorySystem:
             return False
         if current_round <= window_end:
             min_round = current_round
-            max_round = window_end
+            # 窗口内仅按门型触发；窗口结束后（下一回合）才进入强制兜底。
+            max_round = window_end + 1
         else:
             min_round = current_round
             max_round = current_round
@@ -340,7 +341,8 @@ class StorySystem:
 
         if current_round <= window_end:
             min_round = current_round
-            max_round = window_end
+            # 窗口内仅按门型触发；窗口结束后（下一回合）才进入强制兜底。
+            max_round = window_end + 1
         else:
             # 超出预挂载窗口后，立即进入强制兜底，保证终局事件前一定触发。
             min_round = current_round
