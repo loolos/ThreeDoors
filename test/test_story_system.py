@@ -618,7 +618,7 @@ class TestStorySystem(BaseTest):
         self.assertIn("moon_chain_protect_force_verdict", story.pending_consequences)
 
         verdict_event = MoonVerdictEvent(self.controller)
-        self.assertIn("我没偷那份乐章", verdict_event.description)
+        self.assertIn("我没偷那份命运的乐谱", verdict_event.description)
 
     def test_puppet_intro_schedules_mainline_rift_in_20_to_30_rounds(self):
         story = self.controller.story

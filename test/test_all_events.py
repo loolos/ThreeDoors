@@ -328,7 +328,7 @@ class TestAllEvents(BaseTest):
         c.player.hp = 100
         MoonBountyEvent(c).resolve_choice(2)
         self.assertEqual(c.player.gold, 148)  # +48 from double_cross
-        self.assertEqual(c.player.hp, 94)  # -6 damage
+        self.assertEqual(c.player.hp, 74)  # -26 damage from double_cross
 
         c = GameController()
         c.player.gold = 80

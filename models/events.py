@@ -1445,11 +1445,11 @@ class MoonBountyEvent(Event):
         self.description = (
             "剧场走廊的墙上贴着一张会发光的通缉令，落款是安保回收系统："
             "'月蚀前带回命运乐谱大盗，生死不论；命运乐章必须追回。' "
-            "但角落里有被反复涂抹的批注：'目标身份待复核'。墨迹上还沾着细小银羽粉。"
+            "但角落里有被反复涂抹的批注：'目标身份待复核'。"
         )
         self.choices = [
             EventChoice("接单追猎，准备当场拿下「命运乐谱大盗」", self.accept_contract),
-            EventChoice("撕毁通缉令并暗中护送目标，先查清他是否被冤", self.protect_target),
+            EventChoice("撕毁通缉令并暗中护送目标", self.protect_target),
             EventChoice("两边伪造线索，等他们互咬后再收网", self.double_cross),
         ]
 
@@ -1503,15 +1503,15 @@ class MoonBountyEvent(Event):
             consequences=self._build_moon_chain(
                 route="double",
                 battle_mode="random",
-                chain_message="前情：你同时欺骗了两边。门后要么是被追猎者，要么是守护者，谁先到就谁先和你开战。",
+                chain_message="前情：你同时欺骗了两边。现在大盗和发布通缉令的人都在找你，如果你不主动现身，他们可能会自己找上门来。",
                 chain_hint="前情：你放出的假线索反噬了自己，这扇门后只剩一场硬仗。",
-                verdict_hint="前情：无论你骗了谁，审判庭都要你带着战后那本日记本到场说明。",
+                verdict_hint="前情：无论你骗了谁，审判庭会让你当庭对质的。",
             ),
         )
         p = self.get_player()
         p.gold += 48
-        p.take_damage(6)
-        self.add_message("你把真假线索分别卖给两边，先赚到 48G；但双方都在试探你，你在撤离时受了 6 点伤害。")
+        p.take_damage(26)
+        self.add_message("你把真假线索分别卖给两边，先赚到 48G；但双方都在试探你，你在撤离时受了 26 点伤害。")
         return "Event Completed"
 
     def _build_moon_chain(self, route, battle_mode, chain_message, chain_hint, verdict_hint):
@@ -1578,7 +1578,7 @@ class MoonVerdictEvent(Event):
         if source == "thief_body":
             return "你把战后搜出的旧日记本放在证物盘里：里面只记着一个父亲寻找走失女儿的日期与路线。"
         if source == "thief_testimony":
-            return "你把被通缉者托付的旧日记本放在证物盘里：里面是他寻找走失女儿的记录，以及他反复写下的「我没偷那份乐章」。"
+            return "你把被通缉者托付的旧日记本放在证物盘里：里面是他寻找走失女儿的记录，以及他反复写下的「我没偷那份命运的乐谱」。"
         return "你把一册磨损的旧日记本放在证物盘里，准备在审判中作为补充证词。"
 
     def _add_diary_court_remark(self):
@@ -1593,7 +1593,7 @@ class MoonVerdictEvent(Event):
         else:
             self.add_message("你递上日记本。书记官把它放进证物盘，翻了两页就合上。")
         self.add_message("主审官冷声宣布：'这本日记不能证明命运乐章失窃案的真伪，只能作为背景材料。'")
-        self.add_message("旁听席有人低声提到「飞羽样本」仍在复核，但很快被法槌压了下去。")
+        self.add_message("旁听席有人低声提到其他证据仍在复核，但很快被法槌压了下去。")
 
     def file_clean(self):
         self._add_diary_court_remark()
