@@ -81,9 +81,9 @@ class DoorScene(Scene):
             
         p.adventure_status_duration_pass()  # Adventure turn effects
         
-        # 进入门并处理事件
+        # 进入门并处理事件（传入选门时的回合：上面已 +1，故用 round_count - 1，避免超窗强制误判）
         if hasattr(c, "story") and c.story:
-            door = c.story.apply_pre_enter_checks(door)
+            door = c.story.apply_pre_enter_checks(door, choice_round=c.round_count - 1)
             self.doors[index] = door
         door.enter()
         if hasattr(c, "record_door_visit") and callable(getattr(c, "record_door_visit", None)):
@@ -151,6 +151,38 @@ class DoorScene(Scene):
             
             # 随机打乱三扇门的顺序
             random.shuffle(self.doors)
+
+            # 结局前事件 + 第 200 回合第一门：保证至少一扇门为「下一个待触发结局门」所需门型（不依赖 max_round 强制替换）
+            c = self.controller
+            if hasattr(c, "story") and c.story:
+                want_type = c.story.get_required_door_type_for_next_ending(c.round_count)
+                if want_type:
+                    has_wanted = any(
+                        getattr(d, "enum", None) and getattr(d.enum, "name", None) == want_type
+                        for d in self.doors
+                    )
+                    if not has_wanted:
+                        try:
+                            door_enum = DoorEnum[want_type]
+                        except KeyError:
+                            door_enum = None
+                        if door_enum is not None:
+                            if door_enum == DoorEnum.MONSTER:
+                                monster = get_random_monster(
+                                    current_round=c.round_count,
+                                    player=getattr(c, "player", None),
+                                    unlocked_tier=getattr(c, "unlocked_monster_tier", GameConfig.START_UNLOCKED_MONSTER_TIER),
+                                )
+                                new_door = door_enum.create_instance(monster=monster, controller=c)
+                            else:
+                                new_door = door_enum.create_instance(controller=c)
+                            # 替换一扇非目标类型的门（优先替换非怪物门以保留一扇怪物门）
+                            for i, d in enumerate(self.doors):
+                                if getattr(d, "enum", None) and getattr(d.enum, "name", None) != want_type:
+                                    self.doors[i] = new_door
+                                    break
+                            random.shuffle(self.doors)
+                    # else: 已有该类型门，无需替换
         
         # 更新按钮文本（仅当至少 3 扇门时按索引访问，避免 IndexError）
         if len(self.doors) >= 3:

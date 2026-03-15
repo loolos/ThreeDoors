@@ -6,6 +6,7 @@ from models.status import StatusName
 
 # 终局前门调度配置：统一维护事件门/战斗门文案与基础参数（原 pre_final_gate_config）
 ALL_PRE_FINAL_DOOR_TYPES = ("TRAP", "REWARD", "MONSTER", "SHOP", "EVENT")
+ELF_THIEF_NAME = "莱希娅"
 
 PRE_FINAL_GATE_STORY_CONFIG = {
     # 回合 200：舞台谢幕链前置入口（宝物门，无事件选项，仅取剧本剧情）
@@ -18,7 +19,7 @@ PRE_FINAL_GATE_STORY_CONFIG = {
         "payload": {
             "hint": "你怀里的旧钥匙忽然发热，像在指向终局前的一扇带徽记的宝物门。",
             "message": "银羽留给你的钥匙突然自行转动，走廊侧墙弹出一扇带徽记的暗门。",
-            "log_trigger": "推开门前，你注意到了一个门上有银色的羽毛徽记，你似乎找到了那个飞贼藏起来的宝物。",
+            "log_trigger": f"推开门前，你注意到了一个门上有银色的羽毛徽记，你似乎找到了{ELF_THIEF_NAME}的此前提到的藏宝地。",
         },
     },
     # 回合 200：木偶回声怪物门（已击败木偶、未拿钥匙、与飞贼关系普通或不好；击败后即兴谢幕）
@@ -3164,9 +3165,6 @@ class PuppetCoreDescentEvent(Event):
         return "Event Completed"
 
 
-ELF_THIEF_NAME = "莱希娅"
-
-
 ELF_CHAIN_EVENT_ORDER = [
     "elf_shadow_mark_event",
     "elf_rooftop_duel_event",
@@ -4031,6 +4029,25 @@ def _schedule_pre_final_gate(
         max_round = max(0, int(max_round))
     if max_round < min_round:
         max_round = min_round
+    # 结局前事件 + 终局链均不做 max_round 强制替换，由「保证对应门型出现」按序触发
+    blocking_no_force = ("puppet_rematch_gate", "elf_rival_final_gate", "dream_mirror_prelude_gate")
+    ending_chain_no_force = ("default_second_gate_event", "default_final_boss_gate")
+    if gate_key in blocking_no_force:
+        force_on_expire = False
+        try:
+            ending_round = int(getattr(story, "DEFAULT_ENDING_FORCE_ROUND", 200))
+            max_round = max(max_round, ending_round)
+        except (TypeError, ValueError):
+            pass
+    elif gate_key in ending_chain_no_force:
+        force_on_expire = False
+        try:
+            ending_round = int(getattr(story, "DEFAULT_ENDING_FORCE_ROUND", 200))
+            max_round = max(max_round, ending_round + 20)
+        except (TypeError, ValueError):
+            pass
+    else:
+        force_on_expire = True
     configured_trigger_door_types = cfg.get("trigger_door_types", list(ALL_PRE_FINAL_DOOR_TYPES))
     chosen_trigger_door_types = trigger_door_types if trigger_door_types is not None else configured_trigger_door_types
     return story.register_consequence(
@@ -4041,7 +4058,7 @@ def _schedule_pre_final_gate(
         trigger_door_types=list(chosen_trigger_door_types),
         min_round=min_round,
         max_round=max_round,
-        force_on_expire=True,
+        force_on_expire=force_on_expire,
         force_door_type=str(cfg.get("force_door_type", "EVENT")),
         priority=int(cfg.get("priority", 1200)),
         payload=payload,

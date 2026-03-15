@@ -25,6 +25,7 @@ def setup_controller_for_stage_curtain_order(controller, round_count=190):
     - 玩家: HP 800, ATK 200
     - 精灵飞贼: elf_chain_ended=True, elf_relation=4, elf_key_obtained=True
     - 黑暗木偶: ending:puppet_final_defeated, puppet_evil_value=30
+    - 飞贼清算、木偶补战视为已完结，从 pending 移除并加入 consumed，不再触发
     - 未设置 curtain_call_script_recovered，以便可挂载银羽秘藏
     """
     controller.round_count = round_count
@@ -41,6 +42,10 @@ def setup_controller_for_stage_curtain_order(controller, round_count=190):
     story.story_tags.add("elf_key_obtained")
     story.story_tags.add("ending:puppet_final_defeated")
     story.puppet_evil_value = 30
+    story.pending_consequences.pop(story.PUPPET_PRE_FINAL_CONSEQUENCE_ID, None)
+    story.pending_consequences.pop(story.ELF_RIVAL_PRE_FINAL_CONSEQUENCE_ID, None)
+    story.consumed_consequences.add(story.PUPPET_PRE_FINAL_CONSEQUENCE_ID)
+    story.consumed_consequences.add(story.ELF_RIVAL_PRE_FINAL_CONSEQUENCE_ID)
 
 
 def setup_controller_for_stage_curtain_power(controller, round_count=190):

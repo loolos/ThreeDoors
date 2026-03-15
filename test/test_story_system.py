@@ -1322,7 +1322,8 @@ class TestStorySystem(BaseTest):
         self.assertIn("ending_stage_curtain_preface", story.pending_consequences)
         pending = story.pending_consequences["ending_stage_curtain_preface"]
         self.assertEqual(pending.min_round, 185)
-        self.assertEqual(pending.max_round, 191)
+        self.assertEqual(pending.max_round, 200)
+        self.assertFalse(pending.force_on_expire)
         self.assertEqual(pending.trigger_door_types, {"REWARD"})
 
         event_door = DoorEnum.EVENT.create_instance(controller=self.controller)
@@ -1335,7 +1336,8 @@ class TestStorySystem(BaseTest):
         extension_types = [ext.get("extension_type") for ext in getattr(changed_door, "door_extensions", [])]
         self.assertIn("stage_curtain_script_vault", extension_types)
 
-    def test_stage_curtain_preface_is_forced_before_final_when_reward_gate_not_hit(self):
+    def test_stage_curtain_preface_is_not_forced_by_max_round(self):
+        """结局前事件不做 max_round 强制替换；到 200 回合由「保证对应门型出现」按序触发，选错门不改写。"""
         self.controller.round_count = 185
         story = self.controller.story
         story.elf_chain_ended = True
@@ -1345,18 +1347,11 @@ class TestStorySystem(BaseTest):
         story.puppet_evil_value = 30
         story.ensure_default_normal_ending_schedule()
 
-        for round_count in range(185, 191):
+        for round_count in (185, 190, 191, 200):
             self.controller.round_count = round_count
             trap_door = DoorEnum.TRAP.create_instance(controller=self.controller)
             unchanged = story.apply_pre_enter_checks(trap_door)
             self.assertEqual(unchanged.enum.name, "TRAP")
-
-        self.controller.round_count = 191
-        trap_door = DoorEnum.TRAP.create_instance(controller=self.controller)
-        forced = story.apply_pre_enter_checks(trap_door)
-        self.assertEqual(forced.enum.name, "REWARD")
-        extension_types = [ext.get("extension_type") for ext in getattr(forced, "door_extensions", [])]
-        self.assertIn("stage_curtain_script_vault", extension_types)
 
     def test_stage_script_vault_marks_script_truth_no_longer_schedules_curtain_gate(self):
         """取回剧本后不再在窗口内挂载谢幕门；与善良木偶对话结局门改在第 200 回合、倒数窗口清空后挂载。"""
@@ -1456,15 +1451,18 @@ class TestStorySystem(BaseTest):
         self.assertFalse(scheduled)
         self.assertNotIn("ending_default_force_gate_round_200", story.pending_consequences)
 
-        trap_door = DoorEnum.TRAP.create_instance(controller=self.controller)
-        forced_first = story.apply_pre_enter_checks(trap_door)
-        self.assertEqual(forced_first.enum.name, "MONSTER")
-        story.resolve_battle_consequence(forced_first.monster, defeated=True)
+        # 不强制替换门：选到对应门型才触发；模拟玩家选到保证出现的 MONSTER 门
+        monster_door = DoorEnum.MONSTER.create_instance(controller=self.controller)
+        triggered_first = story.apply_pre_enter_checks(monster_door)
+        self.assertEqual(triggered_first.enum.name, "MONSTER")
+        self.assertEqual(triggered_first.monster.name, "裂齿·夜魇·游荡残响")
+        story.resolve_battle_consequence(triggered_first.monster, defeated=True)
 
-        trap_door = DoorEnum.TRAP.create_instance(controller=self.controller)
-        forced_second = story.apply_pre_enter_checks(trap_door)
-        self.assertEqual(forced_second.enum.name, "MONSTER")
-        story.resolve_battle_consequence(forced_second.monster, defeated=True)
+        monster_door = DoorEnum.MONSTER.create_instance(controller=self.controller)
+        triggered_second = story.apply_pre_enter_checks(monster_door)
+        self.assertEqual(triggered_second.enum.name, "MONSTER")
+        self.assertEqual(triggered_second.monster.name, "银羽飞贼·莱希娅")
+        story.resolve_battle_consequence(triggered_second.monster, defeated=True)
 
         scheduled_after = story.ensure_default_normal_ending_schedule()
         self.assertTrue(scheduled_after)
@@ -1496,11 +1494,11 @@ class TestStorySystem(BaseTest):
         self.assertIn("ending_default_final_boss_gate", story.pending_consequences)
 
         self.controller.round_count = 202
-        trap_door = DoorEnum.TRAP.create_instance(controller=self.controller)
-        forced_boss = story.apply_pre_enter_checks(trap_door)
-        self.assertEqual(forced_boss.enum.name, "MONSTER")
-        self.assertEqual(forced_boss.monster.name, "选择困难症候群")
-        self.assertTrue(getattr(forced_boss.monster, "story_default_final_boss", False))
+        monster_door = DoorEnum.MONSTER.create_instance(controller=self.controller)
+        triggered_boss = story.apply_pre_enter_checks(monster_door)
+        self.assertEqual(triggered_boss.enum.name, "MONSTER")
+        self.assertEqual(triggered_boss.monster.name, "选择困难症候群")
+        self.assertTrue(getattr(triggered_boss.monster, "story_default_final_boss", False))
 
     def test_pre_final_window_schedules_puppet_rematch_and_uses_monster_gate(self):
         story = self.controller.story
@@ -1512,7 +1510,8 @@ class TestStorySystem(BaseTest):
         self.assertIn("ending_puppet_pre_final_rematch_gate", story.pending_consequences)
         pending = story.pending_consequences["ending_puppet_pre_final_rematch_gate"]
         self.assertEqual(pending.min_round, 185)
-        self.assertEqual(pending.max_round, 191)
+        self.assertEqual(pending.max_round, 200)
+        self.assertFalse(pending.force_on_expire)
         self.assertEqual(pending.trigger_door_types, {"MONSTER"})
 
         monster_door = DoorEnum.MONSTER.create_instance(controller=self.controller)
@@ -1525,6 +1524,7 @@ class TestStorySystem(BaseTest):
         self.assertTrue(any(token in forced_rematch.hint for token in ("红噪", "失真童谣")))
 
     def test_pre_final_window_forces_rematch_before_final_when_no_monster_gate_hit(self):
+        """结局前事件不强制替换门；选错门保持原样，选到 MONSTER 才触发木偶补战。"""
         story = self.controller.story
         story.story_tags.add("ending:puppet_final_escape_recorded")
         story.puppet_final_outcome = "escaped"
@@ -1533,17 +1533,17 @@ class TestStorySystem(BaseTest):
         story.ensure_default_normal_ending_schedule()
         self.assertIn("ending_puppet_pre_final_rematch_gate", story.pending_consequences)
 
-        for round_count in range(185, 191):
+        for round_count in (185, 191, 200):
             self.controller.round_count = round_count
             trap_door = DoorEnum.TRAP.create_instance(controller=self.controller)
             unchanged = story.apply_pre_enter_checks(trap_door)
             self.assertEqual(unchanged.enum.name, "TRAP")
 
         self.controller.round_count = 191
-        trap_door = DoorEnum.TRAP.create_instance(controller=self.controller)
-        forced_rematch = story.apply_pre_enter_checks(trap_door)
-        self.assertEqual(forced_rematch.enum.name, "MONSTER")
-        self.assertEqual(forced_rematch.monster.name, "裂齿·夜魇·游荡残响")
+        monster_door = DoorEnum.MONSTER.create_instance(controller=self.controller)
+        triggered_rematch = story.apply_pre_enter_checks(monster_door)
+        self.assertEqual(triggered_rematch.enum.name, "MONSTER")
+        self.assertEqual(triggered_rematch.monster.name, "裂齿·夜魇·游荡残响")
 
     def test_puppet_rematch_then_elf_rival_can_chain_dispatch_without_early_default_boss(self):
         story = self.controller.story
@@ -1688,25 +1688,26 @@ class TestStorySystem(BaseTest):
         self.assertIn("ending_puppet_pre_final_rematch_gate", story.pending_consequences)
         self.assertIn("ending_elf_rival_final_gate", story.pending_consequences)
 
-        # 窗口期未踩中对应门，保持未触发
-        for round_count in range(185, 191):
+        # 不强制替换门；选错门保持 TRAP，选到 MONSTER 时按序触发（先木偶补战，再飞贼清算）
+        for round_count in (185, 191):
             self.controller.round_count = round_count
             trap_door = DoorEnum.TRAP.create_instance(controller=self.controller)
             unchanged = story.apply_pre_enter_checks(trap_door)
             self.assertEqual(unchanged.enum.name, "TRAP")
 
-        # 窗口结束后，未触发事件按序强制：先木偶补战，再飞贼清算
         self.controller.round_count = 191
-        forced_1 = story.apply_pre_enter_checks(DoorEnum.TRAP.create_instance(controller=self.controller))
-        self.assertEqual(forced_1.enum.name, "MONSTER")
-        self.assertEqual(forced_1.monster.name, "裂齿·夜魇·游荡残响")
-        story.resolve_battle_consequence(forced_1.monster, defeated=True)
+        monster_door = DoorEnum.MONSTER.create_instance(controller=self.controller)
+        triggered_1 = story.apply_pre_enter_checks(monster_door)
+        self.assertEqual(triggered_1.enum.name, "MONSTER")
+        self.assertEqual(triggered_1.monster.name, "裂齿·夜魇·游荡残响")
+        story.resolve_battle_consequence(triggered_1.monster, defeated=True)
 
         self.controller.round_count = 192
-        forced_2 = story.apply_pre_enter_checks(DoorEnum.TRAP.create_instance(controller=self.controller))
-        self.assertEqual(forced_2.enum.name, "MONSTER")
-        self.assertEqual(forced_2.monster.name, "银羽飞贼·莱希娅")
-        story.resolve_battle_consequence(forced_2.monster, defeated=True)
+        monster_door = DoorEnum.MONSTER.create_instance(controller=self.controller)
+        triggered_2 = story.apply_pre_enter_checks(monster_door)
+        self.assertEqual(triggered_2.enum.name, "MONSTER")
+        self.assertEqual(triggered_2.monster.name, "银羽飞贼·莱希娅")
+        story.resolve_battle_consequence(triggered_2.monster, defeated=True)
 
     def test_elf_rival_final_battle_victory_grants_hint_and_consumes_gate(self):
         story = self.controller.story

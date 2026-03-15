@@ -83,20 +83,35 @@ class StorySystem:
     PUPPET_PRE_FINAL_CONSEQUENCE_ID = PRE_FINAL_GATE_STORY_CONFIG["puppet_rematch_gate"]["consequence_id"]
     ELF_RIVAL_PRE_FINAL_CONSEQUENCE_ID = PRE_FINAL_GATE_STORY_CONFIG["elf_rival_final_gate"]["consequence_id"]
     DREAM_MIRROR_PRELUDE_CONSEQUENCE_ID = PRE_FINAL_GATE_STORY_CONFIG["dream_mirror_prelude_gate"]["consequence_id"]
+    PUPPET_ECHO_FINAL_CONSEQUENCE_ID = PRE_FINAL_GATE_STORY_CONFIG["puppet_echo_final_gate"]["consequence_id"]
+    KIND_PUPPET_DIALOGUE_ROUND200_CONSEQUENCE_ID = PRE_FINAL_GATE_STORY_CONFIG["kind_puppet_dialogue_round200"]["consequence_id"]
+    POWER_CURTAIN_DIALOGUE_ROUND200_CONSEQUENCE_ID = PRE_FINAL_GATE_STORY_CONFIG["power_curtain_dialogue_round200"]["consequence_id"]
 
-    # 结局前倒数窗口内必须全部清空的事件；默认终局（选择困难症候群）必须在此列表无 pending 后才可挂载。触发顺序见下。
+    # 结局事件（第一门）：仅默认第一门、接管谢幕；须在所有结局阻塞清空后才挂载。
+    ROUND200_FIRST_GATE_CONSEQUENCE_IDS = (
+        DEFAULT_ENDING_FORCE_CONSEQUENCE_ID,
+        POWER_CURTAIN_DIALOGUE_ROUND200_CONSEQUENCE_ID,
+    )
+    DEFAULT_SECOND_GATE_CONSEQUENCE_ID = PRE_FINAL_GATE_STORY_CONFIG["default_second_gate_event"]["consequence_id"]
+    DEFAULT_FINAL_BOSS_CONSEQUENCE_ID = PRE_FINAL_GATE_STORY_CONFIG["default_final_boss_gate"]["consequence_id"]
+
+    # 结局前阻塞事件：必须全部清空后才可挂载结局事件（默认第一门、接管谢幕）。顺序见下。
     PRE_FINAL_BLOCKING_CONSEQUENCE_IDS = frozenset({
         STAGE_CURTAIN_FORCE_CONSEQUENCE_ID,
         PUPPET_PRE_FINAL_CONSEQUENCE_ID,
         ELF_RIVAL_PRE_FINAL_CONSEQUENCE_ID,
         DREAM_MIRROR_PRELUDE_CONSEQUENCE_ID,
+        PUPPET_ECHO_FINAL_CONSEQUENCE_ID,
+        KIND_PUPPET_DIALOGUE_ROUND200_CONSEQUENCE_ID,
     })
-    # 强制触发时的优先顺序：银羽秘藏 → 木偶补战 → 飞贼清算 → 梦境镜面回响；默认 Boss 最后（不在此列表，由 ensure_default_normal_ending_schedule 单独挂载）。
+    # 阻塞触发顺序：银羽秘藏 → 木偶补战 → 飞贼清算 → 梦境镜面回响 → 木偶回声 → 善良木偶对话；全部清空后才挂载结局事件。
     PRE_FINAL_BLOCKING_ORDER = (
         STAGE_CURTAIN_FORCE_CONSEQUENCE_ID,
         PUPPET_PRE_FINAL_CONSEQUENCE_ID,
         ELF_RIVAL_PRE_FINAL_CONSEQUENCE_ID,
         DREAM_MIRROR_PRELUDE_CONSEQUENCE_ID,
+        PUPPET_ECHO_FINAL_CONSEQUENCE_ID,
+        KIND_PUPPET_DIALOGUE_ROUND200_CONSEQUENCE_ID,
     )
 
     HIGH_MORAL_MONSTERS = {"树人", "天使", "创世神官", "幽灵", "精灵法师"}
@@ -371,7 +386,7 @@ class StorySystem:
         return True
 
     def ensure_stage_curtain_preface_schedule(self) -> bool:
-        """满足前置时将“银羽秘藏”纳入终局前倒数窗口调度（宝物门命中，超窗强制）。"""
+        """满足前置时将“银羽秘藏”纳入终局前倒数窗口调度（仅按门型触发；到 200 回合由「保证对应门型出现」按序触发，不做 max_round 强制替换）。"""
         if not self._is_stage_curtain_route_ready():
             return False
         if "ending:default_normal_completed" in self.story_tags:
@@ -384,13 +399,9 @@ class StorySystem:
         window_end = max(0, ending_round - int(self.PRE_FINAL_WINDOW_END_OFFSET))
         if current_round < window_start:
             return False
-        if current_round <= window_end:
-            min_round = current_round
-            # 窗口内仅按门型触发；窗口结束后（下一回合）才进入强制兜底。
-            max_round = window_end + 1
-        else:
-            min_round = current_round
-            max_round = current_round
+        min_round = current_round
+        # 结局前事件不做超窗强制；max_round 设为终局回合，允许在 200 回合内由「保证对应门型」机制触发
+        max_round = ending_round
         consequence_id = self.STAGE_CURTAIN_FORCE_CONSEQUENCE_ID
         if consequence_id in self.pending_consequences or consequence_id in self.consumed_consequences:
             return False
@@ -404,7 +415,7 @@ class StorySystem:
             trigger_door_types=["REWARD"],
             min_round=min_round,
             max_round=max_round,
-            force_on_expire=True,
+            force_on_expire=False,
             force_door_type=str(cfg.get("force_door_type", "EVENT")),
             priority=int(cfg.get("priority", 1260)),
             payload=dict(payload) if isinstance(payload, dict) else {},
@@ -421,6 +432,31 @@ class StorySystem:
         """所有结局前倒数窗口事件已清空，可挂载默认终局。"""
         return not self._has_pending_blocking_pre_final_events()
 
+    def get_first_pending_blocking_force_door_type(self) -> Optional[str]:
+        """按 PRE_FINAL_BLOCKING_ORDER 返回第一个未清空的结局前阻塞事件所需门型，用于 generate_doors 保证至少一扇对应门出现（200 回合按序触发，不依赖 max_round 强制替换）。"""
+        for cid in self.PRE_FINAL_BLOCKING_ORDER:
+            c = self.pending_consequences.get(cid)
+            if c is not None and getattr(c, "force_door_type", None):
+                return str(c.force_door_type)
+        return None
+
+    def get_required_door_type_for_next_ending(self, round_count: int) -> Optional[str]:
+        """返回当前应保证出现的门型：先按序看结局前阻塞事件，再在 round>=200 时看第 200 回合第一门，再看第二门、默认最终 Boss。供 generate_doors 使用，与取消 force_on_expire 配套。"""
+        for cid in self.PRE_FINAL_BLOCKING_ORDER:
+            c = self.pending_consequences.get(cid)
+            if c is not None and getattr(c, "force_door_type", None):
+                return str(c.force_door_type)
+        if round_count >= self.DEFAULT_ENDING_FORCE_ROUND:
+            for cid in self.ROUND200_FIRST_GATE_CONSEQUENCE_IDS:
+                c = self.pending_consequences.get(cid)
+                if c is not None and getattr(c, "force_door_type", None):
+                    return str(c.force_door_type)
+        for cid in (self.DEFAULT_SECOND_GATE_CONSEQUENCE_ID, self.DEFAULT_FINAL_BOSS_CONSEQUENCE_ID):
+            c = self.pending_consequences.get(cid)
+            if c is not None and getattr(c, "force_door_type", None):
+                return str(c.force_door_type)
+        return None
+
     def _should_run_pre_final_recheck(self, *, current_round: int, window_start: int, ending_round: int) -> bool:
         """倒数窗口统一检查：窗口起点 + 每隔固定回合 + 终局回合兜底。"""
         if current_round == ending_round:
@@ -433,7 +469,7 @@ class StorySystem:
         return (current_round - last_round) >= int(self.PRE_FINAL_RECHECK_INTERVAL)
 
     def ensure_pre_final_event_schedule(self) -> bool:
-        """在终局前倒数 15~10 回合预挂载前置战，未命中时在结局前强制触发。"""
+        """在终局前倒数窗口预挂载前置事件；到 200 回合由「保证对应门型出现」按序触发，不做 max_round 强制替换。"""
         if "ending:default_normal_completed" in self.story_tags:
             return False
         if "ending:stage_curtain_completed" in self.story_tags:
@@ -489,10 +525,45 @@ class StorySystem:
         self.pre_final_last_check_round = current_round
         return scheduled_any
 
+    def _try_schedule_blocking_echo_or_kind(self) -> bool:
+        """第 200 回合若满足条件，挂载结局前阻塞：木偶回声或善良木偶对话（二选一，按优先级）。返回是否挂载了任一。"""
+        current_round = max(0, int(getattr(self.controller, "round_count", 0)))
+        if current_round < self.DEFAULT_ENDING_FORCE_ROUND:
+            return False
+        for gate_key in ("puppet_echo_final_gate", "kind_puppet_dialogue_round200"):
+            if gate_key == "puppet_echo_final_gate" and not self._is_puppet_echo_gate_ready():
+                continue
+            if gate_key == "kind_puppet_dialogue_round200" and not self._is_kind_puppet_dialogue_ready():
+                continue
+            cfg = PRE_FINAL_GATE_STORY_CONFIG.get(gate_key, {})
+            consequence_id = str(cfg.get("consequence_id", ""))
+            if not consequence_id or consequence_id in self.pending_consequences or consequence_id in self.consumed_consequences:
+                continue
+            door_type = str(cfg.get("force_door_type", "EVENT"))
+            payload = cfg.get("payload", {})
+            registered = self.register_consequence(
+                choice_flag=str(cfg.get("choice_flag", "ending_default_normal_route")),
+                consequence_id=consequence_id,
+                effect_key=str(cfg.get("effect_key", "force_story_event")),
+                chance=1.0,
+                trigger_door_types=[door_type],
+                min_round=self.DEFAULT_ENDING_FORCE_ROUND,
+                max_round=self.DEFAULT_ENDING_FORCE_ROUND,
+                force_on_expire=False,
+                force_door_type=door_type,
+                priority=int(cfg.get("priority", 1200)),
+                payload=dict(payload) if isinstance(payload, dict) else {},
+            )
+            if registered:
+                return True
+        return False
+
     def ensure_default_normal_ending_schedule(self) -> bool:
-        """在第 200 回合且未开启分支时，强制挂载默认终局入口事件（选择困难症候群），
-        或当满足「飞贼未完结/关系普通或恶劣 + 已击败木偶 + 邪恶值中高」时挂载接管谢幕直通门。"""
+        """结局阻塞全部清空后，在第 200 回合挂载结局事件：默认第一门（选择困难症候群）或接管谢幕。木偶回声、善良木偶对话属结局前阻塞，须先清空。"""
         self.ensure_pre_final_event_schedule()
+        current_round = max(0, int(getattr(self.controller, "round_count", 0)))
+        if current_round >= self.DEFAULT_ENDING_FORCE_ROUND and self._try_schedule_blocking_echo_or_kind():
+            return True
         if not self._all_pre_final_blocking_cleared():
             return False
         if self._has_started_long_story_branch():
@@ -501,15 +572,10 @@ class StorySystem:
             return False
         if "ending:stage_curtain_completed" in self.story_tags:
             return False
-        current_round = max(0, int(getattr(self.controller, "round_count", 0)))
         if current_round < self.DEFAULT_ENDING_FORCE_ROUND:
             return False
-        # 结局门决策树（互斥）：木偶回声战（无钥匙+关系差）→ 善良木偶对话（有剧本+邪恶值低）→ 接管谢幕选择（有剧本+邪恶值高）→ 默认第一门
-        if self._is_puppet_echo_gate_ready():
-            gate_key = "puppet_echo_final_gate"
-        elif self._is_kind_puppet_dialogue_ready():
-            gate_key = "kind_puppet_dialogue_round200"
-        elif self._is_power_curtain_dialogue_ready():
+        # 结局事件（仅两种）：接管谢幕（有剧本+邪恶值高）或 默认第一门
+        if self._is_power_curtain_dialogue_ready():
             gate_key = "power_curtain_dialogue_round200"
         else:
             gate_key = "round200_default_first_gate"
@@ -526,7 +592,7 @@ class StorySystem:
             trigger_door_types=list(ALL_PRE_FINAL_DOOR_TYPES),
             min_round=self.DEFAULT_ENDING_FORCE_ROUND,
             max_round=self.DEFAULT_ENDING_FORCE_ROUND,
-            force_on_expire=True,
+            force_on_expire=False,
             force_door_type=str(cfg.get("force_door_type", "EVENT")),
             priority=int(cfg.get("priority", 1200)),
             payload=dict(payload) if isinstance(payload, dict) else {},
@@ -535,18 +601,22 @@ class StorySystem:
             self.story_tags.add("ending:default_normal_scheduled")
         return registered
 
-    def apply_pre_enter_checks(self, door: Any) -> Any:
-        """选门后、入门前触发检查：先后续影响，再道德影响。"""
-        door = self._trigger_pending_consequence(door)
+    def apply_pre_enter_checks(self, door: Any, choice_round: Optional[int] = None) -> Any:
+        """选门后、入门前触发检查：先后续影响，再道德影响。
+        choice_round: 选门时的回合（若调用方在选门时已把 round_count +1，则传 round_count - 1），未传则用当前 round_count。"""
+        door = self._trigger_pending_consequence(door, choice_round=choice_round)
         door = self._trigger_moral_influence(door)
         return door
 
-    def _trigger_pending_consequence(self, door: Any) -> Any:
+    def _trigger_pending_consequence(self, door: Any, choice_round: Optional[int] = None) -> Any:
         round_count = getattr(self.controller, "round_count", 0)
+        # 选门时 round 已在 handle_choice 开头 +1，强制/匹配用「选门时的回合」判定，避免 190 点的门被当成 191 触发超窗强制
+        choice_round = choice_round if choice_round is not None else round_count
+        choice_round = max(0, choice_round)
         story_flags = self.choice_flags.union(self.story_tags)
         all_pending = list(self.pending_consequences.values())
         forced_candidates = [
-            c for c in all_pending if c.should_force_trigger(round_count=round_count, story_flags=story_flags)
+            c for c in all_pending if c.should_force_trigger(round_count=choice_round, story_flags=story_flags)
         ]
         if forced_candidates:
             # 结局前倒数窗口事件按 PRE_FINAL_BLOCKING_ORDER 优先强制触发（银羽秘藏→木偶补战→飞贼清算），再按回合、优先级。
@@ -576,7 +646,7 @@ class StorySystem:
         candidates = [
             c
             for c in all_pending
-            if c.matches(door=door, round_count=round_count, story_flags=story_flags)
+            if c.matches(door=door, round_count=choice_round, story_flags=story_flags)
         ]
         door_type = getattr(getattr(door, "enum", None), "name", "")
 
@@ -585,8 +655,19 @@ class StorySystem:
 
         candidates = self._apply_pre_final_pending_priority(
             candidates=candidates,
-            round_count=round_count,
+            round_count=choice_round,
         )
+
+        # 多个结局前阻塞事件同时命中时，按 PRE_FINAL_BLOCKING_ORDER 只保留第一个，保证按序触发
+        if len(candidates) > 1 and all(
+            c.consequence_id in self.PRE_FINAL_BLOCKING_CONSEQUENCE_IDS for c in candidates
+        ):
+            order = self.PRE_FINAL_BLOCKING_ORDER
+            candidates = sorted(
+                candidates,
+                key=lambda c: order.index(c.consequence_id) if c.consequence_id in order else 999,
+            )
+            candidates = [candidates[0]]
 
         # 事件门且候选 <5：按配置概率直接跳过门改写，沿用原门
         if door_type == "EVENT" and len(candidates) < 5:
@@ -1951,7 +2032,7 @@ class StorySystem:
     def setup_test_gate_stage_curtain_order(self) -> None:
         """测试用：将控制器与剧情状态设为「补全谢幕」路线前置条件（不挂载门，仅改状态）。
         条件：回合 190、玩家 HP 800 / ATK 200、精灵飞贼线已收束且关系高、已拿钥匙、
-        已击败黑暗木偶、邪恶值较低。调用方需在设置后调用 ensure_pre_final_event_schedule() 以挂载银羽秘藏。"""
+        已击败黑暗木偶、邪恶值较低。飞贼清算、木偶补战视为已完结，从 pending 移除并加入 consumed，不再触发。"""
         c = self.controller
         c.round_count = 190
         p = getattr(c, "player", None)
@@ -1969,6 +2050,11 @@ class StorySystem:
         self.story_tags.add("elf_key_obtained")
         self.story_tags.add("ending:puppet_final_defeated")
         self.puppet_evil_value = 30
+        # 飞贼、黑暗木偶线在此测试框架内已完结，不再挂载飞贼清算与木偶补战
+        self.pending_consequences.pop(self.PUPPET_PRE_FINAL_CONSEQUENCE_ID, None)
+        self.pending_consequences.pop(self.ELF_RIVAL_PRE_FINAL_CONSEQUENCE_ID, None)
+        self.consumed_consequences.add(self.PUPPET_PRE_FINAL_CONSEQUENCE_ID)
+        self.consumed_consequences.add(self.ELF_RIVAL_PRE_FINAL_CONSEQUENCE_ID)
 
     def setup_test_gate_stage_curtain_power(self) -> None:
         """测试用：将控制器与剧情状态设为「接管谢幕」分支前置（不挂载门，仅改状态）。
