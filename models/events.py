@@ -3955,6 +3955,29 @@ def _collect_stage_curtain_scores(story):
         risk += 1
         notes.append("木偶暗侧参数被你长期放大，终幕更偏强控。")
 
+    key_obtained = bool(getattr(story, "elf_key_obtained", False)) or ("elf_key_obtained" in tags)
+    script_recovered = "curtain_call_script_recovered" in tags or "curtain_call_script_recovered" in flags
+    puppet_outcome = str(getattr(story, "puppet_final_outcome", "")).strip()
+    puppet_final_defeated = "ending:puppet_final_defeated" in tags or puppet_outcome == "defeated"
+    try:
+        puppet_evil_value = max(0, min(100, int(getattr(story, "puppet_evil_value", 55))))
+    except (TypeError, ValueError):
+        puppet_evil_value = 55
+    puppet_chain_concluded = puppet_final_defeated
+    puppet_low_evil = puppet_evil_value <= 45
+    puppet_kind_rescued = puppet_chain_concluded and puppet_low_evil
+    stage_script_ready = key_obtained and script_recovered
+
+    if puppet_kind_rescued:
+        order += 2
+        risk = max(0, risk - 1)
+        notes.append("黑暗木偶善良人格被你救回，补全谢幕有了可归位的原主演。")
+    elif puppet_chain_concluded:
+        risk += 1
+        notes.append("木偶终战虽已结束，但善良人格未能归位，补全谢幕存在缺角。")
+    else:
+        notes.append("木偶主线仍未完成，补全谢幕缺少关键主演回归条件。")
+
     return {
         "order": order,
         "freedom": freedom,
@@ -3962,6 +3985,14 @@ def _collect_stage_curtain_scores(story):
         "risk": risk,
         "notes": notes,
         "diary_source": diary_source,
+        "elf_key_obtained": key_obtained,
+        "script_recovered": script_recovered,
+        "stage_script_ready": stage_script_ready,
+        "puppet_chain_concluded": puppet_chain_concluded,
+        "puppet_final_defeated": puppet_final_defeated,
+        "puppet_low_evil": puppet_low_evil,
+        "puppet_kind_rescued": puppet_kind_rescued,
+        "puppet_evil_value": puppet_evil_value,
     }
 
 
@@ -3971,6 +4002,8 @@ def _resolve_stage_curtain_outcome(route_key, score_payload):
     power = int(score_payload.get("power", 0))
     risk = int(score_payload.get("risk", 0))
     notes = list(score_payload.get("notes", []))
+    puppet_kind_rescued = bool(score_payload.get("puppet_kind_rescued", False))
+    stage_script_ready = bool(score_payload.get("stage_script_ready", False))
     suffix = f"（秩序{order}/自由{freedom}/权力{power}/风险{risk}）"
 
     if risk >= 5:
@@ -3982,13 +4015,45 @@ def _resolve_stage_curtain_outcome(route_key, score_payload):
             "notes": notes,
         }
 
+    if route_key == "order" and not puppet_kind_rescued:
+        return {
+            "ending_key": "stage_curtain_collapse",
+            "ending_title": "舞台谢幕·破场流产",
+            "ending_description": (
+                "你试图走『补全谢幕』，但黑暗木偶善良人格尚未被救回，"
+                f"终幕缺少原主演归位，舞台在最后换景时崩塌。{suffix}"
+            ),
+            "outcome_tag": "collapse",
+            "notes": notes,
+        }
+
     if route_key == "order" and order >= 4 and risk <= 3:
+        scene_lines = []
+        if stage_script_ready:
+            scene_lines = [
+                "你把银羽旧钥匙与终幕剧本并排压在台沿，灯桥一盏盏依序点亮。",
+                "被救回的木偶善良人格照着原剧本演完最后一幕，随后一路跑上前台，和你一起向观众谢幕。",
+            ]
+            ending_description = (
+                "你按证词与秩序补齐终幕结构。被你救回的木偶善良人格依照原剧本完成了最后一幕，"
+                f"并亲自回到台前谢幕。{suffix}"
+            )
+            curtain_speciale = "puppet_kind_script_curtain_call"
+        else:
+            scene_lines = [
+                "你修补了主要场次与灯位，善良人格终于找回自己的台词与站位。",
+                "它在最后一声钟鸣后回到台口，和你完成了迟到的谢幕。",
+            ]
+            ending_description = f"你按证词与秩序补齐终幕结构，木偶善良人格归位后与你一同完成谢幕。{suffix}"
+            curtain_speciale = "puppet_kind_curtain_call"
         return {
             "ending_key": "stage_curtain_order",
             "ending_title": "舞台谢幕·补全谢幕",
-            "ending_description": f"你按证词与秩序补齐终幕结构，舞台平稳落幕。{suffix}",
+            "ending_description": ending_description,
             "outcome_tag": "order",
             "notes": notes,
+            "scene_lines": scene_lines,
+            "curtain_speciale": curtain_speciale,
         }
     if route_key == "freedom" and freedom >= 4 and risk <= 3:
         return {
@@ -4136,6 +4201,10 @@ class EndingStageCurtainGateEvent(Event):
         notes = ending_payload.get("notes", [])
         if notes:
             self.add_message("【谢幕线索】" + " ".join(notes[:2]))
+        for scene_line in list(ending_payload.get("scene_lines", []) or []):
+            line = str(scene_line).strip()
+            if line:
+                self.add_message(line)
 
         trigger_clear = getattr(self.controller, "trigger_game_clear", None)
         if callable(trigger_clear):
@@ -4152,6 +4221,9 @@ class EndingStageCurtainGateEvent(Event):
                         "power": score_payload.get("power", 0),
                         "risk": score_payload.get("risk", 0),
                     },
+                    "puppet_kind_rescued": bool(score_payload.get("puppet_kind_rescued", False)),
+                    "stage_script_ready": bool(score_payload.get("stage_script_ready", False)),
+                    "curtain_speciale": str(ending_payload.get("curtain_speciale", "")).strip(),
                     "script_truth_revealed": "curtain_call_truth_revealed" in story.story_tags,
                 },
             )
