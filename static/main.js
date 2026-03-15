@@ -886,15 +886,22 @@ function getMonsterEmoji(name) {
 
 function getEventEmoji(title) {
   if (!title) return "❔";
-  if (title.includes("Stranger")) return "🤕";
-  if (title.includes("Smuggler")) return "🕵️";
-  if (title.includes("Shrine")) return "⛩️";
-  if (title.includes("Gambler")) return "🎲";
-  if (title.includes("Lost Child")) return "👧";
-  if (title.includes("Cursed Chest")) return "🧰";
-  if (title.includes("Wise Sage")) return "🧙";
-  if (title.includes("Refugee Caravan")) return "🧺";
-  if (title.includes("Fallen Knight")) return "🛡️";
+  if (title.includes("Stranger") || title.includes("受伤")) return "🤕";
+  if (title.includes("Smuggler") || title.includes("票贩")) return "🕵️";
+  if (title.includes("Shrine") || title.includes("祭坛")) return "⛩️";
+  if (title.includes("Gambler") || title.includes("赌")) return "🎲";
+  if (title.includes("Lost Child") || title.includes("迷路孩童")) return "👧";
+  if (title.includes("Cursed Chest") || title.includes("诅咒宝箱")) return "🧰";
+  if (title.includes("Wise Sage") || title.includes("智者")) return "🧙";
+  if (title.includes("Refugee Caravan") || title.includes("逃难")) return "🧺";
+  if (title.includes("Fallen Knight") || title.includes("落难骑士")) return "🛡️";
+  if (title.includes("银羽") || title.includes("飞贼")) return "🕊️";
+  if (title.includes("木偶") || title.includes("弃线")) return "🪵";
+  if (title.includes("月蚀") || title.includes("通缉")) return "🌙";
+  if (title.includes("梦境井") || title.includes("Dream Well")) return "🪷";
+  if (title.includes("回声法庭") || title.includes("Echo Court")) return "⚖️";
+  if (title.includes("镜面剧场") || title.includes("Mirror Theater")) return "🪞";
+  if (title.includes("齿轮") || title.includes("Clockwork") || title.includes("查票")) return "⚙️";
   return "🎭";
 }
 

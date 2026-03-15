@@ -451,7 +451,7 @@ class TestStorySystem(BaseTest):
 
         self.assertEqual(getattr(changed_door, "story_forced_event_key", ""), "moon_verdict_event")
         changed_door.enter()
-        self.assertEqual(self.controller.current_event.title, "Moon Verdict")
+        self.assertEqual(self.controller.current_event.title, "月蚀审判")
 
     def test_force_story_event_attaches_to_door_extension_port(self):
         story = self.controller.story

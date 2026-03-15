@@ -113,8 +113,8 @@ class StrangerEvent(Event):
     def __init__(self, controller):
         super().__init__(controller)
         self.help_cost = random.randint(10, 15)
-        self.title = "Injured Stranger"
-        self.description = "你看到一个满身是血的陌生人倒在路边，看起来非常虚弱。"
+        self.title = "受伤的陌生人"
+        self.description = "走廊中，你看到一个满身是血的陌生人倒在路边，看起来非常虚弱。"
         self.choices = [
             EventChoice(f"救助他 (失去{self.help_cost}金币)", self.help_stranger),
             EventChoice("抢劫他", self.rob_stranger),
@@ -239,8 +239,8 @@ class SmugglerEvent(Event):
 
     def __init__(self, controller):
         super().__init__(controller)
-        self.title = "Smuggler"
-        self.description = "一个看起来鬼鬼祟祟的走私犯向你兜售货物。"
+        self.title = "走私犯"
+        self.description = "走廊里，一个鬼鬼祟祟的人拦住你，兜售据说能绕过安保的和货物。"
         self.item = create_random_item()
         self.cost = max(10, int(self.item.cost * 0.7)) # 30% off usually
         
@@ -388,8 +388,8 @@ class AncientShrineEvent(Event):
 
     def __init__(self, controller):
         super().__init__(controller)
-        self.title = "Ancient Shrine"
-        self.description = "一座古老的祭坛矗立在森林深处，上面刻满了神秘的符文。"
+        self.title = "古老祭坛"
+        self.description = "侧厅深处，一座刻满神秘符文的祭坛矗立着——据说是旧时代表演的仪式台。"
         self.choices = [
             EventChoice("虔诚祈祷 (恢复生命)", self.pray),
             EventChoice("破坏祭坛", self.desecrate),
@@ -498,8 +498,8 @@ class GamblerEvent(Event):
 
     def __init__(self, controller):
         super().__init__(controller)
-        self.title = "The Gambler"
-        self.description = "一个流浪赌徒向你发起挑战：'想不想玩把大的？'"
+        self.title = "走廊赌档"
+        self.description = "走廊间隙，一个流浪赌徒在走廊拦住你：'想不想玩把大的？赌注是金币。'"
         high_bet = self.scale_value(50, positive=False, aggressive=True)
         low_bet = self.scale_value(10, positive=False)
         self.choices = [
@@ -615,8 +615,8 @@ class LostChildEvent(Event):
 
     def __init__(self, controller):
         super().__init__(controller)
-        self.title = "Lost Child"
-        self.description = "一个小女孩在森林里哭泣，看起来迷路了。"
+        self.title = "迷路孩童"
+        self.description = "走廊深处，一个小女孩在哭泣，看起来在迷宫般的走廊中迷路了。"
         donation = self.scale_value(20, positive=False)
         self.choices = [
             EventChoice("护送回家", self.guide_home),
@@ -754,8 +754,8 @@ class CursedChestEvent(Event):
 
     def __init__(self, controller):
         super().__init__(controller)
-        self.title = "Cursed Chest"
-        self.description = "一个散发着诡异紫光的宝箱，上面刻着警告语：'贪婪者必受惩罚'。"
+        self.title = "诅咒宝箱"
+        self.description = "一个散发着诡异紫光的道具箱，上面刻着警告语：'贪婪者必受惩罚'——像是过去的时代的遗留物。"
         self.choices = [
             EventChoice("强行打开", self.open_chest),
             EventChoice("试图净化", self.purify),
@@ -843,8 +843,8 @@ class WiseSageEvent(Event):
 
     def __init__(self, controller):
         super().__init__(controller)
-        self.title = "Wise Sage"
-        self.description = "一位白胡子老者拦住了去路：'年轻的勇士，为了什么而战？'"
+        self.title = "智者"
+        self.description = "一位白胡子老者在走廊拦住了去路，像是旧剧本里的导师角色：'年轻的旅人，为了什么而踏上这舞台？'"
         heal_hint = self.scale_value(50, positive=True)
         self.choices = [
             EventChoice("为了力量 (加攻击)", self.power),
@@ -952,8 +952,8 @@ class RefugeeCaravanEvent(Event):
 
     def __init__(self, controller):
         super().__init__(controller)
-        self.title = "Refugee Caravan"
-        self.description = "一支逃难车队拦住了你，他们请求食物与路费。"
+        self.title = "逃难队伍"
+        self.description = "你发现了一支混乱的人马似乎不是这里的人，他们似乎是偷跑进来的难民，他们请求你不要声张，最好还能赞助点食物与路费，好让他们继续隐藏在这里。"
         self.choices = [
             EventChoice("捐助 25G", self.donate),
             EventChoice("索要保护费", self.extort),
@@ -1077,10 +1077,10 @@ class FallenKnightEvent(Event):
 
     def __init__(self, controller):
         super().__init__(controller)
-        self.title = "Fallen Knight"
-        self.description = "一名重伤骑士倒在路边，盔甲上有王国徽记。"
+        self.title = "落难骑士"
+        self.description = "一名重伤的骑士倒在走廊路边，他眼神空洞，六神无主，不知道接下来该如何行动。似乎已经放弃了希望。"
         self.choices = [
-            EventChoice("救治骑士", self.aid_knight),
+            EventChoice("帮助骑士", self.aid_knight),
             EventChoice("搜刮装备", self.loot_knight),
             EventChoice("谨慎离开", self.leave),
         ]
@@ -1136,7 +1136,7 @@ class FallenKnightEvent(Event):
                     "payload": {
                         "ratio": 0.74,
                         "message": [
-                            "你拿出的徽记还带着血渍，黑市商人却只问了一句：'整套还是散卖？'",
+                            "你拿出的骑士徽记还带着血渍，黑市商人却只问了一句：'整套还是散卖？'",
                             "对方认出那是军械制式，压低声音说：'这种货，今天我给你高价低税。'",
                         ],
                         "chain_followups": [
@@ -1182,12 +1182,12 @@ class TimePawnshopEvent(Event):
 
     def __init__(self, controller):
         super().__init__(controller)
-        self.title = "Time Pawnshop"
-        self.description = "巷口出现一家只在黄昏开门的当铺，掌柜说：'我们收今天，押明天。'"
+        self.title = "时光当铺"
+        self.description = "后台的巷口出现一家只在黄昏开门的当铺，掌柜说：'我们收今天，押明天——这里没有白拿的东西。'"
         self.choices = [
             EventChoice("抵押明天，立刻拿钱", self.pawn_tomorrow),
             EventChoice("赎回旧债，清掉利息", self.redeem_debt),
-            EventChoice("砸碎沙漏柜台", self.break_hourglass),
+            EventChoice("砸碎柜台，抢走材料", self.break_hourglass),
         ]
 
     def pawn_tomorrow(self):
@@ -1316,8 +1316,8 @@ class MirrorTheaterEvent(Event):
 
     def __init__(self, controller):
         super().__init__(controller)
-        self.title = "Mirror Theater"
-        self.description = "废墟尽头亮着一座镜面剧场。传闻它会把过路人的抉择写进下一段命运：演得像谁，世界就按谁来回应你。导演不问姓名，只催你立刻选一张面具——英雄、恶徒，或直接撕本离场。"
+        self.title = "镜面剧场"
+        self.description = "四周都是镜子的假面剧场的预演厅在走廊尽头亮起。传闻镜面剧场会把过路人的抉择写进下一段命运：演得像谁，世界就按谁来回应你。导演不问姓名，只催你立刻选一张面具——英雄、恶徒，或直接撕本离场。"
         self.choices = [
             EventChoice("戴上英雄面具", self.play_hero),
             EventChoice("戴上恶徒面具", self.play_villain),
@@ -1441,8 +1441,8 @@ class MoonBountyEvent(Event):
 
     def __init__(self, controller):
         super().__init__(controller)
-        self.title = "Moon Bounty"
-        self.description = "你在墙上看到一张会发光的通缉令：'月蚀前带回叛徒，生死不论，但东西要抢回来。'"
+        self.title = "月蚀通缉令"
+        self.description = "剧场走廊的墙上贴着一张会发光的通缉令，落款是安保回收系统：'月蚀前带回命运的盗取者，生死不论；命运的乐谱必须追回。'"
         self.choices = [
             EventChoice("接单追猎", self.accept_contract),
             EventChoice("撕毁通缉令，暗中寻找线索，试图护送被通缉者离开", self.protect_target),
@@ -1458,7 +1458,7 @@ class MoonBountyEvent(Event):
                 shop_effect="black_market_discount",
                 shop_ratio=0.74,
                 hunter_name="野狼",
-                shop_message="你拿出的通缉印章被商人认出，货架立刻给出猎手折扣。",
+                shop_message="你拿出的月蚀追猎印章被商人认出，货架立刻给出安保线人折扣。",
             ),
         )
         p = self.get_player()
@@ -1479,7 +1479,7 @@ class MoonBountyEvent(Event):
                 shop_effect="black_market_markup",
                 shop_ratio=1.32,
                 hunter_name="死亡骑士",
-                shop_message="你坏了悬赏行会的规矩，商人把你列成高风险客户。",
+                shop_message="你坏了安保追猎的规矩，商人把你列成高风险客户。",
             ),
         )
         healed = self.get_player().heal(17)
@@ -1495,7 +1495,7 @@ class MoonBountyEvent(Event):
                 shop_effect="black_market_discount",
                 shop_ratio=0.82,
                 hunter_name="暗影刺客",
-                shop_message="你放出的假线索搅乱了盘口，黑市一时分不清该杀你还是拉拢你。",
+                shop_message="你放出的假线索搅乱了追猎盘口，黑市一时分不清该杀你还是拉拢你。",
             ),
         )
         p = self.get_player()
@@ -1558,8 +1558,8 @@ class MoonVerdictEvent(Event):
 
     def __init__(self, controller):
         super().__init__(controller)
-        self.title = "Moon Verdict"
-        self.description = "你在月蚀通缉链里一路追到这里，审判席上的书记官推来三份结案文书，每一份都要你签名。"
+        self.title = "月蚀审判"
+        self.description = "你一路追着月蚀通缉链来到剧场安保的审判席。书记官推来三份结案文书——每一份都关乎命运剧本回收案的最终定论，要你签名。"
         self.choices = [
             EventChoice("按规矩结案", self.file_clean),
             EventChoice("销毁证物", self.burn_records),
@@ -1691,12 +1691,12 @@ class ClockworkBazaarEvent(Event):
 
     def __init__(self, controller):
         super().__init__(controller)
-        self.title = "Clockwork Bazaar"
-        self.description = "一列会自行换轨的商贩车停在岔路口。这个的移动黑市不认身份，而卖出的是一种'可兑现的经历'，但自动售货机已经坏掉：修好它的机关可换经历，也可以趁机偷看优惠码赚快钱，砸掉它则会立刻树敌，但可能会得到一些材料。你需要马上选一种做法。"
+        self.title = "齿轮售票亭"
+        self.description = "一列会自行换轨的售票车停在岔路口——这是自动售票终端，但系统已经故障：修好它可换取正规入场券，偷看优惠码能白嫖漏票，砸掉它则立刻树敌，但可能抢到材料。你需要马上选一种做法。"
         self.choices = [
-            EventChoice("校准摊位机械，换取和经历", self.calibrate),
-            EventChoice("偷看优惠码，赚取快钱", self.hack_coupon),
-            EventChoice("破坏竞品摊位，抢走材料", self.sabotage),
+            EventChoice("校准售票机关，换取正规入场券", self.calibrate),
+            EventChoice("偷看优惠码，白嫖漏票", self.hack_coupon),
+            EventChoice("破坏摊位，抢走材料", self.sabotage),
         ]
 
     def calibrate(self):
@@ -1708,12 +1708,12 @@ class ClockworkBazaarEvent(Event):
                 shop_effect="black_market_discount",
                 ratio=0.68,
                 hunter_name="食人魔",
-                shop_message="你修好的调校参数通过了总账验证，后续摊位把你标记为可靠客户。",
+                shop_message="你修好的售票参数通过了总账验证，后续终端把你标记为合法购票者。",
             ),
         )
         tip = 12
         self.get_player().gold += tip
-        self.add_message(f"你把卡死的计价机关修好，并重新校到同频，摊主看到后当众给你的手臂上印上了认证徽章，并给了你折扣的 {tip}G 调校费。")
+        self.add_message(f"你把卡死的售票机关修好并重新校到同频，系统认可后为你印上合法进入的徽章，并给了你 {tip}G 调校费。")
         return "Event Completed"
 
     def hack_coupon(self):
@@ -1725,12 +1725,12 @@ class ClockworkBazaarEvent(Event):
                 shop_effect="black_market_discount",
                 ratio=0.8,
                 hunter_name="狼人",
-                shop_message="第一家摊位没识破你伪造的优惠码，价格被你压到了近乎成本线。",
+                shop_message="第一家售票终端没识破你伪造的优惠码，你拿到了近乎免费的通行票。",
             ),
         )
         gain = 16
         self.get_player().gold += gain
-        self.add_message(f"你偷了优惠码，他们在在短窗口内生效，先白赚 {gain}G；但系统回滚的倒计时已经亮起。")
+        self.add_message(f"你偷看了优惠码，在短窗口内白嫖到 {gain}G；但系统回滚的倒计时已经亮起，查票迟早会来。")
         return "Event Completed"
 
     def sabotage(self):
@@ -1742,7 +1742,7 @@ class ClockworkBazaarEvent(Event):
                 shop_effect="black_market_markup",
                 ratio=1.35,
                 hunter_name="死亡骑士",
-                shop_message="你砸摊的画面被广播循环播放，几乎所有摊位都把你列进高风险名单并抬价。",
+                shop_message="你砸摊的画面被系统广播循环播放，几乎所有售票终端都把你列进清算名单并拒绝服务。",
             ),
         )
         p = self.get_player()
@@ -1902,12 +1902,12 @@ class CogAuditEvent(Event):
 
     def __init__(self, controller):
         super().__init__(controller)
-        self.title = "Cog Audit"
-        self.description = "你在移动摊位留下的每一步操作都被总账追踪，如今正式触发审计。计价员把账本摊到你面前：要么补款认账、要么继续做假硬闯、要么贿赂计价员花钱买断风声。你必须当场给出结算方案。"
+        self.title = "查票清算"
+        self.description = "你在售票终端留下的每一步操作都被总账追踪，如今正式触发查票清算。计价员把票务记录摊到你面前：要么补款认账、要么伪造通行证硬闯、要么贿赂计价员买断风声。你必须当场给出结算方案。"
         self.choices = [
-            EventChoice("补款结清", self.pay_tax),
-            EventChoice("做假通行证", self.fake_ledger),
-            EventChoice("买断风声", self.buy_silence),
+            EventChoice("补款结清票务", self.pay_tax),
+            EventChoice("伪造通行证硬闯", self.fake_ledger),
+            EventChoice("贿赂计价员买断风声", self.buy_silence),
         ]
 
     def pay_tax(self):
@@ -2034,12 +2034,12 @@ class DreamWellEvent(Event):
 
     def __init__(self, controller):
         super().__init__(controller)
-        self.title = "Dream Well"
-        self.description = "梦井的水面映出的不是你的脸，而是被提前剪好的三段结局。传闻井水会把你的念头放大成现实，所以每个选择都会留下可追踪的后果：喝下它、封住它，或把梦折价卖给行脚商。你得现在决定要把哪条线继续下去。"
+        self.title = "梦境井"
+        self.description = "梦境井的水面映出的不是你的脸，而是历代梦境的三段结局回放。传闻井水会把你的念头放大成现实——每个选择都会留下可追踪的后果：喝下它、封住它，或把回放折价卖给无法进入梦境的人。你得现在决定要把哪条线继续下去。"
         self.choices = [
-            EventChoice("记录并读取梦井水", self.drink_dream),
-            EventChoice("封住井口", self.seal_well),
-            EventChoice("把梦卖掉变现", self.sell_dream),
+            EventChoice("喝下井水，读取梦境回放", self.drink_dream),
+            EventChoice("封住井口，拒绝回放", self.seal_well),
+            EventChoice("把回放卖掉变现", self.sell_dream),
         ]
 
     def drink_dream(self):
@@ -2051,11 +2051,11 @@ class DreamWellEvent(Event):
                 shop_effect="black_market_discount",
                 ratio=0.79,
                 hunter_name="幽灵",
-                shop_message="你复述的梦境细节精准到可交易，商人把你当成消息源，先给了试探性折扣。",
+                shop_message="你复述的梦境回放细节精准到可交易，商人把你当成消息源，先给了试探性折扣。",
             ),
         )
         healed = self.get_player().heal(12)
-        self.add_message(f"梦井水入口冰冷，你的意识却短暂异常清明，恢复了 {healed} 点生命。")
+        self.add_message(f"梦境回放的水流入口冰冷，你的意识却短暂异常清明，恢复了 {healed} 点生命。")
         return "Event Completed"
 
     def seal_well(self):
@@ -2071,7 +2071,7 @@ class DreamWellEvent(Event):
             ),
         )
         healed = self.get_player().heal(8)
-        self.add_message(f"你用石板和封钉压死井口，耳边的低语终于减弱，恢复了 {healed} 点生命。")
+        self.add_message(f"你用石板和封钉压死井口，历代梦境的回放低语终于减弱，恢复了 {healed} 点生命。")
         return "Event Completed"
 
     def sell_dream(self):
@@ -2083,13 +2083,13 @@ class DreamWellEvent(Event):
                 shop_effect="black_market_discount",
                 ratio=0.7,
                 hunter_name="冥界使者",
-                shop_message="你把梦直接折算成可流通凭证，黑市把你标为优先接待的高价值卖家。",
+                shop_message="你把梦境回放直接折算成可流通凭证，黑市把你标为优先接待的高价值卖家。",
             ),
         )
         p = self.get_player()
         p.gold += 26
         p.take_damage(6)
-        self.add_message("你把一个关于胜利的梦打包卖出，立刻拿到 26G；但精神像被抽走一层，受到 6 点伤害。")
+        self.add_message("你把一段关于胜利的梦境回放打包卖出，立刻拿到 26G；但精神像被抽走一层，受到 6 点伤害。")
         return "Event Completed"
 
     def _build_dream_chain(self, route, shop_effect, ratio, hunter_name, shop_message):
@@ -2212,12 +2212,12 @@ class EchoCourtEvent(Event):
 
     def __init__(self, controller):
         super().__init__(controller)
-        self.title = "Echo Court"
-        self.description = "你与梦井相关的交易已被回声法庭正式立案。法庭认定你既是当事人也是收益者，要求你立刻表态并承担后果：赎回被卖掉的梦境记忆、补缴拖欠的梦税，或公开宣布继续交易。"
+        self.title = "回声法庭"
+        self.description = "你与梦境井相关的交易已被回声法庭正式立案。法庭认定你既是当事人也是收益者，要求你立刻表态并承担后果：赎回被卖掉的梦境回放记忆、补缴拖欠的回放罚款，或公开宣布继续交易。"
         self.choices = [
-            EventChoice("赎回梦境记忆", self.redeem_dream),
-            EventChoice("上缴梦境税", self.pay_dream_tax),
-            EventChoice("继续倒卖梦境", self.keep_trading),
+            EventChoice("赎回回放记忆", self.redeem_dream),
+            EventChoice("上缴回放罚款", self.pay_dream_tax),
+            EventChoice("继续倒卖回放", self.keep_trading),
         ]
 
     def redeem_dream(self):
@@ -2252,7 +2252,7 @@ class EchoCourtEvent(Event):
             ],
         )
         healed = self.get_player().heal(10)
-        self.add_message(f"你把梦赎了回来，耳边的低语终于安静了一瞬，恢复了 {healed} 点生命。")
+        self.add_message(f"你把梦境回放赎了回来，耳边的回放低语终于安静了一瞬，恢复了 {healed} 点生命。")
         return "Event Completed"
 
     def pay_dream_tax(self):
@@ -2287,7 +2287,7 @@ class EchoCourtEvent(Event):
         p = self.get_player()
         paid = min(p.gold, 15)
         p.gold -= paid
-        self.add_message(f"你先补交了 {paid}G 梦税，审判席上的法槌声终于暂时停下。")
+        self.add_message(f"你先补交了 {paid}G 梦境回放罚款，审判席上的法槌声终于暂时停下。")
         return "Event Completed"
 
     def keep_trading(self):
@@ -2326,7 +2326,7 @@ class EchoCourtEvent(Event):
         p = self.get_player()
         p.gold += 20
         p.take_damage(8)
-        self.add_message("你选择继续把梦当货币流通，当场多赚 20G；但回声反噬同步加深，让你受了 8 点伤害。")
+        self.add_message("你选择继续把梦境回放当货币流通，当场多赚 20G；但回声反噬同步加深，让你受了 8 点伤害。")
         return "Event Completed"
 
 
@@ -2544,8 +2544,8 @@ class PuppetAbandonmentEvent(Event):
         kind_name, dark_name = _get_puppet_persona_names(controller)
         self.title = "弃线木偶"
         self.description = (
-            "你在昏暗走廊尽头看见一具被丢弃的机器人木偶，胸口还挂着半截编号牌。"
-            f"屏幕闪烁着两行人格标签：蓝光侧【{kind_name}】、红噪侧【{dark_name}】。"
+            "你在昏暗走廊尽头看见一具被丢弃的木偶——它曾是的戏剧原定的主演，但他现在并不知道自己是谁以及该做什么，只是一味游荡。"
+            f"胸口还挂着半截编号牌，屏幕闪烁着两行人格标签：蓝光侧【{kind_name}】、红噪侧【{dark_name}】。"
             "它在黑暗中游荡，碰到障碍物就一拳砸裂，你确认现在绝不能正面和它对抗。"
         )
         self.choices = [
@@ -3276,9 +3276,9 @@ class ElfNightCampEvent(Event):
         self.description = (
             "门后是一处坍塌神像的背风面，她生了堆小火，正在烤一只蘑菇鸡。"
             "她示意你坐下，沉默了很久才开口：追她的不是普通赏金客，而是同一个组织里被她反咬过的人。"
-            "她当年偷走了他们的账册，里面记着谁给怪物送祭品，以及组织的各种秘密。"
+            "她当年偷走了他们的暗账，里面记着谁给怪物送祭品，以及整个世界的各种秘密。"
             "现在那群人放话：要么拿回账册，要么把见过账册的人全埋进地底。"
-            "火光映着她的侧脸，她把一半烤肉推给你：'所以你今晚要选，跟我一起扛，拿钱只做一单，还是听完就当没见过我。'"
+            "火光映着她的侧脸，她把一半烤肉推给你：'所以你今晚要选，跟我一起扛下这些秘密对付追兵，拿钱只做一单，还是听完就当没见过我。'"
         )
         self.choices = [
             EventChoice("站她这边：一起对付追兵", self.promise_help),
@@ -3404,10 +3404,10 @@ class ElfFinalHeistEvent(Event):
         super().__init__(controller)
         self.title = "双人盗案"
         self.description = (
-            "她留下的最后一次暗号把你引到钟塔下的旧金库。"
-            "你刚到，就看见莱希娅把三把钥匙摊在地上：外圈巡逻表、内层机关图、以及守卫换岗钟点。"
-            "她快速说明：正门有重甲和弩手；侧井能绕进账册室但会触发毒针；但你在想，如果你此刻出卖她，守卫或许也会给你悬赏。"
-            "她盯着你：'你来定，按我的线稳进稳出，赌一把高风险快线？'"
+            f"她留下的最后一次暗号把你引到钟塔下的旧档案库。"
+            f"你刚到，就看见{ELF_THIEF_NAME}把三把钥匙摊在地上：外圈巡逻表、内层机关图、以及守卫换岗钟点。"
+            f"她快速说明：正门有重甲和弩手；侧井能绕进剧本残页存放室但会触发毒针；但你在想，如果你此刻出卖她，安保或许也会给你悬赏。"
+            f"她盯着你：'你来定，按我的线稳进稳出，赌一把高风险快线？'"
         )
         self.choices = [
             EventChoice("按她的路线走：低风险潜入并平分赃款", self.follow_plan),
@@ -3419,7 +3419,7 @@ class ElfFinalHeistEvent(Event):
         gain = _elf_percent_gold(self.get_player(), 0.18)
         self.get_player().gold += gain
         _adjust_elf_relation(self.controller, 2)
-        self.add_message(f"你们按巡逻空窗潜入，避开正门火力，平稳带出账册与金币；你分到 {gain}G。她笑说：'这次你真像搭档。'")
+        self.add_message(f"你们按巡逻空窗潜入，避开正门火力，平稳带出剧本残页与金币；你分到 {gain}G。她笑说：'这次你真像搭档。'")
         _schedule_next_elf_event(self.controller, "elf_final_heist_event")
         return "Event Completed"
 
@@ -3439,7 +3439,7 @@ class ElfFinalHeistEvent(Event):
         self.get_player().gold += gain
         self.get_player().take_damage(backlash)
         _adjust_elf_relation(self.controller, -4)
-        self.add_message(f"你敲响警铃换来悬赏 {gain}G，但混战中也被流矢划伤（-{backlash}HP）。她被押走前只留下一句：'你最好永远别落单。'")
+        self.add_message(f"你敲响警铃换来安保悬赏 {gain}G，但混战中也被流矢划伤（-{backlash}HP）。她被押走前只留下一句：'你最好永远别落单。'")
         _schedule_next_elf_event(self.controller, "elf_final_heist_event")
         return "Event Completed"
 
