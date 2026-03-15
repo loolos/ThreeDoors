@@ -4456,7 +4456,7 @@ class EndingStageScriptVaultEvent(Event):
 
 
 class EndingStageKindPuppetDialogueEvent(Event):
-    """结局门：与善良木偶对话，三选一直接进入补全/即兴/选择困难症三种结局之一。仅在倒数窗口事件全部清空后、第 200 回合触发。"""
+    """结局门：与善良木偶对话，三选一直接进入补全/即兴/选择困难症三种结局之一。补全与即兴选项有正面效果（加血/加攻），选择困难症无效果。"""
     TRIGGER_BASE_PROBABILITY = 0.0
 
     @classmethod
@@ -4471,16 +4471,21 @@ class EndingStageKindPuppetDialogueEvent(Event):
             f"你已从飞贼宝藏取回剧本，木偶终战已胜且善良侧尚存。"
             f"机偶胸腔里残存的蓝光——{kind_name}——主动与你联络："
             "可以按剧本补全谢幕，可以即兴收尾，也可以选择直面内心的迟疑、走向选择困难症候群把守的终局。"
+            "若选补全或即兴，它愿在分别前给你一点馈赠。"
         )
         self.choices = [
-            EventChoice("补全谢幕", self.pick_order),
-            EventChoice("即兴谢幕", self.pick_freedom),
-            EventChoice("选择困难症", self.pick_default),
+            EventChoice("补全谢幕——让它把终章演完", self.pick_order),
+            EventChoice("即兴谢幕——把最后一幕交给我", self.pick_freedom),
+            EventChoice("选择困难症——我选不下去", self.pick_default),
         ]
 
     def pick_order(self):
-        """补全谢幕 → stage_curtain_order"""
+        """补全谢幕 → stage_curtain_order，并给予加血。"""
+        p = self.get_player()
+        heal_amt = 14
+        actual = p.heal(heal_amt)
         self.add_message("你选择按剧本补全谢幕。善良人格轻声回应：我会把原定的终章演完。")
+        self.add_message(f"它把一丝余温渡给你，伤势稍缓，恢复了 {actual} 点生命。")
         return self._trigger_stage_ending(
             route_key="order",
             choice_flag="ending_stage_gate_order",
@@ -4488,8 +4493,12 @@ class EndingStageKindPuppetDialogueEvent(Event):
         )
 
     def pick_freedom(self):
-        """即兴谢幕 → stage_curtain_freedom"""
+        """即兴谢幕 → stage_curtain_freedom，并给予加攻。"""
+        p = self.get_player()
+        atk_bonus = 2
+        p.change_base_atk(atk_bonus)
         self.add_message("你选择即兴收尾。善良人格轻声回应：那就把舞台交给你。")
+        self.add_message("它把一缕决意留在你掌心，你感到出手更有力。")
         return self._trigger_stage_ending(
             route_key="freedom",
             choice_flag="ending_stage_gate_freedom",
@@ -4497,9 +4506,9 @@ class EndingStageKindPuppetDialogueEvent(Event):
         )
 
     def pick_default(self):
-        """选择困难症 → default_normal（不经过 Boss 战，直接通关）"""
+        """选择困难症 → default_normal（无馈赠，不经过 Boss 战直接通关）"""
         self.register_story_choice(choice_flag="ending_stage_gate_default", moral_delta=0)
-        self.add_message("你选择直面内心的迟疑，走向选择困难症候群把守的终局。")
+        self.add_message("你选择直面内心的迟疑，难以决策。善良人格沉默片刻，未再说什么。")
         story = getattr(self.controller, "story", None)
         if story is not None:
             story.story_tags.add("ending:default_normal_completed")
@@ -4635,7 +4644,7 @@ def _get_prelude_choice_variants(story):
 
 
 class DreamMirrorPreludeEvent(Event):
-    """结局前事件：在一场梦境中看到自己在镜面剧场的一次次选择（排练录像），并做与终幕相关的默想。"""
+    """结局前事件：在一场梦境中看到自己在镜面剧场的一次次选择（排练录像），并做与终幕相关的默想。其中两种默想会带来正面效果（加血/加攻），第三种无效果。"""
     TRIGGER_BASE_PROBABILITY = 0.0
 
     @classmethod
@@ -4655,6 +4664,7 @@ class DreamMirrorPreludeEvent(Event):
             f"{rehearsal}\n\n"
             f"{well_echo}\n\n"
             "录像播完，梦还未醒。你站在梦里的镜前，心中浮现的只有一个问题：终幕，应当如何收束？"
+            "不同的默想会带来不同的回响。"
         )
         order_t, freedom_t, power_t = _get_prelude_choice_variants(story) if story else (
             "默想：终幕应当按既定的剧本收尾",
@@ -4668,20 +4678,38 @@ class DreamMirrorPreludeEvent(Event):
         ]
 
     def _pick_order(self):
-        return self._apply_prelude_choice("order", "梦中你默想：终幕应当按既定的剧本收尾。镜面暗了下去。")
-
-    def _pick_freedom(self):
-        return self._apply_prelude_choice("freedom", "梦中你默想：终幕应当由当下的选择写就。镜面暗了下去。")
-
-    def _pick_power(self):
-        return self._apply_prelude_choice("power", "梦中你默想：终幕应当由能掌控舞台的人收束。镜面暗了下去。")
-
-    def _apply_prelude_choice(self, choice_key, line):
-        self.register_story_choice(choice_flag=f"curtain_prelude_{choice_key}", moral_delta=0)
+        """按剧本收尾：记录选择并加血。"""
+        self.register_story_choice(choice_flag="curtain_prelude_order", moral_delta=0)
         story = getattr(self.controller, "story", None)
         if story is not None:
-            setattr(story, "curtain_prelude_choice", choice_key)
-        self.add_message(line)
+            setattr(story, "curtain_prelude_choice", "order")
+        self.add_message("梦中你默想：终幕应当按既定的剧本收尾。")
+        p = self.get_player()
+        heal_amt = 12
+        actual = p.heal(heal_amt)
+        self.add_message("一股安定感自镜中涌出，仿佛过去的排练有了归宿。醒来时，伤势略轻，恢复了 {} 点生命。".format(actual))
+        return "Event Completed"
+
+    def _pick_freedom(self):
+        """由当下选择写就：记录选择并加攻。"""
+        self.register_story_choice(choice_flag="curtain_prelude_freedom", moral_delta=0)
+        story = getattr(self.controller, "story", None)
+        if story is not None:
+            setattr(story, "curtain_prelude_choice", "freedom")
+        self.add_message("梦中你默想：终幕应当由当下的选择写就。")
+        p = self.get_player()
+        atk_bonus = 2
+        p.change_base_atk(atk_bonus)
+        self.add_message("镜中的你点了点头，决意凝聚在掌心。醒来时，出手更稳、更有力,基础攻击力增加了 {} 点。".format(atk_bonus))
+        return "Event Completed"
+
+    def _pick_power(self):
+        """由掌控者收束：仅记录选择，无馈赠。"""
+        self.register_story_choice(choice_flag="curtain_prelude_power", moral_delta=0)
+        story = getattr(self.controller, "story", None)
+        if story is not None:
+            setattr(story, "curtain_prelude_choice", "power")
+        self.add_message("梦中你默想：终幕应当由能掌控舞台的人收束。镜面暗了下去，梦中未得馈赠。")
         return "Event Completed"
 
 
