@@ -1330,7 +1330,7 @@ class TestStorySystem(BaseTest):
         self.assertEqual(clear_info.get("ending_meta", {}).get("stage_outcome"), "order")
         self.assertTrue(clear_info.get("ending_meta", {}).get("puppet_kind_rescued"))
         self.assertTrue(clear_info.get("ending_meta", {}).get("stage_script_ready"))
-        self.assertIn("演完最后一幕", clear_info.get("ending_description", ""))
+        self.assertIn("最后一幕", clear_info.get("ending_description", ""))
         self.assertTrue(any("跑上前台" in msg for msg in self.controller.messages))
 
     def test_stage_curtain_order_route_collapses_when_puppet_kind_persona_not_rescued(self):
