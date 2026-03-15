@@ -583,6 +583,11 @@ class StorySystem:
         if not candidates:
             return door
 
+        candidates = self._apply_pre_final_pending_priority(
+            candidates=candidates,
+            round_count=round_count,
+        )
+
         # 事件门且候选 <5：按配置概率直接跳过门改写，沿用原门
         if door_type == "EVENT" and len(candidates) < 5:
             if random.random() < GameConfig.EVENT_DOOR_SKIP_REWRITE_CHANCE:
@@ -609,6 +614,33 @@ class StorySystem:
         if chosen is None:
             chosen = candidates[-1]
         return self._apply_chosen_consequence(chosen=chosen, door=door, fallback_door=door, forced=False)
+
+    def _is_in_pre_final_countdown_window(self, round_count: int) -> bool:
+        ending_round = int(self.DEFAULT_ENDING_FORCE_ROUND)
+        window_start = max(0, ending_round - int(self.PRE_FINAL_WINDOW_START_OFFSET))
+        return round_count >= window_start and round_count < ending_round
+
+    def _apply_pre_final_pending_priority(
+        self,
+        *,
+        candidates: List[PendingConsequence],
+        round_count: int,
+    ) -> List[PendingConsequence]:
+        """结局前倒数窗口内，若有未结清前置事件，则 80% 概率优先该事件集合。"""
+        if not self._is_in_pre_final_countdown_window(round_count):
+            return candidates
+        if not self._has_pending_blocking_pre_final_events():
+            return candidates
+
+        priority_candidates = [
+            c for c in candidates if c.consequence_id in self.PRE_FINAL_BLOCKING_CONSEQUENCE_IDS
+        ]
+        if not priority_candidates:
+            return candidates
+
+        if random.random() >= float(GameConfig.PRE_FINAL_PENDING_PRIORITY_CHANCE):
+            return candidates
+        return priority_candidates
 
     def _coerce_forced_door(self, door: Any, consequence: PendingConsequence) -> Any:
         target_type = consequence.force_door_type

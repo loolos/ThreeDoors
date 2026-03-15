@@ -9,10 +9,12 @@
 - 黑暗木偶：已击败
 - 邪恶值较低（≤45，善良人格主导）
 
-用于断言 _is_stage_curtain_route_ready、银羽秘藏挂载、以及与善良木偶对话门就绪等。
+用于断言 _is_stage_curtain_route_ready、并通过结局前判定流程自然挂载银羽秘藏、以及与善良木偶对话门就绪等。
 """
+import unittest.mock
+
+from models.door import DoorEnum
 from test.test_base import BaseTest
-from models.story_system import StorySystem
 
 
 def setup_controller_for_stage_curtain_order(controller, round_count=190):
@@ -75,16 +77,16 @@ class TestStageCurtainOrderFlags(BaseTest):
         self.controller.story.puppet_evil_value = 50
         self.assertFalse(self.controller.story._is_stage_curtain_route_ready())
 
-    def test_ensure_stage_curtain_preface_schedule_registers_at_round_190(self):
-        """回合 190 且满足前置时，ensure_stage_curtain_preface_schedule 应成功挂载银羽秘藏。"""
+    def test_pre_final_schedule_naturally_registers_stage_curtain_preface_at_round_190(self):
+        """回合 190 且满足前置时，应由结局前事件调度判定自然挂载银羽秘藏，而非预先指定下一门。"""
         setup_controller_for_stage_curtain_order(self.controller, round_count=190)
         story = self.controller.story
-        registered = story.ensure_stage_curtain_preface_schedule()
-        self.assertTrue(registered, "190 回合窗口内应挂载银羽秘藏")
+        scheduled = story.ensure_pre_final_event_schedule()
+        self.assertTrue(scheduled, "190 回合窗口内应纳入至少一个结局前事件")
         self.assertIn(
             story.STAGE_CURTAIN_FORCE_CONSEQUENCE_ID,
             story.pending_consequences,
-            "pending_consequences 中应有银羽秘藏",
+            "pending_consequences 中应出现银羽秘藏后果",
         )
 
     def test_player_and_round_state_after_setup(self):
@@ -93,6 +95,22 @@ class TestStageCurtainOrderFlags(BaseTest):
         self.assertEqual(self.controller.round_count, 190)
         self.assertEqual(self.controller.player.hp, 800)
         self.assertEqual(self.controller.player.atk, 200)
+
+    def test_stage_curtain_preface_can_be_triggered_via_pre_final_conditions(self):
+        """仅设置前置参数后，走结局前调度 + 进门检查，也应触发银羽秘藏并回收剧本。"""
+        setup_controller_for_stage_curtain_order(self.controller, round_count=190)
+        story = self.controller.story
+        story.ensure_pre_final_event_schedule()
+
+        reward_door = DoorEnum.REWARD.create_instance(controller=self.controller)
+        with unittest.mock.patch("models.story_system.random.random", return_value=0.95), unittest.mock.patch(
+            "models.story_system.random.uniform", return_value=0.0
+        ):
+            changed = story.apply_pre_enter_checks(reward_door)
+
+        self.assertEqual(changed.enum.name, "REWARD")
+        self.assertIn("ending_stage_curtain_preface", story.consumed_consequences)
+        self.assertIn("curtain_call_script_recovered", story.story_tags)
 
     def test_kind_puppet_dialogue_ready_after_script_recovered(self):
         """取回剧本后、邪恶值低时，_is_kind_puppet_dialogue_ready 应为 True（与善良木偶对话门可挂载）。"""

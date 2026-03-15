@@ -27,3 +27,5 @@ class GameConfig:
     EVENT_DOOR_SKIP_REWRITE_CHANCE = 0.3
     # 后续影响加权抽取时，force_story_event 类后果的权重倍数（>1 表示更容易被抽中）
     FORCE_STORY_EVENT_WEIGHT_BONUS = 2.0
+    # 结局前倒数窗口内，若仍有未清空的终局前置事件，则 80% 概率优先从这些事件中抽取
+    PRE_FINAL_PENDING_PRIORITY_CHANCE = 0.8
