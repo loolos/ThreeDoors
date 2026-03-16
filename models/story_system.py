@@ -90,6 +90,7 @@ class StorySystem:
     PUPPET_ECHO_FINAL_CONSEQUENCE_ID = PRE_FINAL_GATE_STORY_CONFIG["puppet_echo_final_gate"]["consequence_id"]
     KIND_PUPPET_DIALOGUE_ROUND200_CONSEQUENCE_ID = PRE_FINAL_GATE_STORY_CONFIG["kind_puppet_dialogue_round200"]["consequence_id"]
     POWER_CURTAIN_DIALOGUE_ROUND200_CONSEQUENCE_ID = PRE_FINAL_GATE_STORY_CONFIG["power_curtain_dialogue_round200"]["consequence_id"]
+    STAGE_CURTAIN_KIND_PUPPET_DIALOGUE_CONSEQUENCE_ID = PRE_FINAL_GATE_STORY_CONFIG["stage_curtain_kind_puppet_dialogue"]["consequence_id"]
 
     # 结局事件（第一门）：仅默认第一门、接管谢幕；须在所有结局阻塞清空后才挂载。
     ROUND200_FIRST_GATE_CONSEQUENCE_IDS = (
@@ -115,12 +116,13 @@ class StorySystem:
         ELF_RIVAL_PRE_FINAL_CONSEQUENCE_ID,
         DREAM_MIRROR_PRELUDE_CONSEQUENCE_ID,
     })
-    # 结局事件 consequence_id 集合：木偶回声、善良木偶对话、默认第一门、接管谢幕；仅当回合≥200 且结局前阻塞已清空时才可触发。
+    # 结局事件 consequence_id 集合：木偶回声、善良木偶对话（含约定对话）、默认第一门、接管谢幕；仅当回合≥200 且结局前阻塞已清空时才可触发。
     ENDING_EVENT_CONSEQUENCE_IDS = frozenset({
         PUPPET_ECHO_FINAL_CONSEQUENCE_ID,
         KIND_PUPPET_DIALOGUE_ROUND200_CONSEQUENCE_ID,
         POWER_CURTAIN_DIALOGUE_ROUND200_CONSEQUENCE_ID,
         DEFAULT_ENDING_FORCE_CONSEQUENCE_ID,
+        STAGE_CURTAIN_KIND_PUPPET_DIALOGUE_CONSEQUENCE_ID,
     })
     # 阻塞触发顺序：结局前倒数事件（银羽秘藏→木偶补战→飞贼清算→梦境镜面）先按序触发；其后为结局事件（木偶回声、善良木偶对话，仅第 200 回合挂载）。全部清空后才挂载默认终局第一门。
     PRE_FINAL_BLOCKING_ORDER = (
@@ -1291,15 +1293,9 @@ class StorySystem:
                 monster=hunter,
                 hint=hint,
             )
-            self.controller.add_message(
-                self._resolve_message(
-                    payload,
-                    "message",
-                    profile["entry_message"],
-                )
-            )
-            if profile["entry_message"] != payload.get("message", ""):
-                self.controller.add_message(profile["entry_message"])
+            # 注意：payload["message"] 已在 _apply_chosen_consequence() 里作为触发提示输出；
+            # 这里仅输出战斗入场文案，避免同一段“前情”重复两遍。
+            self.controller.add_message(profile["entry_message"])
             self._log_effect_result(consequence, hunter.name)
             return True, mid_battle_door
 
@@ -2727,7 +2723,7 @@ class StorySystem:
             )
         if ext_type == "puppet_echo_final":
             state = extension.get("state")
-            if isinstance(state, dict):
+            if isinstance(state, dict) and trigger == "player_attack":
                 echo_lines = state.get("echo_lines") or []
                 idx = int(state.get("echo_index", 0))
                 if echo_lines:

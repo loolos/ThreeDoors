@@ -180,12 +180,13 @@ PRE_FINAL_DISPATCH_ORDER = (
     "default_final_boss_gate",
 )
 
-# 结局事件：仅在第 200 回合（结局之时）才可挂载/触发。含木偶回声、善良木偶对话、默认第一门、接管谢幕选择门。
+# 结局事件：仅在第 200 回合（结局之时）才可挂载/触发；且仅当回合≥200 且结局前阻塞已清空时才会触发。
 ENDING_EVENT_GATE_KEYS = (
-    "puppet_echo_final_gate",           # 木偶回声
-    "kind_puppet_dialogue_round200",     # 善良木偶对话（第 200 回合结局门）
-    "power_curtain_dialogue_round200",   # 接管谢幕选择门
-    "round200_default_first_gate",       # 默认终局第一门
+    "puppet_echo_final_gate",             # 木偶回声
+    "kind_puppet_dialogue_round200",      # 善良木偶对话（第 200 回合结局门）
+    "power_curtain_dialogue_round200",    # 接管谢幕选择门
+    "round200_default_first_gate",        # 默认终局第一门
+    "stage_curtain_kind_puppet_dialogue", # 约定对话（秘藏取回剧本后与善良木偶对话，亦属终局事件）
 )
 
 

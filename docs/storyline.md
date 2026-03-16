@@ -124,11 +124,11 @@
 | **elf_rival_final_gate** | `ending_elf_rival_final_gate` | MONSTER | 飞贼线已收束且**关系≤−4**；银羽飞贼终局前对决 |
 | **dream_mirror_prelude_gate** | `ending_dream_mirror_prelude_gate` | EVENT | **梦境井**与**镜面剧场**两长链皆完结；梦中排练录像，选择仅作剧情呼应 |
 
-**约定对话（非上述阻塞）**：取回剧本后由 `_schedule_kind_puppet_dialogue_event()` 挂载 `stage_curtain_kind_puppet_dialogue`（事件 `StageCurtainKindPuppetDialogueMidEvent`），下一扇门起至 200 回合内可触发。选补全/即兴 → 挂载谢幕门；选选择困难症 → 挂载默认终局第一门。
+**约定对话（终局事件）**：取回剧本后由 `_schedule_kind_puppet_dialogue_event()` 挂载 `stage_curtain_kind_puppet_dialogue`（事件 `StageCurtainKindPuppetDialogueMidEvent`）；属终局事件，**仅在第 200 回合之后且结局前阻塞已清空时**才可触发。选补全/即兴 → 挂载谢幕门；选选择困难症 → 挂载默认终局第一门。
 
 ### 4.4 结局事件（仅第 200 回合挂载）与「第一门」
 
-**结局事件**统一标记为 `ENDING_EVENT_GATE_KEYS`（models.events）与 `ENDING_EVENT_CONSEQUENCE_IDS`（story_system）：木偶回声、善良木偶对话（第 200 回合）、默认第一门、接管谢幕选择门。**仅当回合 ≥ 200 且结局前阻塞事件（四种倒数事件）已全部清空时**才可根据触发条件挂载与强制/匹配触发；调度时 `min_round`/`max_round` 强制 ≥ 200，触发时检查 `_all_pre_ending_blocking_cleared()`。
+**结局事件**统一标记为 `ENDING_EVENT_GATE_KEYS`（models.events）与 `ENDING_EVENT_CONSEQUENCE_IDS`（story_system）：木偶回声、善良木偶对话（第 200 回合）、约定对话（`stage_curtain_kind_puppet_dialogue`）、默认第一门、接管谢幕选择门。**仅当回合 ≥ 200 且结局前阻塞事件（四种倒数事件）已全部清空时**才可挂载与触发；调度时 `min_round`/`max_round` 强制 ≥ 200，触发时检查 `_all_pre_ending_blocking_cleared()`。
 
 其中木偶回声、善良木偶对话**仅在第 200 回合**由 `_try_schedule_blocking_echo_or_kind()` 挂载，二者**二选一**按优先级：先尝试木偶回声，再尝试善良木偶对话。条件如下：
 
@@ -165,7 +165,7 @@
    - **接管谢幕选择门**：已拿剧本、已击败木偶、邪恶值 **> 45**；
    - **默认终局第一门**：否则。
 
-**约定对话（非阻塞）**：取回剧本后挂载 `stage_curtain_kind_puppet_dialogue`（`StageCurtainKindPuppetDialogueMidEvent`），185～200 间某扇门可触发。选补全/即兴 → 挂载谢幕门（下一扇门为补全/即兴/接管三选一）；选选择困难症 → 挂载默认终局第一门。
+**约定对话（终局事件）**：取回剧本后挂载 `stage_curtain_kind_puppet_dialogue`（`StageCurtainKindPuppetDialogueMidEvent`）；仅第 200 回合且阻塞清空后可触发。选补全/即兴 → 挂载谢幕门（下一扇门为补全/即兴/接管三选一）；选选择困难症 → 挂载默认终局第一门。
 
 ### 5.0.1 结局决策树（树状）
 
@@ -192,7 +192,7 @@
             └─ 第一门事件 → 第二门事件 → Boss「选择困难症候群」→ 击败 → default_normal
 ```
 
-**约定对话链**（取回剧本后挂载，不占阻塞顺序）：门「与善良人格的约定」→ 选补全/即兴 → 挂载**谢幕门**（补全/即兴/接管三选一）→ 选其一即进对应结局；选选择困难症 → 挂载默认终局第一门（同上 6b）。
+**约定对话链**（取回剧本后挂载，终局事件，仅 200 回合且阻塞清空后触发）：门「与善良人格的约定」→ 选补全/即兴 → 挂载**谢幕门**（补全/即兴/接管三选一）→ 选其一即进对应结局；选选择困难症 → 挂载默认终局第一门（同上 6b）。
 
 ### 5.1 各门内选择与结局对应表
 
@@ -228,8 +228,8 @@
 
 ### 5.4 银羽秘藏（取回剧本）与约定对话、第 200 回合门的关系
 
-- **银羽秘藏门**（`round200_stage_preface`）：宝物门，在结局前倒数窗口内（185 起）触发；条件 `_is_stage_curtain_route_ready()`：尚未回收剧本、已获得飞贼钥匙、飞贼线已收束、已击败木偶、邪恶值 ≤ 45。进门后写入 `curtain_call_script_recovered` 等，并若善良侧在则**挂载约定对话**（`stage_curtain_kind_puppet_dialogue`），下一扇门起至 200 回合内可触发。
-- **约定对话**（`StageCurtainKindPuppetDialogueMidEvent`）：非阻塞；选补全/即兴会挂载**谢幕门**（补全/即兴/接管三选一），选选择困难症会挂载默认终局第一门。
+- **银羽秘藏门**（`round200_stage_preface`）：宝物门，在结局前倒数窗口内（185 起）触发；条件 `_is_stage_curtain_route_ready()`：尚未回收剧本、已获得飞贼钥匙、飞贼线已收束、已击败木偶、邪恶值 ≤ 45。进门后写入 `curtain_call_script_recovered` 等，并若善良侧在则**挂载约定对话**（`stage_curtain_kind_puppet_dialogue`，终局事件，仅第 200 回合且阻塞清空后可触发）。
+- **约定对话**（`StageCurtainKindPuppetDialogueMidEvent`）：终局事件；选补全/即兴会挂载**谢幕门**（补全/即兴/接管三选一），选选择困难症会挂载默认终局第一门。
 - **第 200 回合结局事件**：**善良木偶对话**（`EndingStageKindPuppetDialogueEvent`）与**木偶回声**由 `_try_schedule_blocking_echo_or_kind()` 仅在第 200 回合挂载；**接管谢幕选择门**与**默认终局第一门**在所有阻塞清空后挂载。
 
 ### 5.5 秩序/自由/力量/风险分数仅影响三种舞台谢幕的剧情文本
