@@ -390,7 +390,7 @@ function renderState(state) {
   buttonArea.style.display = 'flex';
   buttonArea.innerHTML = ''; // Clear old buttons
 
-  // 结局摘要：先展示剧情，点击「观看制作人员名单」后再进入滚动字幕
+  // 结局摘要：先展示剧情，点击「继续」后进入滚动字幕
   const endingSummaryWrap = document.getElementById("ending-summary-wrap");
   const endingSummaryTitle = document.getElementById("ending-summary-title");
   const endingSummaryDesc = document.getElementById("ending-summary-description");
@@ -403,7 +403,7 @@ function renderState(state) {
       if (endingSummaryTitle) endingSummaryTitle.textContent = state.ending_summary.title || "结局";
       if (endingSummaryDesc) endingSummaryDesc.textContent = state.ending_summary.description || "";
       if (endingSummaryRollBtn) {
-        endingSummaryRollBtn.textContent = (state.button_texts && state.button_texts[0]) || "观看制作人员名单";
+        endingSummaryRollBtn.textContent = (state.button_texts && state.button_texts[0]) || "继续";
         endingSummaryRollBtn.onclick = () => buttonAction(0);
       }
     } else {
@@ -413,7 +413,7 @@ function renderState(state) {
     }
   }
 
-  // 结局滚动画面：仅在 ENDING_ROLL 时显示（玩家点击「观看制作人员名单」后才进入）
+  // 结局滚动画面：仅在 ENDING_ROLL 时显示（玩家在结局摘要点击「继续」后进入）
   const endingRollWrap = document.getElementById("ending-roll-wrap");
   const endingRollContent = document.getElementById("ending-roll-content");
   const endingRollContinueBtn = document.getElementById("endingRollContinueBtn");

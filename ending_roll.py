@@ -75,20 +75,10 @@ ENDING_SUMMARY = {
     ),
 }
 
-# 制作人员名单（角色, 姓名）；姓名为空则只显示角色名一行
-CREDITS = (
-    ("策划", "ThreeDoors"),
-    ("程序", "ThreeDoors"),
-    ("剧本", "ThreeDoors"),
-    ("美术", ""),
-    ("", ""),
-)
-
-
 def build_ending_roll_lines(controller) -> list:
     """
     根据当前控制器状态生成结局滚动画面的文案列表。
-    顺序：玩家状态摘要 → 长事件选择摘要 → 结局综述 → 制作人员名单 → 感谢游玩。
+    顺序：玩家状态摘要 → 长事件选择摘要 → 结局综述 → 感谢游玩。
     """
     lines = []
     p = getattr(controller, "player", None)
@@ -144,18 +134,6 @@ def build_ending_roll_lines(controller) -> list:
             lines.append(desc)
         else:
             lines.append("你的冒险在此告一段落。")
-    lines.append("")
-    lines.append("—— 制作人员名单 ——")
-    lines.append("")
-    for role, name in CREDITS:
-        if role and name:
-            lines.append(f"{role}：{name}")
-        elif role:
-            lines.append(role)
-        elif name:
-            lines.append(name)
-        else:
-            lines.append("")
     lines.append("")
     lines.append("感谢游玩。")
 

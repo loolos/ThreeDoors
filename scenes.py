@@ -385,11 +385,11 @@ class UseItemScene(Scene):
         self.controller.scene_manager.resume_scene()
 
 class EndingSummaryScene(Scene):
-    """结局摘要：先展示结局标题与描述，玩家点击「观看制作人员名单」后再进入滚动字幕。"""
+    """结局摘要：先展示结局标题与描述，玩家点击「继续」后进入滚动字幕。"""
 
     def __init__(self, controller):
         super().__init__(controller)
-        self.button_texts = ["观看制作人员名单", "", ""]
+        self.button_texts = ["继续", "", ""]
         self.enum = SceneType.ENDING_SUMMARY
 
     def on_enter(self):

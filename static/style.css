@@ -545,6 +545,10 @@ body.ending-summary-active #log-area {
 }
 
 #ending-roll-content {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
   display: block;
   padding: 1rem 0.5rem;
   font-size: 1rem;
@@ -552,13 +556,13 @@ body.ending-summary-active #log-area {
   text-align: center;
   white-space: pre-wrap;
   color: #e8e6e3;
-  min-height: 100%;
   box-sizing: border-box;
 }
 
 #ending-roll-content.ending-roll-animate {
   animation: ending-roll-scroll linear forwards;
   animation-duration: 45s;
+  animation-delay: 0s;
   will-change: transform;
 }
 
@@ -568,6 +572,7 @@ body.ending-summary-active #log-area {
   color: inherit;
 }
 
+/* 首行从视口底部开始，整体向上滚动至结束 */
 @keyframes ending-roll-scroll {
   0% {
     transform: translateY(100%);

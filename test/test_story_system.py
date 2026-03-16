@@ -1751,10 +1751,10 @@ class TestStorySystem(BaseTest):
 
         story.resolve_battle_consequence(monster, defeated=True)
 
-        # 通关后先进入结局摘要场景，点击「观看制作人员名单」后进入结局滚动，再点击继续才是 GameOverScene
+        # 通关后先进入结局摘要场景，点击「继续」后进入结局滚动，再点击继续才是 GameOverScene
         self.assertEqual(self.controller.scene_manager.current_scene.enum.name, "ENDING_SUMMARY")
         self.assertEqual(getattr(self.controller, "game_clear_info", {}).get("ending_key"), "default_normal")
-        self.controller.scene_manager.current_scene.handle_choice(0)  # 观看制作人员名单
+        self.controller.scene_manager.current_scene.handle_choice(0)  # 继续 -> 进入结局滚动
         self.assertEqual(self.controller.scene_manager.current_scene.enum.name, "ENDING_ROLL")
         self.controller.scene_manager.current_scene.handle_choice(0)  # 继续
         self.assertEqual(self.controller.scene_manager.current_scene.enum.name, "GAME_OVER")
