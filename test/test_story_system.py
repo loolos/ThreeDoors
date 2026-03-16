@@ -87,7 +87,7 @@ class TestStorySystem(BaseTest):
         self.assertTrue(getattr(changed_door.monster, "elf_side_story", False))
         self.assertEqual(changed_door.hint, "她被追兵缠住，正在把你强拉进并肩作战。")
         self.assertIn("门后有人喊你名字，你还没站稳就被拽进战圈。", self.controller.messages)
-        self.assertIn("她被追兵缠住，正在把你强拉进并肩作战。", self.controller.messages)
+        # hint 文案已合并到门描述，不再重复加入 controller.messages
 
     def test_one_choice_can_register_multiple_consequences(self):
         story = self.controller.story
@@ -1521,7 +1521,7 @@ class TestStorySystem(BaseTest):
         self.assertEqual(forced_rematch.monster.name, "裂齿·夜魇·游荡残响")
         self.assertFalse(getattr(forced_rematch.monster, "story_puppet_final_boss", False))
         self.assertTrue(getattr(forced_rematch.monster, "story_pre_final_dispatch", False))
-        self.assertTrue(any(token in forced_rematch.hint for token in ("红噪", "失真童谣")))
+        self.assertTrue(any(token in (forced_rematch.hint or "") for token in ("红噪", "失真", "童谣")))
 
     def test_pre_final_window_forces_rematch_before_final_when_no_monster_gate_hit(self):
         """结局前事件不强制替换门；选错门保持原样，选到 MONSTER 才触发木偶补战。"""
@@ -1751,10 +1751,12 @@ class TestStorySystem(BaseTest):
 
         story.resolve_battle_consequence(monster, defeated=True)
 
-        # 通关后先进入结局滚动场景，点击继续后才是 GameOverScene
-        self.assertEqual(self.controller.scene_manager.current_scene.enum.name, "ENDING_ROLL")
+        # 通关后先进入结局摘要场景，点击「观看制作人员名单」后进入结局滚动，再点击继续才是 GameOverScene
+        self.assertEqual(self.controller.scene_manager.current_scene.enum.name, "ENDING_SUMMARY")
         self.assertEqual(getattr(self.controller, "game_clear_info", {}).get("ending_key"), "default_normal")
-        self.controller.scene_manager.current_scene.handle_choice(0)
+        self.controller.scene_manager.current_scene.handle_choice(0)  # 观看制作人员名单
+        self.assertEqual(self.controller.scene_manager.current_scene.enum.name, "ENDING_ROLL")
+        self.controller.scene_manager.current_scene.handle_choice(0)  # 继续
         self.assertEqual(self.controller.scene_manager.current_scene.enum.name, "GAME_OVER")
         self.assertIn("ending:default_normal_completed", story.story_tags)
 
@@ -1799,7 +1801,7 @@ class TestStorySystem(BaseTest):
         self.assertNotIn("ending_default_force_gate_round_200", story.pending_consequences)
 
     def test_puppet_echo_defeat_schedules_aftermath_event_then_choices_trigger_endings(self):
-        """击败木偶的回声后挂载事件门；前两选为即兴谢幕（文案不同），第三选为选择困难症。"""
+        """击败木偶的回声后挂载事件门；前两选为即兴谢幕（文案不同），第三选为选择困难症→进入普通结局主线。"""
         from models.monster import Monster
         from models.events import EndingPuppetEchoAftermathEvent
 
@@ -1827,7 +1829,9 @@ class TestStorySystem(BaseTest):
         story.story_tags.discard("ending:stage_curtain_completed")
         event3 = EndingPuppetEchoAftermathEvent(self.controller)
         event3.resolve_choice(2)
-        self.assertEqual(getattr(self.controller, "game_clear_info", {}).get("ending_key"), "default_normal")
+        # 选择困难症进入普通结局主线：挂载终局第一门，不直接触发结局
+        self.assertIsNone(getattr(self.controller, "game_clear_info", None))
+        self.assertIn("ending_default_force_gate_round_200", story.pending_consequences)
 
     def test_ending_stage_curtain_order_triggered_with_order_route_and_puppet_kind_rescued(self):
         """补全路线 + 善良人格已救回 + 秩序/风险达标时，选补全门必触发 stage_curtain_order。"""
@@ -1903,7 +1907,7 @@ class TestStorySystem(BaseTest):
         self.assertNotIn("ending_default_force_gate_round_200", story.pending_consequences)
 
     def test_kind_puppet_dialogue_three_choices_trigger_three_endings(self):
-        """与善良木偶对话事件门三选一：0=补全，1=即兴，2=选择困难症（default_normal）。"""
+        """与善良木偶对话事件门三选一：0=补全，1=即兴，2=选择困难症（进入普通结局主线第一门）。"""
         story = self.controller.story
         story.story_tags.update({
             "elf_outcome:alliance", "ending:puppet_final_defeated", "elf_key_obtained",
@@ -1927,7 +1931,9 @@ class TestStorySystem(BaseTest):
         story.story_tags.discard("ending:stage_curtain_completed")
         event3 = EndingStageKindPuppetDialogueEvent(self.controller)
         event3.resolve_choice(2)
-        self.assertEqual(getattr(self.controller, "game_clear_info", {}).get("ending_key"), "default_normal")
+        # 选择困难症进入普通结局主线：挂载终局第一门，不直接触发结局
+        self.assertIsNone(getattr(self.controller, "game_clear_info", None))
+        self.assertIn("ending_default_force_gate_round_200", story.pending_consequences)
 
     def test_kind_and_power_curtain_dialogue_are_mutually_exclusive_by_evil(self):
         """与善良木偶对话（邪恶值≤45）与接管谢幕选择门（邪恶值>45）互斥，决策树只挂载其一。"""
@@ -1962,7 +1968,7 @@ class TestStorySystem(BaseTest):
         self.assertNotIn("ending_kind_puppet_dialogue_round200", story.pending_consequences)
 
     def test_power_curtain_choice_event_three_options(self):
-        """接管谢幕选择门：0/1 均为 stage_curtain_power（剧情文案不同），2 为 default_normal。"""
+        """接管谢幕选择门：0/1 均为 stage_curtain_power（剧情文案不同），2 为选择困难症→进入普通结局主线。"""
         story = self.controller.story
         story.story_tags.add("curtain_call_script_recovered")
         story.story_tags.add("ending:puppet_final_defeated")
@@ -1985,4 +1991,6 @@ class TestStorySystem(BaseTest):
         story.story_tags.discard("ending:stage_curtain_completed")
         event3 = EndingPowerCurtainChoiceEvent(self.controller)
         event3.resolve_choice(2)
-        self.assertEqual(getattr(self.controller, "game_clear_info", {}).get("ending_key"), "default_normal")
+        # 选择困难症进入普通结局主线：挂载终局第一门，不直接触发结局
+        self.assertIsNone(getattr(self.controller, "game_clear_info", None))
+        self.assertIn("ending_default_force_gate_round_200", story.pending_consequences)

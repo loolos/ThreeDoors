@@ -100,52 +100,53 @@
 
 ### 4.1 核心规则
 
-- **最终游戏结局**（进入终局回廊、打选择困难症候群，或接管谢幕直通）**必须**在**所有结局前倒数窗口事件**清空之后才会挂载。
-- 清空指：`PRE_FINAL_BLOCKING_CONSEQUENCE_IDS` 中的四个 consequence（银羽秘藏、木偶补战、飞贼清算、梦境镜面回响）均不在 `pending_consequences` 中（已触发并消费或从未挂载）。
-- **触发顺序**：银羽秘藏 → 木偶补战 → 飞贼清算 → 梦境镜面回响；**默认 Boss（选择困难症候群）**不在倒数窗口内挂载，在玩家进入**第二道终局门**并做出选择后由 `_schedule_default_ending_final_boss()` 挂载。
+- **第一门**（默认终局第一门或接管谢幕选择门）**必须**在所有**阻塞**清空后才挂载。阻塞包括：**四种结局前倒数事件**（银羽秘藏、木偶补战、飞贼清算、梦境镜子前奏）与**两种结局事件**（木偶回声、善良木偶对话，仅第 200 回合挂载其一）。
+- **触发顺序**（`PRE_FINAL_BLOCKING_ORDER`）：银羽秘藏 → 木偶补战 → 飞贼清算 → 梦境镜子前奏 → 木偶回声 → 善良木偶对话。门型由 `get_required_door_type_for_next_ending` 按该顺序保证出现。
+- **默认 Boss（选择困难症候群）**在玩家进入**第二道终局门**并做出选择后由 `_schedule_default_ending_final_boss()` 挂载，击败后进入 `default_normal`。
 
-### 4.2 倒数窗口定义
+### 4.2 倒数窗口定义与机制
 
 - **终局强制回合**：`DEFAULT_ENDING_FORCE_ROUND = 200`
-- **窗口区间**：第 **185** ～ **190** 回合（`PRE_FINAL_WINDOW_START_OFFSET = 15`、`PRE_FINAL_WINDOW_END_OFFSET = 10`，即 200−15 到 200−10）
-- **检查时机**（`_should_run_pre_final_recheck`）：当前回合 = 窗口起点（185）；或 = 终局回合（200）；或距上次检查已满 **5 回合**（`PRE_FINAL_RECHECK_INTERVAL = 5`），即 185、190、195、200 等
-- **超窗行为**：191 回合及之后，未命中的前置事件会使用 `min_round = max_round = current_round`，**强制在下一扇符合门型的门**或 **force_on_expire** 时触发
-- 选门时先 `round_count += 1`，再调用 `ensure_default_normal_ending_schedule()`，因此“当前回合”= 本回合数
+- **窗口起点**：第 **185** 回合（`PRE_FINAL_WINDOW_START_OFFSET = 15`，即 200−15）
+- **检查时机**（`_should_run_pre_final_recheck`）：从 185 回合开始检查各事件前置条件；**每 5 回合重新检查一次**，即 **185、190、195、200** 回合都会检查（`PRE_FINAL_RECHECK_INTERVAL = 5`）。若某事件条件满足且未发生过，则加入阻塞事件列表（`pending_consequences`）。
+- **185～200 内选门**：当玩家走入**对应门型**的门时，**80% 概率**优先触发阻塞事件列表中的事件（`PRE_FINAL_PENDING_PRIORITY_CHANCE = 0.8`），**20% 概率**按正常权重触发其他事件。
+- **第 200 回合强制清空**：若到第 200 回合阻塞列表仍未清空，则**强制按序**触发这些阻塞事件（每次选门触发一个，门型由 `get_required_door_type_for_next_ending` 保证），直至列表清空。**清空之后**才挂载结局事件：依条件进入木偶回声、善良木偶对话，或直接进入默认第一门（选择困难症候群 / 接管谢幕）。
+- 选门时先 `round_count += 1`，再调用 `ensure_default_normal_ending_schedule()`，因此“当前回合”= 本回合数。
 
-### 4.3 结局前阻塞事件与预挂载事件
+### 4.3 结局前倒数事件（185 回合起检查，仅四种）
 
-以下四种 consequence 在 **pending** 时，**不会**挂载默认终局入口（选择困难症候群 / 接管谢幕直通）。在窗口内（或超窗后强制）通过 `ensure_pre_final_event_schedule()` 挂进 `pending_consequences`，实际触发依赖**门型匹配**或 **force_on_expire**。
+以下四种 consequence 称为**结局前倒数事件**，从第 185 回合起由 `ensure_all_pre_ending_blocking_considered()` 统一检查条件并加入 `pending_consequences`（`PRE_FINAL_BLOCKING_GATE_KEYS` 仅含此四种）。门型由 `get_required_door_type_for_next_ending` 按 `PRE_FINAL_BLOCKING_ORDER` 保证出现，不做 max_round 强制替换。
 
-| 配置键 | consequence_id | 触发门型 | 效果 / 触发条件概要 |
+| 配置键 | consequence_id | 触发门型 | 触发条件概要 |
 |--------|----------------|----------|----------------------|
-| **round200_stage_preface** | `ending_stage_curtain_preface` | 仅宝物门 REWARD | 门保持为宝物门，扩展 `stage_curtain_script_vault`；进门仅播放「得到剧本」等剧情，无事件门选项。条件：`_is_stage_curtain_route_ready()`（飞贼收束、钥匙、击败木偶、邪恶值≤45、未回收剧本），且未达成默认/舞台谢幕结局，回合≥185 |
-| **stage_curtain_kind_puppet_dialogue** | `ending_stage_kind_puppet_dialogue` | 事件门 EVENT | 秘藏取回剧本后若邪恶值≤45 则挂载；门改写为与善良木偶对话事件，三选一（即兴/补全且木偶谢幕/补全但自己上）。约定后挂载谢幕门 |
-| **puppet_rematch_gate** | `ending_puppet_pre_final_rematch_gate` | 仅怪物门 MONSTER | 木偶终战**曾逃跑**时挂载；门改为补战 Boss「裂齿·夜魇·游荡残响」，无二阶段，`pre_final_dispatch=True`。未完成补战、未击败木偶终战 |
-| **elf_rival_final_gate** | `ending_elf_rival_final_gate` | 仅怪物门 MONSTER | 精灵线已收束且**关系≤−4**时挂载；门改为银羽飞贼终局前对决（风格/扩展依 `elf_relation`）。未完成该 gate |
-| **dream_mirror_prelude_gate** | `ending_dream_mirror_prelude_gate` | 仅事件门 EVENT | **梦境井**与**镜面剧场**两长链均完结后才挂载；玩家在一场梦境中看到自己在镜面剧场的一次次选择（排练录像），并做与终幕相关的默想（秩序/即兴/接管）。选择仅作谢幕结局的剧情呼应，不改写结局类型。满足条件则必须清掉才能进结局。 |
+| **round200_stage_preface** | `ending_stage_curtain_preface` | REWARD | `_is_stage_curtain_route_ready()`：飞贼收束、有钥匙、击败木偶、邪恶≤45、**未**取回剧本；进门后取回剧本，可触发约定对话链 |
+| **puppet_rematch_gate** | `ending_puppet_pre_final_rematch_gate` | MONSTER | 木偶终战**曾逃跑**或未完结；补战 Boss「裂齿·夜魇·游荡残响」 |
+| **elf_rival_final_gate** | `ending_elf_rival_final_gate` | MONSTER | 飞贼线已收束且**关系≤−4**；银羽飞贼终局前对决 |
+| **dream_mirror_prelude_gate** | `ending_dream_mirror_prelude_gate` | EVENT | **梦境井**与**镜面剧场**两长链皆完结；梦中排练录像，选择仅作剧情呼应 |
 
-**结局前阻塞 vs 结局事件**：
+**约定对话（非上述阻塞）**：取回剧本后由 `_schedule_kind_puppet_dialogue_event()` 挂载 `stage_curtain_kind_puppet_dialogue`（事件 `StageCurtainKindPuppetDialogueMidEvent`），下一扇门起至 200 回合内可触发。选补全/即兴 → 挂载谢幕门；选选择困难症 → 挂载默认终局第一门。
 
-- **结局前阻塞事件**（须全部清空后才可挂载结局事件）：按 `PRE_FINAL_BLOCKING_ORDER` —— 银羽秘藏 → 木偶补战 → 飞贼清算 → 梦境镜面回响 → **木偶回声** → **善良木偶对话**。不做 max_round 强制替换门，由「保证对应门型出现」按序触发。
-- **结局事件**（第一门，仅两种）：**默认第一门**（选择困难症候群）、**接管谢幕**。只有在所有阻塞清空后才会挂载其一。
+### 4.4 结局事件（仅第 200 回合挂载）与「第一门」
 
-### 4.4 第 200 回合挂载逻辑（先阻塞，后结局事件）
+**结局事件**统一标记为 `ENDING_EVENT_GATE_KEYS`（models.events）与 `ENDING_EVENT_CONSEQUENCE_IDS`（story_system）：木偶回声、善良木偶对话（第 200 回合）、默认第一门、接管谢幕选择门。**仅当回合 ≥ 200 且结局前阻塞事件（四种倒数事件）已全部清空时**才可根据触发条件挂载与强制/匹配触发；调度时 `min_round`/`max_round` 强制 ≥ 200，触发时检查 `_all_pre_ending_blocking_cleared()`。
 
-每次选门会调用 `ensure_default_normal_ending_schedule()`；其内部先执行 `ensure_pre_final_event_schedule()`（可能挂载银羽秘藏、木偶补战、飞贼清算、梦境镜面等阻塞）。
+其中木偶回声、善良木偶对话**仅在第 200 回合**由 `_try_schedule_blocking_echo_or_kind()` 挂载，二者**二选一**按优先级：先尝试木偶回声，再尝试善良木偶对话。条件如下：
 
-- 若回合 ≥ 200，会先尝试挂载**结局前阻塞**：**木偶回声**（`_is_puppet_echo_gate_ready()`）或 **善良木偶对话**（`_is_kind_puppet_dialogue_ready()`），满足则挂载其一并 return，不挂载结局事件。
-- **必须先清空所有结局前阻塞事件**（`_all_pre_final_blocking_cleared()` 为 True），包括上述木偶回声、善良木偶对话。
-- 且**未开启长线分支**、未达成默认/舞台谢幕结局、当前回合 ≥ 200。
+- **木偶回声**（`puppet_echo_final_gate`）：已击败木偶、**未**拿飞贼钥匙、飞贼关系 &lt; 2。
+- **善良木偶对话**（`kind_puppet_dialogue_round200`）：已取回剧本、已击败木偶、邪恶值 ≤ 45。
 
-满足后，按**结局事件决策树**（仅两种，互斥）挂载“第一门”：
+`PRE_FINAL_BLOCKING_ORDER` 中仍包含上述两者，因此挂载后也会参与「保证门型出现」；须与四种结局前倒数事件一起**全部清空**后，才会挂载下面的「第一门」。
 
-1. **接管谢幕选择门**（`power_curtain_dialogue_round200`）：`_is_power_curtain_dialogue_ready()` 为 True 时（已拿剧本、已击败木偶、邪恶值 > 45）。
+**第一门（仅两种，互斥）**：在**所有阻塞清空**、未开启长线分支、未达成任一结局、回合 ≥ 200 时，`ensure_default_normal_ending_schedule()` 挂载其一：
+
+1. **接管谢幕选择门**（`power_curtain_dialogue_round200`）：已拿剧本、已击败木偶、邪恶值 **> 45**。
 2. **默认终局第一门**（`round200_default_first_gate`）：否则。
 
 ### 4.5 调度顺序与相关常量
 
-- **`schedule_next_pre_final_gate()` 挂载顺序**（`PRE_FINAL_DISPATCH_ORDER`）：① puppet_rematch_gate（木偶补战）② elf_rival_final_gate（飞贼清算）③ dream_mirror_prelude_gate（梦境镜面回响，仅当两长链皆完结时挂载，阻塞，对应事件门）④ default_final_boss_gate（仅当 `include_default_final_boss=True` 时尝试）。每次调用只挂载一个 gate；`ensure_pre_final_event_schedule()` 循环至多 4 次，把多个满足条件的 gate 依次挂进 pending。
-- **常量**（story_system.py）：`PRE_FINAL_WINDOW_START_OFFSET = 15`、`PRE_FINAL_WINDOW_END_OFFSET = 10`、`PRE_FINAL_RECHECK_INTERVAL = 5`、`DEFAULT_ENDING_FORCE_ROUND = 200`、`PRE_FINAL_BLOCKING_CONSEQUENCE_IDS`、`PRE_FINAL_BLOCKING_ORDER`。完整门配置见 `models/events.py` 中的 `PRE_FINAL_GATE_STORY_CONFIG`。
+- **结局前倒数事件**（185 起）：`ensure_pre_final_event_schedule()` → `ensure_all_pre_ending_blocking_considered()`，按 `PRE_FINAL_BLOCKING_GATE_KEYS` 依次尝试挂载四种 gate（银羽宝物、木偶补战、飞贼清算、梦境镜子前奏）。
+- **结局事件**（200 回合）：`_try_schedule_blocking_echo_or_kind()` 按顺序尝试挂载木偶回声、善良木偶对话其一。
+- **常量**（story_system.py）：`PRE_FINAL_WINDOW_START_OFFSET = 15`、`PRE_FINAL_RECHECK_INTERVAL = 5`、`DEFAULT_ENDING_FORCE_ROUND = 200`、`PRE_FINAL_BLOCKING_CONSEQUENCE_IDS`、`PRE_FINAL_BLOCKING_ORDER`、`PRE_FINAL_BLOCKING_GATE_KEYS`（仅四种）。80% 优先概率见 `GameConfig.PRE_FINAL_PENDING_PRIORITY_CHANCE`。第 200 回合强制清空逻辑见 `_trigger_pending_consequence` 中 `_get_first_pending_blocking_consequence()`。完整门配置见 `models/events.py` 中 `PRE_FINAL_GATE_STORY_CONFIG`。
 
 ---
 
@@ -153,19 +154,45 @@
 
 最终结局**只有四种**：**选择困难症候群**（`default_normal`）、**补全演出**（`stage_curtain_order`）、**即兴表演**（`stage_curtain_freedom` / `impromptu_curtain_call`）、**接管演出**（`stage_curtain_power`）。各事件积累的 **order / freedom / power / risk** **不决定结局类型**，只影响三种舞台谢幕结局的**展示文案**（见 5.5）。
 
-### 5.0 结局决策树总览（结局前阻塞 + 结局事件）
+### 5.0 结局决策树总览
 
-**结局前阻塞**（须全部清空后才挂载结局事件）：银羽秘藏、木偶补战、飞贼清算、梦境镜面回响、**木偶回声**、**善良木偶对话**。其中木偶回声（无钥匙+关系疏离）、善良木偶对话（有剧本+邪恶值≤45）在回合≥200 时由 `_try_schedule_blocking_echo_or_kind()` 挂载，玩家选对门型后触发并消费。
+**调度顺序**：每次选门会调用 `ensure_default_normal_ending_schedule()`，内部依次执行：
 
-**结局事件（第一门，仅两种）**：共同前置为所有阻塞已清空、未开启长线分支、未达成任一结局、回合 ≥ 200。`ensure_default_normal_ending_schedule()` 按**下列顺序、互斥**挂载「第一门」（只挂其一）。
+1. **`ensure_pre_final_event_schedule()`**：从 185 回合起，在满足 recheck 时执行 `ensure_all_pre_ending_blocking_considered()`，仅检查并挂载**四种结局前倒数事件**（银羽秘藏、木偶补战、飞贼清算、梦境镜子前奏）。
+2. **若回合 ≥ 200**：`_try_schedule_blocking_echo_or_kind()` 尝试挂载**结局事件**之一：**木偶回声**（优先）或 **善良木偶对话**（二者互斥，满足条件则挂载其一）。
+3. **若仍有任意阻塞未清空**（含上述结局事件）：不挂载「第一门」，直接 return。
+4. **若所有阻塞已清空** 且回合 ≥ 200、未开启长线、未达成结局：挂载**第一门**（二选一）：
+   - **接管谢幕选择门**：已拿剧本、已击败木偶、邪恶值 **> 45**；
+   - **默认终局第一门**：否则。
 
-| 顺序 | 条件 | 挂载门 | 门内流程 → 结局 |
-|------|------|--------|-----------------|
-| 1 | 已拿剧本 **且** 已击败木偶 **且** 木偶邪恶值 **> 45** | **接管谢幕选择门**（`power_curtain_dialogue_round200`） | 事件门三选一 → 接管（两种文案）/ 选择困难症 |
-| 2 | 以上皆否 | **默认终局第一门**（`round200_default_first_gate`） | 第一门事件 → 第二门事件 → 怪物门「选择困难症候群」→ 击败 → 选择困难症候群 |
+**约定对话（非阻塞）**：取回剧本后挂载 `stage_curtain_kind_puppet_dialogue`（`StageCurtainKindPuppetDialogueMidEvent`），185～200 间某扇门可触发。选补全/即兴 → 挂载谢幕门（下一扇门为补全/即兴/接管三选一）；选选择困难症 → 挂载默认终局第一门。
 
-- **互斥**：结局事件仅两种，由邪恶值 >45 判定接管谢幕，否则默认第一门。木偶回声、善良木偶对话为**结局前阻塞**，清空后才挂载上述任一。
-- **银羽秘藏**（取回剧本）在倒数窗口内由宝物门触发；木偶回声、善良木偶对话在回合≥200 时作为阻塞挂载，清空后才会挂载接管谢幕或默认第一门。
+### 5.0.1 结局决策树（树状）
+
+```
+回合 ≥ 185：保证「第一个未清空的阻塞」对应门型出现，玩家选到即触发并消费
+│
+├─ 结局前倒数事件（185 起检查，按序清空）
+│   ├─ 1. 银羽秘藏 (REWARD)     ← 条件：飞贼收束+钥匙+击败木偶+邪恶≤45+未取剧本
+│   │       └─ 进门 → 取回剧本 → 可挂载「约定对话」链
+│   ├─ 2. 木偶补战 (MONSTER)    ← 条件：木偶曾逃跑/未完结
+│   ├─ 3. 飞贼清算 (MONSTER)    ← 条件：飞贼收束且关系≤−4
+│   └─ 4. 梦境镜子前奏 (EVENT)  ← 条件：梦境井+镜面剧场皆完结
+│
+├─ 结局事件（仅第 200 回合挂载，二选一）
+│   ├─ 5a. 木偶回声 (MONSTER)   ← 条件：击败木偶+未拿钥匙+飞贼关系<2
+│   │       └─ 击败 → 事件「回声散尽之后」→ ①即兴A ②即兴B ③选择困难症
+│   └─ 5b. 善良木偶对话 (EVENT) ← 条件：取回剧本+击败木偶+邪恶≤45（与 5a 互斥）
+│           └─ ①补全 ②即兴 ③选择困难症 → 各对应结局或下一扇门
+│
+└─ 第一门（上述 1～5 全部清空后，仅第 200 回合挂载，二选一）
+    ├─ 6a. 接管谢幕选择门 (EVENT)  ← 条件：剧本+击败木偶+邪恶>45
+    │       └─ ①以规则接管 ②以意志接管 ③选择困难症
+    └─ 6b. 默认终局第一门 (EVENT)  ← 否则
+            └─ 第一门事件 → 第二门事件 → Boss「选择困难症候群」→ 击败 → default_normal
+```
+
+**约定对话链**（取回剧本后挂载，不占阻塞顺序）：门「与善良人格的约定」→ 选补全/即兴 → 挂载**谢幕门**（补全/即兴/接管三选一）→ 选其一即进对应结局；选选择困难症 → 挂载默认终局第一门（同上 6b）。
 
 ### 5.1 各门内选择与结局对应表
 
@@ -199,9 +226,11 @@
 - **接管谢幕选择门**（`EndingPowerCurtainChoiceEvent`）：仅在第 200 回合挂载；条件 `_is_power_curtain_dialogue_ready()`：已拿剧本、已击败木偶、邪恶值 > 45。与善良木偶对话通过邪恶值互斥。
 - **默认终局第一门**：`ending_final_first_gate_event` → `ending_final_second_gate_event` → 挂载默认 Boss 门「选择困难症候群」，击败后 `_resolve_default_final_outcome` → `default_normal`。
 
-### 5.4 银羽秘藏（取回剧本）与第 200 回合门的关系
+### 5.4 银羽秘藏（取回剧本）与约定对话、第 200 回合门的关系
 
-- **银羽秘藏门**（`round200_stage_preface`）：宝物门，在倒数窗口内（第 185～190 或超窗）触发；`_is_stage_curtain_route_ready()` 需：尚未回收剧本、已获得飞贼钥匙、飞贼线已收束、已击败木偶、邪恶值 ≤ 45。进门后仅写入 `curtain_call_script_recovered` 与 `curtain_call_truth_revealed`，**不在**窗口内挂载任何谢幕门；与善良木偶对话门、接管谢幕选择门**仅**由第 200 回合决策树（5.0）挂载。
+- **银羽秘藏门**（`round200_stage_preface`）：宝物门，在结局前倒数窗口内（185 起）触发；条件 `_is_stage_curtain_route_ready()`：尚未回收剧本、已获得飞贼钥匙、飞贼线已收束、已击败木偶、邪恶值 ≤ 45。进门后写入 `curtain_call_script_recovered` 等，并若善良侧在则**挂载约定对话**（`stage_curtain_kind_puppet_dialogue`），下一扇门起至 200 回合内可触发。
+- **约定对话**（`StageCurtainKindPuppetDialogueMidEvent`）：非阻塞；选补全/即兴会挂载**谢幕门**（补全/即兴/接管三选一），选选择困难症会挂载默认终局第一门。
+- **第 200 回合结局事件**：**善良木偶对话**（`EndingStageKindPuppetDialogueEvent`）与**木偶回声**由 `_try_schedule_blocking_echo_or_kind()` 仅在第 200 回合挂载；**接管谢幕选择门**与**默认终局第一门**在所有阻塞清空后挂载。
 
 ### 5.5 秩序/自由/力量/风险分数仅影响三种舞台谢幕的剧情文本
 

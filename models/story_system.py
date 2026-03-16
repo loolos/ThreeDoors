@@ -14,7 +14,11 @@ from models.items import (
     ReviveScroll,
     create_random_item,
 )
-from models.events import ALL_PRE_FINAL_DOOR_TYPES, PRE_FINAL_GATE_STORY_CONFIG
+from models.events import (
+    ALL_PRE_FINAL_DOOR_TYPES,
+    ENDING_EVENT_GATE_KEYS,
+    PRE_FINAL_GATE_STORY_CONFIG,
+)
 from models.status import StatusName
 
 
@@ -104,7 +108,21 @@ class StorySystem:
         PUPPET_ECHO_FINAL_CONSEQUENCE_ID,
         KIND_PUPPET_DIALOGUE_ROUND200_CONSEQUENCE_ID,
     })
-    # 阻塞触发顺序：银羽秘藏 → 木偶补战 → 飞贼清算 → 梦境镜面回响 → 木偶回声 → 善良木偶对话；全部清空后才挂载结局事件。
+    # 仅四种结局前倒数事件（银羽秘藏、木偶补战、飞贼清算、梦境镜子前奏）；用于判定「结局前阻塞是否已清空」。
+    PRE_ENDING_BLOCKING_CONSEQUENCE_IDS = frozenset({
+        STAGE_CURTAIN_FORCE_CONSEQUENCE_ID,
+        PUPPET_PRE_FINAL_CONSEQUENCE_ID,
+        ELF_RIVAL_PRE_FINAL_CONSEQUENCE_ID,
+        DREAM_MIRROR_PRELUDE_CONSEQUENCE_ID,
+    })
+    # 结局事件 consequence_id 集合：木偶回声、善良木偶对话、默认第一门、接管谢幕；仅当回合≥200 且结局前阻塞已清空时才可触发。
+    ENDING_EVENT_CONSEQUENCE_IDS = frozenset({
+        PUPPET_ECHO_FINAL_CONSEQUENCE_ID,
+        KIND_PUPPET_DIALOGUE_ROUND200_CONSEQUENCE_ID,
+        POWER_CURTAIN_DIALOGUE_ROUND200_CONSEQUENCE_ID,
+        DEFAULT_ENDING_FORCE_CONSEQUENCE_ID,
+    })
+    # 阻塞触发顺序：结局前倒数事件（银羽秘藏→木偶补战→飞贼清算→梦境镜面）先按序触发；其后为结局事件（木偶回声、善良木偶对话，仅第 200 回合挂载）。全部清空后才挂载默认终局第一门。
     PRE_FINAL_BLOCKING_ORDER = (
         STAGE_CURTAIN_FORCE_CONSEQUENCE_ID,
         PUPPET_PRE_FINAL_CONSEQUENCE_ID,
@@ -112,6 +130,13 @@ class StorySystem:
         DREAM_MIRROR_PRELUDE_CONSEQUENCE_ID,
         PUPPET_ECHO_FINAL_CONSEQUENCE_ID,
         KIND_PUPPET_DIALOGUE_ROUND200_CONSEQUENCE_ID,
+    )
+    # 仅结局前倒数事件：从 185 回合起统一检查并加入阻塞。结局事件（木偶回声、善良木偶对话、默认第一门、接管谢幕）仅第 200 回合挂载，由 _try_schedule_blocking_echo_or_kind 与 ensure_default_normal_ending_schedule 处理；定义见 models.events.ENDING_EVENT_GATE_KEYS。
+    PRE_FINAL_BLOCKING_GATE_KEYS = (
+        "round200_stage_preface",       # 银羽宝物
+        "puppet_rematch_gate",          # 木偶补战
+        "elf_rival_final_gate",         # 飞贼清算
+        "dream_mirror_prelude_gate",     # 梦境镜子前奏
     )
 
     HIGH_MORAL_MONSTERS = {"树人", "天使", "创世神官", "幽灵", "精灵法师"}
@@ -314,6 +339,38 @@ class StorySystem:
         evil = max(0, min(100, int(getattr(self, "puppet_evil_value", 55))))
         return evil <= self.PUPPET_LOW_EVIL_FOR_CURTAIN
 
+    def _is_pre_ending_gate_condition_met(self, gate_key: str) -> bool:
+        """结局前阻塞事件：按 gate_key 检查前置条件是否满足（仅条件，不包含是否已在 pending/consumed）。"""
+        if gate_key == "round200_stage_preface":
+            if not self._is_stage_curtain_route_ready():
+                return False
+            if "ending:default_normal_completed" in self.story_tags or "ending:stage_curtain_completed" in self.story_tags:
+                return False
+            return True
+        if gate_key == "puppet_rematch_gate":
+            try:
+                from models.events import _should_trigger_puppet_pre_final_gate
+                return bool(_should_trigger_puppet_pre_final_gate(self.controller))
+            except Exception:
+                return False
+        if gate_key == "elf_rival_final_gate":
+            try:
+                from models.events import _should_trigger_elf_rival_pre_final
+                return bool(_should_trigger_elf_rival_pre_final(self.controller))
+            except Exception:
+                return False
+        if gate_key == "dream_mirror_prelude_gate":
+            try:
+                from models.events import _should_trigger_dream_mirror_prelude
+                return bool(_should_trigger_dream_mirror_prelude(self.controller))
+            except Exception:
+                return False
+        return False
+
+    def _is_ending_event_gate(self, gate_key: str) -> bool:
+        """是否为结局事件（木偶回声、善良木偶对话、默认第一门、接管谢幕）；此类事件仅到结局回合（第 200 回合）才可挂载/触发。"""
+        return gate_key in ENDING_EVENT_GATE_KEYS
+
     def _is_power_curtain_dialogue_ready(self) -> bool:
         """满足「已拿剧本、已击败木偶、邪恶值普通或较高（> 45）」时，第 200 回合可挂载接管谢幕选择门。与善良木偶对话门互斥（本项要求 evil > 45）。"""
         if "curtain_call_script_recovered" not in self.story_tags:
@@ -386,43 +443,67 @@ class StorySystem:
         return True
 
     def ensure_stage_curtain_preface_schedule(self) -> bool:
-        """满足前置时将“银羽秘藏”纳入终局前倒数窗口调度（仅按门型触发；到 200 回合由「保证对应门型出现」按序触发，不做 max_round 强制替换）。"""
-        if not self._is_stage_curtain_route_ready():
-            return False
-        if "ending:default_normal_completed" in self.story_tags:
-            return False
-        if "ending:stage_curtain_completed" in self.story_tags:
-            return False
+        """满足前置时将“银羽秘藏”纳入终局前倒数窗口调度（仅按门型触发；到 200 回合由「保证对应门型出现」按序触发，不做 max_round 强制替换）。
+        现由 ensure_all_pre_ending_blocking_considered 统一调度，本方法保留供单测或兼容调用。"""
+        return self._register_single_pre_ending_gate("round200_stage_preface") is not None
+
+    def _register_single_pre_ending_gate(self, gate_key: str) -> Optional[str]:
+        """为单个结局前 gate_key 检查条件并注册 consequence；成功返回 gate_key，否则返回 None。"""
+        cfg = PRE_FINAL_GATE_STORY_CONFIG.get(gate_key, {})
+        if not cfg:
+            return None
+        consequence_id = str(cfg.get("consequence_id", ""))
+        if not consequence_id or consequence_id in self.pending_consequences or consequence_id in self.consumed_consequences:
+            return None
+        if not self._is_pre_ending_gate_condition_met(gate_key):
+            return None
         current_round = max(0, int(getattr(self.controller, "round_count", 0)))
         ending_round = int(self.DEFAULT_ENDING_FORCE_ROUND)
-        window_start = max(0, ending_round - int(self.PRE_FINAL_WINDOW_START_OFFSET))
-        window_end = max(0, ending_round - int(self.PRE_FINAL_WINDOW_END_OFFSET))
-        if current_round < window_start:
-            return False
-        min_round = current_round
-        # 结局前事件不做超窗强制；max_round 设为终局回合，允许在 200 回合内由「保证对应门型」机制触发
-        max_round = ending_round
-        consequence_id = self.STAGE_CURTAIN_FORCE_CONSEQUENCE_ID
-        if consequence_id in self.pending_consequences or consequence_id in self.consumed_consequences:
-            return False
-        cfg = PRE_FINAL_GATE_STORY_CONFIG.get("round200_stage_preface", {})
+        if gate_key == "round200_stage_preface":
+            trigger_door_types = ["REWARD"]
+        else:
+            trigger_door_types = list(cfg.get("trigger_door_types", []) or list(ALL_PRE_FINAL_DOOR_TYPES))
         payload = cfg.get("payload", {})
         registered = self.register_consequence(
-            choice_flag=str(cfg.get("choice_flag", "ending_stage_curtain_route")),
+            choice_flag=str(cfg.get("choice_flag", "ending_default_normal_route")),
             consequence_id=consequence_id,
             effect_key=str(cfg.get("effect_key", "force_story_event")),
             chance=1.0,
-            trigger_door_types=["REWARD"],
-            min_round=min_round,
-            max_round=max_round,
+            trigger_door_types=trigger_door_types,
+            min_round=current_round,
+            max_round=ending_round,
             force_on_expire=False,
             force_door_type=str(cfg.get("force_door_type", "EVENT")),
-            priority=int(cfg.get("priority", 1260)),
+            priority=int(cfg.get("priority", 1200)),
             payload=dict(payload) if isinstance(payload, dict) else {},
         )
-        if registered:
+        if not registered:
+            return None
+        if gate_key == "round200_stage_preface":
             self.story_tags.add("ending:stage_curtain_scheduled")
-        return registered
+        return gate_key
+
+    def ensure_all_pre_ending_blocking_considered(self) -> Tuple[bool, List[str]]:
+        """从 185 回合起统一检查结局前倒数事件（银羽宝物、木偶补战、飞贼清算、梦境镜子前奏）；条件满足则加入阻塞。
+        木偶回声、善良木偶对话属结局事件，仅在第 200 回合由 _try_schedule_blocking_echo_or_kind 挂载，不在此检查。
+        返回 (是否挂载了至少一个, 本次新挂载的 gate_key 列表)。"""
+        current_round = max(0, int(getattr(self.controller, "round_count", 0)))
+        ending_round = int(self.DEFAULT_ENDING_FORCE_ROUND)
+        window_start = max(0, ending_round - int(self.PRE_FINAL_WINDOW_START_OFFSET))
+        if current_round < window_start:
+            return False, []
+        if "ending:default_normal_completed" in self.story_tags or "ending:stage_curtain_completed" in self.story_tags:
+            return False, []
+        registered_keys = []
+        for gate_key in self.PRE_FINAL_BLOCKING_GATE_KEYS:
+            key = self._register_single_pre_ending_gate(gate_key)
+            if key:
+                registered_keys.append(key)
+        if "elf_rival_final_gate" in registered_keys:
+            self.controller.add_message("你在门廊里嗅到熟悉银羽杀意，飞贼清算战即将插入。")
+        if "puppet_rematch_gate" in registered_keys:
+            self.controller.add_message("红噪门框开始闪烁，黑暗木偶补战正在逼近。")
+        return bool(registered_keys), registered_keys
 
     def _has_pending_blocking_pre_final_events(self) -> bool:
         """是否存在未清空的结局前倒数窗口事件；有则不能挂载默认终局（选择困难症候群）第一门。"""
@@ -439,6 +520,18 @@ class StorySystem:
             if c is not None and getattr(c, "force_door_type", None):
                 return str(c.force_door_type)
         return None
+
+    def _get_first_pending_blocking_consequence(self) -> Optional[PendingConsequence]:
+        """按 PRE_FINAL_BLOCKING_ORDER 返回第一个仍在 pending 中的结局前阻塞事件；用于第 200 回合强制依次清空列表。"""
+        for cid in self.PRE_FINAL_BLOCKING_ORDER:
+            c = self.pending_consequences.get(cid)
+            if c is not None:
+                return c
+        return None
+
+    def _all_pre_ending_blocking_cleared(self) -> bool:
+        """四种结局前倒数事件（银羽秘藏、木偶补战、飞贼清算、梦境镜子前奏）是否均已清空；结局事件仅在此为 True 且回合≥200 时才可触发。"""
+        return not any(cid in self.pending_consequences for cid in self.PRE_ENDING_BLOCKING_CONSEQUENCE_IDS)
 
     def get_required_door_type_for_next_ending(self, round_count: int) -> Optional[str]:
         """返回当前应保证出现的门型：先按序看结局前阻塞事件，再在 round>=200 时看第 200 回合第一门，再看第二门、默认最终 Boss。供 generate_doors 使用，与取消 force_on_expire 配套。"""
@@ -469,7 +562,8 @@ class StorySystem:
         return (current_round - last_round) >= int(self.PRE_FINAL_RECHECK_INTERVAL)
 
     def ensure_pre_final_event_schedule(self) -> bool:
-        """在终局前倒数窗口预挂载前置事件；到 200 回合由「保证对应门型出现」按序触发，不做 max_round 强制替换。"""
+        """从 185 回合起统一检查结局前倒数事件（银羽宝物、木偶补战、飞贼清算、梦境镜子前奏）；条件满足则加入阻塞。
+        木偶回声、善良木偶对话为结局事件，仅在第 200 回合挂载；若到 200 仍未触发则由 get_required_door_type_for_next_ending 依序保证门型出现。"""
         if "ending:default_normal_completed" in self.story_tags:
             return False
         if "ending:stage_curtain_completed" in self.story_tags:
@@ -478,7 +572,6 @@ class StorySystem:
         current_round = max(0, int(getattr(self.controller, "round_count", 0)))
         ending_round = int(self.DEFAULT_ENDING_FORCE_ROUND)
         window_start = max(0, ending_round - int(self.PRE_FINAL_WINDOW_START_OFFSET))
-        window_end = max(0, ending_round - int(self.PRE_FINAL_WINDOW_END_OFFSET))
         if current_round < window_start:
             return False
         if not self._should_run_pre_final_recheck(
@@ -488,45 +581,12 @@ class StorySystem:
         ):
             return False
 
-        # 舞台谢幕钥匙线也纳入终局前事件窗口（宝物门命中，超窗强制）
-        stage_scheduled = self.ensure_stage_curtain_preface_schedule()
-
-        try:
-            from models.events import schedule_next_pre_final_gate
-        except Exception:
-            return stage_scheduled
-
-        if current_round <= window_end:
-            min_round = current_round
-            # 窗口内仅按门型触发；窗口结束后（下一回合）才进入强制兜底。
-            max_round = window_end + 1
-        else:
-            # 超出预挂载窗口后，立即进入强制兜底，保证终局事件前一定触发。
-            min_round = current_round
-            max_round = current_round
-
-        scheduled_any = bool(stage_scheduled)
-        scheduled_keys = []
-        for _ in range(4):
-            scheduled_key = schedule_next_pre_final_gate(
-                self.controller,
-                include_default_final_boss=False,
-                min_round=min_round,
-                max_round=max_round,
-            )
-            if not scheduled_key:
-                break
-            scheduled_any = True
-            scheduled_keys.append(scheduled_key)
-        if "elf_rival_final_gate" in scheduled_keys:
-            self.controller.add_message("你在门廊里嗅到熟悉银羽杀意，飞贼清算战即将插入。")
-        if "puppet_rematch_gate" in scheduled_keys:
-            self.controller.add_message("红噪门框开始闪烁，黑暗木偶补战正在逼近。")
+        scheduled_any, _ = self.ensure_all_pre_ending_blocking_considered()
         self.pre_final_last_check_round = current_round
         return scheduled_any
 
     def _try_schedule_blocking_echo_or_kind(self) -> bool:
-        """第 200 回合若满足条件，挂载结局前阻塞：木偶回声或善良木偶对话（二选一，按优先级）。返回是否挂载了任一。"""
+        """第 200 回合挂载结局事件：木偶回声或善良木偶对话（二选一按优先级）。二者属结局事件，仅在本回合检查并挂载。返回是否挂载了任一。"""
         current_round = max(0, int(getattr(self.controller, "round_count", 0)))
         if current_round < self.DEFAULT_ENDING_FORCE_ROUND:
             return False
@@ -560,12 +620,12 @@ class StorySystem:
 
     def ensure_default_normal_ending_schedule(self) -> bool:
         """结局阻塞全部清空后，在第 200 回合挂载结局事件：默认第一门（选择困难症候群）或接管谢幕。木偶回声、善良木偶对话属结局前阻塞，须先清空。"""
-        self.ensure_pre_final_event_schedule()
+        pre_scheduled = self.ensure_pre_final_event_schedule()
         current_round = max(0, int(getattr(self.controller, "round_count", 0)))
         if current_round >= self.DEFAULT_ENDING_FORCE_ROUND and self._try_schedule_blocking_echo_or_kind():
             return True
         if not self._all_pre_final_blocking_cleared():
-            return False
+            return pre_scheduled
         if self._has_started_long_story_branch():
             return False
         if "ending:default_normal_completed" in self.story_tags:
@@ -618,6 +678,7 @@ class StorySystem:
         forced_candidates = [
             c for c in all_pending if c.should_force_trigger(round_count=choice_round, story_flags=story_flags)
         ]
+        # 结局前事件不强制替换门：仅当门型匹配时通过下方 candidates 匹配路径触发；get_required_door_type_for_next_ending 保证出现对应门型供玩家选择。
         if forced_candidates:
             # 结局前倒数窗口事件按 PRE_FINAL_BLOCKING_ORDER 优先强制触发（银羽秘藏→木偶补战→飞贼清算），再按回合、优先级。
             order = self.PRE_FINAL_BLOCKING_ORDER
@@ -648,6 +709,9 @@ class StorySystem:
             for c in all_pending
             if c.matches(door=door, round_count=choice_round, story_flags=story_flags)
         ]
+        # 结局事件仅当回合≥200 且结局前阻塞已清空时才可（匹配）触发
+        if choice_round < self.DEFAULT_ENDING_FORCE_ROUND or not self._all_pre_ending_blocking_cleared():
+            candidates = [c for c in candidates if c.consequence_id not in self.ENDING_EVENT_CONSEQUENCE_IDS]
         door_type = getattr(getattr(door, "enum", None), "name", "")
 
         if not candidates:
@@ -1467,7 +1531,7 @@ class StorySystem:
             event_key = payload.get("event_key")
             if not isinstance(event_key, str) or not event_key.strip():
                 return False, door
-            hint = payload.get("hint")
+            hint = payload.get("hint") or payload.get("message")
             self._attach_door_extension(
                 door=event_door,
                 extension_config={
@@ -1477,9 +1541,7 @@ class StorySystem:
                 },
                 apply_on_attach=True,
             )
-            self.controller.add_message(
-                self._resolve_message(payload, "message", "命运突然偏转，下一扇事件门被写上了你的名字。")
-            )
+            # 文案已在门出现时通过 _build_trigger_message 展示，此处不再重复
             self._log_effect_result(consequence, "")
             return True, event_door
 
@@ -1487,7 +1549,7 @@ class StorySystem:
             door_type = getattr(getattr(door, "enum", None), "name", "")
             if door_type != "REWARD":
                 return False, door
-            hint = payload.get("hint")
+            hint = payload.get("hint") or payload.get("message")
             self._attach_door_extension(
                 door=door,
                 extension_config={
@@ -1496,9 +1558,7 @@ class StorySystem:
                 },
                 apply_on_attach=True,
             )
-            self.controller.add_message(
-                self._resolve_message(payload, "message", "银羽留给你的钥匙突然自行转动，走廊侧墙弹出一扇带徽记的暗门。")
-            )
+            # 文案已在门出现时通过 _build_trigger_message 展示，此处不再重复
             self._log_effect_result(consequence, "")
             return True, door
 
@@ -1514,13 +1574,11 @@ class StorySystem:
                 door=door,
                 extension_config={
                     "extension_type": "elf_side_reward_mark",
-                    "hint": payload.get("hint"),
+                    "hint": payload.get("hint") or payload.get("message"),
                 },
                 apply_on_attach=True,
             )
-            self.controller.add_message(
-                self._resolve_message(payload, "message", "门缝里闪过一抹银光……")
-            )
+            # 文案已在门出现时通过 _build_trigger_message 展示，此处不再重复
             self._log_effect_result(consequence, "")
             return True, door
 
@@ -1541,7 +1599,7 @@ class StorySystem:
             strong_monster = Monster(tier=strong_tier)
             door.monster = strong_monster
             monster = strong_monster
-            hint = payload.get("hint")
+            hint = payload.get("hint") or payload.get("message")
             hint_text = hint.strip() if isinstance(hint, str) and hint.strip() else ""
             self._attach_door_extension(
                 door=door,
@@ -1551,11 +1609,7 @@ class StorySystem:
                 },
                 apply_on_attach=True,
             )
-            message_text = self._resolve_message(payload, "message", "门后传来打斗声，你推门一看——")
-            self.controller.add_message(message_text)
-            # 该支线强调“入门瞬间就要被拉进战斗”，因此确保 payload 提示会输出到消息流。
-            if hint_text and hint_text != message_text:
-                self.controller.add_message(hint_text)
+            # 文案已在门出现时通过 _build_trigger_message 展示，此处不再重复
             self._log_effect_result(consequence, "")
             return True, door
 
@@ -1579,9 +1633,7 @@ class StorySystem:
                 },
                 apply_on_attach=True,
             )
-            self.controller.add_message(
-                self._resolve_message(payload, "message", "门后的景象和你预想的不太一样……")
-            )
+            # 文案已在门出现时通过 _build_trigger_message 展示，此处不再重复
             self._log_effect_result(consequence, "")
             return True, door
 
@@ -1600,9 +1652,7 @@ class StorySystem:
                 },
                 apply_on_attach=True,
             )
-            self.controller.add_message(
-                self._resolve_message(payload, "message", f"宝物门被人做了记号，里面是 {marked_item.name}。")
-            )
+            # 文案已在门出现时通过 _build_trigger_message 展示，此处不再重复
             self._log_effect_result(
                 consequence,
                 f"宝物内容被改写：{self._describe_reward(door)}",
@@ -1621,9 +1671,7 @@ class StorySystem:
                 },
                 apply_on_attach=True,
             )
-            self.controller.add_message(
-                self._resolve_message(payload, "message", "你推开宝物门，只看到被提前洗劫的空架子。")
-            )
+            # 文案已在门出现时通过 _build_trigger_message 展示，此处不再重复
             self._log_effect_result(
                 consequence,
                 "宝物已被掏空",
@@ -1722,10 +1770,10 @@ class StorySystem:
                     battle_extensions=[extension_cfg],
                 )
 
-            hint_text = payload.get("hint") or "银羽残痕在门槛上交错，像是一封迟到的决斗书。"
+            hint_text = payload.get("hint") or payload.get("message") or "银羽残痕在门槛上交错，像是一封迟到的决斗书。"
             if isinstance(hint_text, str) and hint_text.strip():
                 target_door.hint = hint_text.strip()
-            self.controller.add_message(self._resolve_message(payload, "message", "走廊尽头忽然多出一扇怪物门，银羽斗篷从阴影里掠出。"))
+            # 文案已在门出现时通过 _build_trigger_message 展示，此处不再重复
             self.controller.add_message(dialogue)
             self._log_effect_result(consequence, f"{rival.name}拦路（关系 {relation}），生命 {rival.hp}，攻击 {rival.atk}")
             return True, target_door
@@ -1774,16 +1822,10 @@ class StorySystem:
                     monster=echo_monster,
                     battle_extensions=[extension_cfg],
                 )
-            hint_text = payload.get("hint") or "门后传来你一路抉择的回响。"
+            hint_text = payload.get("hint") or payload.get("message") or "门后传来你一路抉择的回响。"
             if isinstance(hint_text, str) and hint_text.strip():
                 target_door.hint = hint_text.strip()
-            self.controller.add_message(
-                self._resolve_message(
-                    payload,
-                    "message",
-                    "终局门前，你没有钥匙，也没有飞贼的约定；木偶虽败，其回声仍在。门扉推开，那些你曾做过的选择一句句被复诵。",
-                )
-            )
+            # 文案已在门出现时通过 _build_trigger_message 展示，此处不再重复
             self._log_effect_result(consequence, f"{echo_monster.name}（生命 {echo_monster.hp}，攻击 {echo_monster.atk}）")
             return True, target_door
 
@@ -1810,19 +1852,13 @@ class StorySystem:
                 power_score=power_score,
             )
             setattr(boss, "story_default_final_boss", True)
-            hint = payload.get("hint") or "门后响起一阵咂舌声：'两百回合了，你还在犹豫？'"
+            hint = payload.get("hint") or payload.get("message") or "门后响起一阵咂舌声：'两百回合了，你还在犹豫？'"
             final_door = DoorEnum.MONSTER.create_instance(
                 controller=self.controller,
                 monster=boss,
                 hint=hint,
             )
-            self.controller.add_message(
-                self._resolve_message(
-                    payload,
-                    "message",
-                    "你推开最后一道门，一只披着问号披风的怪物拍手鼓掌：'终于肯进来了？'",
-                )
-            )
+            # 文案已在门出现时通过 _build_trigger_message 展示，此处不再重复
             taunts = payload.get("taunts", [])
             if isinstance(taunts, list):
                 for taunt in taunts:
@@ -1988,7 +2024,7 @@ class StorySystem:
                     monster=boss,
                     battle_extensions=[extension_cfg],
                 )
-            hint = payload.get("hunter_hint") or payload.get("hint")
+            hint = payload.get("hunter_hint") or payload.get("hint") or payload.get("message")
             if isinstance(hint, str) and hint.strip():
                 target_door.hint = hint.strip()
             if evil_value <= 25:
@@ -2031,10 +2067,11 @@ class StorySystem:
 
     def setup_test_gate_stage_curtain_order(self) -> None:
         """测试用：将控制器与剧情状态设为「补全谢幕」路线前置条件（不挂载门，仅改状态）。
-        条件：回合 190、玩家 HP 800 / ATK 200、精灵飞贼线已收束且关系高、已拿钥匙、
-        已击败黑暗木偶、邪恶值较低。飞贼清算、木偶补战视为已完结，从 pending 移除并加入 consumed，不再触发。"""
+        条件：第 184 回合、玩家 HP 800 / ATK 200、精灵飞贼线已收束且关系高、已拿钥匙、
+        已击败黑暗木偶、邪恶值较低；**未**取回剧本，以便 185 回合选门时能挂载并触发银羽秘藏（宝物门取剧本）。
+        仅强制清空木偶补战、飞贼清算、梦境镜子前奏三种阻塞（不消费银羽秘藏），185 回合由 ensure_all_pre_ending_blocking_considered 将银羽秘藏加入 pending，选宝物门即触发；取剧本后可走约定对话，到 200 回合挂载善良木偶对话。"""
         c = self.controller
-        c.round_count = 190
+        c.round_count = 184
         p = getattr(c, "player", None)
         if p is not None:
             p.hp = 800
@@ -2043,18 +2080,24 @@ class StorySystem:
                 c.player_peak_hp = 800
             if hasattr(c, "player_peak_atk"):
                 c.player_peak_atk = 200
+        self.elf_chain_started = True
         self.elf_chain_ended = True
         self.elf_relation = 4
         self.elf_key_obtained = True
         self.story_tags.add("elf_chain_ended")
         self.story_tags.add("elf_key_obtained")
         self.story_tags.add("ending:puppet_final_defeated")
+        self.puppet_final_outcome = "defeated"
         self.puppet_evil_value = 30
-        # 飞贼、黑暗木偶线在此测试框架内已完结，不再挂载飞贼清算与木偶补战
-        self.pending_consequences.pop(self.PUPPET_PRE_FINAL_CONSEQUENCE_ID, None)
-        self.pending_consequences.pop(self.ELF_RIVAL_PRE_FINAL_CONSEQUENCE_ID, None)
-        self.consumed_consequences.add(self.PUPPET_PRE_FINAL_CONSEQUENCE_ID)
-        self.consumed_consequences.add(self.ELF_RIVAL_PRE_FINAL_CONSEQUENCE_ID)
+        # 不设置 curtain_call_script_recovered，满足 _is_stage_curtain_route_ready() 中「未取回剧本」条件，185 回合才能挂载银羽秘藏
+        # 只清空另外三种结局前倒数事件，不消费银羽秘藏，让 185 回合时由调度把银羽秘藏加入 pending、选宝物门触发
+        for cid in (
+            self.PUPPET_PRE_FINAL_CONSEQUENCE_ID,
+            self.ELF_RIVAL_PRE_FINAL_CONSEQUENCE_ID,
+            self.DREAM_MIRROR_PRELUDE_CONSEQUENCE_ID,
+        ):
+            self.pending_consequences.pop(cid, None)
+            self.consumed_consequences.add(cid)
 
     def setup_test_gate_stage_curtain_power(self) -> None:
         """测试用：将控制器与剧情状态设为「接管谢幕」分支前置（不挂载门，仅改状态）。
@@ -2569,7 +2612,7 @@ class StorySystem:
             if not isinstance(event_key, str) or not event_key.strip():
                 return {}
             door.story_forced_event_key = event_key.strip()
-            hint = extension.get("hint")
+            hint = extension.get("hint") or extension.get("message")
             if isinstance(hint, str) and hint.strip():
                 door.hint = hint.strip()
             runtime["applied"] = True
@@ -2579,7 +2622,7 @@ class StorySystem:
             if door_type != "REWARD":
                 return {}
             setattr(door, "elf_side_reward", True)
-            hint = extension.get("hint")
+            hint = extension.get("hint") or extension.get("message")
             if isinstance(hint, str) and hint.strip():
                 door.hint = hint.strip()
             runtime["applied"] = True
@@ -2592,7 +2635,7 @@ class StorySystem:
             if monster is None:
                 return {}
             setattr(monster, "elf_side_story", True)
-            hint = extension.get("hint")
+            hint = extension.get("hint") or extension.get("message")
             if isinstance(hint, str) and hint.strip():
                 door.hint = hint.strip()
             runtime["applied"] = True
@@ -2821,7 +2864,7 @@ class StorySystem:
         )
 
     def _build_trigger_message(self, consequence: PendingConsequence) -> str:
-        custom = self._resolve_message(consequence.payload, "log_trigger", "")
+        custom = self._resolve_message(consequence.payload, "log_trigger", "") or self._resolve_message(consequence.payload, "message", "")
         if custom:
             return custom
 
@@ -2845,8 +2888,8 @@ class StorySystem:
         return ""
 
     def _log_effect_result(self, consequence: PendingConsequence, detail: str) -> None:
-        # 若 payload 有 log_trigger，说明已在触发时展示合并文案，此处不再重复
-        if self._resolve_message(consequence.payload, "log_trigger", ""):
+        # 若 payload 有 log_trigger 或 message（已用于触发文案），此处不再重复
+        if self._resolve_message(consequence.payload, "log_trigger", "") or self._resolve_message(consequence.payload, "message", ""):
             return
 
         cid = consequence.consequence_id

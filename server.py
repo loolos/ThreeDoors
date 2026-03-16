@@ -162,7 +162,7 @@ class GameController:
             "ending_description": str(ending_description or ""),
             "ending_meta": extra_meta,
         }
-        self.scene_manager.go_to("ending_roll_scene")
+        self.scene_manager.go_to("ending_summary_scene")
 
     def update_player_power_peaks(self):
         """记录玩家历史最高生命与攻击，用于 tier 解锁判定。"""
@@ -307,6 +307,12 @@ def get_state():
                 }
                 for door in scn.doors
             ]
+        if scn and scn.enum and scn.enum.name == "ENDING_SUMMARY":
+            clear_info = getattr(g, "game_clear_info", None) or {}
+            state["ending_summary"] = {
+                "title": str(clear_info.get("ending_title", "")).strip(),
+                "description": str(clear_info.get("ending_description", "")).strip(),
+            }
         if scn and scn.enum and scn.enum.name == "ENDING_ROLL":
             state["ending_roll_lines"] = build_ending_roll_lines(g)
         
@@ -341,7 +347,7 @@ def button_action():
 
     scn_name = scn.__class__.__name__
     outcome = None
-    if scn_name in ["DoorScene", "BattleScene", "ShopScene", "UseItemScene", "EndingRollScene", "GameOverScene", "EventScene"]:
+    if scn_name in ["DoorScene", "BattleScene", "ShopScene", "UseItemScene", "EndingSummaryScene", "EndingRollScene", "GameOverScene", "EventScene"]:
         outcome = scn.handle_choice(index)
     
     # 获取当前消息并清空

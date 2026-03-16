@@ -390,22 +390,46 @@ function renderState(state) {
   buttonArea.style.display = 'flex';
   buttonArea.innerHTML = ''; // Clear old buttons
 
-  // 结局滚动画面：仅在 ENDING_ROLL 时显示
+  // 结局摘要：先展示剧情，点击「观看制作人员名单」后再进入滚动字幕
+  const endingSummaryWrap = document.getElementById("ending-summary-wrap");
+  const endingSummaryTitle = document.getElementById("ending-summary-title");
+  const endingSummaryDesc = document.getElementById("ending-summary-description");
+  const endingSummaryRollBtn = document.getElementById("endingSummaryRollBtn");
+  if (endingSummaryWrap) {
+    if (sceneInfo.type === "ENDING_SUMMARY" && state.ending_summary) {
+      document.body.classList.add("ending-summary-active");
+      endingSummaryWrap.classList.remove("ending-summary-hidden");
+      endingSummaryWrap.classList.add("ending-summary-visible");
+      if (endingSummaryTitle) endingSummaryTitle.textContent = state.ending_summary.title || "结局";
+      if (endingSummaryDesc) endingSummaryDesc.textContent = state.ending_summary.description || "";
+      if (endingSummaryRollBtn) {
+        endingSummaryRollBtn.textContent = (state.button_texts && state.button_texts[0]) || "观看制作人员名单";
+        endingSummaryRollBtn.onclick = () => buttonAction(0);
+      }
+    } else {
+      document.body.classList.remove("ending-summary-active");
+      endingSummaryWrap.classList.add("ending-summary-hidden");
+      endingSummaryWrap.classList.remove("ending-summary-visible");
+    }
+  }
+
+  // 结局滚动画面：仅在 ENDING_ROLL 时显示（玩家点击「观看制作人员名单」后才进入）
   const endingRollWrap = document.getElementById("ending-roll-wrap");
   const endingRollContent = document.getElementById("ending-roll-content");
   const endingRollContinueBtn = document.getElementById("endingRollContinueBtn");
   if (endingRollWrap && endingRollContent) {
     if (sceneInfo.type === "ENDING_ROLL" && state.ending_roll_lines && Array.isArray(state.ending_roll_lines)) {
       document.body.classList.add("ending-roll-active");
+      document.body.classList.remove("ending-summary-active");
       endingRollWrap.classList.remove("ending-roll-hidden");
       endingRollWrap.classList.add("ending-roll-visible");
       endingRollContent.innerHTML = "";
       state.ending_roll_lines.forEach(line => {
-        const p = document.createElement("p");
-        p.className = "ending-roll-line";
-        p.textContent = line;
-        p.style.margin = line === "" ? "0.25em 0" : "0.35em 0";
-        endingRollContent.appendChild(p);
+        const lineEl = document.createElement("p");
+        lineEl.className = "ending-roll-line";
+        lineEl.textContent = line;
+        lineEl.style.margin = line === "" ? "0.25em 0" : "0.35em 0";
+        endingRollContent.appendChild(lineEl);
       });
       endingRollContent.classList.add("ending-roll-animate");
       const lineCount = state.ending_roll_lines.length;

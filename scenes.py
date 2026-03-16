@@ -237,9 +237,9 @@ class BattleScene(Scene):
                     if hasattr(self.controller, "story") and self.controller.story:
                         self.controller.story.resolve_battle_consequence(self.monster, defeated=True)
                         self.controller.story.record_elf_side_monster_outcome(self.monster, defeated=True)
-                    # 若战斗收尾触发了结局（如即兴谢幕、普通结局），直接进入结局滚动场景
+                    # 若战斗收尾触发了结局（如即兴谢幕、普通结局），先进入结局摘要场景
                     if getattr(self.controller, "game_clear_info", None):
-                        self.controller.scene_manager.go_to("ending_roll_scene")
+                        self.controller.scene_manager.go_to("ending_summary_scene")
                         return
                     # 若设置了战后事件（如击败木偶回声后的三选一事件门），先进入事件场景
                     pending_key = getattr(self.controller, "pending_post_battle_event_key", None)
@@ -384,6 +384,22 @@ class UseItemScene(Scene):
         
         self.controller.scene_manager.resume_scene()
 
+class EndingSummaryScene(Scene):
+    """结局摘要：先展示结局标题与描述，玩家点击「观看制作人员名单」后再进入滚动字幕。"""
+
+    def __init__(self, controller):
+        super().__init__(controller)
+        self.button_texts = ["观看制作人员名单", "", ""]
+        self.enum = SceneType.ENDING_SUMMARY
+
+    def on_enter(self):
+        pass
+
+    def handle_choice(self, index):
+        if index == 0:
+            self.controller.scene_manager.go_to("ending_roll_scene")
+
+
 class EndingRollScene(Scene):
     """结局滚动画面：展示结局摘要文字（从下往上滚动），点击继续后进入游戏结束场景。"""
 
@@ -489,6 +505,7 @@ class SceneType(Enum):
     BATTLE = BattleScene
     SHOP = ShopScene
     USE_ITEM = UseItemScene
+    ENDING_SUMMARY = EndingSummaryScene
     ENDING_ROLL = EndingRollScene
     GAME_OVER = GameOverScene
     EVENT = EventScene
@@ -501,6 +518,7 @@ class SceneType(Enum):
             "battle_scene": BattleScene,
             "shop_scene": ShopScene,
             "use_item_scene": UseItemScene,
+            "ending_summary_scene": EndingSummaryScene,
             "ending_roll_scene": EndingRollScene,
             "game_over_scene": GameOverScene,
             "event_scene": EventScene

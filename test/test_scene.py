@@ -99,9 +99,12 @@ class TestSceneSystem(BaseTest):
             ending_title="普通结局·迷宫出口",
             ending_description="测试结局描述",
         )
-        # 通关后先进入结局滚动场景，点击「继续」后进入 GameOverScene
+        # 通关后先进入结局摘要场景，点击「观看制作人员名单」后进入结局滚动，再点击「继续」进入 GameOverScene
         scene = self.controller.scene_manager.current_scene
-        from scenes import EndingRollScene
+        from scenes import EndingSummaryScene, EndingRollScene
+        self.assertIsInstance(scene, EndingSummaryScene)
+        scene.handle_choice(0)  # 观看制作人员名单
+        scene = self.controller.scene_manager.current_scene
         self.assertIsInstance(scene, EndingRollScene)
         scene.handle_choice(0)  # 继续
         scene = self.controller.scene_manager.current_scene
