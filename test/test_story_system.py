@@ -1286,6 +1286,29 @@ class TestStorySystem(BaseTest):
         self.assertEqual(self.controller.scene_manager.current_scene.enum.name, "EVENT")
         self.assertIsInstance(self.controller.current_event, ElfSideMerchantDisguisedEvent)
 
+    def test_trigger_message_is_not_logged_when_effect_not_applied(self):
+        story = self.controller.story
+        shop_door = DoorEnum.SHOP.create_instance(controller=self.controller)
+        story.register_consequence(
+            choice_flag="elf_side_reg",
+            consequence_id="elf_side_merchant_disguised_once",
+            effect_key="replace_with_elf_side_event",
+            chance=1.0,
+            trigger_door_types=["SHOP"],
+            payload={
+                "event_key": "elf_side_merchant_disguised_event",
+                "chance": 0.0,
+                "message": "柜台后的商人懒洋洋的看着你——那眼神你认得，这是莱希娅。",
+            },
+        )
+
+        with unittest.mock.patch("models.story_system.random.uniform", return_value=0.0):
+            changed_door = story.apply_pre_enter_checks(shop_door)
+
+        self.assertEqual(changed_door.enum.name, "SHOP")
+        self.assertEqual(getattr(changed_door, "story_forced_event_key", ""), "")
+        self.assertNotIn("柜台后的商人懒洋洋的看着你——那眼神你认得，这是莱希娅。", self.controller.messages)
+
     def test_elf_positive_reward_can_be_heal_instead_of_atk(self):
         self.player.hp = 40
         base_atk = self.player._atk
