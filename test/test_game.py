@@ -14,6 +14,16 @@ from test.test_base import BaseTest
 class TestGameStability(BaseTest):
     """综合稳定性测试"""
     
+
+    def test_duplicate_messages_are_deduplicated(self):
+        """同一回合内重复日志应只保留一条。"""
+        self.controller.add_message("重复日志")
+        self.controller.add_message("重复日志")
+        self.controller.add_message(["重复日志", "另一条", "另一条"])
+
+        self.assertEqual(self.controller.messages.count("重复日志"), 1)
+        self.assertEqual(self.controller.messages.count("另一条"), 1)
+
     def test_random_button_clicks(self):
         """
         随机点击测试 (Fuzz Testing)
