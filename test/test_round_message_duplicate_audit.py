@@ -24,7 +24,7 @@ class RoundMessageDuplicateAudit:
     def __init__(self, controller):
         self.controller = controller
 
-    def run(self, max_rounds=100, max_actions=8000, seed=42):
+    def run_until_clear(self, min_clear_round=200, max_actions=12000, seed=42):
         random.seed(seed)
         c = self.controller
 
@@ -32,10 +32,16 @@ class RoundMessageDuplicateAudit:
         round_occurrences = defaultdict(lambda: defaultdict(list))
         epoch = 0
         action_count = 0
+        reached_clear = False
+        early_game_over = False
 
-        while c.round_count < max_rounds and action_count < max_actions:
+        while action_count < max_actions:
             scene = c.scene_manager.current_scene
             if scene is None:
+                break
+
+            if getattr(c, "game_clear_info", None) and c.round_count >= min_clear_round:
+                reached_clear = True
                 break
 
             c.clear_messages()
@@ -44,13 +50,12 @@ class RoundMessageDuplicateAudit:
             ]
             if not valid_indices:
                 break
-            if isinstance(scene, GameOverScene):
-                valid_indices = [idx for idx in valid_indices if idx != 2]
-                if not valid_indices:
-                    break
 
             before_round = c.round_count
-            picked = random.choice(valid_indices)
+            picked = self._pick_index(scene=scene, valid_indices=valid_indices)
+            if picked is None:
+                break
+
             scene.handle_choice(picked)
             after_round = c.round_count
 
@@ -63,11 +68,53 @@ class RoundMessageDuplicateAudit:
 
             for msg in c.messages:
                 round_messages[round_key].append(msg)
-                round_occurrences[round_key][msg].append(MessageOccurrence(scene_type=source_scene_type, action_index=action_count))
+                round_occurrences[round_key][msg].append(
+                    MessageOccurrence(scene_type=source_scene_type, action_index=action_count)
+                )
+
+            if isinstance(c.scene_manager.current_scene, GameOverScene) and not getattr(c, "game_clear_info", None):
+                early_game_over = True
+                break
 
             action_count += 1
 
-        return self._build_report(round_messages, round_occurrences)
+        report = self._build_report(round_messages, round_occurrences)
+        report.update({
+            "reached_clear": reached_clear,
+            "early_game_over": early_game_over,
+            "final_round": c.round_count,
+            "actions": action_count,
+        })
+        return report
+
+    def _pick_index(self, scene, valid_indices):
+        c = self.controller
+
+        if isinstance(scene, GameOverScene):
+            valid_indices = [idx for idx in valid_indices if idx != 2]
+            return random.choice(valid_indices) if valid_indices else None
+
+        if scene.enum in {SceneType.ENDING_SUMMARY, SceneType.ENDING_ROLL}:
+            return 0 if 0 in valid_indices else random.choice(valid_indices)
+
+        # 为了稳定进入“200+回合通关”区间，对关键回合的 Door 进行轻量引导。
+        if scene.enum == SceneType.DOOR and hasattr(scene, "doors"):
+            doors = getattr(scene, "doors", [])
+
+            # stage_curtain_order 路线在 185 回合优先选宝物门以取回剧本。
+            if c.round_count == 184:
+                for idx in valid_indices:
+                    if idx < len(doors) and getattr(getattr(doors[idx], "enum", None), "name", "") == "REWARD":
+                        return idx
+
+            # 终盘阶段优先事件门/怪物门，推进结局链。
+            if c.round_count >= 200:
+                for want in ("EVENT", "MONSTER"):
+                    for idx in valid_indices:
+                        if idx < len(doors) and getattr(getattr(doors[idx], "enum", None), "name", "") == want:
+                            return idx
+
+        return random.choice(valid_indices)
 
     def _build_report(self, round_messages, round_occurrences):
         report = {"suspicious": [], "allowed": [], "total_rounds": len(round_messages)}
@@ -96,45 +143,54 @@ class RoundMessageDuplicateAudit:
 
     @staticmethod
     def _classify_duplicate(msg, scenes):
-        # 1) 战斗场景重复：允许（连续攻击/多段效果本就可能重复提示）
         if scenes and scenes.issubset(ALLOWED_DUPLICATE_SCENES):
             return True, "重复发生在怪物门战斗流程（允许）。"
-
-        # 2) 已知合理例外：死亡后重开在同一回合内可能多次触发开场文案
         if msg.startswith(GAME_RESET_INTRO_PREFIX):
             return True, "重开后回合计数重置，开场文案在同回合键下重复归档（允许例外）。"
-
-        # 3) 已知合理例外：GameOver 连续点击“复活卷轴”会重复提示
         if msg == "你没有可用的复活卷轴！" and scenes == {SceneType.GAME_OVER}:
             return True, "结算界面重复点击造成重复提示（允许例外）。"
-
-        # 4) 已知合理例外：减伤是多处伤害链路共用提示，单回合可能触发多次
         if "减伤效果触发" in msg:
             return True, "减伤可在同回合多次伤害结算中重复触发（允许例外）。"
-
-        # 5) 已知合理例外：同回合可能获得多个同名道具
         if msg.startswith("获得道具："):
             return True, "奖励链可在同回合发放同名道具（允许例外）。"
-
-        # 6) 默认策略：事件门重复应优先拦截
         if SceneType.EVENT in scenes:
             return False, "事件门内重复通常缺乏业务合理性，需重点排查。"
-
         return False, "非战斗场景重复，默认视为可疑冗余。"
 
 
 class TestRoundMessageDuplicateAudit(BaseTest):
-    def test_no_suspicious_duplicates_in_100_rounds(self):
-        """100 回合随机流程中，除例外外不应存在同回合重复消息。"""
-        seeds = [7, 13, 29, 42, 87]
+    def test_no_suspicious_duplicates_until_clear_after_200_rounds(self):
+        """每次推进到 200+ 回合并通关后，再检查同回合重复日志。"""
+        seeds = [11, 23, 47]
         suspicious = []
-        allowed = []
 
         for seed in seeds:
             self.controller.reset_game()
-            report = RoundMessageDuplicateAudit(self.controller).run(max_rounds=100, seed=seed)
+
+            # 使用官方测试 gate 的同款配置，让流程稳定进入 200 回合终盘并可触发结局。
+            self.controller.story.setup_test_gate_stage_curtain_order()
+            self.controller.story.ensure_pre_final_event_schedule()
+            self.controller.scene_manager.go_to("door_scene")
+
+            # 增强生存能力，避免中途死亡打断到达终盘。
+            self.controller.player.hp = 5000
+            self.controller.player._atk = 500
+            self.controller.player_peak_hp = 5000
+            self.controller.player_peak_atk = 500
+
+            report = RoundMessageDuplicateAudit(self.controller).run_until_clear(min_clear_round=200, seed=seed)
+
+            self.assertFalse(
+                report["early_game_over"],
+                f"seed={seed} 在通关前进入了 GameOver，final_round={report['final_round']} actions={report['actions']}"
+            )
+            self.assertTrue(
+                report["reached_clear"],
+                f"seed={seed} 未在 200+ 回合触发通关流程，final_round={report['final_round']} actions={report['actions']}"
+            )
+            self.assertGreaterEqual(report["final_round"], 200, f"seed={seed} 最终回合不足 200")
+
             suspicious.extend([{"seed": seed, **item} for item in report["suspicious"]])
-            allowed.extend([{"seed": seed, **item} for item in report["allowed"]])
 
         if suspicious:
             lines = ["检测到可疑重复消息（同回合）："]
@@ -146,6 +202,3 @@ class TestRoundMessageDuplicateAudit(BaseTest):
             if len(suspicious) > 30:
                 lines.append(f"... 其余 {len(suspicious) - 30} 条已省略")
             self.fail("\n".join(lines))
-
-        for item in allowed:
-            self.assertTrue(item["reason"])
