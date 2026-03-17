@@ -812,14 +812,14 @@ class StorySystem:
         fallback_door: Any,
         forced: bool,
     ) -> Any:
-        trigger_message = self._build_trigger_message(chosen)
-        if trigger_message:
-            self.controller.add_message(trigger_message)
         applied, new_door = self._apply_effect(chosen, door)
         if forced and not applied and chosen.force_door_type:
             # 截止轮次的强制触发至少要保证门被改写到目标类型。
             applied, new_door = True, door
         if applied:
+            trigger_message = self._build_trigger_message(chosen)
+            if trigger_message:
+                self.controller.add_message(trigger_message)
             self._apply_payload_metric_deltas(chosen)
             if not self._should_defer_consumption(chosen, new_door):
                 self._consume_consequence(chosen)
