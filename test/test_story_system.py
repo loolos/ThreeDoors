@@ -1169,7 +1169,7 @@ class TestStorySystem(BaseTest):
             effect_key="revenge_ambush",
             chance=1.0,
             trigger_door_types=["MONSTER"],
-            payload={"hp_ratio": 1.5, "atk_ratio": 1.4},
+            payload={"force_hunter": False, "hp_ratio": 1.5, "atk_ratio": 1.4},
         )
 
         with unittest.mock.patch("models.story_system.random.uniform", return_value=0.0), unittest.mock.patch(
@@ -1197,15 +1197,34 @@ class TestStorySystem(BaseTest):
             payload={"hp_ratio": 1.5, "atk_ratio": 1.4},
         )
 
-        # 加权抽中该后果后，effect 内 replace_chance 用 random.random()；<0.35 则替换怪物
-        with unittest.mock.patch("models.story_system.random.uniform", return_value=0.0), unittest.mock.patch(
-            "models.story_system.random.random", return_value=0.0
-        ):
+        with unittest.mock.patch("models.story_system.random.uniform", return_value=0.0):
             changed_door = story.apply_pre_enter_checks(monster_door)
 
         self.assertEqual(changed_door.enum.name, "MONSTER")
         self.assertNotEqual(changed_door.monster.name, "史莱姆")
         self.assertIn("monster_revenge_replace", story.consumed_consequences)
+
+    def test_revenge_ambush_uses_event_matched_hunter_profile(self):
+        story = self.controller.story
+        monster_door = DoorEnum.MONSTER.create_instance(
+            controller=self.controller,
+            monster=Monster(name="史莱姆", hp=30, atk=6, tier=1),
+        )
+        story.register_consequence(
+            choice_flag="caravan_case",
+            consequence_id="caravan_donate_bandit_envy",
+            effect_key="revenge_ambush",
+            chance=1.0,
+            trigger_door_types=["MONSTER"],
+            payload={"hp_ratio": 1.1, "atk_ratio": 1.1},
+        )
+
+        with unittest.mock.patch("models.story_system.random.uniform", return_value=0.0):
+            changed_door = story.apply_pre_enter_checks(monster_door)
+
+        self.assertEqual(changed_door.enum.name, "MONSTER")
+        self.assertEqual(changed_door.monster.name, "劫道匪徒")
+        self.assertTrue(any("援助车队惹怒了劫匪" in msg for msg in self.controller.messages))
 
     def test_shop_discount_persists_to_next_shop_refresh(self):
         story = self.controller.story
