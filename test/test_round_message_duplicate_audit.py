@@ -5,6 +5,7 @@ from collections import Counter, defaultdict
 from dataclasses import dataclass
 
 from scenes import SceneType, GameOverScene
+from server import GameController
 from test.test_base import BaseTest
 
 
@@ -177,6 +178,10 @@ class TestRoundMessageDuplicateAudit(BaseTest):
         suspicious = []
 
         for seed in seeds:
+            # 每个 seed 使用独立 Controller：前一 seed 若在 max_actions 内长时间推进，
+            # 可能留下模块级剧情状态；reset_game 无法完全隔离，会导致后续 seed 误判 GameOver。
+            self.controller = GameController()
+            self.player = self.controller.player
             self.controller.reset_game()
 
             # 使用官方测试 gate 的同款配置，让流程稳定进入 200 回合终盘并可触发结局。
