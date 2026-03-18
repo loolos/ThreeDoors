@@ -111,8 +111,26 @@ class HealingPotion(ConsumableItem):
         if hp_growth <= 0:
             return 0
 
-        # 历史血量越高，可触发的额外恢复上限越高
-        bonus_cap = max(1, hp_growth // 10)
+        # 生命底蕴：历史血量越高，可触发的额外恢复上限越高；
+        # 同时与药水基础治疗量正相关（大药水更“吃”生命底蕴）。
+        #
+        # 设：
+        # - peak_hp = max(player_peak_hp, current_hp)
+        # - hp_growth = max(0, peak_hp - START_PLAYER_HP)
+        # - base_cap = floor(hp_growth / 10)
+        # - base_heal = heal_amount
+        #
+        # 则：
+        # - heal_scale = 1.0                                      (base_heal <= 0)
+        #             = clamp(0.8, 1.2, 0.85 + base_heal / 100.0)  (base_heal > 0)
+        # - bonus_cap = max(1, floor(base_cap * heal_scale))
+        base_cap = hp_growth // 10
+        base_heal = max(0, int(getattr(self, "heal_amount", 0)))
+        if base_heal <= 0:
+            heal_scale = 1.0
+        else:
+            heal_scale = min(1.2, max(0.8, 0.85 + base_heal / 100.0))
+        bonus_cap = max(1, int(base_cap * heal_scale))
         # 40 回合后可触发概率随回合数上升，但保持上限避免失衡
         trigger_chance = min(0.7, 0.25 + (round_count - 40) * 0.01)
         if random.random() >= trigger_chance:
@@ -293,9 +311,11 @@ def create_random_item():
     item_types = [
         # (Class, Params, Weight)
         (HealingPotion, {"name": "小治疗药水", "heal_amount": 10, "cost": 4}, 20),
+        (HealingPotion, {"name": "中治疗药水", "heal_amount": 20, "cost": 8}, 15),
         (HealingPotion, {"name": "大治疗药水", "heal_amount": 30, "cost": 12}, 10),
-        (Equipment, {"name": "生锈的长剑", "atk_bonus": 2, "cost": 15}, 15),
-        (Equipment, {"name": "精钢长剑", "atk_bonus": 5, "cost": 35}, 5),
+        (Equipment, {"name_pool": GameConfig.EQUIPMENT_NAME_POOLS[2], "atk_bonus": 2, "cost": 15}, 15),
+        (Equipment, {"name_pool": GameConfig.EQUIPMENT_NAME_POOLS[5], "atk_bonus": 5, "cost": 35}, 8),
+        (Equipment, {"name_pool": GameConfig.EQUIPMENT_NAME_POOLS[10], "atk_bonus": 5, "cost": 35}, 5),
         (DamageReductionScroll, {"name": "减伤卷轴", "duration": 5, "cost": 20}, 15),
         (AttackUpScroll, {"name": "攻击力提升卷轴", "atk_bonus": 5, "duration": 8, "cost": 25}, 10),
         (HealingScroll, {"name": "恢复卷轴", "duration": 10, "cost": 18}, 10),
@@ -312,6 +332,10 @@ def create_random_item():
     upto = 0
     for item_class, params, weight in item_types:
         if upto + weight >= r:
+            params = dict(params or {})
+            name_pool = params.pop("name_pool", None)
+            if item_class is Equipment and name_pool and "name" not in params:
+                params["name"] = random.choice(list(name_pool))
             return item_class(**params)
         upto += weight
     

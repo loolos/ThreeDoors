@@ -2,6 +2,7 @@
 
 from models.items import ItemType
 from models import items
+from models.game_config import GameConfig
 import random
 
 
@@ -35,34 +36,57 @@ class Shop:
         """生成商店物品"""
         self.shop_items = []
         
-        # 正常生成各种物品 (name, type, value, base_cost, category)
-        possible = [
-            ("小治疗药水", "heal", 5, 5, "potion"),
-            ("中治疗药水", "heal", 10, 10, "potion"),
-            ("大治疗药水", "heal", 15, 15, "potion"),
-            ("垃圾装备", "weapon", 2, 5, "equipment"),
-            ("普通装备", "weapon", 5, 15, "equipment"),
-            ("精良装备", "weapon", 10, 30, "equipment"),
-            ("史诗装备", "weapon", 15, 50, "equipment"),
-            ("传说装备", "weapon", 20, 75, "equipment"),
-            ("减伤卷轴", "damage_reduction", 3, 20, "scroll"),
-            ("攻击力提升卷轴", "atk_up", 5, 25, "scroll"),
-            ("复活卷轴", "revive", 1, 30, "scroll"),
-            ("恢复卷轴", "healing_scroll", 5, 15, "scroll"),
-            ("免疫卷轴", "immune", 3, 20, "scroll"),
-            ("飞锤", "battle", 3, 25, "battle"),
-            ("结界", "battle", 3, 30, "battle"),
-            ("巨大卷轴", "battle", 3, 35, "battle"),
+        # 商店商品池：与 create_random_item() 的格式保持一致
+        # (Class, Params, Weight)
+        # 说明：
+        # - Params 里的 cost 作为“基础价”，随后会应用 SHOP_PRICE_MULTIPLIER 浮动
+        # - 用 shop_category 用于“尽量多类别”上架策略
+        item_types = [
+            (items.HealingPotion, {"name": "小治疗药水", "heal_amount": 10, "cost": 10, "shop_category": "potion"}, 20),
+            (items.HealingPotion, {"name": "中治疗药水", "heal_amount": 20, "cost": 30, "shop_category": "potion"}, 15),
+            (items.HealingPotion, {"name": "大治疗药水", "heal_amount": 30, "cost": 50, "shop_category": "potion"}, 10),
+            (items.HealingPotion, {"name": "超级治疗药水", "heal_amount": 50, "cost": 80, "shop_category": "potion"}, 10),
+            (items.Equipment, {"name_pool": GameConfig.EQUIPMENT_NAME_POOLS[2], "atk_bonus": 2, "cost": 5, "shop_category": "equipment"}, 18),
+            (items.Equipment, {"name_pool": GameConfig.EQUIPMENT_NAME_POOLS[5], "atk_bonus": 5, "cost": 15, "shop_category": "equipment"}, 14),
+            (items.Equipment, {"name_pool": GameConfig.EQUIPMENT_NAME_POOLS[10], "atk_bonus": 10, "cost": 30, "shop_category": "equipment"}, 10),
+            (items.Equipment, {"name_pool": GameConfig.EQUIPMENT_NAME_POOLS[30], "atk_bonus": 30, "cost": 100, "shop_category": "equipment"}, 6),
+            (items.Equipment, {"name_pool": GameConfig.EQUIPMENT_NAME_POOLS[50], "atk_bonus": 50, "cost": 200, "shop_category": "equipment"}, 3),
+            (items.DamageReductionScroll, {"name": "减伤卷轴", "duration": 3, "cost": 40, "shop_category": "scroll"}, 12),
+            (items.AttackUpScroll, {"name": "攻击力提升卷轴", "atk_bonus": 5, "duration": 5, "cost": 25, "shop_category": "scroll"}, 10),
+            (items.ReviveScroll, {"name": "复活卷轴", "duration": 1, "cost": 40, "shop_category": "scroll"}, 6),
+            (items.HealingScroll, {"name": "恢复卷轴", "duration": 5, "cost": 25, "shop_category": "scroll"}, 10),
+            (items.ImmuneScroll, {"name": "免疫卷轴", "duration": 3, "cost": 30, "shop_category": "scroll"}, 8),
+            (items.FlyingHammer, {"name": "飞锤", "duration": 3, "cost": 25, "shop_category": "battle"}, 7),
+            (items.Barrier, {"name": "结界", "duration": 3, "cost": 30, "shop_category": "battle"}, 6),
+            (items.GiantScroll, {"name": "巨大卷轴", "duration": 3, "cost": 35, "shop_category": "battle"}, 5),
         ]
         # 根据玩家资金水平计算目标价位：有钱时偏向高价，没钱时偏向低价
         target_cost = max(5, min(75, int(self.player.gold * 0.5)))
-        def cost_weight(item_data):
-            return 1.0 / (1.0 + abs(item_data[3] - target_cost))
+        def _get_base_cost(entry) -> int:
+            _, params, _ = entry
+            try:
+                return int(params.get("cost", 0))
+            except (TypeError, ValueError):
+                return 0
+
+        def score_weight(entry) -> float:
+            """综合“目标价位靠近程度”与“池内权重”。"""
+            _, params, base_weight = entry
+            base_cost = _get_base_cost(entry)
+            closeness = 1.0 / (1.0 + abs(base_cost - target_cost))
+            try:
+                w = float(base_weight)
+            except (TypeError, ValueError):
+                w = 1.0
+            # 兼顾旧逻辑（偏向目标价位）与显式权重（稀有度）
+            return max(0.0, w) * closeness
 
         # 先尽量保证“多类别”：每个选中类别先拿一件，再按权重补齐
         categories = {}
-        for item_data in possible:
-            categories.setdefault(item_data[4], []).append(item_data)
+        for entry in item_types:
+            _, params, _ = entry
+            category = params.get("shop_category", "misc")
+            categories.setdefault(category, []).append(entry)
 
         target_category_count = min(self.SHOP_ITEM_COUNT, len(categories))
         selected_data = []
@@ -70,7 +94,7 @@ class Shop:
         if target_category_count > 0:
             category_names = list(categories.keys())
             category_weights = [
-                max(cost_weight(candidate) for candidate in categories[name])
+                max(score_weight(candidate) for candidate in categories[name])
                 for name in category_names
             ]
             selected_categories = self._weighted_unique_choices(
@@ -80,54 +104,36 @@ class Shop:
             )
             for category_name in selected_categories:
                 category_candidates = categories[category_name]
-                candidate_weights = [cost_weight(candidate) for candidate in category_candidates]
+                candidate_weights = [score_weight(candidate) for candidate in category_candidates]
                 selected_data.append(
                     random.choices(category_candidates, weights=candidate_weights, k=1)[0]
                 )
 
-        remaining = [item for item in possible if item not in selected_data]
+        remaining = [entry for entry in item_types if entry not in selected_data]
         remaining_count = self.SHOP_ITEM_COUNT - len(selected_data)
         if remaining_count > 0 and remaining:
-            remaining_weights = [cost_weight(item_data) for item_data in remaining]
+            remaining_weights = [score_weight(entry) for entry in remaining]
             selected_data.extend(
                 self._weighted_unique_choices(remaining, remaining_weights, remaining_count)
             )
 
         random.shuffle(selected_data)
-        for item_data in selected_data:
-            name, item_type, value, base_cost, item_category = item_data
+        for entry in selected_data:
+            item_class, base_params, _ = entry
+            params = dict(base_params or {})
 
+            base_cost = _get_base_cost(entry)
             # 计算实际价格（有浮动）
             cost = int(base_cost * random.uniform(*self.SHOP_PRICE_MULTIPLIER))
-            
-            # 如果玩家金币不足，跳过这个物品 -> removed
+            params["cost"] = cost
 
-                
-            # 创建物品
-            if item_type == "heal":
-                item = items.HealingPotion(name, heal_amount=value, cost=cost)
-            elif item_type == "weapon":
-                item = items.Equipment(name, atk_bonus=value, cost=cost)
-            elif item_type == "damage_reduction":
-                item = items.DamageReductionScroll(name, cost=cost, duration=value)
-            elif item_type == "atk_up":
-                item = items.AttackUpScroll(name, atk_bonus=value, cost=cost, duration=value)
-            elif item_type == "revive":
-                item = items.ReviveScroll(name, cost=cost, duration=value)
-            elif item_type == "healing_scroll":
-                item = items.HealingScroll(name, cost=cost, duration=value)
-            elif item_type == "immune":
-                item = items.ImmuneScroll(name, cost=cost, duration=value)
-            elif item_type == "battle":
-                if name == "飞锤":
-                    item = items.FlyingHammer(name, cost=cost, duration=3)
-                elif name == "结界":
-                    item = items.Barrier(name, cost=cost, duration=3)
-                elif name == "巨大卷轴":
-                    item = items.GiantScroll(name, cost=cost, duration=3)
-            else:
-                raise ValueError(f"未知的物品类型: {item_type}")
+            item_category = params.pop("shop_category", "misc")
 
+            name_pool = params.pop("name_pool", None)
+            if item_class is items.Equipment and name_pool and "name" not in params:
+                params["name"] = random.choice(list(name_pool))
+
+            item = item_class(**params)
             item.shop_category = item_category
             self.shop_items.append(item)
         if len(self.shop_items) < self.SHOP_ITEM_COUNT:

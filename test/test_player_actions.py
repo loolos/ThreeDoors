@@ -32,7 +32,7 @@ class TestPlayerActions(unittest.TestCase):
         self.assertIn("恢复 10 HP!", self.controller.messages[-1])
 
     def test_healing_potion_peak_bonus_after_round_40(self):
-        """40 回合后，历史最高生命越高，药水可额外恢复更多生命。"""
+        """40 回合后，历史最高生命越高且药水基础治疗越高，越可能获得更高额外恢复上限。"""
         self.player.hp = 40
         self.controller.round_count = 55
         self.controller.player_peak_hp = 220
@@ -45,6 +45,25 @@ class TestPlayerActions(unittest.TestCase):
         self.assertEqual(self.player.hp, 57)
         self.assertIn("恢复 17 HP!", self.controller.messages[-1])
         self.assertIn("生命底蕴", self.controller.messages[-1])
+
+    def test_healing_potion_bonus_cap_scales_with_base_heal(self):
+        """生命底蕴的 bonus_cap 与 heal_amount 正相关（在相同 peak_hp 与回合条件下）。"""
+        self.controller.round_count = 55
+        self.controller.player_peak_hp = 220  # hp_growth = 200 -> base_cap = 20
+        # 只测试 _get_late_game_bonus_heal 的上限计算，不依赖玩家治疗上限等逻辑
+        small = items.HealingPotion("小药水", heal_amount=5, cost=5)
+        big = items.HealingPotion("大药水", heal_amount=15, cost=5)
+
+        with mock.patch("models.items.random.random", return_value=0.0), \
+             mock.patch("models.items.random.randint", return_value=1) as mocked_randint:
+            small._get_late_game_bonus_heal(self.player)
+            big._get_late_game_bonus_heal(self.player)
+
+        # randint(1, bonus_cap) 的 bonus_cap 应随 heal_amount 变大而不减小
+        self.assertGreaterEqual(len(mocked_randint.call_args_list), 2)
+        small_cap = mocked_randint.call_args_list[0].args[1]
+        big_cap = mocked_randint.call_args_list[1].args[1]
+        self.assertGreater(big_cap, small_cap)
 
 
     def test_healing_scroll_peak_bonus_scaling(self):

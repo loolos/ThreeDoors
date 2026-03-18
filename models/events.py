@@ -32,7 +32,7 @@ PRE_FINAL_GATE_STORY_CONFIG = {
             "base_hp": 380,
             "base_atk": 10,
             "tier": 4,
-            "message": "门后传来你一路抉择的回响——假面剧场、命运乐谱、银羽飞贼……终局门前你没有钥匙也没有飞贼的约定，木偶虽败其回声仍在，门扉推开，那些选择一句句被复诵。",
+            "message": "门后传来你一路抉择的回响——假面剧场、命运乐谱、银羽飞贼……终局门前，木偶虽败其回声仍在，门扉推开，那些选择一句句被复诵。",
         },
     },
     # 回合 200：默认终局入口（第一门）
@@ -68,7 +68,7 @@ PRE_FINAL_GATE_STORY_CONFIG = {
         "priority": 1200,
         "payload": {
             "event_key": "stage_curtain_kind_puppet_dialogue_mid_event",
-            "message": "你收起剧本后，机偶胸腔里残存的蓝光人格主动与你联络，前方门廊被改写为与善良人格的约定之门——你可以在门廊与它对话决定谢幕方式。",
+            "message": "你拿到剧本后，此前的机偶胸腔里残存的蓝光人格突然主动与你联络，说它就在后面等着你。",
         },
     },
     # 第 200 回合：取回剧本+击败木偶+邪恶值低时，与善良木偶对话即为结局门（三选一直接进结局）
@@ -80,7 +80,7 @@ PRE_FINAL_GATE_STORY_CONFIG = {
         "priority": 1200,
         "payload": {
             "event_key": "ending_stage_kind_puppet_dialogue_event",
-            "message": "终局回廊亮起时，机偶胸腔里残存的蓝光人格主动与你联络——这是结局本身的大门，补全、即兴或直面选择困难症，三选一将决定你的终幕。",
+            "message": "终局回廊亮起时，机偶胸腔里残存的蓝光人格主动与你联络——说它就在后面等着你。",
         },
     },
     # 第 200 回合：取回剧本+击败木偶+邪恶值普通或较高时，接管谢幕选择门（与善良木偶对话门互斥）
@@ -92,7 +92,7 @@ PRE_FINAL_GATE_STORY_CONFIG = {
         "priority": 1200,
         "payload": {
             "event_key": "ending_power_curtain_choice_event",
-            "message": "终局回廊亮起时，没有善良人格的约定——只有你与剧本；你可以强行接管谢幕，或转身直面选择困难症候群把守的终局。",
+            "message": "终局回廊亮起时，只有你与剧本，你必须做出选择，否则你将永远无法离开。",
         },
     },
     # 舞台谢幕链：秘藏后强制谢幕门
@@ -104,7 +104,7 @@ PRE_FINAL_GATE_STORY_CONFIG = {
         "priority": 1200,
         "payload": {
             "event_key": "ending_stage_curtain_gate_event",
-            "message": "你收起剧本后，终局走廊被改写成了新的谢幕门廊，前方三扇门同时亮起：『补全』『即兴』『接管』。",
+            "message": "你收起剧本后，终局走廊被改写成了新的谢幕门廊，前方三扇门同时亮起。",
         },
     },
     # 默认终局链：最终 Boss 门
@@ -133,7 +133,7 @@ PRE_FINAL_GATE_STORY_CONFIG = {
         "force_door_type": "MONSTER",
         "priority": 1250,
         "payload": {
-            "message": "风里有熟悉的银羽划痕；你刚推开第二道终局门，前方墙体忽然裂开一扇怪物门，银羽斗篷从阴影里掠出：'还没结束，我们把旧账在这里算清。'",
+            "message": "你刚推开第二道终局门，前方墙体忽然裂开一扇怪物门，银羽飞贼突然从阴影里掠出刺向你，你翻身躲过，她说：'还没结束，我们把旧账在这里算清。'",
         },
     },
     # 倒数窗口：梦境井+镜面剧场均完结后的结局前回响事件（阻塞，满足条件必须清掉才能进结局；仅事件门 EVENT 触发）
@@ -164,8 +164,8 @@ PRE_FINAL_GATE_STORY_CONFIG = {
             "base_atk": 40,
             "tier": 5,
             "message": "你以为已经甩开那段童谣，门缝里却再度传来熟悉的低频拍点；侧墙忽然滑开一扇怪物门，失真的童谣再次响起：黑暗木偶追上来了。",
-            "no_side_event_message": "这一次它像在复读你曾见过的第一阶段战斗节拍，动作没有收束，只剩追猎意图。",
-            "neutral_message": "黑暗木偶没有再展开完全体，只是把旧战记录压缩成一段高频猎杀循环。",
+            "no_side_event_message": "这一次它像在复读你曾见过的战斗节拍，动作没有收束，只剩追杀意图。",
+            "neutral_message": "黑暗木偶没有再展开，只是把旧战记录压缩成一段高频猎杀循环。",
             "disable_phase_two": True,
             "mark_as_final_boss": False,
             "pre_final_dispatch": True,
@@ -4393,7 +4393,7 @@ def run_script_vault_recovery(controller):
         if diary_source == "thief_testimony":
             description = (
                 f"{description} 你把此前拿到的大盗证词日记摊在旁边，字句一一对上："
-                "通缉令里的『命运乐章』就是这本被银羽飞贼带走的“命运乐谱”，那名大盗确实被冤枉了。"
+                "通缉令里的『命运乐章』就是这本被银羽飞贼带走的“命运乐谱”，那名大盗被冤枉了。"
             )
         elif diary_source == "thief_body":
             description = (
