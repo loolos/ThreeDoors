@@ -4,7 +4,7 @@
 from test.test_base import BaseTest
 from models.items import ItemType
 from models import items
-from models.monster import Monster, get_random_monster
+from models.monster import Monster, get_random_monster, estimate_player_power
 from types import SimpleNamespace
 from unittest.mock import patch
 import random
@@ -121,3 +121,21 @@ class TestMonsterSystem(BaseTest):
             for _ in range(80)
         ]
         self.assertTrue(all(m.tier <= 3 for m in pack))
+
+    def test_estimate_player_power_examples(self):
+        """estimate_player_power()：用固定输入验证示例计算结果。"""
+        # 1) current_round=20, hp=200, atk=50, gold=100
+        p1 = SimpleNamespace(hp=200, atk=50, gold=100)
+        self.assertEqual(estimate_player_power(player=p1, current_round=20), 65.5)
+
+        # 2) current_round=100, hp=1000, atk=200, gold=400
+        p2 = SimpleNamespace(hp=1000, atk=200, gold=400)
+        self.assertEqual(estimate_player_power(player=p2, current_round=100), 318)
+
+        # 3) current_round=200, hp=0, atk=200, gold=400
+        p3 = SimpleNamespace(hp=0, atk=200, gold=400)
+        self.assertEqual(estimate_player_power(player=p3, current_round=200), 438)
+
+        # 4) current_round=200, hp=2000, atk=400, gold=1000（gold 会被 cap 到 400）
+        p4 = SimpleNamespace(hp=2000, atk=400, gold=1000)
+        self.assertEqual(estimate_player_power(player=p4, current_round=200), 628)

@@ -11,7 +11,33 @@ import random
 
 
 def estimate_player_power(player=None, current_round=0):
-    """估算玩家当前战力，用于动态匹配怪物强度。"""
+    """
+    估算玩家当前战力，用于动态匹配怪物强度。
+
+    计算公式（与代码保持一致）：
+    - round_score = max(0, int(current_round)) * 2
+    - base_atk = player._atk（优先）否则 player.atk
+    - power_score = base_atk * 0.15 + hp * 0.08 + min(gold, 400) * 0.02 + round_score
+    - 其中 hp = max(0, player.hp)，gold = max(0, player.gold)
+
+    举例（假设 player._atk 不存在，因此用 player.atk 作为 base_atk）：
+    1) current_round=20, hp=200, atk=50, gold=100
+       - round_score=20*2=40
+       - atk项=50*0.15=7.5, hp项=200*0.08=16, gold项=min(100,400)*0.02=2
+       - power_score=7.5+16+2+40=65.5
+    2) current_round=100, hp=1000, atk=200, gold=400
+       - round_score=100*2=200
+       - atk项=200*0.15=30, hp项=1000*0.08=80, gold项=400*0.02=8
+       - power_score=30+80+8+200=318
+    3) current_round=200, hp=0, atk=200, gold=400（hp=0 代表当前 hp 不给/为 0）
+       - round_score=200*2=400
+       - atk项=200*0.15=30, hp项=0*0.08=0, gold项=400*0.02=8
+       - power_score=30+0+8+400=438
+    4) current_round=200, hp=2000, atk=400, gold=1000（gold 会被 cap 到 400）
+       - round_score=400
+       - atk项=400*0.15=60, hp项=2000*0.08=160, gold项=min(1000,400)*0.02=8
+       - power_score=60+160+8+400=628
+    """
     round_score = max(0, int(current_round or 0)) * 2
     if player is None:
         return float(round_score)
@@ -23,7 +49,7 @@ def estimate_player_power(player=None, current_round=0):
     gold = max(0, getattr(player, "gold", 0))
 
     # 主要依据回合推进；玩家属性仅提供轻微修正
-    return float(base_atk * 0.1 + hp * 0.08 + min(gold, 400) * 0.02 + round_score)
+    return float(base_atk * 0.15 + hp * 0.08 + min(gold, 400) * 0.02 + round_score)
 
 class Monster:
     """怪物实体：名称、血量、攻击、tier、掉落与战斗行为。"""
@@ -500,32 +526,39 @@ def _roll_tier(max_tier, current_round, power_score):
 
 
 def _apply_player_match_scaling(monster, player, current_round, power_score):
-    """根据玩家战力对怪物数值进行动态缩放。"""
+    """
+    根据 `estimate_player_power()` 的结果，对怪物 `hp/atk/effect_probability` 进行动态缩放。
+
+    约束：
+    - `current_round < 40` 时不启用玩家强度缩放（直接返回）
+    - 缩放强度由 `pressure = power_score / 400` 决定，且每次都会叠加随机波动
+    """
     if player is None:
         return
 
     round_count = max(0, int(current_round or 0))
     if round_count < 40:
-        # 玩家属性带来的额外怪物强化仅在40回合后启用
+        # 玩家属性带来的额外怪物强化仅在 40 回合后启用
         return
 
-    player_atk = max(1, int(getattr(player, "atk", getattr(player, "_atk", 1))))
-    baseline = monster.tier * 30 + max(10, int(round_count * 2.2))
-    pressure = max(0.0, (power_score - baseline) / 220.0)
-    round_boost = min(0.28, max(0, round_count - 12) * 0.012)
+    # 压力值：玩家越强 => power_score 越高 => pressure 越大 => 怪物属性越容易被放大
+    pressure = power_score / 400.0
 
-    # 以回合增幅为主，玩家状态仅做少量平滑
-    hp_scale = min(1.65, 1.0 + round_boost + pressure * 0.22)
-    atk_scale = min(1.45, 1.0 + round_boost * 0.7 + pressure * 0.16)
+    # 乘法缩放上限：避免怪物 hp/atk 被无限放大
+    hp_scale = min(4.65, random.uniform(1.0, 1.0 + pressure))
+    atk_scale = min(2.45, random.uniform(1.0, 1.0 + pressure))
 
-    scaled_hp = max(monster.hp, int(monster.hp * hp_scale))
-    scaled_atk = max(monster.atk, int(monster.atk * atk_scale))
+    # 额外的加法偏移：让高强度下的差异更明显（并带随机）
+    scaled_hp = int(monster.hp * hp_scale + random.randint(0, 200) * pressure)
+    scaled_atk = int(monster.atk * atk_scale + random.randint(0, 50) * pressure)
 
-    monster.hp = max(monster.hp, int(scaled_hp * random.uniform(0.95, 1.08)))
-    monster.atk = max(monster.atk, int(scaled_atk * random.uniform(0.95, 1.06)))
+    # 保底：不会比原始 hp/atk 更低
+    monster.hp = max(monster.hp, scaled_hp)
+    monster.atk = max(monster.atk, scaled_atk)
+
+    # 状态/特效出现概率同步上调，但有上限
     monster.effect_probability = min(
-        0.75,
-        monster.effect_probability + min(0.10, pressure * 0.04 + round_boost * 0.22),
+        0.75, monster.effect_probability + pressure * 0.4
     )
 
 

@@ -163,6 +163,8 @@ class RoundMessageDuplicateAudit:
             return True, "减伤可在同回合多次伤害结算中重复触发（允许例外）。"
         if msg.startswith("获得道具："):
             return True, "奖励链可在同回合发放同名道具（允许例外）。"
+        if msg.endswith("已加入物品栏!"):
+            return True, "同回合可能获得同名物品，入包提示允许重复（允许例外）。"
         if SceneType.EVENT in scenes:
             return False, "事件门内重复通常缺乏业务合理性，需重点排查。"
         return False, "非战斗场景重复，默认视为可疑冗余。"
