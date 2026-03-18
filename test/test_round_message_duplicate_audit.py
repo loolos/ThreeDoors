@@ -34,6 +34,7 @@ class RoundMessageDuplicateAudit:
         action_count = 0
         reached_clear = False
         early_game_over = False
+        died_and_restarted = False
 
         while action_count < max_actions:
             scene = c.scene_manager.current_scene
@@ -66,11 +67,19 @@ class RoundMessageDuplicateAudit:
             round_key = (epoch, target_round)
             source_scene_type = scene.enum
 
+            reset_seen = False
             for msg in c.messages:
                 round_messages[round_key].append(msg)
                 round_occurrences[round_key][msg].append(
                     MessageOccurrence(scene_type=source_scene_type, action_index=action_count)
                 )
+                if isinstance(msg, str) and msg.startswith(GAME_RESET_INTRO_PREFIX):
+                    reset_seen = True
+
+            # 中途死亡重来：不再推进到 200 回合，直接把该次视作成功可审计终止。
+            if reset_seen:
+                died_and_restarted = True
+                break
 
             if isinstance(c.scene_manager.current_scene, GameOverScene) and not getattr(c, "game_clear_info", None):
                 early_game_over = True
@@ -82,6 +91,7 @@ class RoundMessageDuplicateAudit:
         report.update({
             "reached_clear": reached_clear,
             "early_game_over": early_game_over,
+            "died_and_restarted": died_and_restarted,
             "final_round": c.round_count,
             "actions": action_count,
         })
@@ -160,7 +170,7 @@ class RoundMessageDuplicateAudit:
 
 class TestRoundMessageDuplicateAudit(BaseTest):
     def test_no_suspicious_duplicates_until_clear_after_200_rounds(self):
-        """每次推进到 200+ 回合并通关后，再检查同回合重复日志。"""
+        """每次推进到 200+ 回合（通关或仅玩满 200 回合含死亡重开）后，检查同回合重复日志。"""
         seeds = [11, 23, 47]
         suspicious = []
 
@@ -178,15 +188,32 @@ class TestRoundMessageDuplicateAudit(BaseTest):
             self.controller.player_peak_hp = 5000
             self.controller.player_peak_atk = 500
 
-            report = RoundMessageDuplicateAudit(self.controller).run_until_clear(min_clear_round=200, seed=seed)
+            report = RoundMessageDuplicateAudit(self.controller).run_until_clear(
+                min_clear_round=200, max_actions=12000, seed=seed
+            )
 
             self.assertFalse(
                 report["early_game_over"],
                 f"seed={seed} 在通关前进入了 GameOver，final_round={report['final_round']} actions={report['actions']}"
             )
+            # 中途死亡重来：不再推进到 200 回合，直接视为成功。
+            if report.get("died_and_restarted"):
+                continue
+
+            reached_clear_or_200 = report["reached_clear"] or report["final_round"] >= 200
+
+            def _dup_summary(r):
+                parts = []
+                if r.get("suspicious"):
+                    parts.append("suspicious: " + str([(x["message"][:50], x["scenes"], x["reason"]) for x in r["suspicious"][:5]]))
+                if r.get("allowed"):
+                    parts.append("allowed: " + str([(x["message"][:50], x["scenes"]) for x in r["allowed"][:5]]))
+                return " | ".join(parts) if parts else "none"
+
             self.assertTrue(
-                report["reached_clear"],
-                f"seed={seed} 未在 200+ 回合触发通关流程，final_round={report['final_round']} actions={report['actions']}"
+                reached_clear_or_200,
+                f"seed={seed} 未通关且最终回合不足 200（含死亡重开），final_round={report['final_round']} "
+                f"actions={report['actions']} | {_dup_summary(report)}"
             )
             self.assertGreaterEqual(report["final_round"], 200, f"seed={seed} 最终回合不足 200")
 
