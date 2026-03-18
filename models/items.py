@@ -306,8 +306,70 @@ def create_reward_door_item():
     return cls(name=extra.get("name", "宝物"), cost=0, **{k: v for k, v in extra.items() if k != "name"})
 
 
-def create_random_item():
-    """创建随机物品 (包含消耗品、永久装备和战斗物品)"""
+def _normalize_treasure_tier(treasure_tier: Optional[int]) -> Optional[int]:
+    """规范化宝物 tier（用于与怪物强度关联的掉落）。"""
+    if treasure_tier is None:
+        return None
+    try:
+        parsed_tier = int(treasure_tier)
+    except (TypeError, ValueError):
+        parsed_tier = GameConfig.MONSTER_MIN_TIER
+    return max(GameConfig.MONSTER_MIN_TIER, min(GameConfig.MONSTER_MAX_TIER, parsed_tier))
+
+
+def _choose_equipment_name_pool(atk_bonus: int):
+    """根据攻击加成选择最接近的统一装备命名池。"""
+    pools = GameConfig.EQUIPMENT_NAME_POOLS
+    if not pools:
+        return ["装备"]
+    closest_key = min(pools.keys(), key=lambda key: abs(int(key) - int(atk_bonus)))
+    return pools[closest_key]
+
+
+def _create_tiered_treasure_item(treasure_tier: int):
+    """按宝物 tier 生成与怪物强度相关的宝物。"""
+    tier = _normalize_treasure_tier(treasure_tier) or GameConfig.MONSTER_MIN_TIER
+    category = random.choices(["potion", "equip", "scroll"], weights=[40, 30, 30], k=1)[0]
+
+    if category == "potion":
+        potion_tier = min(3, max(1, tier))
+        potion_choice = random.choices(
+            ["小治疗药水", "中治疗药水", "大治疗药水"],
+            weights=[0.5, 0.35, 0.15] if potion_tier == 1 else
+                    [0.2, 0.5, 0.3] if potion_tier == 2 else
+                    [0.1, 0.3, 0.6],
+            k=1
+        )[0]
+        heal_base = {"小治疗药水": (5, 12), "中治疗药水": (10, 22), "大治疗药水": (20, 40)}
+        lo, hi = heal_base[potion_choice]
+        heal_amount = random.randint(lo + tier, hi + tier * 2)
+        return HealingPotion(potion_choice, heal_amount=heal_amount, cost=0)
+
+    if category == "equip":
+        equip_boost = 2 * tier
+        name_pool = _choose_equipment_name_pool(equip_boost)
+        return Equipment(
+            random.choice(list(name_pool)),
+            atk_bonus=equip_boost,
+            cost=equip_boost * 2,
+        )
+
+    scroll_value = random.randint(tier + 5, tier * 3 + 10)
+    scroll_type = random.choice(["healing", "damage_reduction", "attack_up"])
+    if scroll_type == "healing":
+        return HealingScroll("恢复卷轴", cost=scroll_value * 2, duration=scroll_value)
+    if scroll_type == "damage_reduction":
+        return DamageReductionScroll("减伤卷轴", cost=scroll_value * 2, duration=scroll_value)
+    return AttackUpScroll("攻击力增益卷轴", atk_bonus=scroll_value, cost=scroll_value * 2, duration=scroll_value)
+
+
+def create_random_item(treasure_tier: Optional[int] = None):
+    """创建随机物品（支持按宝物 tier 生成关联强度掉落）。"""
+    normalized_tier = _normalize_treasure_tier(treasure_tier)
+    if normalized_tier is not None:
+        return _create_tiered_treasure_item(normalized_tier)
+
+    # 兼容旧逻辑：未指定宝物 tier 时沿用原随机池。
     item_types = [
         # (Class, Params, Weight)
         (HealingPotion, {"name": "小治疗药水", "heal_amount": 10, "cost": 4}, 20),

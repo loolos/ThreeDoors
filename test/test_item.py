@@ -3,8 +3,10 @@
 """
 from test.test_base import BaseTest
 from models import items
+from models.game_config import GameConfig
 from models.status import StatusName
 from models.items import ItemType
+from unittest.mock import patch
 
 class TestItemSystem(BaseTest):
     """道具系统测试类"""
@@ -86,3 +88,17 @@ class TestItemSystem(BaseTest):
         self.assertGreater(self.player.hp, 0)
         passive_items = self.player.get_items_by_type(ItemType.PASSIVE)
         self.assertFalse(any(item.name == "复活卷轴" for item in passive_items))
+
+    def test_create_random_item_supports_treasure_tier(self):
+        """create_random_item 的宝物 tier 参数应影响装备强度。"""
+        with patch("models.items.random.choices", return_value=["equip"]):
+            item = items.create_random_item(treasure_tier=4)
+
+        self.assertIsInstance(item, items.Equipment)
+        self.assertEqual(item.atk_bonus, 8)
+        all_names = [
+            name
+            for name_pool in GameConfig.EQUIPMENT_NAME_POOLS.values()
+            for name in name_pool
+        ]
+        self.assertIn(item.name, all_names)

@@ -1,7 +1,7 @@
 """怪物定义：类型与 tier、生成、战力估算与战斗相关逻辑。"""
 
-from models.items import Item, ItemType, Equipment, HealingScroll, DamageReductionScroll, AttackUpScroll, HealingPotion, create_random_item, GoldBag
-from typing import Optional, TYPE_CHECKING
+from models.items import create_random_item, GoldBag
+from typing import TYPE_CHECKING
 from models.game_config import GameConfig
 from models.status import Status, StatusName
 if TYPE_CHECKING:
@@ -256,39 +256,10 @@ class Monster:
         gold_bag = GoldBag(f"{base_gold}金币", gold_amount=base_gold)
         loot.append(gold_bag)
         
-        # 根据怪物等级决定额外掉落：40% 治疗药水，30% 装备，30% 卷轴（互相独立，Tier 1 起就有）
-        roll = random.random()
-        if roll < 0.4:
-            # 治疗药水：等级随怪物 Tier 提升
-            potion_tier = min(3, max(1, self.tier))  # 1~3 对应小/中/大
-            potion_choice = random.choices(
-                ["小治疗药水", "中治疗药水", "大治疗药水"],
-                weights=[0.5, 0.35, 0.15] if potion_tier == 1 else
-                       [0.2, 0.5, 0.3] if potion_tier == 2 else
-                       [0.1, 0.3, 0.6],
-                k=1
-            )[0]
-            heal_base = {"小治疗药水": (5, 12), "中治疗药水": (10, 22), "大治疗药水": (20, 40)}
-            lo, hi = heal_base[potion_choice]
-            heal_amount = random.randint(lo + self.tier, hi + self.tier * 2)
-            item = HealingPotion(potion_choice, heal_amount=heal_amount, cost=0)
-            loot.append(item)
-        elif roll < 0.7:
-            # 装备
-            equip_boost = 2 * self.tier
-            item = Equipment(f"装备", atk_bonus=equip_boost, cost=equip_boost * 2)
-            loot.append(item)
-        else:
-            # 卷轴
-            scroll_value = random.randint(self.tier+5, self.tier*3+10)
-            scroll_type = random.choice(["healing", "damage_reduction", "attack_up"])
-            if scroll_type == "healing":
-                item = HealingScroll("恢复卷轴", cost=scroll_value * 2, duration=scroll_value)
-            elif scroll_type == "damage_reduction":
-                item = DamageReductionScroll("减伤卷轴", cost=scroll_value * 2, duration=scroll_value)
-            else:
-                item = AttackUpScroll("攻击力增益卷轴", atk_bonus=scroll_value, cost=scroll_value * 2, duration=scroll_value)
-            loot.append(item)
+        # 额外宝物统一走 create_random_item，并将怪物 tier 传入以关联宝物强度
+        treasure_item = create_random_item(treasure_tier=self.tier)
+        if treasure_item is not None:
+            loot.append(treasure_item)
         
         return loot
 
