@@ -17,7 +17,7 @@ PRE_FINAL_GATE_STORY_CONFIG = {
         "force_door_type": "REWARD",
         "priority": 1260,
         "payload": {
-            "message": f"推开门前，你注意到门上有银色羽毛徽记；怀里的旧钥匙忽然发热，走廊侧墙弹出一扇带徽记的暗门——你似乎找到了{ELF_THIEF_NAME}提到的藏宝地。",
+            "message": f"你终于明白了{ELF_THIEF_NAME}的就是整件事的起因。",
         },
     },
     # 回合 200：木偶回声怪物门（已击败木偶、未拿钥匙、与飞贼关系普通或不好；击败后即兴谢幕）
@@ -3455,7 +3455,7 @@ class ElfFakeMapEvent(Event):
         self.choices = [
             EventChoice("信她的标注", self.trust_map),
             EventChoice("自己重新标记路径", self.remap),
-            EventChoice("把两份都卖了给商人", self.sell_both),
+            EventChoice("把地图卖了给商人", self.sell_both),
         ]
 
     def trust_map(self):
@@ -3469,7 +3469,7 @@ class ElfFakeMapEvent(Event):
     def remap(self):
         boon_text = _elf_grant_dynamic_boon(self.controller)
         _adjust_elf_relation(self.controller, 0)
-        self.add_message(f"你把她的假标注全改成自己的记号，路线更稳更实用。{boon_text}")
+        self.add_message(f"你把她的标注全改成自己的记号，路线更稳更实用。{boon_text}")
         _schedule_next_elf_event(self.controller, "elf_fake_map_event")
         return "Event Completed"
 
@@ -3477,7 +3477,7 @@ class ElfFakeMapEvent(Event):
         gain = _elf_percent_gold(self.get_player(), 0.18)
         self.get_player().gold += gain
         _adjust_elf_relation(self.controller, -2)
-        self.add_message(f"你把两份图都卖给商人，赚了 {gain}G，也让她记下你这笔坏账。")
+        self.add_message(f"你把图卖给商人，赚了 {gain}G，也让她记下你这笔账。")
         _schedule_next_elf_event(self.controller, "elf_fake_map_event")
         return "Event Completed"
 
@@ -3525,16 +3525,16 @@ class ElfNightCampEvent(Event):
         super().__init__(controller)
         self.title = "夜营火谈"
         self.description = (
-            "门后是一处坍塌神像的背风面，她生了堆小火，正在烤一只蘑菇鸡。"
+            "门后是一处坍塌神像的背风面，她生了堆小火，正在烤一只火鸡。"
             "她示意你坐下，沉默了很久才开口：追她的不是普通赏金客，而是同一个组织里被她反咬过的人。"
             "她当年偷走了他们的暗账，里面记着谁给怪物送祭品，以及整个世界的各种秘密。"
             "现在那群人放话：要么拿回账册，要么把见过账册的人全埋进地底。"
-            "火光映着她的侧脸，她把一半烤肉推给你：'所以你今晚要选，跟我一起扛下这些秘密对付追兵，拿钱只做一单，还是听完就当没见过我。'"
+            "火光映着她的侧脸，她把一半烤肉推给你：'所以你今晚要选，跟我一起扛下这些秘密对付这些坏事的家伙，我会付你钱的，以后你可以当没见过我。'"
         )
         self.choices = [
-            EventChoice("站她这边：一起对付追兵", self.promise_help),
+            EventChoice("站她这边：一起对付追捕她的人", self.promise_help),
             EventChoice("谈价接单：先收钱再帮忙", self.ask_payment),
-            EventChoice("只拿情报：记路线，之后各走各路", self.prepare_solo),
+            EventChoice("拒绝帮忙：之后各走各路", self.prepare_solo),
         ]
 
     def promise_help(self):
@@ -3566,8 +3566,8 @@ class ElfTrapRescueEvent(Event):
         super().__init__(controller)
         self.title = "陷阱回廊"
         self.description = (
-            "你刚踏进这条走廊就触发了连环机关，绞索从梁上落下，正往你身上收紧，把你一只脚吊了起来，机关正在靠近你，形势危急。"
-            "她从梁上倒挂下来，手里捏着匕首，似笑非笑：'关系好坏，决定我救不救你。'"
+            "你刚踏进这条走廊就触发了连环机关，绞索从梁上落下，正往你身上收紧，把你一只脚吊了起来，尖刺机关正在靠近你，形势危急。"
+            "她从梁上倒挂下来，手里捏着匕首，似笑非笑：'我救不救你啊？'"
         )
         self.choices = [
             EventChoice("好言相劝，求求放人", self.apologize),
@@ -3678,9 +3678,9 @@ class ElfFinalHeistEvent(Event):
         super().__init__(controller)
         self.title = "双人盗案"
         self.description = (
-            f"她留下的最后一次暗号把你引到钟塔下的旧档案库。"
-            f"你刚到，就看见{ELF_THIEF_NAME}把三把钥匙摊在地上：外圈巡逻表、内层机关图、以及守卫换岗钟点。"
-            f"她快速说明：正门有重甲和弩手；侧井能绕进剧本残页存放室但会触发毒针；但你在想，如果你此刻出卖她，安保或许也会给你悬赏。"
+            f"她留下的最后一次暗号把你引到钟塔下的旧档案库，这大概就是追她的人的大本营了。"
+            f"你刚到，就看见{ELF_THIEF_NAME}把几张纸摊在地上：外圈巡逻表、内层机关图、以及守卫换岗钟点。"
+            f"她快速说明：正门有重甲兵和弩手；侧井能绕进宝藏室但会触发毒针；但你在想，如果你此刻出卖她，安保或许也会给你悬赏。"
             f"她盯着你：'你来定，按我的线稳进稳出，赌一把高风险快线？'"
         )
         self.choices = [
@@ -3693,7 +3693,7 @@ class ElfFinalHeistEvent(Event):
         gain = _elf_percent_gold(self.get_player(), 0.18)
         self.get_player().gold += gain
         _adjust_elf_relation(self.controller, 2)
-        self.add_message(f"你们按巡逻空窗潜入，避开正门火力，平稳带出剧本残页与金币；你分到 {gain}G。她笑说：'这次你真像搭档。'")
+        self.add_message(f"你们按巡逻空窗潜入，避开正门火力，平稳带出不少金子和宝物；你分到 {gain}G。她笑说：'这次你真像搭档。'")
         _schedule_next_elf_event(self.controller, "elf_final_heist_event")
         return "Event Completed"
 
@@ -3729,7 +3729,7 @@ class ElfEpilogueEvent(Event):
                 "'这是我之前偷来的宝物藏匿点。等你看到一扇带着我徽记的门，就用它打开。'"
             )
             self.choices = [
-                EventChoice("接过钥匙并记下暗号", self.accept_bond),
+                EventChoice("接过钥匙并记下位置", self.accept_bond),
                 EventChoice("礼貌道别：各走各路", self.close_clean),
                 EventChoice("怀疑有诈，当场拒绝", self.burn_bridge),
             ]
@@ -3780,7 +3780,7 @@ class ElfEpilogueEvent(Event):
         extra_heal = _elf_percent_hp(self.get_player(), 0.08 if rel >= 2 else 0.05)
         self.get_player().hp = self.get_player().hp + extra_heal
         if rel >= 2:
-            msg = "你收好钥匙和徽记，她点头：'门会认得你。'"
+            msg = "你收好钥匙，她点头：'门会认得你。'"
         elif rel <= -2:
             msg = "你没有回嘴，只把她话里的每个字都记住。阴影里传来一声轻笑：'至少你终于开始自己想了。'"
         else:
@@ -4058,9 +4058,10 @@ def _schedule_pre_final_gate(
     if gate_key in ENDING_EVENT_GATE_KEYS:
         min_round = max(min_round, ending_round)
         max_round = max(max_round, ending_round)
-    # 结局前事件 + 终局链均不做 max_round 强制替换，由「保证对应门型出现」按序触发
+    # 结局前事件不做 max_round 强制替换，由「保证对应门型出现」按序触发
     blocking_no_force = ("puppet_rematch_gate", "elf_rival_final_gate", "dream_mirror_prelude_gate")
-    ending_chain_no_force = ("default_second_gate_event", "default_final_boss_gate")
+    # 终局链（第二门、Boss门）在挂载后下一选门立即强制触发，无论选哪扇门
+    ending_chain_force = ("default_second_gate_event", "default_final_boss_gate")
     if gate_key in blocking_no_force:
         force_on_expire = False
         try:
@@ -4068,13 +4069,10 @@ def _schedule_pre_final_gate(
             max_round = max(max_round, ending_round)
         except (TypeError, ValueError):
             pass
-    elif gate_key in ending_chain_no_force:
-        force_on_expire = False
-        try:
-            ending_round = int(getattr(story, "DEFAULT_ENDING_FORCE_ROUND", 200))
-            max_round = max(max_round, ending_round + 20)
-        except (TypeError, ValueError):
-            pass
+    elif gate_key in ending_chain_force:
+        force_on_expire = True
+        min_round = current_round
+        max_round = current_round
     else:
         force_on_expire = True
     configured_trigger_door_types = cfg.get("trigger_door_types", list(ALL_PRE_FINAL_DOOR_TYPES))
@@ -4416,7 +4414,7 @@ def run_script_vault_recovery(controller):
         if diary_source == "thief_testimony":
             description = (
                 f"{description} 你把此前拿到的大盗证词日记摊在旁边，字句一一对上："
-                "通缉令里的『命运乐章』就是这本被银羽飞贼带走的“命运乐谱”，那名大盗被冤枉了。"
+                "通缉令里的『命运乐章』就是这本被银羽飞贼带走的“账本”，那名大盗被冤枉了。"
             )
         elif diary_source == "thief_body":
             description = (
@@ -4567,12 +4565,12 @@ class StageCurtainKindPuppetDialogueMidEvent(Event):
         kind_name, _ = _get_puppet_persona_names(controller)
         self.title = "与善良人格的约定"
         self.description = (
-            "你收起剧本后，机偶胸腔里残存的蓝光人格主动与你联络。"
-            f"可以按剧本补全谢幕，可以即兴收尾，也可以选择直面内心的迟疑、走向选择困难症候群把守的终局。"
-            "若选补全或即兴，它愿在分别前给你一点馈赠；约定后，前方门廊将为你敞开终幕之门。"
+            "机偶胸腔里残存的蓝光人格一息尚存：'剧本在你这！我想把我的部分演完，可以吗？'。"
+            f"你可以让它按剧本演完谢幕，或者代替它自己来一段即兴收尾，也可以选择直面内心的迟疑，不做任何选择。"
+            "约定后，前方门廊将为你敞开终幕之门。"
         )
         self.choices = [
-            EventChoice("补全谢幕——让它把终章演完", self.pick_order),
+            EventChoice("补全谢幕——你来把终章演完", self.pick_order),
             EventChoice("即兴谢幕——把最后一幕交给我", self.pick_freedom),
             EventChoice("选择困难症——我选不下去", self.pick_default),
         ]
@@ -4632,9 +4630,9 @@ def _build_dream_mirror_rehearsal_flashback(story):
     flags = set(getattr(story, "choice_flags", set()))
     parts = []
     if "mirror_played_hero" in flags:
-        parts.append("你看见镜中的自己又一次接过英雄面具，戴好，谢幕时空席间响起掌声。")
+        parts.append("你看见镜中的自己又一次接过英雄面具，戴好。")
     elif "mirror_played_villain" in flags:
-        parts.append("你看见镜中的自己又一次攥紧恶徒的面具，导演把反派分成塞进你手里，退场时有人在素描本上勾勒你的脸。")
+        parts.append("你看见镜中的自己又一次攥紧恶徒的面具，退场时有人在素描本上勾勒你的脸。")
     elif "mirror_tore_script" in flags:
         parts.append("你看见镜中的自己又一次撕掉剧本，拒绝入戏，破碎的台词像回音钩在神经上。")
     return " ".join(parts) if parts else "镜面在梦中闪烁，你看见自己在预演厅里一次次做出选择。"

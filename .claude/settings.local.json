@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -m unittest test.test_story_system -v)",
+      "Bash(python3 -m unittest test.test_story_system)",
+      "Bash(py -3 -m unittest test.test_story_system)",
+      "Bash(py -3 -m unittest discover test)",
+      "Bash(py -3 -m unittest test.test_round_message_duplicate_audit)",
+      "Bash(git stash:*)",
+      "Bash(py -3 -m unittest test.test_round_message_duplicate_audit.TestRoundMessageDuplicateAudit.test_no_suspicious_duplicates_until_clear_after_200_rounds -v)",
+      "Bash(py -3 -m unittest test.test_round_message_duplicate_audit -v)",
+      "Bash(py -3 -c \":*)",
+      "Bash(py -3 -m unittest discover test -v)",
+      "Bash(py -3 -m unittest test.test_round_message_duplicate_audit test.test_all_events test.test_door_generation test.test_field_poison test.test_first_long_event_round test.test_game test.test_item test.test_monster test.test_player test.test_player_actions)",
+      "Bash(py -3 -m unittest test.test_scene test.test_server_api test.test_shop test.test_stage_curtain_order test.test_stat_stability test.test_status test.test_story_system test.test_round_message_duplicate_audit)"
+    ]
+  }
+}

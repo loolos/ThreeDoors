@@ -2383,7 +2383,7 @@ class StorySystem:
             "consumed:puppet_side_reward_once",
             trigger="player_attack",
             direction="up",
-            message="你曾拿到的应急结界发生器在挥击时校准受力，本次玩家伤害提高 {percent}%。",
+            message="你曾拿到的宝物应急结界发生器在挥击时校准受力，本次玩家伤害提高 {percent}%。",
             chance=0.36,
             active_phase=0,
         )
