@@ -6,6 +6,7 @@ from models.items import ItemType
 from models import items
 from models.monster import Monster, get_random_monster
 from types import SimpleNamespace
+from unittest.mock import patch
 import random
 
 class TestMonsterSystem(BaseTest):
@@ -29,6 +30,18 @@ class TestMonsterSystem(BaseTest):
             raise
         # 高级怪可能有更多掉落
         # 并非绝对，因为是概率掉落，但在大量测试中应能覆盖
+
+    def test_loot_treasure_uses_create_random_item_with_tier(self):
+        """怪物额外宝物掉落应使用 create_random_item，并传入怪物 tier。"""
+        fixed_item = items.Barrier("结界", duration=2, cost=0)
+        with patch("models.monster.create_random_item", return_value=fixed_item) as mock_create:
+            monster = Monster("测试怪物", 10, 5, tier=4)
+
+        mock_create.assert_called_once_with(treasure_tier=4)
+        self.assertIsInstance(monster.loot[0], items.GoldBag)
+        self.assertGreaterEqual(monster.loot[0].gold_amount, 20)
+        self.assertLessEqual(monster.loot[0].gold_amount, 60)
+        self.assertIs(monster.loot[1], fixed_item)
 
     def test_loot_application(self):
         """测试掉落应用"""
