@@ -623,10 +623,30 @@ function getPuppetBossEmojiMarkup(name) {
   `;
 }
 
+/** 默认终局 Boss：三扇门 + 问号 + 纠结脸（文案里「问号拼成的笑脸」） */
+function getChoiceSyndromeBossEmojiMarkup() {
+  const label = "选择困难症候群";
+  return `
+    <span class="choice-final-boss-icon" aria-label="${label}">
+      <span class="cf-part cf-crown">❓</span>
+      <span class="cf-part cf-q-left">❔</span>
+      <span class="cf-part cf-q-right">❔</span>
+      <span class="cf-part cf-core">🤔</span>
+      <span class="cf-part cf-sweat">💧</span>
+      <span class="cf-part cf-door cf-door-left">🚪</span>
+      <span class="cf-part cf-door cf-door-mid">🚪</span>
+      <span class="cf-part cf-door cf-door-right">🚪</span>
+    </span>
+  `;
+}
+
 function getMonsterEmojiDisplay(name) {
   const emoji = getMonsterEmoji(name);
   if (name && (name.includes("堕暗机偶") || name.includes("黑暗完全体"))) {
     return { emoji, markup: getPuppetBossEmojiMarkup(name) };
+  }
+  if (name && name.includes("选择困难症候群")) {
+    return { emoji, markup: getChoiceSyndromeBossEmojiMarkup() };
   }
   return { emoji, markup: "" };
 }
@@ -649,6 +669,7 @@ function getMonsterEmoji(name) {
     "克拉肯": "🐙", "天启骑士": "☠️", "世界之蛇": "🌐", "深渊领主": "🦑",
     "创世神官": "✨", "混沌之主": "💫", "永恒守护者": "🔮",
     "裂齿·夜魇·堕暗机偶": "👹", "裂齿·夜魇·黑暗完全体": "☠️",
+    "选择困难症候群": "❓",
   };
   if (emojiMap[name]) return emojiMap[name];
   // 关键词回退

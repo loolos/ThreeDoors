@@ -46,6 +46,7 @@ class Shop:
             (items.HealingPotion, {"name": "中治疗药水", "heal_amount": 20, "cost": 30, "shop_category": "potion"}, 15),
             (items.HealingPotion, {"name": "大治疗药水", "heal_amount": 30, "cost": 50, "shop_category": "potion"}, 10),
             (items.HealingPotion, {"name": "超级治疗药水", "heal_amount": 50, "cost": 80, "shop_category": "potion"}, 10),
+            (items.HealingPotion, {"name": "顶级治疗药水", "heal_amount": 80, "cost": 200, "shop_category": "potion"}, 5),
             (items.Equipment, {"name_pool": GameConfig.EQUIPMENT_NAME_POOLS[2], "atk_bonus": 2, "cost": 5, "shop_category": "equipment"}, 18),
             (items.Equipment, {"name_pool": GameConfig.EQUIPMENT_NAME_POOLS[5], "atk_bonus": 5, "cost": 15, "shop_category": "equipment"}, 14),
             (items.Equipment, {"name_pool": GameConfig.EQUIPMENT_NAME_POOLS[10], "atk_bonus": 10, "cost": 30, "shop_category": "equipment"}, 10),

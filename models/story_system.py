@@ -1830,8 +1830,8 @@ class StorySystem:
 
             player = getattr(self.controller, "player", None)
             stage = self._get_progress_stage()
-            base_hp = max(80, int(payload.get("base_hp", 170 + stage * 26)))
-            base_atk = max(10, int(payload.get("base_atk", 24 + stage * 4)))
+            base_hp = max(200, int(payload.get("base_hp", 870 + stage * 26)))
+            base_atk = max(30, int(payload.get("base_atk", 24 + stage * 4)))
             boss_name = str(payload.get("boss_name", "选择困难症候群")).strip() or "选择困难症候群"
             boss = Monster(
                 name=boss_name,
@@ -2150,7 +2150,7 @@ class StorySystem:
             phase2_min_hp_ratio = float(payload.get("phase2_min_hp_ratio", 0.0))
         except (TypeError, ValueError):
             phase2_min_hp_ratio = 0.0
-        phase2_min_hp_ratio = max(0.0, min(0.85, phase2_min_hp_ratio))
+        phase2_min_hp_ratio = max(0.0, min(1.0, phase2_min_hp_ratio))
         phase2_enabled = not bool(payload.get("disable_phase_two", False))
 
         state: Dict[str, Any] = {
@@ -2480,6 +2480,25 @@ class StorySystem:
             return None, None
         return monster, state
 
+    @staticmethod
+    def _puppet_phase2_hp_atk(
+        phase1_max_hp: int,
+        hp_before_phase2: int,
+        atk_before_phase2: int,
+        state: Dict[str, Any],
+    ) -> Tuple[int, int, int]:
+        """二阶段：当前血 + 爆发治疗，且不低于 phase1_max_hp * phase2_min_hp_ratio；攻击乘 phase2_burst_atk_ratio。
+        返回 (新血量, 新攻击, 爆发治疗量)。"""
+        p1 = max(1, int(phase1_max_hp))
+        burst = max(1, int(round(p1 * float(state.get("phase2_burst_heal_ratio", 0.22)))))
+        floor_hp = max(1, int(round(p1 * max(0.0, float(state.get("phase2_min_hp_ratio", 0.0))))))
+        new_hp = max(max(1, int(hp_before_phase2)) + burst, floor_hp)
+        new_atk = max(
+            1,
+            int(round(max(1, int(atk_before_phase2)) * float(state.get("phase2_burst_atk_ratio", 1.12)))),
+        )
+        return new_hp, new_atk, burst
+
     def _try_trigger_puppet_phase_two(self, extension: Dict[str, Any], target: Any) -> bool:
         """在阶段一生命跌破阈值时，切入黑暗完全体。"""
         if not isinstance(extension, dict) or extension.get("extension_type") != "puppet_dark_boss":
@@ -2503,15 +2522,9 @@ class StorySystem:
         old_name = monster.name
         monster.name = state.get("phase2_name", monster.name)
 
-        burst_heal_ratio = float(state.get("phase2_burst_heal_ratio", 0.22))
-        burst_heal = max(1, int(round(phase1_max_hp * burst_heal_ratio)))
-        phase2_min_hp_ratio = float(state.get("phase2_min_hp_ratio", 0.0))
-        phase2_floor_hp = max(1, int(round(phase1_max_hp * max(0.0, phase2_min_hp_ratio))))
-        monster.hp = max(max(1, int(monster.hp)) + burst_heal, phase2_floor_hp)
-
-        old_atk = max(1, int(monster.atk))
-        burst_atk_ratio = float(state.get("phase2_burst_atk_ratio", 1.12))
-        monster.atk = max(1, int(round(old_atk * burst_atk_ratio)))
+        monster.hp, monster.atk, burst_heal = self._puppet_phase2_hp_atk(
+            phase1_max_hp, int(monster.hp), int(monster.atk), state
+        )
 
         self.controller.add_message(
             f"{old_name}核心炸裂，{monster.name}爆发登场！恢复 {burst_heal} 点生命，攻击抬升至 {monster.atk}。"

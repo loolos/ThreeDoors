@@ -3,6 +3,7 @@ import random
 
 from models.door import DoorEnum
 from models.events import (
+    build_puppet_final_boss_payload,
     MoonBountyEvent,
     MoonVerdictEvent,
     ElfThiefIntroEvent,
@@ -31,6 +32,17 @@ from test.test_base import BaseTest
 
 
 class TestStorySystem(BaseTest):
+    def test_build_puppet_final_boss_payload_default_phase2_ratios(self):
+        """终战 payload 默认二阶段：满血门槛 + 爆发治疗比例。"""
+        payload = build_puppet_final_boss_payload(self.controller)
+        self.assertEqual(payload.get("phase2_min_hp_ratio"), 1.0)
+        self.assertEqual(payload.get("phase2_burst_heal_ratio"), 0.42)
+        payload_override = build_puppet_final_boss_payload(
+            self.controller, phase2_burst_heal_ratio=0.58
+        )
+        self.assertEqual(payload_override.get("phase2_burst_heal_ratio"), 0.58)
+        self.assertEqual(payload_override.get("phase2_min_hp_ratio"), 1.0)
+
     def setUp(self):
         super().setUp()
         # 测试中禁用事件门「候选<5 时 30% 跳过改写」，使单次只应用一条后果的断言可预测

@@ -2589,7 +2589,7 @@ def _get_puppet_persona_names(controller):
 
 def build_puppet_final_boss_payload(controller, phase2_burst_heal_ratio=None, **overrides):
     """构建木偶最终 Boss 的 effect payload，供正式流程与测试 gate 共用。
-    phase2_burst_heal_ratio 若传入则覆盖默认 0.46；overrides 中键值会合并进 payload。"""
+    phase2_burst_heal_ratio 若传入则覆盖默认 0.42；overrides 中键值会合并进 payload。"""
     story = _get_puppet_chain_state(controller)
     kind_name, dark_name = _get_puppet_persona_names(controller)
     evil_value = int(getattr(story, "puppet_evil_value", 55)) if story is not None else 55
@@ -2597,8 +2597,8 @@ def build_puppet_final_boss_payload(controller, phase2_burst_heal_ratio=None, **
         "boss_name": f"{dark_name}·堕暗机偶",
         "base_hp": 980,
         "base_atk": 96,
-        "phase2_burst_heal_ratio": 0.46,
-        "phase2_min_hp_ratio": 0.62,
+        "phase2_burst_heal_ratio": 0.42,
+        "phase2_min_hp_ratio": 1.0,
         "tier": 6,
         "evil_value": evil_value,
         "kind_persona_name": kind_name,
