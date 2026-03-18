@@ -2,12 +2,15 @@
 统计「精灵飞贼」「黑暗木偶」两条长线起始事件，从游戏开局第一次被事件门随机到时的平均回合数。
 每次试验：从 round 0 起逐回合模拟「本回合玩家选了事件门」，调用 get_random_event，
 记录首次出现对应事件类的回合；多轮试验取平均。
+
+长线起始在 models.events.LONG_EVENT_STARTER_EARLIEST_ROUND 之前不会进入随机池。
 """
 import unittest
 
 from server import GameController
 from test.test_base import BaseTest
 from models.events import (
+    LONG_EVENT_STARTER_EARLIEST_ROUND,
     get_random_event,
     ElfThiefIntroEvent,
     PuppetAbandonmentEvent,
@@ -47,7 +50,7 @@ class TestFirstLongEventRound(BaseTest):
     """从开局测试两条长线起始事件首次触发的平均回合数。"""
 
     def test_elf_thief_intro_first_trigger_average_round(self):
-        """精灵飞贼起始事件：首次被事件门随机到的平均回合数（期望 >= 6，因 MIN_TRIGGER_ROUND=6）。"""
+        """精灵飞贼起始事件：首次被事件门随机到须不早于 LONG_EVENT_STARTER_EARLIEST_ROUND。"""
         trigger_rounds, no_trigger = _first_trigger_rounds(
             GameController,
             ElfThiefIntroEvent,
@@ -63,14 +66,18 @@ class TestFirstLongEventRound(BaseTest):
         mean_round = sum(trigger_rounds) / len(trigger_rounds)
         min_round = min(trigger_rounds)
         max_round = max(trigger_rounds)
-        self.assertGreaterEqual(min_round, 6, "ElfThiefIntro MIN_TRIGGER_ROUND=6, first trigger round must be >= 6")
+        self.assertGreaterEqual(
+            min_round,
+            LONG_EVENT_STARTER_EARLIEST_ROUND,
+            f"Long starters blocked before round {LONG_EVENT_STARTER_EARLIEST_ROUND}",
+        )
         print(
             f"ElfThiefIntroEvent first trigger: mean_round={mean_round:.1f}, "
             f"min={min_round}, max={max_round}, triggered={len(trigger_rounds)}/{NUM_TRIALS}"
         )
 
     def test_puppet_abandonment_first_trigger_average_round(self):
-        """黑暗木偶起始事件：首次被事件门随机到的平均回合数（需 min_round=10 且 min_stage=1）。"""
+        """黑暗木偶起始事件：首次被事件门随机到须不早于 LONG_EVENT_STARTER_EARLIEST_ROUND。"""
         trigger_rounds, no_trigger = _first_trigger_rounds(
             GameController,
             PuppetAbandonmentEvent,
@@ -85,7 +92,11 @@ class TestFirstLongEventRound(BaseTest):
         mean_round = sum(trigger_rounds) / len(trigger_rounds)
         min_round = min(trigger_rounds)
         max_round = max(trigger_rounds)
-        self.assertGreaterEqual(min_round, 10, "PuppetAbandonment min_round=10, first trigger round must be >= 10")
+        self.assertGreaterEqual(
+            min_round,
+            LONG_EVENT_STARTER_EARLIEST_ROUND,
+            f"Long starters blocked before round {LONG_EVENT_STARTER_EARLIEST_ROUND}",
+        )
         print(
             f"PuppetAbandonmentEvent first trigger: mean_round={mean_round:.1f}, "
             f"min={min_round}, max={max_round}, triggered={len(trigger_rounds)}/{NUM_TRIALS}"

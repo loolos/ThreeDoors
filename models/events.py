@@ -1457,7 +1457,7 @@ class TimePawnshopEvent(Event):
                 {
                     "consequence_id": "time_break_hunter",
                     "effect_key": "revenge_ambush",
-                    "chance": 1.0,
+                    "chance": 0.65,
                     "priority": 10,
                     "trigger_door_types": ["EVENT", "MONSTER"],
                     "payload": {
@@ -1836,7 +1836,7 @@ class MoonVerdictEvent(Event):
                             {
                                 "consequence_id": "moon_verdict_burn_retribution",
                                 "effect_key": "revenge_ambush",
-                                "chance": 1.0,
+                                "chance": 0.65,
                                 "trigger_door_types": ["EVENT", "MONSTER"],
                                 "payload": {
                                     "force_hunter": True,
@@ -2075,7 +2075,7 @@ class ClockworkBazaarEvent(Event):
             {
                 "consequence_id": "clock_chain_sabotage_hunter",
                 "effect_key": "revenge_ambush",
-                "chance": 1.0,
+                "chance": 0.65,
                 "priority": 10,
                 "trigger_door_types": ["EVENT", "MONSTER"],
                 "payload": {
@@ -2214,7 +2214,7 @@ class CogAuditEvent(Event):
                             {
                                 "consequence_id": "cog_audit_silence_hunt",
                                 "effect_key": "revenge_ambush",
-                                "chance": 1.0,
+                                "chance": 0.65,
                                 "trigger_door_types": ["EVENT", "MONSTER"],
                                 "payload": {
                                     "force_hunter": True,
@@ -2401,7 +2401,7 @@ class DreamWellEvent(Event):
                                     {
                                         "consequence_id": "dream_chain_sell_hunter",
                                         "effect_key": "revenge_ambush",
-                                        "chance": 1.0,
+                                        "chance": 0.65,
                                         "trigger_door_types": ["EVENT", "MONSTER"],
                                         "payload": {
                                             "force_hunter": True,
@@ -2525,7 +2525,7 @@ class EchoCourtEvent(Event):
                             {
                                 "consequence_id": "echo_trade_hunt",
                                 "effect_key": "revenge_ambush",
-                                "chance": 1.0,
+                                "chance": 0.65,
                                 "trigger_door_types": ["EVENT", "MONSTER"],
                                 "payload": {
                                     "force_hunter": True,
@@ -3630,6 +3630,29 @@ class ElfHunterGateEvent(Event):
         boon_text = _elf_grant_dynamic_boon(self.controller)
         _adjust_elf_relation(self.controller, 2)
         self.add_message(f"你们背靠背清掉前排追兵，她在喘息间把战利品往你怀里一塞。{boon_text}")
+        # 你选择并肩作战后，会引来“来复仇的追兵”追猎者，作为后续伏击战（revenge_ambush）。
+        current_round = max(0, int(getattr(self.controller, "round_count", 0)))
+        self.register_story_choice(
+            choice_flag="elf_hunter_gate_team_up",
+            consequences=[
+                {
+                    "consequence_id": "elf_hunter_gate_team_up_revenge",
+                    "effect_key": "revenge_ambush",
+                    "chance": 0.7,
+                    "trigger_door_types": ["MONSTER"],
+                    "min_round": current_round + 1,
+                    "max_round": current_round + 7,
+                    "force_on_expire": True,
+                    "force_door_type": "MONSTER",
+                    "payload": {
+                        "force_hunter": True,
+                        "hunter_hint": "门后更紧的呼吸声贴上来了，追兵已改写了你下一步的去路。",
+                        "message": "你刚收起战利品，之前追捕银羽的追兵的复仇已经堵在门缝里：这一次，他们不打算放过你。",
+                        "log_trigger": "她不再只是被拖拽进战圈的影子——你选了帮忙，复仇者也把你算进账本里。",
+                    },
+                }
+            ],
+        )
         _schedule_next_elf_event(self.controller, "elf_hunter_gate_event")
         return "Event Completed"
 
@@ -5413,6 +5436,9 @@ LONG_EVENT_STARTER_CLASSES = {
     ElfThiefIntroEvent,
 }
 
+# 随机事件门：长线起始最早可出现于该 round_count（含）；此前只从短线池抽，避免开局即进长线。
+LONG_EVENT_STARTER_EARLIEST_ROUND = 21
+
 LONG_EVENT_STARTER_FIRST_TIME_BONUS = 1.8
 PREFERRED_LONG_EVENT_WEIGHT_MULTIPLIER = 3.0
 PREFERRED_LONG_EVENT_STARTERS = {
@@ -5492,13 +5518,30 @@ def _build_event_weight(controller, event_cls):
 
 
 def get_random_event(controller):
+    rc = max(0, int(getattr(controller, "round_count", 0)))
+    block_long_starters = rc < LONG_EVENT_STARTER_EARLIEST_ROUND
+
+    def _long_starter_ok(event_cls):
+        if block_long_starters and event_cls in LONG_EVENT_STARTER_CLASSES:
+            return False
+        return True
+
     candidates = [
         event_cls
         for event_cls in STARTER_EVENT_POOL
-        if event_cls.is_trigger_condition_met(controller) and _is_event_available(controller, event_cls)
+        if _long_starter_ok(event_cls)
+        and event_cls.is_trigger_condition_met(controller)
+        and _is_event_available(controller, event_cls)
     ]
     if not candidates:
-        candidates = [event_cls for event_cls in STARTER_EVENT_POOL if _is_event_available(controller, event_cls)]
+        candidates = [
+            event_cls
+            for event_cls in STARTER_EVENT_POOL
+            if _long_starter_ok(event_cls) and _is_event_available(controller, event_cls)
+        ]
+
+    if not candidates:
+        candidates = [event_cls for event_cls in STARTER_EVENT_POOL if _long_starter_ok(event_cls)]
 
     if not candidates:
         candidates = list(STARTER_EVENT_POOL)
