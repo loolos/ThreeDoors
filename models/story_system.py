@@ -143,6 +143,58 @@ class StorySystem:
 
     HIGH_MORAL_MONSTERS = {"树人", "天使", "创世神官", "幽灵", "精灵法师"}
     LOW_MORAL_MONSTERS = {"土匪", "狼人", "食人魔", "冥界使者", "暗影刺客"}
+    REVENGE_HUNTER_PROFILES = {
+        "stranger_help_thief_revenge": {
+            "hunter_name": "地痞打手",
+            "hunter_hint": "门后传来铜钱碰撞声和刀鞘摩擦声，你救人时得罪的那群打手堵在前面。",
+            "message": "你救人时挡了地痞财路，复仇打手追到了门后。",
+        },
+        "stranger_rob_bounty_revenge": {
+            "hunter_name": "赏金猎人",
+            "hunter_hint": "悬赏令钉在门框上，画像和你的脸只差一笔。",
+            "message": "你抢劫陌生人的恶行被挂上悬赏，赏金猎人按图索骥堵住了你。",
+        },
+        "smuggler_report_gang_revenge": {
+            "hunter_name": "走私团伙打手",
+            "hunter_hint": "潮湿巷味和黑火药味从门缝钻出，走私团伙已经在里面守株待兔。",
+            "message": "你举报走私犯后，团伙打手带着旧账追上了你。",
+        },
+        "shrine_pray_fanatic_hunt": {
+            "hunter_name": "祭坛狂信徒",
+            "hunter_hint": "门后烛火乱晃，披灰袍的人正举着祭器低声祷告。",
+            "message": "你在祭坛祈祷被狂信徒曲解，他们把你当成异端堵截。",
+        },
+        "gambler_high_debtor_revenge": {
+            "hunter_name": "讨债打手",
+            "hunter_hint": "骰子在门后滚了一圈又停住，几个讨债人正掂着棍子等你。",
+            "message": "赌局输家雇来的讨债打手终于追上了你。",
+        },
+        "lost_child_fame_backfire": {
+            "hunter_name": "赏金猎犬",
+            "hunter_hint": "门后有猎犬嗅闻的低吼声，它们循着你的名声和气味追来。",
+            "message": "你的善名暴露了行踪，赏金猎犬先一步追到了门后。",
+        },
+        "chest_purify_cult_revenge": {
+            "hunter_name": "诅咒教徒",
+            "hunter_hint": "门后挂满倒置符咒，几个教徒正围着被你净化过的残片低语。",
+            "message": "你净化诅咒宝箱后，崇拜它的教徒把你列为清算目标。",
+        },
+        "caravan_donate_bandit_envy": {
+            "hunter_name": "劫道匪徒",
+            "hunter_hint": "门后散着断裂车轮和箭羽，盯上车队的劫匪转而盯上了你。",
+            "message": "你援助车队惹怒了劫匪，来复仇的正是那批劫道人。",
+        },
+        "caravan_extort_enforcer_test": {
+            "hunter_name": "地下行会执行人",
+            "hunter_hint": "门后有人把玩着行会印戒，显然是来“验货”的清算执行人。",
+            "message": "你勒索车队后，地下行会派执行人来试你的深浅。",
+        },
+        "knight_aid_traitor_revenge": {
+            "hunter_name": "骑士团叛徒",
+            "hunter_hint": "门后盔甲擦过墙面的声音很熟悉——追杀骑士的叛徒已经到了。",
+            "message": "你救下骑士后，他的死对头叛徒把你也列进了追杀名单。",
+        },
+    }
 
     def __init__(self, controller: Any):
         self.controller = controller
@@ -1301,20 +1353,16 @@ class StorySystem:
 
         if effect == "revenge_ambush":
             stage = self._get_progress_stage()
+            revenge_profile = self.REVENGE_HUNTER_PROFILES.get(consequence.consequence_id, {})
             force_hunter_config = payload.get("force_hunter", None)
             convert_to_hunter = payload.get("convert_to_hunter", True)
-            hunter_name = payload.get("hunter_name")
+            hunter_name = payload.get("hunter_name") or revenge_profile.get("hunter_name")
             source_door_type = getattr(getattr(door, "enum", None), "name", "")
             monster = getattr(door, "monster", None)
             if force_hunter_config is None:
-                # 在怪物门默认走“替换或强化”双路径；其余门默认转为追猎战。
+                # 复仇事件默认强制改写怪物门，避免出现“前情与来敌对不上”的割裂感。
                 if source_door_type == "MONSTER" and monster is not None:
-                    replace_chance = payload.get("monster_replace_chance", 0.35)
-                    try:
-                        replace_chance = max(0.0, min(1.0, float(replace_chance)))
-                    except (TypeError, ValueError):
-                        replace_chance = 0.35
-                    force_hunter = random.random() < replace_chance
+                    force_hunter = bool(payload.get("force_replace_monster_door", True))
                 else:
                     force_hunter = bool(convert_to_hunter)
             else:
@@ -1333,10 +1381,10 @@ class StorySystem:
                     self._resolve_message(
                         payload,
                         "message",
-                        "门后等待你的不是原住怪物，而是一路追杀而来的猎手。",
+                        revenge_profile.get("message", "门后等待你的不是原住怪物，而是一路追杀而来的猎手。"),
                     )
                 )
-                hunter_hint = payload.get("hunter_hint", "脚步声不是偶然，那是追猎者在校准你的呼吸。")
+                hunter_hint = payload.get("hunter_hint") or revenge_profile.get("hunter_hint") or "脚步声不是偶然，那是追猎者在校准你的呼吸。"
                 hunter.story_consequence_id = consequence.consequence_id
                 # 由非怪物门引出的追猎战，只有击倒才算真正了结。
                 hunter.story_consume_on_defeat = bool(
