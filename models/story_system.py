@@ -311,6 +311,16 @@ class StorySystem:
             return False
 
         current_round = max(0, int(getattr(self.controller, "round_count", 0)))
+        # 复仇追猎统一至少延后 3 回合触发，避免“刚结仇立刻遭遇”。
+        if effect_key == "revenge_ambush":
+            revenge_min_round = current_round + 3
+            if min_round is None:
+                min_round = revenge_min_round
+            else:
+                try:
+                    min_round = max(int(min_round), revenge_min_round)
+                except (TypeError, ValueError):
+                    min_round = revenge_min_round
         try:
             delay_rounds = max(0, int(delay_rounds))
         except (TypeError, ValueError):

@@ -317,12 +317,12 @@ class TestStorySystem(BaseTest):
             effect_key="revenge_ambush",
             chance=0.0,
             trigger_door_types=["EVENT"],
-            max_round=2,
+            max_round=3,
             force_on_expire=True,
             force_door_type="MONSTER",
             payload={"force_hunter": True, "hunter_name": "追债者"},
         )
-        self.controller.round_count = 2
+        self.controller.round_count = 3
         shop_door = DoorEnum.SHOP.create_instance(controller=self.controller)
         changed = story.apply_pre_enter_checks(shop_door)
 
@@ -379,6 +379,7 @@ class TestStorySystem(BaseTest):
             trigger_door_types=["EVENT"],
             payload={"force_hunter": True},
         )
+        self.controller.round_count = 3
         event_door = DoorEnum.EVENT.create_instance(controller=self.controller)
 
         with unittest.mock.patch("models.story_system.random.uniform", return_value=0.0):
@@ -446,6 +447,7 @@ class TestStorySystem(BaseTest):
             trigger_door_types=["EVENT"],
             payload={"force_hunter": True, "hunter_name": "暗影刺客"},
         )
+        self.controller.round_count = 3
         self.controller.messages.clear()
 
         with unittest.mock.patch("models.story_system.random.uniform", return_value=0.0):
@@ -1171,6 +1173,7 @@ class TestStorySystem(BaseTest):
             trigger_door_types=["MONSTER"],
             payload={"force_hunter": False, "hp_ratio": 1.5, "atk_ratio": 1.4},
         )
+        self.controller.round_count = 3
 
         with unittest.mock.patch("models.story_system.random.uniform", return_value=0.0), unittest.mock.patch(
             "models.story_system.random.random", return_value=0.9
@@ -1196,6 +1199,7 @@ class TestStorySystem(BaseTest):
             trigger_door_types=["MONSTER"],
             payload={"hp_ratio": 1.5, "atk_ratio": 1.4},
         )
+        self.controller.round_count = 3
 
         with unittest.mock.patch("models.story_system.random.uniform", return_value=0.0):
             changed_door = story.apply_pre_enter_checks(monster_door)
@@ -1218,6 +1222,7 @@ class TestStorySystem(BaseTest):
             trigger_door_types=["MONSTER"],
             payload={"hp_ratio": 1.1, "atk_ratio": 1.1},
         )
+        self.controller.round_count = 3
 
         with unittest.mock.patch("models.story_system.random.uniform", return_value=0.0):
             changed_door = story.apply_pre_enter_checks(monster_door)
