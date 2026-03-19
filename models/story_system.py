@@ -1331,19 +1331,22 @@ class StorySystem:
             return custom_handler(consequence, door)
 
         if effect == "villagers_gift":
-            self.controller.add_message(
-                self._resolve_message(
-                    payload,
-                    "message",
-                    "你过往的行为被人记住了，对方直接把宝物交给了你。",
-                )
-            )
             reward_door = self._make_reward_door(
                 gold=payload.get("gold", random.randint(50, 100)),
                 include_item=payload.get("include_item", True),
                 hint=payload.get("hint", "旧事回响"),
             )
             reward_desc = self._describe_reward(reward_door)
+            self.controller.add_message(
+                self._append_effect_values(
+                    self._resolve_message(
+                        payload,
+                        "message",
+                        "你过往的行为被人记住了，对方直接把宝物交给了你。",
+                    ),
+                    f"获得 {reward_desc}",
+                )
+            )
             self._log_effect_result(consequence, f"谢礼是 {reward_desc}")
             return True, reward_door
 
@@ -1471,7 +1474,11 @@ class StorySystem:
                 monster.hp = max(1, int(monster.hp * hp_ratio))
                 monster.atk = max(1, int(monster.atk * atk_ratio))
                 self.controller.add_message(
-                    self._resolve_message(payload, "message", "旧怨者设下伏击，怪物获得强化。")
+                    self._append_effect_values(
+                        self._resolve_message(payload, "message", "旧怨者设下伏击，怪物获得强化。"),
+                        f"{monster.name} 生命 {old_hp}->{monster.hp}",
+                        f"攻击 {old_atk}->{monster.atk}",
+                    )
                 )
                 self._log_effect_result(
                     consequence,
@@ -1482,8 +1489,13 @@ class StorySystem:
             dmg = self._scale_amount(dmg, positive=False, aggressive=True)
             old_hp = self.controller.player.hp
             self.controller.player.take_damage(dmg)
+            actual_loss = max(0, old_hp - self.controller.player.hp)
             self.controller.add_message(
-                self._resolve_message(payload, "message", f"你遭到报复，受到 {dmg} 点伤害。")
+                self._append_effect_values(
+                    self._resolve_message(payload, "message", f"你遭到报复，受到 {dmg} 点伤害。"),
+                    f"生命 {old_hp}->{self.controller.player.hp}",
+                    f"实际损失 {actual_loss}",
+                )
             )
             self._log_effect_result(
                 consequence,
@@ -1499,10 +1511,21 @@ class StorySystem:
                 heal = self._scale_amount(heal, positive=True)
             old_gold, old_hp = self.controller.player.gold, self.controller.player.hp
             self.controller.player.gold += gold
+            healed = 0
             if heal > 0:
-                self.controller.player.heal(heal)
+                healed = self.controller.player.heal(heal)
+            message = self._resolve_message(payload, "message", f"守卫感谢你的协助，奖励了你 {gold} 金币。")
+            if isinstance(message, str):
+                try:
+                    message = message.format(gold=gold, heal=heal, healed=healed)
+                except (KeyError, IndexError, ValueError):
+                    pass
             self.controller.add_message(
-                self._resolve_message(payload, "message", f"守卫感谢你的协助，奖励了你 {gold} 金币。")
+                self._append_effect_values(
+                    message,
+                    f"金币 {old_gold}->{self.controller.player.gold}",
+                    f"生命 {old_hp}->{self.controller.player.hp}",
+                )
             )
             self._log_effect_result(
                 consequence,
@@ -1524,10 +1547,13 @@ class StorySystem:
             self._apply_shop_ratio(shop_targets, ratio)
             ratio_text = f"当前商品按约 {max(1, int(ratio * 100))}% 结算"
             self.controller.add_message(
-                self._resolve_message(
-                    payload,
-                    "message",
-                    f"商人认出你是熟客同路人，{ratio_text}。",
+                self._append_effect_values(
+                    self._resolve_message(
+                        payload,
+                        "message",
+                        f"商人认出你是熟客同路人，{ratio_text}。",
+                    ),
+                    ratio_text,
                 )
             )
             self._log_effect_result(consequence, ratio_text)
@@ -1547,10 +1573,13 @@ class StorySystem:
             self._apply_shop_ratio(shop_targets, ratio)
             ratio_text = f"当前商品按约 {max(1, int(ratio * 100))}% 上浮"
             self.controller.add_message(
-                self._resolve_message(
-                    payload,
-                    "message",
-                    f"商人认出你惹过他们的人，{ratio_text}。",
+                self._append_effect_values(
+                    self._resolve_message(
+                        payload,
+                        "message",
+                        f"商人认出你惹过他们的人，{ratio_text}。",
+                    ),
+                    ratio_text,
                 )
             )
             self._log_effect_result(consequence, ratio_text)
@@ -1558,10 +1587,13 @@ class StorySystem:
 
         if effect == "shrine_blessing":
             if getattr(getattr(door, "enum", None), "name", "") == "TRAP":
-                self.controller.add_message(
-                    self._resolve_message(payload, "message", "圣坛余辉保护了你，陷阱化作馈赠。")
-                )
                 reward_door = self._make_reward_door(gold=random.randint(25, 65), include_item=False, hint="神佑余辉")
+                self.controller.add_message(
+                    self._append_effect_values(
+                        self._resolve_message(payload, "message", "圣坛余辉保护了你，陷阱化作馈赠。"),
+                        f"获得 {self._describe_reward(reward_door)}",
+                    )
+                )
                 self._attach_door_extension(
                     door=door,
                     extension_config={
@@ -1581,7 +1613,10 @@ class StorySystem:
                 old_atk = monster.atk
                 monster.atk = max(1, int(monster.atk * 0.82))
                 self.controller.add_message(
-                    self._resolve_message(payload, "message", "你受到神佑，敌人的攻势被压制。")
+                    self._append_effect_values(
+                        self._resolve_message(payload, "message", "你受到神佑，敌人的攻势被压制。"),
+                        f"{monster.name} 攻击 {old_atk}->{monster.atk}",
+                    )
                 )
                 self._log_effect_result(
                     consequence,
@@ -1598,7 +1633,10 @@ class StorySystem:
                 StatusName.WEAK.create_instance(duration=duration, target=self.controller.player)
             )
             self.controller.add_message(
-                self._resolve_message(payload, "message", f"诅咒追上了你，陷入虚弱 {duration} 回合。")
+                self._append_effect_values(
+                    self._resolve_message(payload, "message", f"诅咒追上了你，陷入虚弱 {duration} 回合。"),
+                    f"虚弱持续 {duration} 回合",
+                )
             )
             self._log_effect_result(consequence, f"你陷入虚弱，持续 {duration} 回合")
             return True, door
@@ -1610,7 +1648,11 @@ class StorySystem:
             old_atk = self.controller.player._atk
             self.controller.player.change_base_atk(delta)
             self.controller.add_message(
-                self._resolve_message(payload, "message", "这段经历让你学会了更狠的出手方式。")
+                self._append_effect_values(
+                    self._resolve_message(payload, "message", "这段经历让你学会了更狠的出手方式。"),
+                    f"基础攻击 {old_atk}->{self.controller.player._atk}",
+                    f"本次提升 {delta}",
+                )
             )
             self._log_effect_result(
                 consequence,
@@ -1624,7 +1666,11 @@ class StorySystem:
             lost = min(self.controller.player.gold, self._scale_amount(lost, positive=False))
             self.controller.player.gold -= lost
             self.controller.add_message(
-                self._resolve_message(payload, "message", f"旧账找上门来，你被迫赔了 {lost} 金币。")
+                self._append_effect_values(
+                    self._resolve_message(payload, "message", f"旧账找上门来，你被迫赔了 {lost} 金币。"),
+                    f"金币 {old_gold}->{self.controller.player.gold}",
+                    f"本次损失 {lost}",
+                )
             )
             self._log_effect_result(
                 consequence,
@@ -3024,6 +3070,16 @@ class StorySystem:
             valid = [m for m in msg if isinstance(m, str) and m.strip()]
             return random.choice(valid) if valid else fallback
         return msg if isinstance(msg, str) and msg.strip() else fallback
+
+    def _append_effect_values(self, message: str, *parts: str) -> str:
+        detail_parts = [p.strip() for p in parts if isinstance(p, str) and p.strip()]
+        if not detail_parts:
+            return message
+        detail_text = "，".join(detail_parts)
+        base = (message or "").strip()
+        if not base:
+            return f"（本次变化：{detail_text}）"
+        return f"{base}（本次变化：{detail_text}）"
 
     def _make_reward_door(self, gold: int, include_item: bool, hint: str = "") -> Any:
         from models.door import DoorEnum
