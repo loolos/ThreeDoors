@@ -12,6 +12,7 @@ from models.events import (
     run_script_vault_recovery,
     EndingStageCurtainGateEvent,
     EndingStageKindPuppetDialogueEvent,
+    StageCurtainKindPuppetDialogueMidEvent,
     EndingPowerCurtainDirectEvent,
     EndingPowerCurtainChoiceEvent,
     RefugeeCaravanEvent,
@@ -1480,6 +1481,20 @@ class TestStorySystem(BaseTest):
         self.assertEqual(clear_info.get("ending_key"), "stage_curtain_order")
         self.assertEqual(clear_info.get("ending_meta", {}).get("stage_outcome"), "order")
         self.assertIn("善良人格尚未归位", clear_info.get("ending_description", ""))
+
+    def test_kind_puppet_dialogue_mid_event_schedules_stage_gate_on_next_round(self):
+        """与善良人格约定后，下一回合应紧接着强制挂载谢幕门廊事件。"""
+        self.controller.round_count = 186
+        story = self.controller.story
+        event = StageCurtainKindPuppetDialogueMidEvent(self.controller)
+
+        event.resolve_choice(0)
+
+        self.assertIn("ending_stage_curtain_gate", story.pending_consequences)
+        pending = story.pending_consequences["ending_stage_curtain_gate"]
+        self.assertEqual(pending.min_round, 187)
+        self.assertEqual(pending.max_round, 187)
+        self.assertTrue(pending.force_on_expire)
 
     def test_default_ending_is_forced_on_round_200_when_no_long_branch_started(self):
         self.controller.round_count = 200
