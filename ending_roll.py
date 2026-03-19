@@ -58,22 +58,92 @@ ENDING_SUMMARY = {
         "走廊深处的弦音与低语渐渐远去，这场冒险在此画上句点。"
     ),
     "stage_curtain_order": (
-        "你按证词与秩序补齐了终幕结构，与木偶的善良人格一同完成谢幕。"
-        "舞台的灯光暗下时，你与这段旅程中的选择一起被写进了结局。"
+        "你按证词与秩序补齐了终幕结构，让假面剧场在失控边缘重新对齐节拍。"
+        "谢幕后，后台账册、证词与台词都被你整理归档，失序的演出终于有了可追溯的尾注。"
     ),
     "stage_curtain_freedom": (
-        "你承认剧本无法完整复刻，带着众人的证词即兴完成了终演。"
-        "即兴与自由，成为你这趟迷宫之旅的终章。"
+        "你承认剧本无法完整复刻，把一路的迟疑、冒险与代价都写进临场台词，"
+        "在没有标准答案的舞台上即兴完成终演。"
     ),
     "stage_curtain_power": (
-        "你以导演代理人身份接管了门廊规则，强行完成谢幕。"
-        "力量与掌控，为这场冒险写下了句号。"
+        "你以导演代理人身份接管了门廊规则，重新编号灯位、闸机与通行口，"
+        "让整座剧场按你的指令推进到最后一拍。"
     ),
     "impromptu_curtain_call": (
         "你在无剧本的终局里即兴谢幕，把抉择当作台词，或向虚空鞠躬。"
         "即兴与自由，成为你这趟迷宫之旅的终章。"
     ),
 }
+
+
+def _build_stage_roll_summary(ending_key: str, choice_flags: set) -> str:
+    """舞台谢幕三结局的滚动总结（可随选择变化）。"""
+    if ending_key == "stage_curtain_order":
+        parts = [
+            "你把证词、剧本与残缺场记一页页补齐，补全谢幕不再只是『把戏演完』，而是把真相也留在台面上。",
+        ]
+        if "ending_hook:elf_alliance" in choice_flags or "elf_outcome:alliance" in choice_flags:
+            parts.append("银羽飞贼在散场前把旧钥匙挂回后台钉板，算是默认你这版终幕可以长期上演。")
+        elif "ending_hook:elf_neutral" in choice_flags or "elf_outcome:neutral" in choice_flags:
+            parts.append("银羽飞贼没有露面，只留下一张改过坐标的便签，像在提醒你仍有番外可写。")
+        elif "ending_hook:elf_hostile" in choice_flags or "elf_outcome:hostile" in choice_flags:
+            parts.append("银羽飞贼仍与你互不相让，但连安保都承认，这一次终幕确实被你稳稳接住。")
+
+        if "moon_verdict_clean" in choice_flags:
+            parts.append("月蚀审判庭盖下了合法结案章，门廊里久违地出现了不带追缉编号的清静夜班。")
+        elif "moon_verdict_burned" in choice_flags or "moon_verdict_extorted" in choice_flags:
+            parts.append("你处理月蚀案卷的手法仍引来议论，不过最终账本上写着：演出已完成，无需回滚。")
+
+        if "dream_well_sealed" in choice_flags or "echo_court_redeemed" in choice_flags:
+            parts.append("梦境井回放被重新封存，回声法庭把这场终幕收进了『可复演』档案。")
+        elif "dream_well_sold" in choice_flags or "echo_court_trading" in choice_flags:
+            parts.append("梦境井商贩把你的终幕剪成限量回放，标题就叫《按秩序补完的那一夜》。")
+        return "".join(parts)
+
+    if ending_key == "stage_curtain_freedom":
+        parts = [
+            "你把这一路做过的选择当作即兴台词，承认缺页、拥抱失控，并让终幕在掌声与沉默之间自己落地。",
+        ]
+        if "ending_hook:elf_alliance" in choice_flags or "elf_outcome:alliance" in choice_flags:
+            parts.append("银羽飞贼在灯桥上吹了声口哨，把你这版终演称作『最值回票价的彩排事故』。")
+        elif "ending_hook:elf_hostile" in choice_flags or "elf_outcome:hostile" in choice_flags:
+            parts.append("哪怕与你敌对的飞贼也没否认这场即兴的完成度，只是临走前仍顺走了一盏侧灯。")
+
+        if "clockwork_hacked" in choice_flags or "clockwork_sabotaged" in choice_flags:
+            parts.append("计价员追着你核账追了半条回廊，最终只记下一句：『账单待补，谢幕有效。』")
+        elif "clockwork_calibrated" in choice_flags:
+            parts.append("查票闸机在你离场时保持常开，像给即兴演员的临时通行证。")
+
+        if "mirror_played_hero" in choice_flags:
+            parts.append("镜面剧场把你的剪影放进英雄面具展柜，说明牌写着：『会临场发挥的那位。』")
+        elif "mirror_played_villain" in choice_flags:
+            parts.append("你戴过恶徒面具的传闻成了笑谈，观众反而最爱你把反派台词改成冷笑话的那一段。")
+        elif "mirror_tore_script" in choice_flags:
+            parts.append("至于那页被撕过的剧本，后来被装裱成了景点，旁边永远排着拍照队。")
+        return "".join(parts)
+
+    if ending_key == "stage_curtain_power":
+        parts = [
+            "你把门廊规则接管成一张新的控制谱，终幕不再等待系统批准，而是按你的口令推进到底。",
+        ]
+        if "ending_hook:elf_alliance" in choice_flags or "elf_outcome:alliance" in choice_flags:
+            parts.append("银羽飞贼把你的新规抄成暗号卖给黑市，边赚差价边夸你『终于像个导演了』。")
+        elif "ending_hook:elf_hostile" in choice_flags or "elf_outcome:hostile" in choice_flags:
+            parts.append("你与银羽飞贼的旧账依旧挂着，但她也不得不先研究你改过的门廊权限表。")
+
+        if "moon_verdict_extorted" in choice_flags or "moon_verdict_burned" in choice_flags:
+            parts.append("审判庭对你保持戒备，却还是把执行结果记为『有效且不可逆』。")
+        elif "moon_verdict_clean" in choice_flags:
+            parts.append("审判庭认可了流程完结，只在附注里写下：『建议远观，不建议共事。』")
+
+        if "dream_well_sold" in choice_flags or "echo_court_trading" in choice_flags:
+            parts.append("梦境井回放被你纳入分级收费，观众嘴上抱怨，身体却很诚实地排队加场。")
+        elif "dream_well_sealed" in choice_flags or "echo_court_redeemed" in choice_flags:
+            parts.append("你给梦境井加上播放上限，回声法庭终于不用再连夜追缴旧账。")
+        return "".join(parts)
+
+    return ""
+
 
 def build_ending_roll_lines(controller) -> list:
     """
@@ -126,6 +196,10 @@ def build_ending_roll_lines(controller) -> list:
     # ---------- 3. 结局综述 ----------
     ending_key = str(clear_info.get("ending_key", "unknown")).strip()
     summary = ENDING_SUMMARY.get(ending_key)
+    if ending_key in {"stage_curtain_order", "stage_curtain_freedom", "stage_curtain_power"}:
+        dynamic_summary = _build_stage_roll_summary(ending_key, choice_flags)
+        if dynamic_summary:
+            summary = dynamic_summary
     if summary:
         lines.append(summary)
     else:
