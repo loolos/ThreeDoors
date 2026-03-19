@@ -4311,18 +4311,32 @@ def _collect_stage_curtain_scores(story):
     power = 0
     risk = 0
     notes = []
+    elf_outcome = ""
+    moon_verdict = ""
+    ticket_outcome = ""
+    dream_outcome = ""
+    mirror_outcome = ""
+    elf_rival_outcome = ""
 
     if "elf_outcome:alliance" in tags or "elf_outcome_alliance" in flags:
         order += 1
         freedom += 2
+        elf_outcome = "alliance"
         notes.append("银羽飞贼愿意把关键证词交给你。")
     elif "elf_outcome:neutral" in tags or "elf_outcome_neutral" in flags:
         order += 1
+        elf_outcome = "neutral"
         notes.append("银羽飞贼只留下了有限线索。")
     elif "elf_outcome:hostile" in tags or "elf_outcome_hostile" in flags:
         power += 1
         risk += 3
+        elf_outcome = "hostile"
         notes.append("银羽飞贼与你决裂，终幕信任链被撕开。")
+
+    if "ending_elf_rival_final_victory" in flags:
+        elf_rival_outcome = "victory"
+    elif "ending_elf_rival_parted" in flags:
+        elf_rival_outcome = "parted"
 
     diary_source = str(getattr(story, "moon_bounty_diary_source", "")).strip()
     if diary_source == "thief_testimony":
@@ -4334,36 +4348,55 @@ def _collect_stage_curtain_scores(story):
 
     if "moon_verdict_clean" in flags:
         order += 2
+        moon_verdict = "clean"
     if "moon_verdict_burned" in flags:
         power += 1
         risk += 2
+        moon_verdict = "burned"
     if "moon_verdict_extorted" in flags:
         power += 2
         risk += 1
+        moon_verdict = "extorted"
 
     if "clockwork_calibrated" in flags or "cog_audit_tax_paid" in flags:
         order += 1
+        if not ticket_outcome:
+            ticket_outcome = "calibrated"
     if "clockwork_hacked" in flags or "cog_audit_faked" in flags or "cog_audit_silenced" in flags:
         power += 1
         risk += 1
+        ticket_outcome = "hacked"
     if "clockwork_sabotaged" in flags:
         power += 1
         risk += 2
+        ticket_outcome = "sabotaged"
 
     if "dream_well_sealed" in flags or "echo_court_redeemed" in flags:
         order += 1
+        if not dream_outcome:
+            dream_outcome = "stabilized"
     if "dream_well_drank" in flags or "mirror_tore_script" in flags:
         freedom += 1
+        if dream_outcome != "traded":
+            dream_outcome = "improv"
     if "dream_well_sold" in flags or "echo_court_trading" in flags:
         power += 2
         risk += 1
+        dream_outcome = "traded"
     if "echo_court_taxed" in flags:
         order += 1
+        if not dream_outcome:
+            dream_outcome = "taxed"
 
     if "mirror_played_hero" in flags:
         order += 1
+        if not mirror_outcome:
+            mirror_outcome = "hero"
     if "mirror_played_villain" in flags:
         power += 1
+        mirror_outcome = "villain"
+    if "mirror_tore_script" in flags:
+        mirror_outcome = "tore_script"
 
     kind_flags = {
         "puppet_signal_soft",
@@ -4402,6 +4435,7 @@ def _collect_stage_curtain_scores(story):
     puppet_low_evil = puppet_evil_value <= 45
     puppet_kind_rescued = puppet_chain_concluded and puppet_low_evil
     stage_script_ready = key_obtained and script_recovered
+    script_truth_revealed = "curtain_call_truth_revealed" in tags or "curtain_call_truth_revealed" in flags
 
     if puppet_kind_rescued:
         order += 2
@@ -4428,7 +4462,128 @@ def _collect_stage_curtain_scores(story):
         "puppet_low_evil": puppet_low_evil,
         "puppet_kind_rescued": puppet_kind_rescued,
         "puppet_evil_value": puppet_evil_value,
+        "elf_outcome": elf_outcome,
+        "elf_rival_outcome": elf_rival_outcome,
+        "moon_verdict": moon_verdict,
+        "ticket_outcome": ticket_outcome,
+        "dream_outcome": dream_outcome,
+        "mirror_outcome": mirror_outcome,
+        "script_truth_revealed": script_truth_revealed,
     }
+
+
+def _build_stage_epilogue_lines(route_key, score_payload):
+    """根据长线选择补充结局尾声文案，仅用于文本展示。"""
+    lines = []
+    elf_outcome = str(score_payload.get("elf_outcome", "")).strip()
+    elf_rival_outcome = str(score_payload.get("elf_rival_outcome", "")).strip()
+    moon_verdict = str(score_payload.get("moon_verdict", "")).strip()
+    ticket_outcome = str(score_payload.get("ticket_outcome", "")).strip()
+    dream_outcome = str(score_payload.get("dream_outcome", "")).strip()
+    mirror_outcome = str(score_payload.get("mirror_outcome", "")).strip()
+    script_truth_revealed = bool(score_payload.get("script_truth_revealed", False))
+    diary_source = str(score_payload.get("diary_source", "")).strip()
+    puppet_kind_rescued = bool(score_payload.get("puppet_kind_rescued", False))
+    dark_pressure = int(score_payload.get("power", 0)) > int(score_payload.get("order", 0)) and int(
+        score_payload.get("risk", 0)
+    ) >= 4
+
+    if route_key == "order":
+        if elf_outcome == "alliance":
+            lines.append("谢幕后，银羽飞贼把那枚旧钥匙挂回后台钉板，笑你总算学会了按拍子走路。")
+        elif elf_outcome == "neutral":
+            lines.append("银羽飞贼没有现身，只在票务口留下一张改过坐标的便签：『你补得不错，剩下我自己改。』")
+        elif elf_outcome == "hostile":
+            lines.append("银羽飞贼仍在通缉名单上，但安保看到你补全后的终幕记录后，先把追缉令压进了抽屉。")
+        if elf_rival_outcome == "victory":
+            lines.append("那场终局前对决也被写进排练笔记，飞贼在落款处只写了三个字：『算你赢。』")
+
+        if script_truth_revealed and diary_source == "thief_testimony":
+            lines.append("月蚀审判庭最终修订了错案档案，命运乐章失窃案不再由替罪羊背锅。")
+        elif moon_verdict == "clean":
+            lines.append("月蚀审判庭给你出具了合法结案印章，至少今晚不会再有人追着你核对供词。")
+        elif moon_verdict in {"burned", "extorted"}:
+            lines.append("你处理月蚀案卷的手法依旧有人记着，后台偶尔会传来『那页到底是谁撕的』低声争执。")
+
+        if ticket_outcome == "calibrated":
+            lines.append("齿轮售票亭恢复了正常节拍，查票员把你列进『可协助谢幕的熟面孔』名单。")
+        elif ticket_outcome in {"hacked", "sabotaged"}:
+            lines.append("票务系统虽然被你按住了故障，但计价员每次看见你都会先摸一下腰间印章，像在防你再改一次账。")
+
+        if dream_outcome == "stabilized":
+            lines.append("梦境井的回放被重新封存，回声法庭把你的名字写在『归档协助者』那一栏。")
+        elif dream_outcome == "improv":
+            lines.append("梦境井里仍偶尔浮出你改写过的桥段，观众把它当作『补全版的彩蛋场』反复观看。")
+        elif dream_outcome == "traded":
+            lines.append("梦境井交易留下的账目仍在流通，不过这一次你把分成规则写进了公开条款。")
+
+    elif route_key == "freedom":
+        if elf_outcome == "alliance":
+            lines.append("银羽飞贼在散场后翻上灯桥，朝你抛下一枚假门牌：『下次别走正门，观众更爱彩蛋。』")
+        elif elf_outcome == "neutral":
+            lines.append("银羽飞贼只远远吹了声口哨，像是承认了这场没有排练的收束。")
+        elif elf_outcome == "hostile":
+            lines.append("哪怕与你敌对，银羽也不得不承认你把失控舞台即兴收好了，至少今晚没有新的追捕令。")
+        if elf_rival_outcome == "parted":
+            lines.append("你们在终局前错身而过的背影，后来被走廊小报写成了最受欢迎的『未完待续』。")
+
+        if script_truth_revealed and diary_source:
+            lines.append("你把命运乐章真相讲给路过的观众听，他们第一次知道『被通缉的人』和『偷剧本的人』并不是同一个。")
+        if moon_verdict == "extorted":
+            lines.append("审判庭记得你当年的勒索手笔，却也只能把这场即兴当作完成演出的合法结算。")
+        elif moon_verdict == "burned":
+            lines.append("被烧掉的案卷让很多细节永远缺页，于是你的终幕版本成了后人默认参考答案。")
+
+        if ticket_outcome == "calibrated":
+            lines.append("查票员本想按规矩拦你，最后却把闸机调成了常开，算是给即兴演员的特批。")
+        elif ticket_outcome in {"hacked", "sabotaged"}:
+            lines.append("计价员追着你跑了半条回廊，最终只追到一句：『账我认，谢幕你别管。』")
+
+        if dream_outcome == "traded":
+            lines.append("梦境井商贩把你的终幕复刻成限量回放，标题就叫《没有剧本的那一夜》。")
+        elif dream_outcome in {"improv", "stabilized", "taxed"}:
+            lines.append("梦境井的水面偶尔仍会重播你那次即兴鞠躬，旁白每次都在最后一句笑场。")
+
+        if mirror_outcome == "hero":
+            lines.append("镜面剧场后来把你的剪影放进『英雄面具』展柜，说明牌只写：『会临场发挥的那位。』")
+        elif mirror_outcome == "villain":
+            lines.append("戴过恶徒面具的你把反派台词改成了笑点，连原本准备喝倒彩的观众都跟着鼓掌。")
+        elif mirror_outcome == "tore_script":
+            lines.append("你曾撕过剧本的传闻反而成了卖点，游客专程来问『那页到底撕得响不响』。")
+
+    elif route_key == "power":
+        if elf_outcome == "alliance":
+            lines.append("银羽飞贼与其说是站队，不如说是看热闹；她把你的新规抄成暗号，卖给每一个不怕罚款的闯门者。")
+        elif elf_outcome == "neutral":
+            lines.append("银羽飞贼保持距离，只在黑市里评价你的新秩序：『有效，但别指望人人买账。』")
+        elif elf_outcome == "hostile":
+            lines.append("你与银羽飞贼的旧账没结，但她暂时收刀——因为连她都得先研究你改过的门廊规则。")
+        if elf_rival_outcome == "victory":
+            lines.append("那场你赢下的清算战后来成了安保教材第一页，标题是《别在终局前低估门外的人》。")
+
+        if moon_verdict == "clean":
+            lines.append("审判庭认可你的终幕执行结果，却在附注里写明：『此人建议远观，不建议共事。』")
+        elif moon_verdict in {"burned", "extorted"}:
+            lines.append("案卷的灰烬和勒索的印记都还在，你接管后的第一周就收到三封匿名投诉和一封合作邀请。")
+
+        if ticket_outcome == "calibrated":
+            lines.append("你把售票和查票并入同一套指令，连计价员都开始按你的节拍报数。")
+        elif ticket_outcome == "hacked":
+            lines.append("你保留了自己留下的后门，只是把它改名成『紧急维护通道』。")
+        elif ticket_outcome == "sabotaged":
+            lines.append("那些被你砸坏又重建的机器如今运转稳定，只是每次开机都先响一声警报，像在提醒谁才是主人。")
+
+        if dream_outcome == "traded":
+            lines.append("梦境井回放被纳入分级收费，观众一边抱怨票价，一边排队看你如何改写结尾。")
+        elif dream_outcome in {"improv", "stabilized", "taxed"}:
+            lines.append("你给梦境井加上了播放上限，回声法庭终于不用每天加班追缴旧账。")
+
+        if dark_pressure:
+            lines.append("木偶暗侧留下的控制参数被你当成模板，整座剧场从此学会了先服从、再讨论。")
+        elif puppet_kind_rescued:
+            lines.append("即便你选择接管，木偶善侧仍替你保留了最后一条软规则：允许迟到的演员补一句真话。")
+
+    return lines
 
 
 def _resolve_stage_curtain_outcome(route_key, score_payload):
@@ -4443,6 +4598,12 @@ def _resolve_stage_curtain_outcome(route_key, score_payload):
     puppet_final_defeated = bool(score_payload.get("puppet_final_defeated", False))
     script_recovered = bool(score_payload.get("script_recovered", False))
     suffix = f"（秩序{order}/自由{freedom}/权力{power}/风险{risk}）"
+
+    def _compose_with_epilogue(base_text, current_route):
+        epilogue = "".join(_build_stage_epilogue_lines(current_route, score_payload))
+        if epilogue:
+            return f"{base_text}{epilogue}{suffix}"
+        return f"{base_text}{suffix}"
 
     # 无剧本且已击败黑暗木偶：终局事件读取参数时触发即兴谢幕（按邪恶值分支文案）
     if puppet_final_defeated and not script_recovered:
@@ -4477,9 +4638,11 @@ def _resolve_stage_curtain_outcome(route_key, score_payload):
                 "你把银羽旧钥匙与终幕剧本并排压在台沿，灯桥一盏盏依序点亮。",
                 "蓝眼睛的的木偶照着原剧本演完最后一幕，随后一路跑上前台，和你一起向观众谢幕。",
             ]
-            ending_description = (
+            ending_description = _compose_with_epilogue(
                 "你按证词与秩序补齐终幕结构。被你救回的木偶善良人格依照原剧本完成了最后一幕，"
-                f"并亲自回到台前谢幕。{suffix}"
+                "并亲自回到台前谢幕。散场后你没有立刻离开，而是把证词、票据与破碎台词一并归档，"
+                "让这场险些失控的演出终于拥有可被复述的尾声。",
+                "order",
             )
             curtain_speciale = "puppet_kind_script_curtain_call"
         elif puppet_kind_rescued:
@@ -4487,12 +4650,19 @@ def _resolve_stage_curtain_outcome(route_key, score_payload):
                 "你修补了主要场次与灯位，木偶终于找回自己的台词与站位。",
                 "它在最后一声钟鸣后回到台口，和你完成了迟到的谢幕。",
             ]
-            ending_description = f"你按证词与秩序补齐终幕结构，木偶人格归位后与你一同完成谢幕。{suffix}"
+            ending_description = _compose_with_epilogue(
+                "你按证词与秩序补齐终幕结构，木偶人格归位后与你一同完成谢幕。"
+                "终幕并不完美，但你把缺失段落留成可追溯的注脚，让后来者知道这不是奇迹，"
+                "而是一次次把失序拉回轨道的结果。",
+                "order",
+            )
             curtain_speciale = "puppet_kind_curtain_call"
         else:
-            ending_description = (
+            ending_description = _compose_with_epilogue(
                 "你按证词与秩序补齐终幕结构。尽管善良人格尚未归位，你仍依剧本完成最后一幕并谢幕。"
-                f"{suffix}"
+                "灯暗下去时，你把空出来的角色名保留在终幕表上，提醒所有人：这场补全是完成，"
+                "却不是遗忘。",
+                "order",
             )
             curtain_speciale = ""
         return {
@@ -4507,29 +4677,46 @@ def _resolve_stage_curtain_outcome(route_key, score_payload):
 
     # 即兴谢幕：结局类型固定为 stage_curtain_freedom，文案依分数差异
     if route_key == "freedom":
+        ending_description = _compose_with_epilogue(
+            "你承认剧本无法完整复刻，带着众人的证词即兴完成终演。"
+            "你把走廊里每一次迟疑、每一次冒险和每一句没说完的话都揉进临场台词里，"
+            "让终幕在失控边缘开出了自己的节拍。",
+            "freedom",
+        )
         return {
             "ending_key": "stage_curtain_freedom",
             "ending_title": "舞台谢幕·即兴谢幕",
-            "ending_description": f"你承认剧本无法完整复刻，带着众人的证词即兴完成终演。{suffix}",
+            "ending_description": ending_description,
             "outcome_tag": "freedom",
             "notes": notes,
         }
 
     # 接管谢幕：结局类型固定为 stage_curtain_power，文案依分数差异
     if route_key == "power":
+        ending_description = _compose_with_epilogue(
+            "你以导演代理人身份接管门廊规则，强行完成谢幕。"
+            "当所有灯位、闸机与通行口都被你重新编号后，剧场不再等待『正确剧情』，"
+            "而是按照你的指令推进到最后一拍。",
+            "power",
+        )
         return {
             "ending_key": "stage_curtain_power",
             "ending_title": "舞台谢幕·接管谢幕",
-            "ending_description": f"你以导演代理人身份接管门廊规则，强行完成谢幕。{suffix}",
+            "ending_description": ending_description,
             "outcome_tag": "power",
             "notes": notes,
         }
 
     # 未知 route_key 时默认即兴
+    ending_description = _compose_with_epilogue(
+        "你承认剧本无法完整复刻，带着众人的证词即兴完成终演。"
+        "你把那些没有答案的问题也带上了舞台，让终幕在观众的沉默和掌声之间自行落定。",
+        "freedom",
+    )
     return {
         "ending_key": "stage_curtain_freedom",
         "ending_title": "舞台谢幕·即兴谢幕",
-        "ending_description": f"你承认剧本无法完整复刻，带着众人的证词即兴完成终演。{suffix}",
+        "ending_description": ending_description,
         "outcome_tag": "freedom",
         "notes": notes,
     }
@@ -5097,13 +5284,15 @@ class EndingPowerCurtainChoiceEvent(Event):
             EventChoice("选择困难症", self.pick_default),
         ]
 
-    def _trigger_power_curtain(self, variant: str, line: str, description: str):
+    def _trigger_power_curtain(self, variant: str, line: str, description_lead: str):
         """触发接管谢幕结局，variant 用于区分剧情文案。"""
         self.register_story_choice(choice_flag="ending_power_curtain_choice", moral_delta=0)
         self.add_message(line)
         story = getattr(self.controller, "story", None)
         score_payload = _collect_stage_curtain_scores(story) if story else {}
         ending_payload = _resolve_stage_curtain_outcome("power", score_payload)
+        resolved_description = str(ending_payload.get("ending_description", "")).strip()
+        final_description = f"{description_lead}{resolved_description}".strip()
         if story is not None:
             story.story_tags.add("ending:stage_curtain_completed")
             story.story_tags.add("ending:stage_curtain:power")
@@ -5113,7 +5302,7 @@ class EndingPowerCurtainChoiceEvent(Event):
             trigger_clear(
                 ending_key="stage_curtain_power",
                 ending_title="舞台谢幕·接管谢幕",
-                ending_description=description,
+                ending_description=final_description,
                 ending_meta={
                     "stage_route_choice": "power",
                     "stage_outcome": "power",
@@ -5139,7 +5328,7 @@ class EndingPowerCurtainChoiceEvent(Event):
         return self._trigger_power_curtain(
             variant="order",
             line="你选择以规则接管终幕，把谢幕写进秩序。",
-            description="你以导演代理人身份将终幕纳入既定规则，按秩序强行完成谢幕。黑暗侧木偶已败，剧本在你手中，门廊由你收束。",
+            description_lead="你先把终幕切进规则：每盏灯、每道门、每份口供都被你编号归档。随后，",
         )
 
     def pick_power_will(self):
@@ -5147,7 +5336,7 @@ class EndingPowerCurtainChoiceEvent(Event):
         return self._trigger_power_curtain(
             variant="will",
             line="你选择以意志接管终幕，把谢幕握在手中。",
-            description="你以导演代理人身份将终幕握在手中，凭意志强行完成谢幕。黑暗侧木偶已败，剧本在你手中，门廊由你收束。",
+            description_lead="你先把终幕攥进掌心，不再等任何系统给出许可。随后，",
         )
 
     def pick_default(self):
@@ -5184,6 +5373,12 @@ class EndingPuppetEchoAftermathEvent(Event):
         """触发即兴谢幕结局，文案由调用方传入。"""
         self.add_message(line)
         story = getattr(self.controller, "story", None)
+        final_description = description
+        if story is not None:
+            score_payload = _collect_stage_curtain_scores(story)
+            extra_epilogue = "".join(_build_stage_epilogue_lines("freedom", score_payload))
+            if extra_epilogue:
+                final_description = f"{description}{extra_epilogue}"
         if story is not None:
             story.story_tags.add("ending:stage_curtain_completed")
             story.story_tags.add("ending:stage_curtain:freedom")
@@ -5197,7 +5392,7 @@ class EndingPuppetEchoAftermathEvent(Event):
             trigger_clear(
                 ending_key="stage_curtain_freedom",
                 ending_title="舞台谢幕·即兴谢幕",
-                ending_description=description,
+                ending_description=final_description,
                 ending_meta=ending_meta,
             )
         else:
