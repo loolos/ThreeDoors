@@ -140,6 +140,7 @@ class TestSceneSystem(BaseTest):
             trigger_door_types=["EVENT"],
             payload={"force_hunter": True},
         )
+        self.controller.round_count = 3
 
         door_scene = self.controller.scene_manager.current_scene
         door_scene.generate_doors([DoorEnum.EVENT, DoorEnum.MONSTER, DoorEnum.TRAP])
