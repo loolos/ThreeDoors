@@ -113,7 +113,7 @@ class TestSceneSystem(BaseTest):
 
         self.controller.clear_messages()
         scene.handle_choice(1)
-        self.assertIn("无需使用复活卷轴", "\n".join(self.controller.messages))
+        self.assertIn("结局已达成", "\n".join(self.controller.messages))
 
     def test_button_text_door(self):
         """测试门场景按钮文本"""

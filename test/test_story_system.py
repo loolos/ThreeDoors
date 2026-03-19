@@ -1397,7 +1397,7 @@ class TestStorySystem(BaseTest):
         self.assertIn("stage_curtain_script_vault", extension_types)
 
     def test_stage_curtain_preface_is_not_forced_by_max_round(self):
-        """结局前事件不做 max_round 强制替换；到 200 回合由「保证对应门型出现」按序触发，选错门不改写。"""
+        """185~199 回合：结局前事件不强制替换门；到 200 回合后按终盘规则强制清空阻塞，选错门也会被改写为对应门型。"""
         self.controller.round_count = 185
         story = self.controller.story
         story.elf_chain_ended = True
@@ -1407,11 +1407,17 @@ class TestStorySystem(BaseTest):
         story.puppet_evil_value = 30
         story.ensure_default_normal_ending_schedule()
 
-        for round_count in (185, 190, 191, 200):
+        for round_count in (185, 190, 191):
             self.controller.round_count = round_count
             trap_door = DoorEnum.TRAP.create_instance(controller=self.controller)
             unchanged = story.apply_pre_enter_checks(trap_door)
             self.assertEqual(unchanged.enum.name, "TRAP")
+
+        # 到 200 回合后，阻塞按顺序强制清空：银羽秘藏会强制改写为宝物门
+        self.controller.round_count = 200
+        trap_door = DoorEnum.TRAP.create_instance(controller=self.controller)
+        forced = story.apply_pre_enter_checks(trap_door)
+        self.assertEqual(forced.enum.name, "REWARD")
 
     def test_stage_script_vault_marks_script_truth_no_longer_schedules_curtain_gate(self):
         """取回剧本后不再在窗口内挂载谢幕门；与善良木偶对话结局门改在第 200 回合、倒数窗口清空后挂载。"""
@@ -1551,6 +1557,46 @@ class TestStorySystem(BaseTest):
         self.assertFalse(scheduled)
         self.assertNotIn("ending_default_force_gate_round_200", story.pending_consequences)
 
+    def test_power_curtain_still_schedules_even_if_long_branch_started(self):
+        """已进入长线时应阻止默认第一门，但不应阻止接管谢幕选择门。"""
+        self.controller.round_count = 200
+        self.controller.event_trigger_counts["MoonBountyEvent"] = 1
+        story = self.controller.story
+        story.story_tags.update({"curtain_call_script_recovered", "ending:puppet_final_defeated", "elf_key_obtained"})
+        story.elf_key_obtained = True
+        story.puppet_final_outcome = "defeated"
+        story.puppet_evil_value = 55
+
+        scheduled = story.ensure_default_normal_ending_schedule()
+        self.assertTrue(scheduled)
+        self.assertIn("ending_power_curtain_dialogue_round200", story.pending_consequences)
+        self.assertNotIn("ending_default_force_gate_round_200", story.pending_consequences)
+
+    def test_power_curtain_can_still_trigger_when_registered_after_round_200(self):
+        """若 200 回合先清阻塞、到 201+ 才挂载接管门，仍应可触发，避免卡死在 pending。"""
+        story = self.controller.story
+        self.controller.round_count = 190
+        story.setup_test_gate_stage_curtain_power()
+        story.ensure_pre_final_event_schedule()
+        self.assertIn("ending_stage_curtain_preface", story.pending_consequences)
+
+        # 模拟 201 回合选门：choice_round=200，先强制清掉银羽秘藏并拿到剧本
+        self.controller.round_count = 201
+        story.ensure_default_normal_ending_schedule()
+        trap_door = DoorEnum.TRAP.create_instance(controller=self.controller)
+        story.apply_pre_enter_checks(trap_door, choice_round=200)
+        self.assertIn("ending_stage_curtain_preface", story.consumed_consequences)
+        self.assertIn("curtain_call_script_recovered", story.story_tags)
+
+        # 202 回合才挂载接管门时，结局门窗口应持续有效（不设上限），避免“挂载即过期”
+        self.controller.round_count = 202
+        scheduled = story.ensure_default_normal_ending_schedule()
+        self.assertTrue(scheduled)
+        pending = story.pending_consequences.get("ending_power_curtain_dialogue_round200")
+        self.assertIsNotNone(pending)
+        self.assertEqual(pending.min_round, 200)
+        self.assertIsNone(pending.max_round)
+
     def test_default_ending_two_gate_events_can_chain_to_final_boss(self):
         story = self.controller.story
         first_event = EndingFinalFirstGateEvent(self.controller)
@@ -1598,7 +1644,7 @@ class TestStorySystem(BaseTest):
         self.assertTrue(any(token in (forced_rematch.hint or "") for token in ("红噪", "失真", "童谣")))
 
     def test_pre_final_window_forces_rematch_before_final_when_no_monster_gate_hit(self):
-        """结局前事件不强制替换门；选错门保持原样，选到 MONSTER 才触发木偶补战。"""
+        """185~199 回合：结局前事件不强制替换门；到 200 回合后按终盘规则强制清空阻塞（含木偶补战）。"""
         story = self.controller.story
         story.story_tags.add("ending:puppet_final_escape_recorded")
         story.puppet_final_outcome = "escaped"
@@ -1607,17 +1653,17 @@ class TestStorySystem(BaseTest):
         story.ensure_default_normal_ending_schedule()
         self.assertIn("ending_puppet_pre_final_rematch_gate", story.pending_consequences)
 
-        for round_count in (185, 191, 200):
+        for round_count in (185, 191):
             self.controller.round_count = round_count
             trap_door = DoorEnum.TRAP.create_instance(controller=self.controller)
             unchanged = story.apply_pre_enter_checks(trap_door)
             self.assertEqual(unchanged.enum.name, "TRAP")
 
-        self.controller.round_count = 191
-        monster_door = DoorEnum.MONSTER.create_instance(controller=self.controller)
-        triggered_rematch = story.apply_pre_enter_checks(monster_door)
-        self.assertEqual(triggered_rematch.enum.name, "MONSTER")
-        self.assertEqual(triggered_rematch.monster.name, "裂齿·夜魇·游荡残响")
+        # 到 200 回合后强制清空阻塞：木偶补战会强制改写为怪物门
+        self.controller.round_count = 200
+        trap_door = DoorEnum.TRAP.create_instance(controller=self.controller)
+        forced = story.apply_pre_enter_checks(trap_door)
+        self.assertEqual(forced.enum.name, "MONSTER")
 
     def test_puppet_rematch_then_elf_rival_can_chain_dispatch_without_early_default_boss(self):
         story = self.controller.story

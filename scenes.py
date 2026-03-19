@@ -445,7 +445,7 @@ class GameOverScene(Scene):
             self.controller.scene_manager.go_to("door_scene")
         elif index == 1:  # 使用复活卷轴
             if clear_info:
-                self.controller.add_message("你已经抵达结局，无需使用复活卷轴。")
+                self.controller.add_message("结局已达成：可选择重启游戏，或直接退出。")
                 return
             p = self.controller.player
             # 检查是否有复活卷轴

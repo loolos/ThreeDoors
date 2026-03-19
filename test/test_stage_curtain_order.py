@@ -50,7 +50,7 @@ def setup_controller_for_stage_curtain_order(controller, round_count=190):
 
 def setup_controller_for_stage_curtain_power(controller, round_count=190):
     """
-    将控制器与剧情状态设为「接管谢幕」分支前置条件（与 server --test-gate=stage_curtain_power 一致）。
+    将控制器与剧情状态设为「木偶回声门」测试前置条件（与 server --test-gate=puppet_echo 一致；旧值 stage_curtain_power 仍为兼容别名）。
 
     - round_count: 当前回合，默认 190
     - 玩家: HP 800, ATK 200
@@ -108,10 +108,10 @@ class TestStageCurtainOrderFlags(BaseTest):
         self.assertFalse(self.controller.story._is_stage_curtain_route_ready())
 
     def test_stage_curtain_route_ready_fails_high_evil(self):
-        """邪恶值 > 45 时 _is_stage_curtain_route_ready 应为 False。"""
+        """邪恶值 > 45 时仍应允许挂载银羽秘藏（高邪恶分支也需要先取回剧本）。"""
         setup_controller_for_stage_curtain_order(self.controller)
         self.controller.story.puppet_evil_value = 50
-        self.assertFalse(self.controller.story._is_stage_curtain_route_ready())
+        self.assertTrue(self.controller.story._is_stage_curtain_route_ready())
 
     def test_pre_final_schedule_naturally_registers_stage_curtain_preface_at_round_190(self):
         """回合 190 且满足前置时，应由结局前事件调度判定自然挂载银羽秘藏，而非预先指定下一门。"""
@@ -148,6 +148,23 @@ class TestStageCurtainOrderFlags(BaseTest):
         self.assertIn("ending_stage_curtain_preface", story.consumed_consequences)
         self.assertIn("curtain_call_script_recovered", story.story_tags)
 
+    def test_stage_curtain_preface_can_be_triggered_when_evil_high(self):
+        """高邪恶值（接管路线）也应能在倒数窗口通过宝物门触发银羽秘藏并取回剧本。"""
+        # 直接复用服务端测试 gate 的同款配置：有钥匙+已击败木偶+高邪恶值
+        story = self.controller.story
+        story.setup_test_gate_stage_curtain_power()
+        story.ensure_pre_final_event_schedule()
+
+        reward_door = DoorEnum.REWARD.create_instance(controller=self.controller)
+        with unittest.mock.patch("models.story_system.random.random", return_value=0.95), unittest.mock.patch(
+            "models.story_system.random.uniform", return_value=0.0
+        ):
+            changed = story.apply_pre_enter_checks(reward_door)
+
+        self.assertEqual(changed.enum.name, "REWARD")
+        self.assertIn("ending_stage_curtain_preface", story.consumed_consequences)
+        self.assertIn("curtain_call_script_recovered", story.story_tags)
+
     def test_kind_puppet_dialogue_ready_after_script_recovered(self):
         """取回剧本后、邪恶值低时，_is_kind_puppet_dialogue_ready 应为 True（与善良木偶对话门可挂载）。"""
         setup_controller_for_stage_curtain_order(self.controller)
@@ -160,14 +177,14 @@ class TestStageCurtainOrderFlags(BaseTest):
 
 
 class TestStageCurtainPowerFlags(BaseTest):
-    """接管谢幕路线 flag 与调度逻辑测试。"""
+    """木偶回声门前置 flag 与调度逻辑测试。"""
 
     def setUp(self):
         super().setUp()
         self.controller.scene_manager.go_to("door_scene")
 
     def test_power_setup_matches_expected_state(self):
-        """setup 后应符合接管分支预期参数。"""
+        """setup 后应符合木偶回声门前置参数。"""
         setup_controller_for_stage_curtain_power(self.controller, round_count=190)
         self.assertEqual(self.controller.round_count, 190)
         self.assertEqual(self.controller.player.hp, 800)

@@ -517,7 +517,11 @@ class StorySystem:
         return lines
 
     def _is_stage_curtain_route_ready(self) -> bool:
-        """舞台谢幕链前置：飞贼事件终结、已拿钥匙、已击败黑暗木偶终战且邪恶值偏低（善良人格占主导）。"""
+        """舞台谢幕链（银羽秘藏取剧本）前置：飞贼事件终结、已拿钥匙、已击败黑暗木偶终战、且尚未取回剧本。
+
+        说明：银羽秘藏是「拿到剧本」的共同入口，既服务于低邪恶值分支（200 回合善良木偶对话），也服务于高邪恶值分支（200 回合接管谢幕选择门）。
+        邪恶值门槛应由后续的结局门条件（善良木偶对话 vs 接管选择门）承担，而不是在取回剧本阶段提前切断。
+        """
         if "curtain_call_script_recovered" in self.story_tags:
             return False
         key_obtained = bool(getattr(self, "elf_key_obtained", False)) or ("elf_key_obtained" in self.story_tags)
@@ -526,9 +530,6 @@ class StorySystem:
         if not bool(getattr(self, "elf_chain_ended", False)):
             return False
         if "ending:puppet_final_defeated" not in self.story_tags:
-            return False
-        evil = max(0, min(100, int(getattr(self, "puppet_evil_value", 55))))
-        if evil > self.PUPPET_LOW_EVIL_FOR_CURTAIN:
             return False
         return True
 
@@ -676,7 +677,9 @@ class StorySystem:
         return scheduled_any
 
     def _try_schedule_blocking_echo_or_kind(self) -> bool:
-        """第 200 回合挂载结局事件：木偶回声或善良木偶对话（二选一按优先级）。二者属结局事件，仅在本回合检查并挂载。返回是否挂载了任一。"""
+        """回合 >=200 挂载结局事件：木偶回声或善良木偶对话（二选一按优先级）。
+
+        结局门一旦满足条件就应持续可触发，避免因超过某一回合而失效。"""
         current_round = max(0, int(getattr(self.controller, "round_count", 0)))
         if current_round < self.DEFAULT_ENDING_FORCE_ROUND:
             return False
@@ -698,7 +701,7 @@ class StorySystem:
                 chance=1.0,
                 trigger_door_types=[door_type],
                 min_round=self.DEFAULT_ENDING_FORCE_ROUND,
-                max_round=self.DEFAULT_ENDING_FORCE_ROUND,
+                max_round=None,
                 force_on_expire=False,
                 force_door_type=door_type,
                 priority=int(cfg.get("priority", 1200)),
@@ -716,8 +719,6 @@ class StorySystem:
             return True
         if not self._all_pre_final_blocking_cleared():
             return pre_scheduled
-        if self._has_started_long_story_branch():
-            return False
         if "ending:default_normal_completed" in self.story_tags:
             return False
         if "ending:stage_curtain_completed" in self.story_tags:
@@ -728,6 +729,8 @@ class StorySystem:
         if self._is_power_curtain_dialogue_ready():
             gate_key = "power_curtain_dialogue_round200"
         else:
+            if self._has_started_long_story_branch():
+                return False
             gate_key = "round200_default_first_gate"
         cfg = PRE_FINAL_GATE_STORY_CONFIG.get(gate_key, {})
         consequence_id = str(cfg.get("consequence_id", "ending_default_force_gate_round_200"))
@@ -741,7 +744,7 @@ class StorySystem:
             chance=1.0,
             trigger_door_types=list(ALL_PRE_FINAL_DOOR_TYPES),
             min_round=self.DEFAULT_ENDING_FORCE_ROUND,
-            max_round=self.DEFAULT_ENDING_FORCE_ROUND,
+            max_round=None,
             force_on_expire=False,
             force_door_type=str(cfg.get("force_door_type", "EVENT")),
             priority=int(cfg.get("priority", 1200)),
@@ -765,6 +768,31 @@ class StorySystem:
         choice_round = max(0, choice_round)
         story_flags = self.choice_flags.union(self.story_tags)
         all_pending = list(self.pending_consequences.values())
+
+        # 方案 A：到 200 回合后，若仍有终盘阻塞未清空，则无视门型按顺序强制清空。
+        # 约束：木偶回声/善良木偶对话等「结局事件」必须在四个结局前倒数阻塞清空后才可触发。
+        if choice_round >= self.DEFAULT_ENDING_FORCE_ROUND:
+            # 1) 优先强制清空四个“结局前倒数阻塞事件”
+            if not self._all_pre_ending_blocking_cleared():
+                for cid in self.PRE_FINAL_BLOCKING_ORDER:
+                    if cid not in self.PRE_ENDING_BLOCKING_CONSEQUENCE_IDS:
+                        continue
+                    c = self.pending_consequences.get(cid)
+                    if c is None:
+                        continue
+                    apply_door = self._coerce_forced_door(door, c)
+                    return self._apply_chosen_consequence(chosen=c, door=apply_door, fallback_door=door, forced=True)
+
+            # 2) 倒数阻塞清空后，再强制清空后续“结局事件阻塞”（木偶回声 / 善良木偶对话）
+            for cid in self.PRE_FINAL_BLOCKING_ORDER:
+                if cid not in (self.PUPPET_ECHO_FINAL_CONSEQUENCE_ID, self.KIND_PUPPET_DIALOGUE_ROUND200_CONSEQUENCE_ID):
+                    continue
+                c = self.pending_consequences.get(cid)
+                if c is None:
+                    continue
+                apply_door = self._coerce_forced_door(door, c)
+                return self._apply_chosen_consequence(chosen=c, door=apply_door, fallback_door=door, forced=True)
+
         forced_candidates = [
             c for c in all_pending if c.should_force_trigger(round_count=choice_round, story_flags=story_flags)
         ]
@@ -2182,11 +2210,11 @@ class StorySystem:
             self.pending_consequences.pop(cid, None)
             self.consumed_consequences.add(cid)
 
-    def setup_test_gate_stage_curtain_power(self) -> None:
-        """测试用：将控制器与剧情状态设为「接管谢幕」分支前置（不挂载门，仅改状态）。
+    def setup_test_gate_puppet_echo(self) -> None:
+        """测试用：将控制器与剧情状态设为「木偶回声门」前置（不挂载门，仅改状态）。
         条件：回合 190、玩家 HP 800 / ATK 200、飞贼线已完结但未拿钥匙（敌对收束）、
         与飞贼关系 ≤-4 以便在倒数窗口内触发飞贼清算战；木偶线已完结且为击败结局（非逃跑），较高邪恶值。
-        调用方需在第 200 回合调用 ensure_default_normal_ending_schedule() 以挂载回声/接管结局门。"""
+        调用方需在第 200 回合调用 ensure_default_normal_ending_schedule() 以挂载回声门等终局门。"""
         c = self.controller
         c.round_count = 190
         p = getattr(c, "player", None)
@@ -2205,6 +2233,40 @@ class StorySystem:
         self.story_tags.add("ending_hook:elf_hostile")
         self.story_tags.discard("elf_key_obtained")
         self.choice_flags.add("elf_outcome_hostile")
+        self.story_tags.discard("puppet_arc_active")
+        self.story_tags.discard("ending:puppet_final_escape_recorded")
+        self.story_tags.add("ending:puppet_final_defeated")
+        self.puppet_evil_value = 55
+
+    def setup_test_gate_stage_curtain_power(self) -> None:
+        """测试用：将控制器与剧情状态设为「接管谢幕」结局门更容易就绪的前置（不挂载门，仅改状态）。
+        条件：回合 190、玩家 HP 800 / ATK 200、飞贼线已收束且关系较好、已拿钥匙；
+        木偶线已完结且为击败结局（非逃跑），邪恶值较高（>45）。
+
+        说明：该配置意在让玩家能在倒数窗口内触发银羽秘藏取回剧本，随后在 200 回合清空阻塞后，
+        有机会挂载「接管谢幕选择门」（要求：已取回剧本 + 已击败木偶 + 邪恶值 > 45）。"""
+        c = self.controller
+        c.round_count = 190
+        p = getattr(c, "player", None)
+        if p is not None:
+            p.hp = 800
+            p._atk = 200
+            if hasattr(c, "player_peak_hp"):
+                c.player_peak_hp = 800
+            if hasattr(c, "player_peak_atk"):
+                c.player_peak_atk = 200
+
+        self.elf_chain_ended = True
+        self.elf_relation = 4
+        self.elf_key_obtained = True
+        self.story_tags.add("elf_chain_ended")
+        self.story_tags.add("elf_key_obtained")
+        self.story_tags.discard("elf_outcome:hostile")
+        self.story_tags.discard("ending_hook:elf_hostile")
+        self.choice_flags.discard("elf_outcome_hostile")
+        self.choice_flags.add("elf_outcome_alliance")
+        self.story_tags.add("ending_hook:elf_alliance")
+
         self.story_tags.discard("puppet_arc_active")
         self.story_tags.discard("ending:puppet_final_escape_recorded")
         self.story_tags.add("ending:puppet_final_defeated")

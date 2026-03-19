@@ -200,6 +200,24 @@ def build_ending_roll_lines(controller) -> list:
         dynamic_summary = _build_stage_roll_summary(ending_key, choice_flags)
         if dynamic_summary:
             summary = dynamic_summary
+        # 追加舞台谢幕“尾声”文案（与 events.py 的结局描述保持一致口径）
+        try:
+            from models.events import _collect_stage_curtain_scores, _build_stage_epilogue_lines
+
+            score_payload = _collect_stage_curtain_scores(story) if story is not None else {}
+            route_key = (
+                "order"
+                if ending_key == "stage_curtain_order"
+                else "freedom"
+                if ending_key == "stage_curtain_freedom"
+                else "power"
+            )
+            extra_epilogue = "".join(_build_stage_epilogue_lines(route_key, score_payload))
+            if extra_epilogue:
+                summary = f"{(summary or '').strip()}{extra_epilogue}".strip()
+        except Exception:
+            # 滚动字幕应尽量稳健：尾声拼接失败时不影响结局展示
+            pass
     if summary:
         lines.append(summary)
     else:
