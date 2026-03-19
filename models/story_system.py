@@ -973,7 +973,7 @@ class StorySystem:
             return
         self.story_tags.add("ending:puppet_echo_final_done")
         self.controller.add_message("木偶的回声在最后一击中碎裂，那些复诵过的选择也随之散入走廊的暗处。")
-        self.controller.add_message("你没有银羽的钥匙，也没有终幕的剧本；门廊尽头，你要如何收束这场终幕？")
+        self.controller.add_message("你没有钥匙，也没有剧本；门廊尽头，你要如何收束这场终幕？")
         setattr(self.controller, "pending_post_battle_event_key", "ending_puppet_echo_aftermath_event")
 
     def _resolve_elf_rival_final_victory(self, monster: Any) -> None:

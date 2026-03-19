@@ -4289,7 +4289,7 @@ def _collect_stage_curtain_scores(story):
     if puppet_kind_rescued:
         order += 2
         risk = max(0, risk - 1)
-        notes.append("黑暗木偶善良人格被你救回，补全谢幕有了可归位的原主演。")
+        notes.append("黑暗木偶的人格被你救回，补全谢幕有了可归位的原主演。")
     elif puppet_chain_concluded:
         risk += 1
         notes.append("木偶终战虽已结束，但善良人格未能归位，补全谢幕存在缺角。")
@@ -4358,7 +4358,7 @@ def _resolve_stage_curtain_outcome(route_key, score_payload):
         if puppet_kind_rescued and stage_script_ready:
             scene_lines = [
                 "你把银羽旧钥匙与终幕剧本并排压在台沿，灯桥一盏盏依序点亮。",
-                "被救回的木偶善良人格照着原剧本演完最后一幕，随后一路跑上前台，和你一起向观众谢幕。",
+                "蓝眼睛的的木偶照着原剧本演完最后一幕，随后一路跑上前台，和你一起向观众谢幕。",
             ]
             ending_description = (
                 "你按证词与秩序补齐终幕结构。被你救回的木偶善良人格依照原剧本完成了最后一幕，"
@@ -4367,10 +4367,10 @@ def _resolve_stage_curtain_outcome(route_key, score_payload):
             curtain_speciale = "puppet_kind_script_curtain_call"
         elif puppet_kind_rescued:
             scene_lines = [
-                "你修补了主要场次与灯位，善良人格终于找回自己的台词与站位。",
+                "你修补了主要场次与灯位，木偶终于找回自己的台词与站位。",
                 "它在最后一声钟鸣后回到台口，和你完成了迟到的谢幕。",
             ]
-            ending_description = f"你按证词与秩序补齐终幕结构，木偶善良人格归位后与你一同完成谢幕。{suffix}"
+            ending_description = f"你按证词与秩序补齐终幕结构，木偶人格归位后与你一同完成谢幕。{suffix}"
             curtain_speciale = "puppet_kind_curtain_call"
         else:
             ending_description = (
@@ -4616,7 +4616,7 @@ class StageCurtainKindPuppetDialogueMidEvent(Event):
         atk_bonus = 2
         p.change_base_atk(atk_bonus)
         self.register_story_choice(choice_flag="ending_stage_gate_freedom", moral_delta=0)
-        self.add_message("你选择即兴收尾。善良人格轻声回应：那就把舞台交给你。")
+        self.add_message("你选择即兴收尾。木偶轻声回应：那就把舞台交给你。")
         self.add_message("它把一缕决意留在你掌心，你感到出手更有力。")
         self.add_message("约定已定，前方门廊将出现终幕之门——推开门即可完成谢幕。")
         story = getattr(self.controller, "story", None)
