@@ -79,7 +79,7 @@ class Shop:
                 closeness = 0.1
             else:
                 ratio = base_cost / target_cost
-                closeness = max(0.1, 3.0 - abs(math.log(ratio)))
+                closeness = max(0.1, 1.0 / max(0.1, abs(math.log(ratio))))
             try:
                 w = float(base_weight)
             except (TypeError, ValueError):
