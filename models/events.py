@@ -1434,7 +1434,7 @@ class TimePawnshopEvent(Event):
     def __init__(self, controller):
         super().__init__(controller)
         self.title = "时光当铺"
-        self.description = "后台的巷口出现一家只在黄昏开门的当铺，掌柜说：'我们收今天，押明天——这里没有白拿的东西。'"
+        self.description = "后台的巷口出现一家只在黄昏开门的当铺，掌柜说：'我们这可以抵押明天，赎回昨天——这里没有白拿的东西。'"
         self.choices = [
             EventChoice("抵押明天，立刻拿钱", self.pawn_tomorrow),
             EventChoice("赎回旧债，清掉利息", self.redeem_debt),
@@ -1518,7 +1518,7 @@ class TimePawnshopEvent(Event):
             min_heal = int((round_count / 3) * random.uniform(0.5, 1.0))
             heal_amt = max(heal_amt, min_heal)
             healed = p.heal(heal_amt)
-            self.add_message(f"你付了 {fee}G 利息，账本上你的名字被划掉，恢复了 {healed} 点生命。")
+            self.add_message(f"你付了 {fee}G 利息，账本上你的名字被划掉，老板给你一包糖果，恢复了 {healed} 点生命。")
         else:
             self.add_message("你想赎债，但钱不够。掌柜把账页翻到下一行，笑而不语。")
         return "Event Completed"
@@ -1539,8 +1539,8 @@ class TimePawnshopEvent(Event):
                         "force_hunter": True,
                         "hunter_name": "暗影刺客",
                         "consume_on_defeat": True,
-                        "message": "前情：你砸了时间当铺的沙漏。清算人沿着碎砂的痕迹追了上来。",
-                        "hunter_hint": "前情：你破坏了当铺契约。门后有清算人在等你。",
+                        "message": "前情：你砸了当铺的柜台。清算人沿着碎砂的痕迹追了上来。",
+                        "hunter_hint": "前情：你破坏了当铺的柜台。门后有清算人在等你。",
                     },
                 },
                 {
@@ -1550,7 +1550,7 @@ class TimePawnshopEvent(Event):
                     "trigger_door_types": ["REWARD"],
                     "payload": {
                         "fake_gold": 8,
-                        "message": "前情：你砸柜台后被全行记名。宝物门已被提前冻结，只剩手续找零。",
+                        "message": "前情：你砸了当铺的柜台后被录像记名。宝物门已被提前冻结，只剩手续找零。",
                     },
                 },
             ],
@@ -1560,7 +1560,7 @@ class TimePawnshopEvent(Event):
         min_gold = int((round_count / 3) * random.uniform(0.5, 1.0))
         loot = max(loot, min_gold)
         p.gold += loot
-        self.add_message(f"你踢碎沙漏柜台抢出 {loot}G。墙上的钟同时停了一秒。")
+        self.add_message(f"你砸烂柜台后抢出 {loot}G。墙上的钟同时停了五秒。")
         return "Event Completed"
 
 
@@ -3443,9 +3443,10 @@ class ElfThiefIntroEvent(Event):
         super().__init__(controller)
         self.title = "银羽飞贼"
         self.description = (
-            f"你推开事件门，门后不是寻常的奇遇或考验，而是一条烛火摇曳的暗巷。"
-            f"一名精灵飞贼背靠砖墙，指尖转着匕首，抬眼打量你，自称{ELF_THIEF_NAME}。"
-            f"她笑了笑：'要不要做个长期交易？'"
+            f"你推开门，门后是一条烛火摇曳的暗巷。"
+            f"一名精灵背靠砖墙，指尖转着匕首，抬眼打量你。"
+            f"她笑了笑：'我叫{ELF_THIEF_NAME}，这个地方到处都是财宝，但也到处都是机关和怪物。'"
+            f"'但我以后可以教你两手，想学的话就拿点学费来？'"
         )
         self.choices = [
             EventChoice("递上口粮，表示愿意合作", self.offer_food),
@@ -3469,7 +3470,7 @@ class ElfThiefIntroEvent(Event):
         lost = min(p.gold, cost)
         p.gold = max(0, p.gold - lost)
         _adjust_elf_relation(self.controller, 2)
-        self.add_message(f"{ELF_THIEF_NAME}毫不客气地抢走干粮与盘缠，你少了 {lost} 金币；她抛来一枚银羽徽记：'别死太早。'")
+        self.add_message(f"{ELF_THIEF_NAME}毫不客气地拿走干粮与盘缠，你少了 {lost} 金币；她抛来一枚银羽徽记：'这是我的标志，别死太早。'")
         self._start_chain()
         return "Event Completed"
 
@@ -3499,6 +3500,7 @@ class ElfShadowMarkEvent(Event):
         self.description = (
             "你正要选一扇事件门时，发现门框背面有熟悉的银羽刻痕——那是她的记号，下面有一行小字：「今晚不偷你，聊聊」。"
             "你推开门，她果然在门后的阴影里等着，没动你身上的东西，只冲你抬了抬下巴。"
+            f"{ELF_THIEF_NAME}:目'前对这个地方怎么看？'"
         )
         self.choices = [
             EventChoice("和她深入交换目前所知情报", self.share_info),
