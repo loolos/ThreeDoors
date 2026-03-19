@@ -176,12 +176,12 @@ function initStartScreen() {
   });
 }
 
-// Map logic for result emoji
-function getResultEmoji(sceneInfo) {
+// Map logic for result emoji (state optional: 用于 GAME_OVER 时区分通关/失败)
+function getResultEmoji(sceneInfo, state) {
   if (sceneInfo.type === 'BATTLE') return getMonsterEmoji(sceneInfo.monster_name);
   if (sceneInfo.type === 'SHOP') return "🛒";
   if (sceneInfo.type === 'EVENT') return "❔";
-  if (sceneInfo.type === 'GAME_OVER') return "💀";
+  if (sceneInfo.type === 'GAME_OVER') return (state && state.game_clear) ? "🏆" : "💀";
   return "✨";
 }
 
@@ -229,7 +229,7 @@ async function handleDoorClick(index, card) {
     } else if (actionData.outcome === "EVENT") {
       revealEmoji = "❔";
     } else {
-      revealEmoji = getResultEmoji(newState.scene_info);
+      revealEmoji = getResultEmoji(newState.scene_info, newState);
     }
     backFace.textContent = revealEmoji;
     targetCard.classList.add('flipped');
@@ -519,9 +519,15 @@ function renderState(state) {
         }
         break;
       case "GAME_OVER":
-        emoji = "💀";
-        emojiMarkup = "";
-        desc = "胜败乃兵家常事...";
+        if (state.game_clear) {
+          emoji = "🏆";
+          emojiMarkup = "";
+          desc = "结局达成";
+        } else {
+          emoji = "💀";
+          emojiMarkup = "";
+          desc = "胜败乃兵家常事...";
+        }
         break;
       case "USE_ITEM":
         emoji = "🎒";

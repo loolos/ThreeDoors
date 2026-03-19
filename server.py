@@ -318,7 +318,9 @@ def get_state():
             }
         if scn and scn.enum and scn.enum.name == "ENDING_ROLL":
             state["ending_roll_lines"] = build_ending_roll_lines(g)
-        
+        if scn and scn.enum and scn.enum.name == "GAME_OVER":
+            state["game_clear"] = bool(getattr(g, "game_clear_info", None))
+
         # 修改消息处理逻辑
         if g.messages:
             state["last_message"] = "\n".join(g.messages)

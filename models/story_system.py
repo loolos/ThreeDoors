@@ -1173,7 +1173,7 @@ class StorySystem:
         if callable(trigger_clear):
             trigger_clear(
                 ending_key="default_normal",
-                ending_title="普通结局·迷宫出口",
+                ending_title="结局:迷宫出口",
                 ending_description="你在回合二百的终局门廊做出选择，击倒“选择困难症候群”后终于离开了迷宫。",
                 ending_meta=self._build_final_ending_meta(),
             )

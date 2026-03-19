@@ -3,6 +3,7 @@
 from models.items import ItemType
 from models import items
 from models.game_config import GameConfig
+import math
 import random
 
 
@@ -62,7 +63,7 @@ class Shop:
             (items.GiantScroll, {"name": "巨大卷轴", "duration": 3, "cost": 35, "shop_category": "battle"}, 5),
         ]
         # 根据玩家资金水平计算目标价位：有钱时偏向高价，没钱时偏向低价
-        target_cost = max(5, min(75, int(self.player.gold * 0.5)))
+        target_cost = max(5, min(200, int(self.player.gold * 0.5)))
         def _get_base_cost(entry) -> int:
             _, params, _ = entry
             try:
@@ -74,7 +75,11 @@ class Shop:
             """综合“目标价位靠近程度”与“池内权重”。"""
             _, params, base_weight = entry
             base_cost = _get_base_cost(entry)
-            closeness = 1.0 / (1.0 + abs(base_cost - target_cost))
+            if base_cost <= 0 or target_cost <= 0:
+                closeness = 0.1
+            else:
+                ratio = base_cost / target_cost
+                closeness = max(0.1, 3.0 - abs(math.log(ratio)))
             try:
                 w = float(base_weight)
             except (TypeError, ValueError):
