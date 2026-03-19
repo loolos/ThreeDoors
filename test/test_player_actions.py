@@ -38,31 +38,31 @@ class TestPlayerActions(unittest.TestCase):
         self.controller.player_peak_hp = 220
         potion = items.HealingPotion("治疗药水", heal_amount=10, cost=5)
 
+        # 当前算法：触发后额外治疗量为 floor(base_cap * base_heal * U(0.2, 1.0))
+        # 本项目 START_PLAYER_HP=20，所以 hp_growth=220-20=200 -> base_cap=2。
+        # 固定 U=0.7，使额外治疗为 14（base_cap=2, base_heal=10）
         with mock.patch("models.items.random.random", return_value=0.0), \
-             mock.patch("models.items.random.randint", return_value=7):
+             mock.patch("models.items.random.uniform", return_value=0.7):
             potion.effect(player=self.player)
 
-        self.assertEqual(self.player.hp, 57)
-        self.assertIn("恢复 17 HP!", self.controller.messages[-1])
+        self.assertEqual(self.player.hp, 64)
+        self.assertIn("恢复 24 HP!", self.controller.messages[-1])
         self.assertIn("生命底蕴", self.controller.messages[-1])
 
     def test_healing_potion_bonus_cap_scales_with_base_heal(self):
         """生命底蕴的 bonus_cap 与 heal_amount 正相关（在相同 peak_hp 与回合条件下）。"""
         self.controller.round_count = 55
-        self.controller.player_peak_hp = 220  # hp_growth = 200 -> base_cap = 20
+        self.controller.player_peak_hp = 220  # START_PLAYER_HP=20 -> hp_growth = 200 -> base_cap = 2
         # 只测试 _get_late_game_bonus_heal 的上限计算，不依赖玩家治疗上限等逻辑
         small = items.HealingPotion("小药水", heal_amount=5, cost=5)
         big = items.HealingPotion("大药水", heal_amount=15, cost=5)
 
+        # 固定 uniform=1.0，让 bonus_cap 与 base_heal 呈线性关系，便于断言
         with mock.patch("models.items.random.random", return_value=0.0), \
-             mock.patch("models.items.random.randint", return_value=1) as mocked_randint:
-            small._get_late_game_bonus_heal(self.player)
-            big._get_late_game_bonus_heal(self.player)
+             mock.patch("models.items.random.uniform", return_value=1.0):
+            small_cap = small._get_late_game_bonus_heal(self.player)
+            big_cap = big._get_late_game_bonus_heal(self.player)
 
-        # randint(1, bonus_cap) 的 bonus_cap 应随 heal_amount 变大而不减小
-        self.assertGreaterEqual(len(mocked_randint.call_args_list), 2)
-        small_cap = mocked_randint.call_args_list[0].args[1]
-        big_cap = mocked_randint.call_args_list[1].args[1]
         self.assertGreater(big_cap, small_cap)
 
 

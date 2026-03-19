@@ -385,6 +385,9 @@ class StrangerEvent(Event):
         # 60% Success, 40% Fail
         if random.random() < 0.6:
             gold = self.scale_value(random.randint(5, 20), positive=True)
+            round_count = max(0, int(getattr(self.controller, "round_count", 0)))
+            min_gold = int((round_count / 3) * random.uniform(0.5, 1.0))
+            gold = max(gold, min_gold)
             p.gold += gold
             self.add_message(f"你抢走了陌生人仅剩的 {gold} 金币。你的良心受到了一点谴责。")
         else:
@@ -492,6 +495,8 @@ class SmugglerEvent(Event):
         return "Event Completed"
 
     def report_smuggler(self):
+        round_count = max(0, int(getattr(self.controller, "round_count", 0)))
+        min_gold = int((round_count / 3) * random.uniform(0.5, 1.0))
         self.register_story_choice(
             choice_flag="smuggler_reported",
             moral_delta=6,
@@ -503,7 +508,7 @@ class SmugglerEvent(Event):
                     "priority": 7,
                     "trigger_door_types": ["SHOP", "EVENT", "REWARD"],
                     "payload": {
-                        "gold": random.randint(25, 55),
+                        "gold": max(random.randint(25, 55), min_gold),
                         "message": [
                             "因你之前举报了走私犯，巡逻队长把一袋赏金塞给你，还嘱咐你下次别单独逞强。",
                             "因你之前举报了走私犯，卫兵把查扣赃款按功劳分了你一份。",
@@ -543,6 +548,9 @@ class SmugglerEvent(Event):
         )
         if random.random() < 0.5:
             reward = random.randint(30, 60)
+            round_count = max(0, int(getattr(self.controller, "round_count", 0)))
+            min_gold = int((round_count / 3) * random.uniform(0.5, 1.0))
+            reward = max(reward, min_gold)
             self.get_player().gold += reward
             self.add_message(f"卫兵抓住了走私犯，并奖励你 {reward} 金币！")
         else:
@@ -607,7 +615,11 @@ class AncientShrineEvent(Event):
         )
         # 70% Heal, 30% Curse
         if random.random() < 0.7:
-            healed = p.heal(self.scale_value(50, positive=True, aggressive=True))
+            heal_amt = self.scale_value(50, positive=True, aggressive=True)
+            round_count = max(0, int(getattr(self.controller, "round_count", 0)))
+            min_heal = int((round_count / 3) * random.uniform(0.5, 1.0))
+            heal_amt = max(heal_amt, min_heal)
+            healed = p.heal(heal_amt)
             self.add_message(f"一道温暖的光芒笼罩着你，你的伤势恢复了 {healed} 点！")
         else:
             duration = 3
@@ -617,6 +629,8 @@ class AncientShrineEvent(Event):
 
     def desecrate(self):
         p = self.get_player()
+        round_count = max(0, int(getattr(self.controller, "round_count", 0)))
+        min_gold = int((round_count / 3) * random.uniform(0.5, 1.0))
         self.register_story_choice(
             choice_flag="shrine_desecrated",
             moral_delta=-9,
@@ -635,7 +649,7 @@ class AncientShrineEvent(Event):
                     "chance": 0.26,
                     "priority": 5,
                     "trigger_door_types": ["REWARD", "SHOP"],
-                    "payload": {"gold": random.randint(20, 40), "message": "你记住了祭坛藏宝手法，顺手又捞到一笔。"},
+                    "payload": {"gold": max(random.randint(20, 40), min_gold), "message": "你记住了祭坛藏宝手法，顺手又捞到一笔。"},
                 },
             ],
         )
@@ -695,6 +709,8 @@ class GamblerEvent(Event):
 
     def high_stakes(self):
         p = self.get_player()
+        round_count = max(0, int(getattr(self.controller, "round_count", 0)))
+        min_gold = int((round_count / 3) * random.uniform(0.5, 1.0))
         self.register_story_choice(
             choice_flag="gambler_high_stakes",
             moral_delta=-2,
@@ -714,7 +730,7 @@ class GamblerEvent(Event):
                     "chance": 0.28,
                     "priority": 6,
                     "trigger_door_types": ["REWARD", "SHOP"],
-                    "payload": {"gold": random.randint(25, 55), "message": "因你之前在赌局上手气正旺，后续交易也有额外进账。"},
+                    "payload": {"gold": max(random.randint(25, 55), min_gold), "message": "因你之前在赌局上手气正旺，后续交易也有额外进账。"},
                 },
             ],
         )
@@ -726,6 +742,9 @@ class GamblerEvent(Event):
         p.gold -= bet
         if random.random() < 0.4: # 40% win rate
             win = self.scale_value(bet * 3, positive=True, aggressive=True)
+            round_count = max(0, int(getattr(self.controller, "round_count", 0)))
+            min_gold = int((round_count / 3) * random.uniform(0.5, 1.0))
+            win = max(win, min_gold)
             p.gold += win
             self.add_message(f"你运气爆棚！赢了 {win} 金币！")
         else:
@@ -762,6 +781,9 @@ class GamblerEvent(Event):
         p.gold -= bet
         if random.random() < 0.5: # 50% win rate
             win = self.scale_value(bet * 2, positive=True)
+            round_count = max(0, int(getattr(self.controller, "round_count", 0)))
+            min_gold = int((round_count / 3) * random.uniform(0.5, 1.0))
+            win = max(win, min_gold)
             p.gold += win
             self.add_message(f"不错，赢了 {win} 金币。")
         else:
@@ -867,16 +889,25 @@ class LostChildEvent(Event):
             self.add_message(f"送回家的路上遭遇了野兽袭击，你为了保护孩子受了伤 ({dmg}点伤害)，但最终把她安全送达。")
             # Reward
             reward = self.scale_value(100, positive=True, aggressive=True)
+            round_count = max(0, int(getattr(self.controller, "round_count", 0)))
+            min_gold = int((round_count / 3) * random.uniform(0.5, 1.0))
+            reward = max(reward, min_gold)
             self.get_player().gold += reward
             self.add_message(f"孩子的父母感激涕零，给了你 {reward} 金币作为谢礼！")
         else:
             reward = self.scale_value(50, positive=True)
+            round_count = max(0, int(getattr(self.controller, "round_count", 0)))
+            min_gold = int((round_count / 3) * random.uniform(0.5, 1.0))
+            reward = max(reward, min_gold)
             self.get_player().gold += reward
             self.add_message(f"你顺利把孩子送回了家。她父母给了你 {reward} 金币。")
         return "Event Completed"
 
     def give_gold(self):
         p = self.get_player()
+        round_count = max(0, int(getattr(self.controller, "round_count", 0)))
+        min_gold = int((round_count / 3) * random.uniform(0.5, 1.0))
+        min_heal = int((round_count / 3) * random.uniform(0.5, 1.0))
         self.register_story_choice(
             choice_flag="lost_child_gave_gold",
             moral_delta=6,
@@ -886,7 +917,7 @@ class LostChildEvent(Event):
                     "effect_key": "guard_reward",
                     "chance": 0.3,
                     "trigger_door_types": ["EVENT", "SHOP"],
-                    "payload": {"gold": random.randint(15, 35), "heal": 5, "message": "因你之前资助了迷路的孩子，这事被传开后，路人对你伸出了援手。"},
+                    "payload": {"gold": max(random.randint(15, 35), min_gold), "heal": max(5, min_heal), "message": "因你之前资助了迷路的孩子，这事被传开后，路人对你伸出了援手。"},
                 },
                 {
                     "consequence_id": "lost_child_give_pickpocket",
@@ -902,7 +933,11 @@ class LostChildEvent(Event):
             p.gold -= donation
             self.add_message(f"你给了小女孩{donation}金币让她自己打车回家（虽然森林里没有出租车）。")
             # Karma reward (small heal)
-            healed = p.heal(self.scale_value(10, positive=True))
+            heal_amt = self.scale_value(10, positive=True)
+            round_count = max(0, int(getattr(self.controller, "round_count", 0)))
+            min_heal = int((round_count / 3) * random.uniform(0.5, 1.0))
+            heal_amt = max(heal_amt, min_heal)
+            healed = p.heal(heal_amt)
             self.add_message(f"做善事让你心情愉悦，恢复了 {healed} HP。")
         else:
             self.add_message("你想帮忙但没钱，只能尴尬地安慰了几句。")
@@ -977,6 +1012,9 @@ class CursedChestEvent(Event):
             item = create_random_item()
             item.acquire(player=p)
             gold = self.scale_value(100, positive=True, aggressive=True)
+            round_count = max(0, int(getattr(self.controller, "round_count", 0)))
+            min_gold = int((round_count / 3) * random.uniform(0.5, 1.0))
+            gold = max(gold, min_gold)
             p.gold += gold
             self.add_message(f"你忍受着诅咒的侵蚀打开了箱子，获得了 {item.name} 和 {gold} 金币！")
         return "Event Completed"
@@ -1005,6 +1043,9 @@ class CursedChestEvent(Event):
         # Assume successful purify for now, or random
         if random.random() < 0.5:
             gold = 50
+            round_count = max(0, int(getattr(self.controller, "round_count", 0)))
+            min_gold = int((round_count / 3) * random.uniform(0.5, 1.0))
+            gold = max(gold, min_gold)
             self.get_player().gold += gold
             self.add_message(f"你成功净化了诅咒，箱子里只剩下一些普通的财宝 ({gold}G)。")
         else:
@@ -1070,6 +1111,8 @@ class WiseSageEvent(Event):
 
     def wealth(self):
         p = self.get_player()
+        round_count = max(0, int(getattr(self.controller, "round_count", 0)))
+        min_gold = int((round_count / 3) * random.uniform(0.5, 1.0))
         self.register_story_choice(
             choice_flag="sage_wealth_choice",
             moral_delta=-3,
@@ -1079,7 +1122,7 @@ class WiseSageEvent(Event):
                     "effect_key": "guard_reward",
                     "chance": 0.28,
                     "trigger_door_types": ["SHOP", "REWARD", "EVENT"],
-                    "payload": {"gold": random.randint(30, 70), "message": "因你在老者处选了财富，嗅到机会后顺手又赚了一笔。"},
+                    "payload": {"gold": max(random.randint(30, 70), min_gold), "message": "因你在老者处选了财富，嗅到机会后顺手又赚了一笔。"},
                 },
                 {
                     "consequence_id": "sage_wealth_fine",
@@ -1092,6 +1135,9 @@ class WiseSageEvent(Event):
         )
         if random.random() < 0.7:
             gold = self.scale_value(200, positive=True, aggressive=True)
+            round_count = max(0, int(getattr(self.controller, "round_count", 0)))
+            min_gold = int((round_count / 3) * random.uniform(0.5, 1.0))
+            gold = max(gold, min_gold)
             p.gold += gold
             self.add_message(f"老者叹了口气：'身外之物。' 他丢给你 {gold} 金币后消失了。")
         else:
@@ -1102,6 +1148,9 @@ class WiseSageEvent(Event):
 
     def health(self):
         p = self.get_player()
+        round_count = max(0, int(getattr(self.controller, "round_count", 0)))
+        min_gold = int((round_count / 3) * random.uniform(0.5, 1.0))
+        min_heal = int((round_count / 3) * random.uniform(0.5, 1.0))
         self.register_story_choice(
             choice_flag="sage_health_choice",
             moral_delta=4,
@@ -1111,7 +1160,7 @@ class WiseSageEvent(Event):
                     "effect_key": "guard_reward",
                     "chance": 0.27,
                     "trigger_door_types": ["EVENT", "SHOP"],
-                    "payload": {"gold": random.randint(10, 30), "heal": 8, "message": "因你在老者处选了生存，重视生存的态度感染了路人，获得援助。"},
+                    "payload": {"gold": max(random.randint(10, 30), min_gold), "heal": max(8, min_heal), "message": "因你在老者处选了生存，重视生存的态度感染了路人，获得援助。"},
                 },
                 {
                     "consequence_id": "sage_health_dependency",
@@ -1123,7 +1172,11 @@ class WiseSageEvent(Event):
             ],
         )
         if random.random() < 0.7:
-            healed = p.heal(self.scale_value(50, positive=True, aggressive=True))
+            heal_amt = self.scale_value(50, positive=True, aggressive=True)
+            round_count = max(0, int(getattr(self.controller, "round_count", 0)))
+            min_heal = int((round_count / 3) * random.uniform(0.5, 1.0))
+            heal_amt = max(heal_amt, min_heal)
+            healed = p.heal(heal_amt)
             self.add_message(f"老者微笑道：'活着就有希望。' 你的生命值恢复了 {healed} 点。")
         else:
             duration = 3
@@ -1238,6 +1291,9 @@ class RefugeeCaravanEvent(Event):
             ],
         )
         gain = random.randint(20, 45)
+        round_count = max(0, int(getattr(self.controller, "round_count", 0)))
+        min_gold = int((round_count / 3) * random.uniform(0.5, 1.0))
+        gain = max(gain, min_gold)
         p.gold += gain
         self.add_message(f"你恐吓了车队，抢到 {gain} 金币。")
         return "Event Completed"
@@ -1271,6 +1327,9 @@ class FallenKnightEvent(Event):
         ]
 
     def aid_knight(self):
+        round_count = max(0, int(getattr(self.controller, "round_count", 0)))
+        min_gold = int((round_count / 3) * random.uniform(0.5, 1.0))
+        min_heal = int((round_count / 3) * random.uniform(0.5, 1.0))
         self.register_story_choice(
             choice_flag="knight_aided",
             moral_delta=8,
@@ -1280,7 +1339,7 @@ class FallenKnightEvent(Event):
                     "effect_key": "guard_reward",
                     "chance": 0.36,
                     "trigger_door_types": ["EVENT", "SHOP", "REWARD"],
-                    "payload": {"gold": random.randint(20, 50), "heal": 10, "message": "因你之前救治了骑士，王国巡逻队认出你的善举，给予补给。"},
+                    "payload": {"gold": max(random.randint(20, 50), min_gold), "heal": max(10, min_heal), "message": "因你之前救治了骑士，王国巡逻队认出你的善举，给予补给。"},
                 },
                 {
                     "consequence_id": "knight_aid_traitor_revenge",
@@ -1296,7 +1355,11 @@ class FallenKnightEvent(Event):
                 },
             ],
         )
-        healed = self.get_player().heal(15)
+        heal_amt = 15
+        round_count = max(0, int(getattr(self.controller, "round_count", 0)))
+        min_heal = int((round_count / 3) * random.uniform(0.5, 1.0))
+        heal_amt = max(heal_amt, min_heal)
+        healed = self.get_player().heal(heal_amt)
         self.add_message(f"你为骑士包扎，自己也振作起来，恢复了 {healed} 生命。")
         return "Event Completed"
 
@@ -1342,6 +1405,9 @@ class FallenKnightEvent(Event):
             ],
         )
         gain = random.randint(25, 55)
+        round_count = max(0, int(getattr(self.controller, "round_count", 0)))
+        min_gold = int((round_count / 3) * random.uniform(0.5, 1.0))
+        gain = max(gain, min_gold)
         p.gold += gain
         self.add_message(f"你扒下骑士身上的值钱物件，获得 {gain} 金币。")
         return "Event Completed"
@@ -1377,6 +1443,8 @@ class TimePawnshopEvent(Event):
 
     def pawn_tomorrow(self):
         p = self.get_player()
+        round_count = max(0, int(getattr(self.controller, "round_count", 0)))
+        min_gold = int((round_count / 3) * random.uniform(0.5, 1.0))
         self.register_story_choice(
             choice_flag="time_pawned_future",
             moral_delta=-3,
@@ -1388,7 +1456,7 @@ class TimePawnshopEvent(Event):
                     "priority": 9,
                     "trigger_door_types": ["EVENT", "SHOP"],
                     "payload": {
-                        "gold": 30,
+                        "gold": max(30, min_gold),
                         "message": "前情：你把明天的份额押给了时间当铺。掌柜按约给了你一袋现钱。",
                         "chain_followups": [
                             {
@@ -1407,6 +1475,9 @@ class TimePawnshopEvent(Event):
             ],
         )
         gain = 28
+        round_count = max(0, int(getattr(self.controller, "round_count", 0)))
+        min_gold = int((round_count / 3) * random.uniform(0.5, 1.0))
+        gain = max(gain, min_gold)
         p.gold += gain
         self.add_message(f"你在契约上按下手印，先拿到 {gain}G。掌柜提醒你：'到期我们自己来取。'")
         return "Event Completed"
@@ -1442,7 +1513,11 @@ class TimePawnshopEvent(Event):
         fee = 20
         if p.gold >= fee:
             p.gold -= fee
-            healed = p.heal(10)
+            heal_amt = 10
+            round_count = max(0, int(getattr(self.controller, "round_count", 0)))
+            min_heal = int((round_count / 3) * random.uniform(0.5, 1.0))
+            heal_amt = max(heal_amt, min_heal)
+            healed = p.heal(heal_amt)
             self.add_message(f"你付了 {fee}G 利息，账本上你的名字被划掉，恢复了 {healed} 点生命。")
         else:
             self.add_message("你想赎债，但钱不够。掌柜把账页翻到下一行，笑而不语。")
@@ -1481,6 +1556,9 @@ class TimePawnshopEvent(Event):
             ],
         )
         loot = random.randint(18, 35)
+        round_count = max(0, int(getattr(self.controller, "round_count", 0)))
+        min_gold = int((round_count / 3) * random.uniform(0.5, 1.0))
+        loot = max(loot, min_gold)
         p.gold += loot
         self.add_message(f"你踢碎沙漏柜台抢出 {loot}G。墙上的钟同时停了一秒。")
         return "Event Completed"
@@ -1511,6 +1589,9 @@ class MirrorTheaterEvent(Event):
 
     def play_hero(self):
         p = self.get_player()
+        round_count = max(0, int(getattr(self.controller, "round_count", 0)))
+        min_gold = int((round_count / 3) * random.uniform(0.5, 1.0))
+        min_heal = int((round_count / 3) * random.uniform(0.5, 1.0))
         self.register_story_choice(
             choice_flag="mirror_played_hero",
             moral_delta=6,
@@ -1521,8 +1602,8 @@ class MirrorTheaterEvent(Event):
                     "chance": 0.34,
                     "trigger_door_types": ["EVENT", "SHOP"],
                     "payload": {
-                        "gold": random.randint(18, 36),
-                        "heal": 8,
+                        "gold": max(random.randint(18, 36), min_gold),
+                        "heal": max(8, min_heal),
                         "message": "前情：你在镜剧场把英雄演到了谢幕。你的名声先一步传开，路上有人愿意补给并提醒风险。",
                     },
                 },
@@ -1537,7 +1618,11 @@ class MirrorTheaterEvent(Event):
                 },
             ],
         )
-        healed = p.heal(12)
+        heal_amt = 12
+        round_count = max(0, int(getattr(self.controller, "round_count", 0)))
+        min_heal = int((round_count / 3) * random.uniform(0.5, 1.0))
+        heal_amt = max(heal_amt, min_heal)
+        healed = p.heal(heal_amt)
         self.add_message(f"谢幕时空席间竟有掌声回荡。你摘下面具后像卸下一层重负，恢复了 {healed} 点生命。")
         return "Event Completed"
 
@@ -1571,6 +1656,9 @@ class MirrorTheaterEvent(Event):
             ],
         )
         gain = random.randint(22, 42)
+        round_count = max(0, int(getattr(self.controller, "round_count", 0)))
+        min_gold = int((round_count / 3) * random.uniform(0.5, 1.0))
+        gain = max(gain, min_gold)
         p.gold += gain
         self.add_message(f"导演把反派分成塞进你手里，你拿到 {gain}G。退场时你注意到观众席有人在素描本上勾勒你的脸。")
         return "Event Completed"
@@ -1694,9 +1782,13 @@ class MoonBountyEvent(Event):
             ),
         )
         p = self.get_player()
-        p.gold += 48
+        gain = 48
+        round_count = max(0, int(getattr(self.controller, "round_count", 0)))
+        min_gold = int((round_count / 3) * random.uniform(0.5, 1.0))
+        gain = max(gain, min_gold)
+        p.gold += gain
         p.take_damage(26)
-        self.add_message("你把真假线索分别卖给两边，先赚到 48G；但双方都在试探你，你在撤离时受了 26 点伤害。")
+        self.add_message(f"你把真假线索分别卖给两边，先赚到 {gain}G；但双方都在试探你，你在撤离时受了 26 点伤害。")
         return "Event Completed"
 
     def _build_moon_chain(self, route, battle_mode, chain_message, chain_hint, verdict_hint):
@@ -1782,6 +1874,9 @@ class MoonVerdictEvent(Event):
 
     def file_clean(self):
         self._add_diary_court_remark()
+        round_count = max(0, int(getattr(self.controller, "round_count", 0)))
+        min_gold = int((round_count / 3) * random.uniform(0.5, 1.0))
+        min_heal = int((round_count / 3) * random.uniform(0.5, 1.0))
         self.register_story_choice(
             choice_flag="moon_verdict_clean",
             moral_delta=4,
@@ -1802,8 +1897,8 @@ class MoonVerdictEvent(Event):
                                 "chance": 1.0,
                                 "trigger_door_types": ["EVENT", "SHOP"],
                                 "payload": {
-                                    "gold": 25,
-                                    "heal": 12,
+                                    "gold": max(25, min_gold),
+                                    "heal": max(12, min_heal),
                                     "message": "前情：你选择了规范结案并留档。审判庭没有再追责，甚至给了你一笔办案补贴。",
                                 },
                             }
@@ -1813,9 +1908,15 @@ class MoonVerdictEvent(Event):
             ],
         )
         p = self.get_player()
-        p.gold += 12
-        healed = p.heal(6)
-        self.add_message(f"你签了字。书记官把印泥按在卷轴边缘，先发了 12G 办案费，你也恢复了 {healed} 点生命。")
+        gain = 12
+        min_gold = int((round_count / 3) * random.uniform(0.5, 1.0))
+        gain = max(gain, min_gold)
+        p.gold += gain
+        heal_amt = 6
+        min_heal = int((round_count / 3) * random.uniform(0.5, 1.0))
+        heal_amt = max(heal_amt, min_heal)
+        healed = p.heal(heal_amt)
+        self.add_message(f"你签了字。书记官把印泥按在卷轴边缘，先发了 {gain}G 办案费，你也恢复了 {healed} 点生命。")
         return "Event Completed"
 
     def burn_records(self):
@@ -1963,9 +2064,13 @@ class ClockworkBazaarEvent(Event):
             ),
         )
         p = self.get_player()
-        p.gold += 20
+        gain = 20
+        round_count = max(0, int(getattr(self.controller, "round_count", 0)))
+        min_gold = int((round_count / 3) * random.uniform(0.5, 1.0))
+        gain = max(gain, min_gold)
+        p.gold += gain
         p.take_damage(8)
-        self.add_message("你踢翻竞品摊位后抢走 20G 材料费，但飞溅齿片反弹划开护甲，让你受到 8 点伤害。")
+        self.add_message(f"你踢翻竞品摊位后抢走 {gain}G 材料费，但飞溅齿片反弹划开护甲，让你受到 8 点伤害。")
         return "Event Completed"
 
     def _build_clockwork_chain(self, route, shop_effect, ratio, hunter_name, shop_message):
@@ -2304,9 +2409,13 @@ class DreamWellEvent(Event):
             ),
         )
         p = self.get_player()
-        p.gold += 26
+        gain = 26
+        round_count = max(0, int(getattr(self.controller, "round_count", 0)))
+        min_gold = int((round_count / 3) * random.uniform(0.5, 1.0))
+        gain = max(gain, min_gold)
+        p.gold += gain
         p.take_damage(6)
-        self.add_message("你把一段关于胜利的梦境回放打包卖出，立刻拿到 26G；但精神像被抽走一层，受到 6 点伤害。")
+        self.add_message(f"你把一段关于胜利的梦境回放打包卖出，立刻拿到 {gain}G；但精神像被抽走一层，受到 6 点伤害。")
         return "Event Completed"
 
     def _build_dream_chain(self, route, shop_effect, ratio, hunter_name, shop_message):
@@ -2438,6 +2547,9 @@ class EchoCourtEvent(Event):
         ]
 
     def redeem_dream(self):
+        round_count = max(0, int(getattr(self.controller, "round_count", 0)))
+        min_gold = int((round_count / 3) * random.uniform(0.5, 1.0))
+        min_heal = int((round_count / 3) * random.uniform(0.5, 1.0))
         self.register_story_choice(
             choice_flag="echo_court_redeemed",
             moral_delta=5,
@@ -2458,8 +2570,8 @@ class EchoCourtEvent(Event):
                                 "chance": 1.0,
                                 "trigger_door_types": ["EVENT", "SHOP"],
                                 "payload": {
-                                    "gold": 18,
-                                    "heal": 10,
+                                    "gold": max(18, min_gold),
+                                    "heal": max(10, min_heal),
                                     "message": "前情：你已在法庭完成赎回并接受补救。法庭认定你有修复意愿，后续旅途获得额外补给。",
                                 },
                             }
@@ -2468,7 +2580,10 @@ class EchoCourtEvent(Event):
                 }
             ],
         )
-        healed = self.get_player().heal(10)
+        heal_amt = 10
+        min_heal = int((round_count / 3) * random.uniform(0.5, 1.0))
+        heal_amt = max(heal_amt, min_heal)
+        healed = self.get_player().heal(heal_amt)
         self.add_message(f"你把梦境回放赎了回来，耳边的回放低语终于安静了一瞬，恢复了 {healed} 点生命。")
         return "Event Completed"
 
@@ -2541,9 +2656,13 @@ class EchoCourtEvent(Event):
             ],
         )
         p = self.get_player()
-        p.gold += 20
+        gain = 20
+        round_count = max(0, int(getattr(self.controller, "round_count", 0)))
+        min_gold = int((round_count / 3) * random.uniform(0.5, 1.0))
+        gain = max(gain, min_gold)
+        p.gold += gain
         p.take_damage(8)
-        self.add_message("你选择继续把梦境回放当货币流通，当场多赚 20G；但回声反噬同步加深，让你受了 8 点伤害。")
+        self.add_message(f"你选择继续把梦境回放当货币流通，当场多赚 {gain}G；但回声反噬同步加深，让你受了 8 点伤害。")
         return "Event Completed"
 
 

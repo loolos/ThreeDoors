@@ -100,7 +100,17 @@ class HealingPotion(ConsumableItem):
                 player.controller.add_message(f"恢复 {recovered} HP!")
 
     def _get_late_game_bonus_heal(self, player: "Player") -> int:
-        """40 回合后，历史最高生命越高，治疗药水越可能额外恢复生命。"""
+        """
+        40 回合后，治疗药水有概率触发「生命底蕴」额外治疗。
+
+        触发与强度规则（以当前实现为准）：
+        - 仅当回合数 > 40 且历史峰值生命（peak_hp）高于初始生命时才可能触发；
+        - 触发概率：min(0.9, 0.25 + (round_count - 40) * 0.01)
+        - 额外治疗量（触发后一次性加成）：
+          base_cap = floor(hp_growth / 100)
+          bonus_cap = max(1, floor(base_cap * base_heal * U(0.2, 1.0)))
+          其中 base_heal = 本药水的 heal_amount，U 为均匀随机数（每次调用重算）。
+        """
         controller = getattr(player, "controller", None)
         round_count = max(0, int(getattr(controller, "round_count", 0)))
         if round_count <= 40:
@@ -111,32 +121,19 @@ class HealingPotion(ConsumableItem):
         if hp_growth <= 0:
             return 0
 
-        # 生命底蕴：历史血量越高，可触发的额外恢复上限越高；
-        # 同时与药水基础治疗量正相关（大药水更“吃”生命底蕴）。
-        #
-        # 设：
-        # - peak_hp = max(player_peak_hp, current_hp)
-        # - hp_growth = max(0, peak_hp - START_PLAYER_HP)
-        # - base_cap = floor(hp_growth / 10)
-        # - base_heal = heal_amount
-        #
-        # 则：
-        # - heal_scale = 1.0                                      (base_heal <= 0)
-        #             = clamp(0.8, 1.2, 0.85 + base_heal / 100.0)  (base_heal > 0)
-        # - bonus_cap = max(1, floor(base_cap * heal_scale))
-        base_cap = hp_growth // 10
+        # 生命底蕴：历史峰值生命越高、药水基础治疗越大，触发时给的额外治疗越多。
+        # 当前算法不再做“按药水大小的线性缩放+randint”，而是：
+        # - base_cap = floor(hp_growth / 100)
+        # - bonus_cap = max(1, floor(base_cap * base_heal * U(0.2, 1.0)))
+        base_cap = hp_growth // 100
         base_heal = max(0, int(getattr(self, "heal_amount", 0)))
-        if base_heal <= 0:
-            heal_scale = 1.0
-        else:
-            heal_scale = min(1.2, max(0.8, 0.85 + base_heal / 100.0))
-        bonus_cap = max(1, int(base_cap * heal_scale))
+        bonus_cap = max(1, int((base_cap * base_heal) *random.uniform(0.2,1)))
         # 40 回合后可触发概率随回合数上升，但保持上限避免失衡
-        trigger_chance = min(0.7, 0.25 + (round_count - 40) * 0.01)
+        trigger_chance = min(0.9, 0.25 + (round_count - 40) * 0.01)
         if random.random() >= trigger_chance:
             return 0
 
-        return random.randint(1, bonus_cap)
+        return bonus_cap
 
 # 装备类
 class Equipment(ConsumableItem):
