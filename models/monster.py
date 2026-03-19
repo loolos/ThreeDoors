@@ -259,6 +259,8 @@ class Monster:
     def _infer_sprite_key(self) -> str:
         """根据名称推断怪物贴图分组。"""
         name = self.name or ""
+        if "银羽飞贼·莱希娅" in name:
+            return "monster_elf_rival"
         if any(k in name for k in ["龙", "蛇", "凤凰", "雷鸟"]):
             return "monster_dragon"
         if any(k in name for k in ["鬼", "幽灵", "冥界", "死亡骑士", "吸血鬼"]):

@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 220">
+  <defs>
+    <linearGradient id="erf-bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1a2744"/>
+      <stop offset="100%" style="stop-color:#2d3d5c"/>
+    </linearGradient>
+    <linearGradient id="erf-silver" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#c5d4e8"/>
+      <stop offset="50%" style="stop-color:#8fa8c4"/>
+      <stop offset="100%" style="stop-color:#6b8ab0"/>
+    </linearGradient>
+  </defs>
+  <rect width="220" height="220" rx="24" fill="url(#erf-bg)"/>
+  <circle cx="170" cy="52" r="28" fill="#4a5f82" opacity="0.35"/>
+  <path d="M40 160 Q55 100 95 75 Q130 55 165 70 Q185 78 188 95 L175 108 Q150 88 115 95 Q75 105 52 145 Z" fill="url(#erf-silver)" opacity="0.85"/>
+  <ellipse cx="108" cy="92" rx="22" ry="26" fill="#7a9ab8"/>
+  <path d="M98 118 L108 175 L118 118 Z" fill="#5a7a9a"/>
+  <rect x="88" y="118" width="40" height="8" rx="2" fill="#8aa4be" transform="rotate(-12 108 122)"/>
+  <line x1="125" y1="130" x2="175" y2="95" stroke="#d8e4f2" stroke-width="5" stroke-linecap="round"/>
+  <polygon points="175,95 188,88 182,102" fill="#e8f0fa"/>
+  <circle cx="100" cy="88" r="4" fill="#1a2744"/>
+  <circle cx="116" cy="88" r="4" fill="#1a2744"/>
+</svg>

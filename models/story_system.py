@@ -21,6 +21,32 @@ from models.events import (
 )
 from models.status import StatusName
 
+# 飞贼清算战台词：与 events._record_elf_grudge 写入的 choice_flags 一一对应，前者优先（更伤关系的举动先被提起）
+ELF_RIVAL_GRUDGE_BARK_ORDER: List[Tuple[str, str]] = [
+    ("elf_grudge_heist_betrayed", "钟塔档案库你敲的那下警铃——我每夜都听得见。"),
+    ("elf_grudge_hunter_fled", "猎门那儿你脚底抹油，留我一人喂弩箭，今天换你站中间。"),
+    ("elf_grudge_epilogue_burned", "余响门里你把话说到那份上，就别指望我还能手软。"),
+    ("elf_grudge_rooftop_sneak", "屋脊上你偷袭那一下，我可没忘。"),
+    ("elf_grudge_intro_fake_guard", "第一次见面就敢装守卫讹我？你当我是瞎子？"),
+    ("elf_grudge_map_sold_out", "把我的标注当货卖给商人——你赚得挺开心啊。"),
+    ("elf_grudge_hunter_loot_grab", "猎门里只顾抢击杀抢掉落，你眼里有过搭档两个字吗？"),
+    ("elf_grudge_shadow_threaten", "暗巷里你放冷话威胁我——账本是谁记得久，现在见分晓。"),
+    ("elf_grudge_trap_ordered", "陷阱回廊你命令我救人？你以为你是谁。"),
+    ("elf_grudge_camp_refused_help", "夜营火旁你说单干——行啊，那就单干到底。"),
+    ("elf_grudge_camp_mercenary", "火堆边先伸手要钱再谈帮忙，你那份佣兵价我记着。"),
+    ("elf_grudge_stage_refused", "怪物门前我喊你练两招，你嫌麻烦甩手就走。"),
+    ("elf_grudge_heist_side_route", "盗案你非要改走侧井快线，毒针弩机可都是我替你扛的消息。"),
+]
+
+
+def _collect_elf_rival_grudge_barks(story: Any) -> List[str]:
+    flags = set(getattr(story, "choice_flags", set()) or [])
+    out: List[str] = []
+    for key, line in ELF_RIVAL_GRUDGE_BARK_ORDER:
+        if key in flags:
+            out.append(line)
+    return out[:6]
+
 
 @dataclass
 class PendingConsequence:
@@ -1734,8 +1760,9 @@ class StorySystem:
             if not isinstance(extensions, list):
                 extensions = []
 
-            base_hp = 138
-            base_atk = 24
+            # 清算战基础血量 600；再乘关系/深怨系数，40 回合后另叠玩家强度缩放（见 _apply_player_match_scaling）
+            base_hp = 600
+            base_atk = 44
             hp_scale = 1.18
             atk_scale = 1.14
             if relation <= -5:
@@ -1776,8 +1803,8 @@ class StorySystem:
                     },
                 }
             else:
-                dialogue = "莱希娅指尖一转匕首：'你总算走到这里了，先把我们之间的账清掉。'"
-                hint = "她抬手拭血，冷笑道：'终局门里真正致命的不是怪物，是你以为自己已经选对。'"
+                dialogue = "你听到黑暗中有声音传来：'你总算走到这里了，先把我们之间的账清掉。'"
+                hint = "她抬手拭血，冷笑道：'终局门里真正致命的不是怪物，是你以为自己已经选对。说罢倒在了黑暗中。'"
                 state = {
                     "profile": "trickster",
                     "extensions": extensions,
@@ -1789,6 +1816,8 @@ class StorySystem:
                         "debuff": "她扬起一把细碎粉末，呼吸与挥刀都被干扰。",
                     },
                 }
+
+            state["grudge_barks"] = _collect_elf_rival_grudge_barks(self)
 
             setattr(rival, "story_elf_rival_final_boss", True)
             setattr(rival, "story_consequence_id", consequence.consequence_id)
@@ -2146,7 +2175,7 @@ class StorySystem:
     def setup_test_gate_stage_curtain_power(self) -> None:
         """测试用：将控制器与剧情状态设为「接管谢幕」分支前置（不挂载门，仅改状态）。
         条件：回合 190、玩家 HP 800 / ATK 200、飞贼线已完结但未拿钥匙（敌对收束）、
-        木偶线已完结且为击败结局（非逃跑），并设置较高邪恶值。
+        与飞贼关系 ≤-4 以便在倒数窗口内触发飞贼清算战；木偶线已完结且为击败结局（非逃跑），较高邪恶值。
         调用方需在第 200 回合调用 ensure_default_normal_ending_schedule() 以挂载回声/接管结局门。"""
         c = self.controller
         c.round_count = 190
@@ -2159,10 +2188,11 @@ class StorySystem:
             if hasattr(c, "player_peak_atk"):
                 c.player_peak_atk = 200
         self.elf_chain_ended = True
-        self.elf_relation = 0
+        self.elf_relation = -5
         self.elf_key_obtained = False
         self.story_tags.add("elf_chain_ended")
         self.story_tags.add("elf_outcome:hostile")
+        self.story_tags.add("ending_hook:elf_hostile")
         self.story_tags.discard("elf_key_obtained")
         self.choice_flags.add("elf_outcome_hostile")
         self.story_tags.discard("puppet_arc_active")
@@ -2826,6 +2856,19 @@ class StorySystem:
             switched = self._try_trigger_puppet_phase_two(extension=ext, target=monster) or switched
         return switched
 
+    def _elf_rival_speak_next_grudge(self, state: Dict[str, Any], runtime: Dict[str, Any]) -> None:
+        """按顺序播放下一条与玩家支线选择对应的清算台词（若无则静默）。"""
+        barks = state.get("grudge_barks")
+        if not isinstance(barks, list) or not barks:
+            return
+        i = int(runtime.setdefault("grudge_voice_idx", 0))
+        if i >= len(barks):
+            return
+        line = barks[i]
+        if isinstance(line, str) and line.strip():
+            self.controller.add_message(f"莱希娅：「{line.strip()}」")
+        runtime["grudge_voice_idx"] = i + 1
+
     def _apply_elf_rival_runtime_modifiers(
         self,
         extension: Dict[str, Any],
@@ -2847,6 +2890,7 @@ class StorySystem:
             boosts = state.get("shadowstep_boost", [])
             lines = state.get("lines", {}) if isinstance(state.get("lines", {}), dict) else {}
             if idx < len(boosts):
+                self._elf_rival_speak_next_grudge(state, runtime)
                 boost = max(0.0, float(boosts[idx]))
                 adjusted = max(1, int(round(adjusted * (1.0 + boost))))
                 line = lines.get("shadowstep", "")
@@ -2876,6 +2920,7 @@ class StorySystem:
             return
         effect = StatusName.POISON if mode == "poison" else StatusName.WEAK
         player.apply_status(effect.create_instance(duration=duration, target=player))
+        self._elf_rival_speak_next_grudge(state, runtime)
         lines = state.get("lines", {}) if isinstance(state.get("lines", {}), dict) else {}
         line = lines.get("debuff", "")
         if isinstance(line, str) and line.strip():

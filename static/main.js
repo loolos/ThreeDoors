@@ -624,6 +624,20 @@ function getPuppetBossEmojiMarkup(name) {
 }
 
 /** 默认终局 Boss：三扇门 + 问号 + 纠结脸（文案里「问号拼成的笑脸」） */
+/** 清算战·银羽飞贼莱希娅：月影 + 银羽 + 匕首（与木偶终战图标同级展示） */
+function getElfRivalEmojiMarkup() {
+  const label = "银羽飞贼·莱希娅";
+  return `
+    <span class="elf-rival-icon" aria-label="${label}">
+      <span class="erf-part erf-moon">🌙</span>
+      <span class="erf-part erf-feather">🪶</span>
+      <span class="erf-part erf-blade">🗡️</span>
+      <span class="erf-part erf-spark">✨</span>
+      <span class="erf-part erf-spark2">✨</span>
+    </span>
+  `;
+}
+
 function getChoiceSyndromeBossEmojiMarkup() {
   const label = "选择困难症候群";
   return `
@@ -648,6 +662,9 @@ function getMonsterEmojiDisplay(name) {
   if (name && name.includes("选择困难症候群")) {
     return { emoji, markup: getChoiceSyndromeBossEmojiMarkup() };
   }
+  if (name && name.includes("银羽飞贼·莱希娅")) {
+    return { emoji, markup: getElfRivalEmojiMarkup() };
+  }
   return { emoji, markup: "" };
 }
 
@@ -670,6 +687,7 @@ function getMonsterEmoji(name) {
     "创世神官": "✨", "混沌之主": "💫", "永恒守护者": "🔮",
     "裂齿·夜魇·堕暗机偶": "👹", "裂齿·夜魇·黑暗完全体": "☠️",
     "选择困难症候群": "❓",
+    "银羽飞贼·莱希娅": "🪶",
   };
   if (emojiMap[name]) return emojiMap[name];
   // 关键词回退

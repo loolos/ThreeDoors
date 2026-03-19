@@ -3190,6 +3190,13 @@ def _get_elf_chain_state(controller):
     return story
 
 
+def _record_elf_grudge(controller, flag: str) -> None:
+    """记录玩家在飞贼支线上的具体选择，供终局清算战台词引用。"""
+    story = _get_elf_chain_state(controller)
+    if story is not None and hasattr(story, "choice_flags"):
+        story.choice_flags.add(flag)
+
+
 def _adjust_elf_relation(controller, delta):
     story = _get_elf_chain_state(controller)
     if story is None:
@@ -3360,6 +3367,7 @@ class ElfThiefIntroEvent(Event):
         lost = min(p.gold, _elf_percent_gold(p, 0.1))
         p.gold = max(0, p.gold - lost)
         _adjust_elf_relation(self.controller, -2)
+        _record_elf_grudge(self.controller, "elf_grudge_intro_fake_guard")
         self.add_message(f"她反手把你的钱袋顺走 {lost}G：'冒充守卫前，先把靴子擦亮。'")
         self._start_chain()
         return "Event Completed"
@@ -3400,6 +3408,7 @@ class ElfShadowMarkEvent(Event):
         lost = min(p.gold, _elf_percent_gold(p, 0.08))
         p.gold = max(0, p.gold - lost)
         _adjust_elf_relation(self.controller, -2)
+        _record_elf_grudge(self.controller, "elf_grudge_shadow_threaten")
         self.add_message(f"她耸耸肩顺手摸走你钱袋一角：'那就看谁账本记得久。'（-{lost}G）转身消失在火把后。")
         _schedule_next_elf_event(self.controller, "elf_shadow_mark_event")
         return "Event Completed"
@@ -3439,6 +3448,7 @@ class ElfRooftopDuelEvent(Event):
         dmg = _elf_percent_hp(self.get_player(), 0.1)
         self.get_player().take_damage(dmg)
         _adjust_elf_relation(self.controller, -3)
+        _record_elf_grudge(self.controller, "elf_grudge_rooftop_sneak")
         self.add_message(f"偷袭差点得手，但她反手把你按进瓦片里（-{dmg}HP）。")
         _schedule_next_elf_event(self.controller, "elf_rooftop_duel_event")
         return "Event Completed"
@@ -3477,6 +3487,7 @@ class ElfFakeMapEvent(Event):
         gain = _elf_percent_gold(self.get_player(), 0.18)
         self.get_player().gold += gain
         _adjust_elf_relation(self.controller, -2)
+        _record_elf_grudge(self.controller, "elf_grudge_map_sold_out")
         self.add_message(f"你把图卖给商人，赚了 {gain}G，也让她记下你这笔账。")
         _schedule_next_elf_event(self.controller, "elf_fake_map_event")
         return "Event Completed"
@@ -3515,6 +3526,7 @@ class ElfMonsterStageEvent(Event):
         dmg = _elf_percent_hp(self.get_player(), 0.07)
         self.get_player().take_damage(dmg)
         _adjust_elf_relation(self.controller, -1)
+        _record_elf_grudge(self.controller, "elf_grudge_stage_refused")
         self.add_message(f"她把假人踢回门后，你躲闪不及被门板刮到。'行，别怪我以后不救场。'（-{dmg}HP）")
         _schedule_next_elf_event(self.controller, "elf_monster_stage_event")
         return "Event Completed"
@@ -3549,6 +3561,7 @@ class ElfNightCampEvent(Event):
         gain = _elf_percent_gold(self.get_player(), 0.15)
         self.get_player().gold += gain
         _adjust_elf_relation(self.controller, -1)
+        _record_elf_grudge(self.controller, "elf_grudge_camp_mercenary")
         self.add_message(f"她扔来 {gain}G：'佣兵价，童叟无欺。'语气却冷了半分。")
         _schedule_next_elf_event(self.controller, "elf_night_camp_event")
         return "Event Completed"
@@ -3556,6 +3569,7 @@ class ElfNightCampEvent(Event):
     def prepare_solo(self):
         boon_text = _elf_grant_dynamic_boon(self.controller)
         _adjust_elf_relation(self.controller, -2)
+        _record_elf_grudge(self.controller, "elf_grudge_camp_refused_help")
         self.add_message(f"你决定单干，她没拦你，只把一份'不欠人情'的补给甩了过来。{boon_text}")
         _schedule_next_elf_event(self.controller, "elf_night_camp_event")
         return "Event Completed"
@@ -3598,6 +3612,7 @@ class ElfTrapRescueEvent(Event):
 
     def order_her(self):
         _adjust_elf_relation(self.controller, -2)
+        _record_elf_grudge(self.controller, "elf_grudge_trap_ordered")
         self._rescue_outcome()
         _schedule_next_elf_event(self.controller, "elf_trap_rescue_event")
         return "Event Completed"
@@ -3660,6 +3675,7 @@ class ElfHunterGateEvent(Event):
         gain = _elf_percent_gold(self.get_player(), 0.14)
         self.get_player().gold += gain
         _adjust_elf_relation(self.controller, -1)
+        _record_elf_grudge(self.controller, "elf_grudge_hunter_loot_grab")
         self.add_message(f"你抢下战利品 {gain}G，她虽然没说什么，但眼神变冷。")
         _schedule_next_elf_event(self.controller, "elf_hunter_gate_event")
         return "Event Completed"
@@ -3668,6 +3684,7 @@ class ElfHunterGateEvent(Event):
         dmg = _elf_percent_hp(self.get_player(), 0.15)
         self.get_player().take_damage(dmg)
         _adjust_elf_relation(self.controller, -3)
+        _record_elf_grudge(self.controller, "elf_grudge_hunter_fled")
         self.add_message(f"你撤得太急，背后中箭（-{dmg}HP）。她在远处骂你胆小鬼。")
         _schedule_next_elf_event(self.controller, "elf_hunter_gate_event")
         return "Event Completed"
@@ -3703,6 +3720,7 @@ class ElfFinalHeistEvent(Event):
         self.get_player().gold += gain
         self.get_player().take_damage(dmg)
         _adjust_elf_relation(self.controller, 0)
+        _record_elf_grudge(self.controller, "elf_grudge_heist_side_route")
         self.add_message(f"你强行改走侧井快线，确实多抄到一批现银，但触发了毒针与弩机（+{gain}G，-{dmg}HP）。")
         _schedule_next_elf_event(self.controller, "elf_final_heist_event")
         return "Event Completed"
@@ -3713,6 +3731,7 @@ class ElfFinalHeistEvent(Event):
         self.get_player().gold += gain
         self.get_player().take_damage(backlash)
         _adjust_elf_relation(self.controller, -4)
+        _record_elf_grudge(self.controller, "elf_grudge_heist_betrayed")
         self.add_message(f"你敲响警铃换来安保悬赏 {gain}G，但混战中也被流矢划伤（-{backlash}HP）。她被押走前只留下一句：'你最好永远别落单。'")
         _schedule_next_elf_event(self.controller, "elf_final_heist_event")
         return "Event Completed"
@@ -3811,6 +3830,7 @@ class ElfEpilogueEvent(Event):
             "hostile",
             extra_tags={"ending_hook:elf_hostile", "ending_hook:hunted"},
         )
+        _record_elf_grudge(self.controller, "elf_grudge_epilogue_burned")
         rel = getattr(story, "elf_relation", 0) if story else self.rel
         _set_elf_key_obtained(self.controller, False)
         dmg = _elf_percent_hp(self.get_player(), 0.12 if rel > -2 else 0.16)

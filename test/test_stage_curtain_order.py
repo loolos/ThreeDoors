@@ -54,7 +54,7 @@ def setup_controller_for_stage_curtain_power(controller, round_count=190):
 
     - round_count: 当前回合，默认 190
     - 玩家: HP 800, ATK 200
-    - 精灵飞贼: elf_chain_ended=True, elf_relation=0, elf_key_obtained=False, elf_outcome:hostile
+    - 精灵飞贼: elf_chain_ended=True, elf_relation=-5（可触发清算战）, elf_key_obtained=False, elf_outcome:hostile
     - 黑暗木偶: ending:puppet_final_defeated（并明确非逃跑结局）, puppet_evil_value=55
     - 不设置 curtain_call_script_recovered（未拿钥匙无法取回剧本）
     """
@@ -66,10 +66,11 @@ def setup_controller_for_stage_curtain_power(controller, round_count=190):
 
     story = controller.story
     story.elf_chain_ended = True
-    story.elf_relation = 0
+    story.elf_relation = -5
     story.elf_key_obtained = False
     story.story_tags.add("elf_chain_ended")
     story.story_tags.add("elf_outcome:hostile")
+    story.story_tags.add("ending_hook:elf_hostile")
     story.story_tags.discard("elf_key_obtained")
     story.choice_flags.add("elf_outcome_hostile")
     story.story_tags.discard("puppet_arc_active")
@@ -177,6 +178,8 @@ class TestStageCurtainPowerFlags(BaseTest):
         self.assertIn("ending:puppet_final_defeated", self.controller.story.story_tags)
         self.assertNotIn("ending:puppet_final_escape_recorded", self.controller.story.story_tags)
         self.assertEqual(self.controller.story.puppet_evil_value, 55)
+        self.assertLessEqual(self.controller.story.elf_relation, -4)
+        self.assertIn("ending_hook:elf_hostile", self.controller.story.story_tags)
 
     def test_power_route_cannot_trigger_stage_curtain_preface(self):
         """未拿钥匙且邪恶值高时，不应挂载银羽秘藏。"""

@@ -1798,6 +1798,36 @@ class TestStorySystem(BaseTest):
         self.assertIn("ending_elf_rival_parted", story.choice_flags)
         self.assertTrue(any("下次不用再见" in msg for msg in self.controller.messages))
 
+    def test_elf_rival_grudge_lines_reference_prior_elf_choices(self):
+        """清算战中台词按支线记录的冒犯行为依次播放。"""
+        from models.story_system import _collect_elf_rival_grudge_barks
+
+        story = self.controller.story
+        story.choice_flags.update({"elf_grudge_heist_betrayed", "elf_grudge_map_sold_out"})
+        state = {
+            "profile": "trickster",
+            "extensions": [],
+            "shadowstep_boost": [0.24],
+            "debuff_turns": [2],
+            "debuff_mode": "weak",
+            "lines": {"shadowstep": "（身法）", "debuff": "（扰敌）"},
+            "grudge_barks": _collect_elf_rival_grudge_barks(story),
+            "runtime": {"trigger_counts": {}},
+        }
+        ext = {"extension_type": "elf_rival_final_boss", "state": state}
+        rival = Monster(name="银羽飞贼·莱希娅", hp=10, atk=2, tier=4)
+        setattr(rival, "story_elf_rival_final_boss", True)
+
+        self.controller.messages.clear()
+        story.handle_battle_extension_post_player_attack(ext, rival)
+        blob = "\n".join(self.controller.messages)
+        self.assertIn("钟塔", blob)
+        self.assertIn("莱希娅", blob)
+
+        story.apply_battle_extension(ext, "monster_attack", rival, self.controller.player, 5)
+        blob2 = "\n".join(self.controller.messages)
+        self.assertIn("商人", blob2)
+
     def test_defeating_default_final_boss_triggers_normal_ending_clear(self):
         story = self.controller.story
         monster = Monster(name="选择困难症候群", hp=10, atk=2, tier=4)
