@@ -1339,7 +1339,11 @@ class FallenKnightEvent(Event):
                     "effect_key": "guard_reward",
                     "chance": 0.36,
                     "trigger_door_types": ["EVENT", "SHOP", "REWARD"],
-                    "payload": {"gold": max(random.randint(20, 50), min_gold), "heal": max(10, min_heal), "message": "因你之前救治了骑士，王国巡逻队认出你的善举，给予补给。"},
+                    "payload": {
+                        "gold": max(random.randint(20, 50), min_gold),
+                        "heal": max(10, min_heal),
+                        "message": "因你之前救治了骑士，王国巡逻队认出你的善举，给予补给：获得 {gold} 金币，恢复 {healed} 生命。",
+                    },
                 },
                 {
                     "consequence_id": "knight_aid_traitor_revenge",
