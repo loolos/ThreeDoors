@@ -1866,7 +1866,7 @@ class TestStorySystem(BaseTest):
 
     def test_elf_rival_grudge_lines_reference_prior_elf_choices(self):
         """清算战中台词按支线记录的冒犯行为依次播放。"""
-        from models.story_system import _collect_elf_rival_grudge_barks
+        from models.story_system import _collect_elf_rival_grudge_barks, _elf_rival_grudge_fillers
 
         story = self.controller.story
         story.choice_flags.update({"elf_grudge_heist_betrayed", "elf_grudge_map_sold_out"})
@@ -1878,6 +1878,7 @@ class TestStorySystem(BaseTest):
             "debuff_mode": "weak",
             "lines": {"shadowstep": "（身法）", "debuff": "（扰敌）"},
             "grudge_barks": _collect_elf_rival_grudge_barks(story),
+            "grudge_bark_fillers": _elf_rival_grudge_fillers("trickster"),
             "runtime": {"trigger_counts": {}},
         }
         ext = {"extension_type": "elf_rival_final_boss", "state": state}
@@ -1893,6 +1894,50 @@ class TestStorySystem(BaseTest):
         story.apply_battle_extension(ext, "monster_attack", rival, self.controller.player, 5)
         blob2 = "\n".join(self.controller.messages)
         self.assertIn("商人", blob2)
+
+        # 强化段结束后每次出手仍应有台词（此处无 attack_banter 时用 shadowstep 文案兜底）
+        story.apply_battle_extension(ext, "monster_attack", rival, self.controller.player, 5)
+        blob3 = "\n".join(self.controller.messages)
+        self.assertIn("（身法）", blob3)
+
+    def test_elf_rival_grudge_fillers_when_no_elf_grudge_flags(self):
+        """未触发任何 elf_grudge_* 事件时，清算战仍应有莱希娅恩怨向台词（非仅身法）。"""
+        from models.story_system import _collect_elf_rival_grudge_barks, _elf_rival_grudge_fillers
+
+        story = self.controller.story
+        story.choice_flags = {f for f in story.choice_flags if not str(f).startswith("elf_grudge_")}
+        self.assertEqual(_collect_elf_rival_grudge_barks(story), [])
+        state = {
+            "profile": "trickster",
+            "extensions": [],
+            "shadowstep_boost": [0.24],
+            "debuff_turns": [],
+            "debuff_mode": "weak",
+            "lines": {"shadowstep": "（身法）", "debuff": ""},
+            "grudge_barks": [],
+            "grudge_bark_fillers": _elf_rival_grudge_fillers("trickster"),
+            "runtime": {"trigger_counts": {}},
+        }
+        ext = {"extension_type": "elf_rival_final_boss", "state": state}
+        rival = Monster(name="银羽飞贼·莱希娅", hp=10, atk=2, tier=4)
+        self.controller.messages.clear()
+        story.apply_battle_extension(ext, "monster_attack", rival, self.controller.player, 5)
+        blob = "\n".join(self.controller.messages)
+        self.assertIn("莱希娅", blob)
+        self.assertTrue(any("账" in m or "关系" in m or "钥匙" in m for m in self.controller.messages), blob)
+
+    def test_puppet_echo_final_extension_speaks_on_monster_attack(self):
+        story = self.controller.story
+        ext = {
+            "extension_type": "puppet_echo_final",
+            "state": {"echo_lines": ["你走过的门，我都记得。"], "echo_index": 0},
+        }
+        echo = Monster(name="木偶的回声", hp=10, atk=2, tier=4)
+        self.controller.messages.clear()
+        story.apply_battle_extension(ext, "monster_attack", echo, self.controller.player, 3)
+        blob = "\n".join(self.controller.messages)
+        self.assertIn("木偶的回声压过来", blob)
+        self.assertIn("你走过的门", blob)
 
     def test_defeating_default_final_boss_triggers_normal_ending_clear(self):
         story = self.controller.story

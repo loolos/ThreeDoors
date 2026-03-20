@@ -331,7 +331,7 @@ class TestAllEvents(BaseTest):
         c = GameController()
         c.player.gold = 100
         MoonBountyEvent(c).resolve_choice(0)
-        self.assertEqual(c.player.gold, 92)
+        self.assertEqual(c.player.gold, 86)  # min(gold, 14) prep cost
 
         c = GameController()
         c.player.hp = 60

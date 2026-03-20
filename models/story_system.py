@@ -48,6 +48,24 @@ def _collect_elf_rival_grudge_barks(story: Any) -> List[str]:
     return out[:6]
 
 
+def _elf_rival_grudge_fillers(profile: str) -> List[str]:
+    """无 elf_grudge_* 支线标记时仍播莱希娅清算台词，避免战斗里只剩身法/伤害句。"""
+    shared = [
+        "关系跌到这份上，还用我说我们怎么闹僵的吗？",
+        "钥匙与余地你都没留，今天只剩刀锋能对话。",
+        "你以为沉默就能把旧账一笔勾销？",
+        "终局里每个选择都有价——你也该付一付了。",
+        "我记着的不止一两扇门，是你一路怎么把我推到对立面。",
+    ]
+    if str(profile).strip().lower() == "vengeful":
+        return shared + [
+            "我不是来叙旧的；你欠我的，我用这一战讨。",
+        ]
+    return shared + [
+        "账总得算清——你先到这儿，算你有种。",
+    ]
+
+
 @dataclass
 class PendingConsequence:
     """待触发的后续影响。"""
@@ -1376,7 +1394,12 @@ class StorySystem:
             battle_profiles = {
                 "thief": {
                     "name": "命运乐谱大盗",
-                    "entry_message": "你撞见了被通缉的「命运乐谱大盗」。他先护住胸前那本旧册子，再举刀逼你后退。",
+                    "entry_messages": [
+                        "你撞见了被通缉的「命运乐谱大盗」。他先护住胸前那本旧册子，再举刀逼你后退。",
+                        "他嗓音发哑，却死死盯着你：「别往前了。我不是来跟你们拼命的——我只想把我女儿找回来。」",
+                        "「通缉令上写的那什么『命运乐章』，我连摸都没摸过。这册子里只有她的笔迹和一堆扑空的日期。」",
+                        "他把刀尖压低半寸，像在下最后通牒：「让条路。你们若非要把我当成贼……那就别怪不客气了。」",
+                    ],
                     "hint": "门后站着的男人满手旧伤，他怀里紧压着一本磨损日记本。",
                     "diary_source": "thief_body",
                     "diary_note": "你击败命运乐谱大盗后，在他身上只搜到一本普通日记本：每一页都在记录他失踪女儿的线索，和一次次扑空的日期。",
@@ -1384,7 +1407,9 @@ class StorySystem:
                 },
                 "guardian": {
                     "name": "命运乐章守护者",
-                    "entry_message": "你刚把被通缉者推到身后，命运乐章守护者便持盾封住门口，宣称要当场清算。",
+                    "entry_messages": [
+                        "你刚把被通缉者推到身后，命运乐章守护者便持盾封住门口，宣称要当场清算。",
+                    ],
                     "hint": "守护者的盔甲上刻着「证物优先」，它把你也列入了阻拦名单。",
                     "diary_source": "thief_testimony",
                     "diary_note": "守护者倒下后，大盗喘着气告诉你：命运乐章不是他偷的。他把随身日记本交给你，请你在月蚀审判时替他说话。",
@@ -1414,7 +1439,9 @@ class StorySystem:
             )
             # 注意：payload["message"] 已在 _apply_chosen_consequence() 里作为触发提示输出；
             # 这里仅输出战斗入场文案，避免同一段“前情”重复两遍。
-            self.controller.add_message(profile["entry_message"])
+            for line in profile["entry_messages"]:
+                if isinstance(line, str) and line.strip():
+                    self.controller.add_message(line.strip())
             self._log_effect_result(consequence, hunter.name)
             return True, mid_battle_door
 
@@ -1885,6 +1912,12 @@ class StorySystem:
                         "shadowstep": "她踩墙折返，连斩逼得你后撤。",
                         "debuff": "她借假动作压低你的重心，你的出手明显发软。",
                     },
+                    "attack_banter": [
+                        "她刃口一沉，没有废话，只有距离在缩短。",
+                        "斗篷扬起残影，下一击已经贴到你鼻息前。",
+                        "她把旧账折进这一刀里，出手干脆利落。",
+                        "你格挡的瞬间，她已换步到你侧后。",
+                    ],
                 }
             else:
                 dialogue = "你听到黑暗中有声音传来：'你总算走到这里了，先把我们之间的账清掉。'"
@@ -1899,9 +1932,16 @@ class StorySystem:
                         "shadowstep": "她借你的攻击空档贴身反刺。",
                         "debuff": "她扬起一把细碎粉末，呼吸与挥刀都被干扰。",
                     },
+                    "attack_banter": [
+                        "她像在说笑，手可一点没慢。",
+                        "残影掠过门槛，她的刃口又指向你咽喉。",
+                        "你刚稳住重心，她已经绕到你视线的死角。",
+                        "这一下不带解说——账都在刀锋上。",
+                    ],
                 }
 
             state["grudge_barks"] = _collect_elf_rival_grudge_barks(self)
+            state["grudge_bark_fillers"] = _elf_rival_grudge_fillers(state.get("profile", "trickster"))
 
             setattr(rival, "story_elf_rival_final_boss", True)
             setattr(rival, "story_consequence_id", consequence.consequence_id)
@@ -2010,17 +2050,20 @@ class StorySystem:
             )
             setattr(boss, "story_default_final_boss", True)
             hint = payload.get("hint") or payload.get("message") or "门后响起一阵咂舌声：'两百回合了，你还在犹豫？'"
+            raw_attack = payload.get("attack_taunts", payload.get("taunts", []))
+            attack_taunts = [
+                t.strip()
+                for t in (raw_attack if isinstance(raw_attack, list) else [])
+                if isinstance(t, str) and t.strip()
+            ]
+            if attack_taunts:
+                setattr(boss, "story_default_final_boss_attack_taunts", list(attack_taunts))
             final_door = DoorEnum.MONSTER.create_instance(
                 controller=self.controller,
                 monster=boss,
                 hint=hint,
             )
-            # 文案已在门出现时通过 _build_trigger_message 展示，此处不再重复
-            taunts = payload.get("taunts", [])
-            if isinstance(taunts, list):
-                for taunt in taunts:
-                    if isinstance(taunt, str) and taunt.strip():
-                        self.controller.add_message(taunt.strip())
+            # 文案已在门出现时通过 _build_trigger_message 展示；嘲讽在 Monster.attack 中随每次出手播出
             self._log_effect_result(consequence, boss.name)
             return True, final_door
 
@@ -2616,6 +2659,14 @@ class StorySystem:
             active_phase=0,
         )
 
+        state["monster_attack_filler_lines"] = [
+            "童谣断在半拍，机偶仍顺着惯性挥向你。",
+            "钢丝拉紧，木偶的关节朝你压来。",
+            "失真笑声里混着咔哒声，又一击落下。",
+            "黑暗协议没有迟疑——这一下只是执行。",
+            f"{state['dark_name']}借机偶的手臂，把节拍砸向你胸口。",
+        ]
+
         return state
 
     def _apply_puppet_entry_modifiers(self, monster: Any, state: Dict[str, Any], phase: int) -> None:
@@ -2794,6 +2845,12 @@ class StorySystem:
         if adjusted != raw_damage:
             actor = "木偶" if trigger == "monster_attack" else "玩家"
             self.controller.add_message(f"{actor}本次伤害 {raw_damage}→{adjusted}。")
+        elif trigger == "monster_attack" and not triggered:
+            fillers = state.get("monster_attack_filler_lines")
+            if isinstance(fillers, list):
+                pool = [x for x in fillers if isinstance(x, str) and x.strip()]
+                if pool:
+                    self.controller.add_message(random.choice(pool))
         return adjusted
 
     def apply_door_extension(
@@ -2932,14 +2989,23 @@ class StorySystem:
             )
         if ext_type == "puppet_echo_final":
             state = extension.get("state")
-            if isinstance(state, dict) and trigger == "player_attack":
-                echo_lines = state.get("echo_lines") or []
-                idx = int(state.get("echo_index", 0))
-                if echo_lines:
-                    line = echo_lines[idx % len(echo_lines)]
-                    if isinstance(line, str) and line.strip():
-                        self.controller.add_message(f"木偶的回声低语：「{line}」")
-                    state["echo_index"] = idx + 1
+            if isinstance(state, dict):
+                if trigger == "player_attack":
+                    echo_lines = state.get("echo_lines") or []
+                    idx = int(state.get("echo_index", 0))
+                    if echo_lines:
+                        line = echo_lines[idx % len(echo_lines)]
+                        if isinstance(line, str) and line.strip():
+                            self.controller.add_message(f"木偶的回声低语：「{line}」")
+                        state["echo_index"] = idx + 1
+                elif trigger == "monster_attack":
+                    echo_lines = state.get("echo_lines") or []
+                    valid = [ln for ln in echo_lines if isinstance(ln, str) and ln.strip()]
+                    if valid:
+                        mi = int(state.get("echo_monster_attack_idx", 0))
+                        line = valid[mi % len(valid)]
+                        state["echo_monster_attack_idx"] = mi + 1
+                        self.controller.add_message(f"木偶的回声压过来：「{line}」")
             return damage
         return damage
 
@@ -2975,17 +3041,29 @@ class StorySystem:
         return switched
 
     def _elf_rival_speak_next_grudge(self, state: Dict[str, Any], runtime: Dict[str, Any]) -> None:
-        """按顺序播放下一条与玩家支线选择对应的清算台词（若无则静默）。"""
-        barks = state.get("grudge_barks")
-        if not isinstance(barks, list) or not barks:
+        """依次播放支线记录的恩怨句；记满后改用 grudge_bark_fillers 循环，避免只剩身法句。"""
+        specific = [
+            x
+            for x in (state.get("grudge_barks") if isinstance(state.get("grudge_barks"), list) else [])
+            if isinstance(x, str) and x.strip()
+        ]
+        fillers = [
+            x
+            for x in (state.get("grudge_bark_fillers") if isinstance(state.get("grudge_bark_fillers"), list) else [])
+            if isinstance(x, str) and x.strip()
+        ]
+        if not specific and not fillers:
             return
         i = int(runtime.setdefault("grudge_voice_idx", 0))
-        if i >= len(barks):
+        if i < len(specific):
+            line = specific[i]
+        elif fillers:
+            line = fillers[(i - len(specific)) % len(fillers)]
+        else:
             return
-        line = barks[i]
+        runtime["grudge_voice_idx"] = i + 1
         if isinstance(line, str) and line.strip():
             self.controller.add_message(f"莱希娅：「{line.strip()}」")
-        runtime["grudge_voice_idx"] = i + 1
 
     def _apply_elf_rival_runtime_modifiers(
         self,
@@ -3015,6 +3093,15 @@ class StorySystem:
                 if isinstance(line, str) and line.strip():
                     self.controller.add_message(line.strip())
                 self.controller.add_message(f"她抓住你的一瞬迟疑，伤害 {damage}→{adjusted}。")
+            else:
+                banter = state.get("attack_banter", [])
+                pool = [b for b in banter if isinstance(b, str) and b.strip()]
+                if pool:
+                    self.controller.add_message(random.choice(pool))
+                else:
+                    fallback = lines.get("shadowstep", "")
+                    if isinstance(fallback, str) and fallback.strip():
+                        self.controller.add_message(fallback.strip())
             counts["monster_attack"] = idx + 1
         return adjusted
 

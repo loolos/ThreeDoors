@@ -139,3 +139,16 @@ class TestMonsterSystem(BaseTest):
         # 4) current_round=200, hp=2000, atk=400, gold=1000（gold 会被 cap 到 400）
         p4 = SimpleNamespace(hp=2000, atk=400, gold=1000)
         self.assertEqual(estimate_player_power(player=p4, current_round=200), 628)
+
+    def test_default_final_boss_attack_emits_taunt_without_battle_extension(self):
+        """终局 Boss 攻击时应播出嘲讽台词，且不依赖门上的 battle_extensions。"""
+        self.controller.clear_messages()
+        boss = Monster(name="选择困难症候群", hp=100, atk=3, tier=4)
+        setattr(boss, "story_default_final_boss", True)
+        setattr(boss, "story_default_final_boss_attack_taunts", ["\u201c测试嘲讽\u201d"])
+        self.player.hp = 500
+        boss.attack(self.player)
+        self.assertTrue(
+            any("选择困难症候群" in m and "测试嘲讽" in m for m in self.controller.messages),
+            self.controller.messages,
+        )

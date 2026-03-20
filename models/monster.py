@@ -408,6 +408,13 @@ class Monster:
                 defender=target,
                 damage=dmg,
             )
+        # 终局「选择困难症候群」等：台词挂在怪物上，不依赖门战斗扩展，确保每次出手都会嘲讽
+        if target_controller and bool(getattr(self, "story_default_final_boss", False)):
+            taunt_lines = getattr(self, "story_default_final_boss_attack_taunts", None)
+            if isinstance(taunt_lines, list):
+                valid_taunts = [t for t in taunt_lines if isinstance(t, str) and t.strip()]
+                if valid_taunts:
+                    target_controller.add_message(f"{self.name}：{random.choice(valid_taunts)}")
         # 造成伤害
         target.take_damage(dmg)
 
