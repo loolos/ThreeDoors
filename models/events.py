@@ -146,7 +146,7 @@ PRE_FINAL_GATE_STORY_CONFIG = {
         "priority": 1190,
         "payload": {
             "event_key": "dream_mirror_prelude_event",
-            "message": "你推开门，却像跌进一段梦；镜面剧场的预演厅在梦中一帧一帧回放你曾做过的选择，梦还未醒，终幕的答案已在镜前等你。",
+            "message": "你推开门，却像跌进一段梦；镜面剧场的预演在梦中一帧一帧回放你曾做过的选择，梦还未醒，终幕的答案已在镜前等你。",
         },
     },
     # 默认终局链：黑暗木偶补战门（木偶线未完结或曾逃跑时插入）
@@ -2014,10 +2014,10 @@ class ClockworkBazaarEvent(Event):
     def __init__(self, controller):
         super().__init__(controller)
         self.title = "齿轮售票亭"
-        self.description = "一列会自行换轨的售票车停在岔路口——这是自动售票终端，但系统已经故障：修好它可换取正规入场券，偷看优惠码能白嫖漏票，砸掉它则立刻树敌，但可能抢到材料。你需要马上选一种做法。"
+        self.description = "一列会自行换轨的列车停在岔路口，这是自动售票摊位，但系统已经故障：修好它可换取正规入场券，偷看优惠码能白嫖漏票，砸掉它则立刻树敌，但可能抢到材料。你需要马上选一种做法。"
         self.choices = [
             EventChoice("校准售票机关，换取正规入场券", self.calibrate),
-            EventChoice("偷看优惠码，白嫖漏票", self.hack_coupon),
+            EventChoice("偷看优惠码，白嫖入场票", self.hack_coupon),
             EventChoice("破坏摊位，抢走材料", self.sabotage),
         ]
 
@@ -2046,7 +2046,7 @@ class ClockworkBazaarEvent(Event):
                 route="hack",
                 shop_effect="black_market_discount",
                 ratio=0.8,
-                hunter_name="狼人",
+                hunter_name="精灵法师",
                 shop_message="第一家售票终端没识破你伪造的优惠码，你拿到了近乎免费的通行票。",
             ),
         )
@@ -2361,7 +2361,7 @@ class DreamWellEvent(Event):
     def __init__(self, controller):
         super().__init__(controller)
         self.title = "梦境井"
-        self.description = "梦境井的水面映出的不是你的脸，而是历代梦境的三段结局回放。传闻井水会把你的念头放大成现实——每个选择都会留下可追踪的后果：喝下它、封住它，或把回放折价卖给无法进入梦境的人。你得现在决定要把哪条线继续下去。"
+        self.description = "梦境井的水面映出的不是你的脸，而是历代梦境的谢幕回放。传闻井水会让你看到过去的梦：喝下它看到过去的梦，封住它，或把回放折价卖给无法进入梦境的人。你得现在决定要把哪条线继续下去。"
         self.choices = [
             EventChoice("喝下井水，读取梦境回放", self.drink_dream),
             EventChoice("封住井口，拒绝回放", self.seal_well),
@@ -2380,8 +2380,12 @@ class DreamWellEvent(Event):
                 shop_message="你复述的梦境回放细节精准到可交易，商人把你当成消息源，先给了试探性折扣。",
             ),
         )
-        healed = self.get_player().heal(12)
-        self.add_message(f"梦境回放的水流入口冰冷，你的意识却短暂异常清明，恢复了 {healed} 点生命。")
+
+        round_count = max(0, int(getattr(self.controller, "round_count", 0)))
+        min_heal = int((round_count / 3) * random.uniform(0.5, 1.0))
+        healed = random.randint(min_heal, min_heal + 12)
+        self.get_player().heal(healed)
+        self.add_message(f"梦境井的水流入口冰冷，你的意识因为看到了无数种过去而变得异常清明，恢复了 {healed} 点生命。")
         return "Event Completed"
 
     def seal_well(self):
@@ -2418,8 +2422,9 @@ class DreamWellEvent(Event):
         min_gold = int((round_count / 3) * random.uniform(0.5, 1.0))
         gain = max(gain, min_gold)
         p.gold += gain
-        p.take_damage(6)
-        self.add_message(f"你把一段关于胜利的梦境回放打包卖出，立刻拿到 {gain}G；但精神像被抽走一层，受到 6 点伤害。")
+        dmg = random.randint(6, 12)
+        p.take_damage(dmg)
+        self.add_message(f"你把一段关于胜利的梦境回放打包卖出，立刻拿到 {gain}G；但精神像被抽走一层，受到 {dmg} 点伤害。")
         return "Event Completed"
 
     def _build_dream_chain(self, route, shop_effect, ratio, hunter_name, shop_message):
@@ -2433,7 +2438,7 @@ class DreamWellEvent(Event):
                     "trigger_door_types": ["EVENT"],
                     "payload": {
                         "event_key": "echo_court_event",
-                        "hint": "前情：你刚喝下梦井水，回声法庭正在点名",
+                        "hint": "前情：你刚喝下梦井水，回声法庭正在点名要你出庭作证。",
                         "message": "前情：你先前喝下梦井水并触发了回声记录。你刚靠近事件门，法槌回声就把门后的剧情改写成庭审。",
                         "chain_followups": [
                             {
@@ -2543,9 +2548,9 @@ class EchoCourtEvent(Event):
     def __init__(self, controller):
         super().__init__(controller)
         self.title = "回声法庭"
-        self.description = "你与梦境井相关的交易已被回声法庭正式立案。法庭认定你既是当事人也是收益者，要求你立刻表态并承担后果：赎回被卖掉的梦境回放记忆、补缴拖欠的回放罚款，或公开宣布继续交易。"
+        self.description = "你与梦境井相关的互动已被回声法庭正式立案。法庭认定你既是当事人也是收益者，要求你立刻表态并承担后果：支付赎回梦境的费用、补缴拖欠的回放罚款，或公开宣布继续交易。"
         self.choices = [
-            EventChoice("赎回回放记忆", self.redeem_dream),
+            EventChoice("赎回回放梦境", self.redeem_dream),
             EventChoice("上缴回放罚款", self.pay_dream_tax),
             EventChoice("继续倒卖回放", self.keep_trading),
         ]
@@ -2665,13 +2670,14 @@ class EchoCourtEvent(Event):
         min_gold = int((round_count / 3) * random.uniform(0.5, 1.0))
         gain = max(gain, min_gold)
         p.gold += gain
-        p.take_damage(8)
-        self.add_message(f"你选择继续把梦境回放当货币流通，当场多赚 {gain}G；但回声反噬同步加深，让你受了 8 点伤害。")
+        dmg=random.randint(8 , 30)
+        p.take_damage(dmg)
+        self.add_message(f"你选择继续把梦境回放当货币流通，当场多赚 {gain}G；但回声反噬同步加深，让你受了 {dmg} 点伤害。")
         return "Event Completed"
 
 
-PUPPET_KIND_PERSONA_NAME = "绒心·诺诺"
-PUPPET_DARK_PERSONA_NAME = "裂齿·夜魇"
+PUPPET_KIND_PERSONA_NAME = "绒心"
+PUPPET_DARK_PERSONA_NAME = "裂齿"
 
 
 def _get_puppet_chain_state(controller):
@@ -3822,7 +3828,7 @@ class ElfFinalHeistEvent(Event):
         self.description = (
             f"她留下的最后一次暗号把你引到钟塔下的旧档案库，这大概就是追她的人的大本营了。"
             f"你刚到，就看见{ELF_THIEF_NAME}把几张纸摊在地上：外圈巡逻表、内层机关图、以及守卫换岗钟点。"
-            f"她快速说明：正门有重甲兵和弩手；侧井能绕进宝藏室但会触发毒针；但你在想，如果你此刻出卖她，安保或许也会给你悬赏。"
+            f"她快速说明：正门有重甲兵和弩手；侧井能绕进宝藏室但会触发毒针机关；但你在想，如果你此刻出卖她，安保或许也会给你悬赏。"
             f"她盯着你：'你来定，按我的线稳进稳出，赌一把高风险快线？'"
         )
         self.choices = [
@@ -3844,7 +3850,7 @@ class ElfFinalHeistEvent(Event):
         dmg = _elf_percent_hp(self.get_player(), 0.1)
         self.get_player().gold += gain
         self.get_player().take_damage(dmg)
-        _adjust_elf_relation(self.controller, 0)
+        _adjust_elf_relation(self.controller, 1)
         _record_elf_grudge(self.controller, "elf_grudge_heist_side_route")
         self.add_message(f"你强行改走侧井快线，确实多抄到一批现银，但触发了毒针与弩机（+{gain}G，-{dmg}HP）。")
         _schedule_next_elf_event(self.controller, "elf_final_heist_event")

@@ -396,7 +396,11 @@ class TestAllEvents(BaseTest):
 
         c = GameController()
         c.player.hp = 60
-        DreamWellEvent(c).resolve_choice(0)
+        # drink_dream 治疗量含 random.uniform/randint，固定随机使断言稳定
+        with unittest.mock.patch("models.events.random.uniform", return_value=1.0), unittest.mock.patch(
+            "models.events.random.randint", return_value=12
+        ):
+            DreamWellEvent(c).resolve_choice(0)
         self.assertEqual(c.player.hp, 72)
 
         c = GameController()
@@ -407,7 +411,9 @@ class TestAllEvents(BaseTest):
         c = GameController()
         c.player.gold = 100
         c.player.hp = 100
-        DreamWellEvent(c).resolve_choice(2)
+        # sell_replay 伤害含 randint，固定随机使断言稳定
+        with unittest.mock.patch("models.events.random.randint", return_value=6):
+            DreamWellEvent(c).resolve_choice(2)
         self.assertEqual(c.player.gold, 126)
         self.assertEqual(c.player.hp, 94)
 
@@ -424,7 +430,9 @@ class TestAllEvents(BaseTest):
         c = GameController()
         c.player.gold = 100
         c.player.hp = 100
-        EchoCourtEvent(c).resolve_choice(2)
+        # keep_trading 伤害含 randint，固定随机使断言稳定
+        with unittest.mock.patch("models.events.random.randint", return_value=8):
+            EchoCourtEvent(c).resolve_choice(2)
         self.assertEqual(c.player.gold, 120)
         self.assertEqual(c.player.hp, 92)
 
