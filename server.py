@@ -33,6 +33,9 @@ for arg in sys.argv[1:]:
     if arg in ("--test-puppet-final-boss",):
         TEST_GATE = "puppet_final_boss"
         break
+    if arg in ("--test-puppet-echo",):
+        TEST_GATE = "puppet_echo"
+        break
     if arg in ("--test-stage-curtain-power",):
         TEST_GATE = "stage_curtain_power"
         break
@@ -96,6 +99,11 @@ class GameController:
             self.story.ensure_pre_final_event_schedule()
             self.scene_manager.go_to("door_scene")
             self.add_message("【测试模式】接管谢幕路线：回合 190，HP 800 / ATK 200，飞贼线敌对收束、关系极差（可触发清算战）、无钥匙+木偶已击败+高邪恶值；第 200 回合将挂载木偶回声门并进入接管谢幕分支。")
+        elif TEST_GATE == "puppet_echo":
+            self.story.setup_test_gate_puppet_echo()
+            self.story.ensure_pre_final_event_schedule()
+            self.scene_manager.go_to("door_scene")
+            self.add_message("【测试模式】木偶回声门路线：回合 190，HP 800 / ATK 200，飞贼敌对无钥匙且关系 -5（可触发清算战），木偶已击败+高邪恶值；第 200 回合将挂载木偶回声门。")
 
     def add_message(self, msg):
         """添加消息到消息列表（同一条连续日志仅保留一份）。"""

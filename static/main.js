@@ -419,6 +419,7 @@ function renderState(state) {
   const endingRollContinueBtn = document.getElementById("endingRollContinueBtn");
   if (endingRollWrap && endingRollContent) {
     if (sceneInfo.type === "ENDING_ROLL" && state.ending_roll_lines && Array.isArray(state.ending_roll_lines)) {
+      SoundSystem.startEndingRollBgm();
       document.body.classList.add("ending-roll-active");
       document.body.classList.remove("ending-summary-active");
       endingRollWrap.classList.remove("ending-roll-hidden");
@@ -439,6 +440,7 @@ function renderState(state) {
         endingRollContinueBtn.onclick = () => buttonAction(0);
       }
     } else {
+      SoundSystem.stopEndingRollBgm();
       document.body.classList.remove("ending-roll-active");
       endingRollWrap.classList.add("ending-roll-hidden");
       endingRollWrap.classList.remove("ending-roll-visible");
@@ -662,7 +664,7 @@ function getChoiceSyndromeBossEmojiMarkup() {
 
 function getMonsterEmojiDisplay(name) {
   const emoji = getMonsterEmoji(name);
-  if (name && (name.includes("堕暗机偶") || name.includes("黑暗完全体"))) {
+  if (name && (name.includes("堕暗机偶") || name.includes("黑暗完全体") || name.includes("木偶的回声"))) {
     return { emoji, markup: getPuppetBossEmojiMarkup(name) };
   }
   if (name && name.includes("选择困难症候群")) {
