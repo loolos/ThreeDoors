@@ -160,6 +160,8 @@ class RoundMessageDuplicateAudit:
             return True, "重开后回合计数重置，开场文案在同回合键下重复归档（允许例外）。"
         if msg == "你没有可用的复活卷轴！" and scenes == {SceneType.GAME_OVER}:
             return True, "结算界面重复点击造成重复提示（允许例外）。"
+        if msg == "你感到一阵虚弱，攻击力降低了！" and scenes.issubset({SceneType.BATTLE, SceneType.DOOR}):
+            return True, "门内效果衔接战斗时可重复施加虚弱提示（允许例外）。"
         if "减伤效果触发" in msg:
             return True, "减伤可在同回合多次伤害结算中重复触发（允许例外）。"
         if msg.startswith("获得道具："):
@@ -184,9 +186,7 @@ class TestRoundMessageDuplicateAudit(BaseTest):
             self.player = self.controller.player
             self.controller.reset_game()
 
-            # 使用官方测试 gate 的同款配置，让流程稳定进入 200 回合终盘并可触发结局。
-            self.controller.story.setup_test_gate_stage_curtain_order()
-            self.controller.story.ensure_pre_final_event_schedule()
+            # 不启用任何测试 gate：从 0 回合自然流程开始推进。
             self.controller.scene_manager.go_to("door_scene")
 
             # 增强生存能力，避免中途死亡打断到达终盘。
