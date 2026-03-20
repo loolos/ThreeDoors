@@ -133,7 +133,7 @@ PRE_FINAL_GATE_STORY_CONFIG = {
         "force_door_type": "MONSTER",
         "priority": 1250,
         "payload": {
-            "message": "你刚推开第二道终局门，前方墙体忽然裂开一扇怪物门，银羽飞贼突然从阴影里掠出刺向你，你翻身躲过，她说：'还没结束，我们把旧账在这里算清。'",
+            "message": "你刚推开门，前方墙体忽然裂开一条缝，银羽飞贼突然从阴影里掠出刺向你，你翻身躲过，她说：'还没结束，我们把旧账在这里算清。'",
         },
     },
     # 倒数窗口：梦境井+镜面剧场均完结后的结局前回响事件（阻塞，满足条件必须清掉才能进结局；仅事件门 EVENT 触发）
@@ -3347,18 +3347,13 @@ def _set_elf_key_obtained(controller, obtained):
     return story
 
 
-def _elf_percent_gold(player, ratio, minimum=1):
-    base = max(0, int(getattr(player, "gold", 0)))
-    return max(minimum, int(round(base * max(0.0, float(ratio)))))
-
-
-def _elf_percent_hp(player, ratio, minimum=1):
-    base = max(1, int(getattr(player, "hp", 1)))
-    return max(minimum, int(round(base * max(0.0, float(ratio)))))
-
-
-def _elf_percent_atk(player, ratio, minimum=1):
-    base = max(1, int(getattr(player, "_atk", getattr(player, "atk", 1))))
+def _elf_ratio(player, ratio, source="hp", minimum=1):
+    if source == "gold":
+        base = max(0, int(getattr(player, "gold", 0)))
+    elif source == "atk":
+        base = max(1, int(getattr(player, "_atk", getattr(player, "atk", 1))))
+    else:
+        base = max(1, int(getattr(player, "hp", 1)))
     return max(minimum, int(round(base * max(0.0, float(ratio)))))
 
 
@@ -3370,12 +3365,12 @@ def _elf_grant_dynamic_boon(controller):
 
     roll = random.random()
     if roll < 0.34:
-        atk_up = _elf_percent_atk(p, 0.08)
+        atk_up = _elf_ratio(p, 0.08, "atk")
         p.change_base_atk(atk_up)
         return f"她把短刃磨得锋利之后丢给你道：'这把刀能帮你更快地砍死怪物。'（基础攻击 +{atk_up}）。"
 
     if roll < 0.68:
-        heal = _elf_percent_hp(p, 0.14)
+        heal = _elf_ratio(p, 0.14, "hp")
         p.hp = p.hp + heal
         return f"她把止血粉和绑带塞给你，顺手重新缠好护腕，然后道：'你受伤了，先包扎一下。'（+{heal}HP）。"
 
@@ -3476,7 +3471,7 @@ class ElfThiefIntroEvent(Event):
 
     def offer_food(self):
         p = self.get_player()
-        cost = _elf_percent_gold(p, 0.12)
+        cost = _elf_ratio(p, 0.12, "gold")
         lost = min(p.gold, cost)
         p.gold = max(0, p.gold - lost)
         _adjust_elf_relation(self.controller, 2)
@@ -3485,7 +3480,7 @@ class ElfThiefIntroEvent(Event):
         return "Event Completed"
 
     def challenge_duel(self):
-        dmg = _elf_percent_hp(self.get_player(), 0.08)
+        dmg = _elf_ratio(self.get_player(), 0.08, "hp")
         self.get_player().take_damage(dmg)
         _adjust_elf_relation(self.controller, 1)
         self.add_message(f"你们点到为止地过了几招，你吃了 {dmg} 点伤害，她却笑得更开心。")
@@ -3494,7 +3489,7 @@ class ElfThiefIntroEvent(Event):
 
     def fake_guard(self):
         p = self.get_player()
-        lost = min(p.gold, _elf_percent_gold(p, 0.1))
+        lost = min(p.gold, _elf_ratio(p, 0.1, "gold"))
         p.gold = max(0, p.gold - lost)
         _adjust_elf_relation(self.controller, -2)
         _record_elf_grudge(self.controller, "elf_grudge_intro_fake_guard")
@@ -3508,9 +3503,9 @@ class ElfShadowMarkEvent(Event):
         super().__init__(controller)
         self.title = "银羽暗号"
         self.description = (
-            "你正要选一扇事件门时，发现门框背面有熟悉的银羽刻痕——那是她的记号，下面有一行小字：「今晚不偷你，聊聊」。"
-            "你推开门，她果然在门后的阴影里等着，没动你身上的东西，只冲你抬了抬下巴。"
-            f"{ELF_THIEF_NAME}:目'前对这个地方怎么看？'"
+            "你正要选一扇事件门时，发现门框背面有熟悉的银羽刻痕——那是她的记号，下面有一行小字：「今天不偷你，聊聊」。"
+            "你推开门，等了一会，她从门后的阴影里走出来，没动你身上的东西，只冲你抬了抬下巴。"
+            f"{ELF_THIEF_NAME}:'在这个迷宫里也看到不少有趣的东西吧？讲讲？'"
         )
         self.choices = [
             EventChoice("和她深入交换目前所知情报", self.share_info),
@@ -3519,7 +3514,7 @@ class ElfShadowMarkEvent(Event):
         ]
 
     def share_info(self):
-        gain = _elf_percent_gold(self.get_player(), 0.1)
+        gain = _elf_ratio(self.get_player(), 0.1, "gold")
         self.get_player().gold += gain
         _adjust_elf_relation(self.controller, 2)
         self.add_message(f"你们互通了冒险路线的情报，她提醒你绕开最毒的陷阱层；你按图摸到遗漏的财宝（+{gain}G）。")
@@ -3527,7 +3522,7 @@ class ElfShadowMarkEvent(Event):
         return "Event Completed"
 
     def ask_intent(self):
-        heal = _elf_percent_hp(self.get_player(), 0.12)
+        heal = _elf_ratio(self.get_player(), 0.12, "hp")
         self.get_player().hp = self.get_player().hp + heal
         _adjust_elf_relation(self.controller, 1)
         self.add_message(f"她丢来药包：'目的？你得先活下来，才配知道目的。'（+{heal}HP）")
@@ -3536,7 +3531,7 @@ class ElfShadowMarkEvent(Event):
 
     def threaten(self):
         p = self.get_player()
-        lost = min(p.gold, _elf_percent_gold(p, 0.08))
+        lost = min(p.gold, _elf_ratio(p, 0.08, "gold"))
         p.gold = max(0, p.gold - lost)
         _adjust_elf_relation(self.controller, -2)
         _record_elf_grudge(self.controller, "elf_grudge_shadow_threaten")
@@ -3568,7 +3563,7 @@ class ElfRooftopDuelEvent(Event):
         return "Event Completed"
 
     def go_easy(self):
-        heal = _elf_percent_hp(self.get_player(), 0.1)
+        heal = _elf_ratio(self.get_player(), 0.1, "hp")
         self.get_player().hp = self.get_player().hp + heal
         _adjust_elf_relation(self.controller, 1)
         self.add_message(f"她看穿你在放水，却还是把跌打药塞进你怀里（+{heal}HP）。")
@@ -3576,7 +3571,7 @@ class ElfRooftopDuelEvent(Event):
         return "Event Completed"
 
     def cheap_shot(self):
-        dmg = _elf_percent_hp(self.get_player(), 0.1)
+        dmg = _elf_ratio(self.get_player(), 0.1, "hp")
         self.get_player().take_damage(dmg)
         _adjust_elf_relation(self.controller, -3)
         _record_elf_grudge(self.controller, "elf_grudge_rooftop_sneak")
@@ -3600,7 +3595,7 @@ class ElfFakeMapEvent(Event):
         ]
 
     def trust_map(self):
-        gain = _elf_percent_gold(self.get_player(), 0.12)
+        gain = _elf_ratio(self.get_player(), 0.12, "gold")
         self.get_player().gold += gain
         _adjust_elf_relation(self.controller, 1)
         self.add_message(f"根据她的标注，顺路摸到一处被忽视的补给箱（+{gain}G）。")
@@ -3615,7 +3610,7 @@ class ElfFakeMapEvent(Event):
         return "Event Completed"
 
     def sell_both(self):
-        gain = _elf_percent_gold(self.get_player(), 0.18)
+        gain = _elf_ratio(self.get_player(), 0.18, "gold")
         self.get_player().gold += gain
         _adjust_elf_relation(self.controller, -2)
         _record_elf_grudge(self.controller, "elf_grudge_map_sold_out")
@@ -3639,7 +3634,7 @@ class ElfMonsterStageEvent(Event):
         ]
 
     def train_dodge(self):
-        heal = _elf_percent_hp(self.get_player(), 0.1)
+        heal = _elf_ratio(self.get_player(), 0.1, "hp")
         self.get_player().hp = self.get_player().hp + heal
         _adjust_elf_relation(self.controller, 1)
         self.add_message(f"你学会了借门框卸力，体力恢复了 {heal} 点。")
@@ -3654,7 +3649,7 @@ class ElfMonsterStageEvent(Event):
         return "Event Completed"
 
     def refuse(self):
-        dmg = _elf_percent_hp(self.get_player(), 0.07)
+        dmg = _elf_ratio(self.get_player(), 0.07, "hp")
         self.get_player().take_damage(dmg)
         _adjust_elf_relation(self.controller, -1)
         _record_elf_grudge(self.controller, "elf_grudge_stage_refused")
@@ -3681,7 +3676,7 @@ class ElfNightCampEvent(Event):
         ]
 
     def promise_help(self):
-        heal = _elf_percent_hp(self.get_player(), 0.14)
+        heal = _elf_ratio(self.get_player(), 0.14, "hp")
         self.get_player().hp = self.get_player().hp + heal
         _adjust_elf_relation(self.controller, 2)
         self.add_message(f"她难得正经地点头，把多烤的肉递给你：'好，我也记你一份人情。'（+{heal}HP）")
@@ -3689,7 +3684,7 @@ class ElfNightCampEvent(Event):
         return "Event Completed"
 
     def ask_payment(self):
-        gain = _elf_percent_gold(self.get_player(), 0.15)
+        gain = _elf_ratio(self.get_player(), 0.15, "gold")
         self.get_player().gold += gain
         _adjust_elf_relation(self.controller, -1)
         _record_elf_grudge(self.controller, "elf_grudge_camp_mercenary")
@@ -3723,15 +3718,15 @@ class ElfTrapRescueEvent(Event):
     def _rescue_outcome(self):
         rel = getattr(_get_elf_chain_state(self.controller), "elf_relation", 0)
         if rel >= 2:
-            heal = _elf_percent_hp(self.get_player(), 0.16)
+            heal = _elf_ratio(self.get_player(), 0.16, "hp")
             self.get_player().hp = self.get_player().hp + heal
             self.add_message(f"她精准切断绞索，还顺手包扎了你的手腕（+{heal}HP）。")
         elif rel <= -2:
-            dmg = _elf_percent_hp(self.get_player(), 0.14)
+            dmg = _elf_ratio(self.get_player(), 0.14, "hp")
             self.get_player().take_damage(dmg)
             self.add_message(f"她慢了半拍才出手，你被机关刮得遍体鳞伤（-{dmg}HP）。")
         else:
-            dmg = _elf_percent_hp(self.get_player(), 0.08)
+            dmg = _elf_ratio(self.get_player(), 0.08, "hp")
             self.get_player().take_damage(dmg)
             self.add_message(f"她把你拉出陷阱，但你还是被铁刺擦伤（-{dmg}HP）。")
 
@@ -3749,7 +3744,7 @@ class ElfTrapRescueEvent(Event):
         return "Event Completed"
 
     def break_free(self):
-        dmg = _elf_percent_hp(self.get_player(), 0.12)
+        dmg = _elf_ratio(self.get_player(), 0.12, "hp")
         self.get_player().take_damage(dmg)
         _adjust_elf_relation(self.controller, -1)
         self.add_message(f"你硬扯绞索脱身，肩膀脱臼般剧痛（-{dmg}HP）。")
@@ -3803,7 +3798,7 @@ class ElfHunterGateEvent(Event):
         return "Event Completed"
 
     def selfish_fight(self):
-        gain = _elf_percent_gold(self.get_player(), 0.14)
+        gain = _elf_ratio(self.get_player(), 0.14, "gold")
         self.get_player().gold += gain
         _adjust_elf_relation(self.controller, -1)
         _record_elf_grudge(self.controller, "elf_grudge_hunter_loot_grab")
@@ -3812,7 +3807,7 @@ class ElfHunterGateEvent(Event):
         return "Event Completed"
 
     def run_away(self):
-        dmg = _elf_percent_hp(self.get_player(), 0.15)
+        dmg = _elf_ratio(self.get_player(), 0.15, "hp")
         self.get_player().take_damage(dmg)
         _adjust_elf_relation(self.controller, -3)
         _record_elf_grudge(self.controller, "elf_grudge_hunter_fled")
@@ -3838,7 +3833,7 @@ class ElfFinalHeistEvent(Event):
         ]
 
     def follow_plan(self):
-        gain = _elf_percent_gold(self.get_player(), 0.18)
+        gain = _elf_ratio(self.get_player(), 0.18, "gold")
         self.get_player().gold += gain
         _adjust_elf_relation(self.controller, 2)
         self.add_message(f"你们按巡逻空窗潜入，避开正门火力，平稳带出不少金子和宝物；你分到 {gain}G。她笑说：'这次你真像搭档。'")
@@ -3846,8 +3841,8 @@ class ElfFinalHeistEvent(Event):
         return "Event Completed"
 
     def change_plan(self):
-        gain = _elf_percent_gold(self.get_player(), 0.14)
-        dmg = _elf_percent_hp(self.get_player(), 0.1)
+        gain = _elf_ratio(self.get_player(), 0.14, "gold")
+        dmg = _elf_ratio(self.get_player(), 0.1, "hp")
         self.get_player().gold += gain
         self.get_player().take_damage(dmg)
         _adjust_elf_relation(self.controller, 1)
@@ -3857,8 +3852,8 @@ class ElfFinalHeistEvent(Event):
         return "Event Completed"
 
     def betray(self):
-        gain = _elf_percent_gold(self.get_player(), 0.2)
-        backlash = _elf_percent_hp(self.get_player(), 0.06)
+        gain = _elf_ratio(self.get_player(), 0.2, "gold")
+        backlash = _elf_ratio(self.get_player(), 0.06, "hp")
         self.get_player().gold += gain
         self.get_player().take_damage(backlash)
         _adjust_elf_relation(self.controller, -4)
@@ -3927,7 +3922,7 @@ class ElfEpilogueEvent(Event):
         rel = getattr(story, "elf_relation", 0) if story else self.rel
         _set_elf_key_obtained(self.controller, rel >= 2)
         boon_text = _elf_grant_dynamic_boon(self.controller)
-        extra_heal = _elf_percent_hp(self.get_player(), 0.08 if rel >= 2 else 0.05)
+        extra_heal = _elf_ratio(self.get_player(), 0.08 if rel >= 2 else 0.05, "hp")
         self.get_player().hp = self.get_player().hp + extra_heal
         if rel >= 2:
             msg = "你收好钥匙，她点头：'门会认得你。'"
@@ -3945,7 +3940,7 @@ class ElfEpilogueEvent(Event):
         )
         rel = getattr(story, "elf_relation", 0) if story else self.rel
         _set_elf_key_obtained(self.controller, rel >= 2)
-        gain = _elf_percent_gold(self.get_player(), 0.12 if rel >= 0 else 0.08)
+        gain = _elf_ratio(self.get_player(), 0.12 if rel >= 0 else 0.08, "gold")
         self.get_player().gold += gain
         if rel >= 2:
             msg = "你把钥匙小心收起，却没有再多问。你们在岔路口各自转身。"
@@ -3964,7 +3959,7 @@ class ElfEpilogueEvent(Event):
         _record_elf_grudge(self.controller, "elf_grudge_epilogue_burned")
         rel = getattr(story, "elf_relation", 0) if story else self.rel
         _set_elf_key_obtained(self.controller, False)
-        dmg = _elf_percent_hp(self.get_player(), 0.12 if rel > -2 else 0.16)
+        dmg = _elf_ratio(self.get_player(), 0.12 if rel > -2 else 0.16, "hp")
         self.get_player().take_damage(dmg)
         if rel >= 2:
             msg = "你当场推开她递来的钥匙，空气瞬间冷了下去。"
@@ -4087,7 +4082,7 @@ class ElfSideMonsterEvent(Event):
     def flee(self):
         if hasattr(self.controller, "_elf_side_monster"):
             delattr(self.controller, "_elf_side_monster")
-        dmg = _elf_percent_hp(self.get_player(), 0.1)
+        dmg = _elf_ratio(self.get_player(), 0.1, "hp")
         self.get_player().take_damage(dmg)
         _adjust_elf_relation(self.controller, -1)
         self.add_message(f"你转身就跑，背后传来她的骂声与怪物追来的风声；你挨了一下（-{dmg}HP）。")
@@ -4144,7 +4139,7 @@ class ElfSideMerchantEvent(Event):
         ]
 
     def expose(self):
-        gain = _elf_percent_gold(self.get_player(), 0.08)
+        gain = _elf_ratio(self.get_player(), 0.08, "gold")
         self.get_player().gold += gain
         _adjust_elf_relation(self.controller, 0)
         self.add_message(f"你当众戳穿把戏，她悻悻退了你一点'封口费'（+{gain}G）。'算你狠。'")
@@ -4152,7 +4147,7 @@ class ElfSideMerchantEvent(Event):
 
     def pretend_pay(self):
         p = self.get_player()
-        lost = min(p.gold, _elf_percent_gold(p, 0.12))
+        lost = min(p.gold, _elf_ratio(p, 0.12, "gold"))
         p.gold = max(0, p.gold - lost)
         _adjust_elf_relation(self.controller, 1)
         self.add_message(f"你故意付了钱，拿了假货就走，她收下 {lost}G 时眼神复杂：'谢谢惠顾。'")
@@ -4609,7 +4604,7 @@ def _resolve_stage_curtain_outcome(route_key, score_payload):
     stage_script_ready = bool(score_payload.get("stage_script_ready", False))
     puppet_final_defeated = bool(score_payload.get("puppet_final_defeated", False))
     script_recovered = bool(score_payload.get("script_recovered", False))
-    suffix = f"（秩序{order}/自由{freedom}/权力{power}/风险{risk}）"
+    suffix = ""
 
     def _compose_with_epilogue(base_text, current_route):
         epilogue = "".join(_build_stage_epilogue_lines(current_route, score_payload))
@@ -5415,8 +5410,8 @@ class EndingPuppetEchoAftermathEvent(Event):
         """即兴谢幕·把抉择当作台词"""
         return self._trigger_impromptu(
             "你选择把一路抉择当作唯一的台词，即兴完成最后一幕。",
-            "你没有拿到飞贼的钥匙，与银羽也未曾结下信任；但在终局门前你击败了木偶的回声——"
-            "那些回荡在走廊里的选择与代价，都成了你即兴谢幕的台词。没有剧本，没有约定，"
+            "你没有拿到剧本，与银羽也未曾结下信任；但在终局门前你击败了木偶的回声——"
+            "那些回荡在走廊里的选择与代价，都成了你即兴谢幕的台词。没有剧本，"
             "你向虚空中的观众鞠躬，完成了只属于你的终幕。",
         )
 

@@ -5,6 +5,8 @@ const SoundSystem = {
   enabled: true,
   unlocked: false,
   lastTriggerAt: {},
+  endingRollLoopTimer: null,
+  endingRollLoopActive: false,
 
   canTrigger(key, gap = 120) {
     const now = Date.now();
@@ -256,6 +258,67 @@ const SoundSystem = {
     }, 250);
   },
 
+  playEndingRollBgm() {
+    if (!this.enabled || typeof Tone === "undefined") return;
+    if (!this.canTrigger("ending_roll_phrase", 2500)) return;
+    try {
+      this.ensureReady();
+      const now = Tone.now();
+      const reverb = new Tone.Reverb({
+        decay: 5.5,
+        wet: 0.35,
+      }).toDestination();
+      const pad = new Tone.PolySynth(Tone.Synth, {
+        oscillator: { type: "sine" },
+        envelope: { attack: 0.8, decay: 1.2, sustain: 0.35, release: 2.2 },
+        volume: -19,
+      }).connect(reverb);
+      const bell = new Tone.Synth({
+        oscillator: { type: "triangle" },
+        envelope: { attack: 0.15, decay: 0.35, sustain: 0.06, release: 1.5 },
+        volume: -17,
+      }).connect(reverb);
+
+      const chords = [
+        ["D4", "A4", "F5"],
+        ["G4", "B4", "D5"],
+        ["A3", "E4", "C5"],
+        ["F4", "A4", "D5"],
+      ];
+      chords.forEach((chord, i) => {
+        pad.triggerAttackRelease(chord, "2n", now + i * 1.25, 0.42);
+      });
+      ["A5", "G5", "F5", "E5"].forEach((note, i) => {
+        bell.triggerAttackRelease(note, "8n", now + 0.65 + i * 0.95, 0.32);
+      });
+
+      setTimeout(() => {
+        pad.dispose();
+        bell.dispose();
+        reverb.dispose();
+      }, 9000);
+    } catch (e) {}
+  },
+
+  startEndingRollBgm() {
+    if (this.endingRollLoopActive) return;
+    this.endingRollLoopActive = true;
+    const run = () => {
+      if (!this.endingRollLoopActive) return;
+      this.playEndingRollBgm();
+      this.endingRollLoopTimer = setTimeout(run, 8200);
+    };
+    run();
+  },
+
+  stopEndingRollBgm() {
+    this.endingRollLoopActive = false;
+    if (this.endingRollLoopTimer) {
+      clearTimeout(this.endingRollLoopTimer);
+      this.endingRollLoopTimer = null;
+    }
+  },
+
   scanLogAndPlay(msg) {
     if (!msg || !this.enabled) return;
     const text = String(msg);
@@ -291,6 +354,8 @@ function initSoundControls() {
       if (SoundSystem.enabled) {
         SoundSystem.ensureReady();
         SoundSystem.playUiClick();
+      } else {
+        SoundSystem.stopEndingRollBgm();
       }
     });
   }
