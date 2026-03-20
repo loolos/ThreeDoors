@@ -143,8 +143,11 @@ class TrapDoor(Door):
         trap_type = random.choice(['spike', 'poison', 'gold', 'weakness'])
         
         if trap_type == 'spike':
-            self.controller.player.take_damage(self.damage)
-            self.controller.add_message(f"地面的尖刺突然升起！受到了{self.damage}点伤害！")
+            current_hp = int(max(1, self.controller.player.hp))
+            max_spike_damage = max(10, int(current_hp * 0.1))
+            spike_damage = random.randint(10, max_spike_damage)
+            self.controller.player.take_damage(spike_damage)
+            self.controller.add_message(f"地面的尖刺突然升起！受到了{spike_damage}点伤害！")
             
         elif trap_type == 'poison':
             duration = 3
