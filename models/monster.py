@@ -388,12 +388,6 @@ class Monster:
                 target.controller.add_message(f"{self.name} 处于眩晕状态，无法攻击！")
             return False
 
-        # 检查目标是否有结界
-        if target.has_status(StatusName.BARRIER):
-            if hasattr(target, 'controller') and target.controller:
-                target.controller.add_message(f"{self.name} 的攻击被结界挡住了!")
-            return False
-
         # 计算伤害
         dmg = max(1, self.atk - random.randint(0, 1))
         
@@ -408,6 +402,23 @@ class Monster:
                 defender=target,
                 damage=dmg,
             )
+        # 结界：按受击次数递减减伤（90% -> 80% -> 70% ... -> 0%）
+        if target.has_status(StatusName.BARRIER):
+            barrier_status = target.statuses.get(StatusName.BARRIER)
+            if barrier_status and hasattr(barrier_status, "get_reduction_ratio"):
+                reduction_ratio = barrier_status.get_reduction_ratio()
+                reduced = int(dmg * reduction_ratio)
+                dmg = max(0, dmg - reduced)
+                if target_controller:
+                    ratio_percent = int(reduction_ratio * 100)
+                    if ratio_percent > 0:
+                        target_controller.add_message(
+                            f"{self.name} 的攻击触发结界：本次减伤 {ratio_percent}%，仅受到 {dmg} 点伤害。"
+                        )
+                    else:
+                        target_controller.add_message(
+                            f"{self.name} 的攻击触发结界：减伤已衰减至 0%，你受到 {dmg} 点伤害。"
+                        )
         # 终局「选择困难症候群」等：台词挂在怪物上，不依赖门战斗扩展，确保每次出手都会嘲讽
         if target_controller and bool(getattr(self, "story_default_final_boss", False)):
             taunt_lines = getattr(self, "story_default_final_boss_attack_taunts", None)

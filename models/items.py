@@ -229,7 +229,7 @@ class Barrier(BattleItemBase):
         target = kwargs.get('target', player)  # 默认对自己生效
         if player and target:
             target.apply_status(StatusName.BARRIER.create_instance(duration=self.duration, target=target))
-            player.controller.add_message(f"结界形成，接下来{self.duration}回合你免受怪物伤害！")
+            player.controller.add_message("结界形成：首次减伤90%，之后每次受击减伤递减10%，最低降至0%（战斗结束失效）。")
 
 # 巨大卷轴类
 class GiantScroll(BattleItemBase):
