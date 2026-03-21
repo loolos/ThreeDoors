@@ -127,6 +127,9 @@ class Player:
         # 检查目标是否死亡
         if target.hp <= 0:
             self.controller.add_message(f"你击败了 {target.name}!")
+            death_quote = getattr(target, "get_death_quote", lambda: None)()
+            if death_quote:
+                self.controller.add_message(f"{target.name}：{death_quote}")
             return True
         
         return False
