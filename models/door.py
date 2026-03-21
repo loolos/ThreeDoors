@@ -359,70 +359,100 @@ HINT_CONFIGS = {
             "也许是猛兽，也许是宝箱——危险与机遇难辨",
             "黑暗中似有财宝闪光，也似有爪牙潜伏",
             "猛兽的嘶吼与财宝的诱惑交织",
-            "凶险与馈赠，一念之隔"
+            "凶险与馈赠，一念之隔",
+            "铁链晃动声里掺着硬币滚落的清响",
+            "像是猎场，也像藏宝间，心跳被拉成同一节拍",
+            "利爪阴影旁有金属反光，像诱饵也像战利品"
         ],
         frozenset({DoorEnum.MONSTER, DoorEnum.SHOP}): [
             "商人的吆喝声中藏着野兽的咆哮",
             "也许是集市，也许是兽巢——吆喝与低吼难分",
             "交易的气息与血腥味混杂",
             "猛兽的怒吼与商人的叫卖交织",
-            "买卖与搏命，一步之遥"
+            "买卖与搏命，一步之遥",
+            "算盘珠子噼啪作响，像在给捕食者计时",
+            "叫卖声忽近忽远，间隙里有粗重喘息",
+            "闻得到香料和兽腥，像摊位开在巢穴边"
         ],
         frozenset({DoorEnum.MONSTER, DoorEnum.TRAP}): [
             "猛兽与陷阱的双重威胁",
             "也许是怪物，也许是机关——杀机四伏",
             "野兽的咆哮与机关的咔嗒声交织",
             "黑暗中藏着利齿或尖刺",
-            "伏击与陷阱，双重危机"
+            "伏击与陷阱，双重危机",
+            "锁扣弹开的脆响后，传来低沉嘶吼",
+            "地面像布了机关，空气像藏了獠牙",
+            "先听见金属绷紧，再听见喉音逼近"
         ],
         frozenset({DoorEnum.TRAP, DoorEnum.REWARD}): [
             "机关与宝藏并存",
             "也许是陷阱，也许是财宝——险中求富贵",
             "机关的咔嗒声中夹杂着金币的叮当声",
             "危险的气息里似乎有宝光闪烁",
-            "杀机与馈赠，一线之隔"
+            "杀机与馈赠，一线之隔",
+            "宝箱轮廓若隐若现，旁边却有机簧拉紧声",
+            "像是奖赏台，也像处刑架，差别只在一步",
+            "金属反光诱人靠近，地砖缝里却藏着恶意"
         ],
         frozenset({DoorEnum.TRAP, DoorEnum.SHOP}): [
             "商人的声音中似乎藏着机关",
             "也许是店铺，也许是陷阱——买卖与杀机难辨",
             "交易声中夹杂着机关的咔嗒声",
             "商人的吆喝与机关的咔嗒声交织",
-            "买卖与暗算，真假难辨"
+            "买卖与暗算，真假难辨",
+            "有人在门后报价格，也像在报倒计时",
+            "货架碰撞声里混着弹簧压缩的轻鸣",
+            "像是欢迎光临，也像请君入瓮"
         ],
         frozenset({DoorEnum.SHOP, DoorEnum.REWARD}): [
             "商人的吆喝声中夹杂着金币的叮当声",
             "也许是店铺，也许是宝库——交易与馈赠难辨",
             "买卖声中似乎有宝物的光芒",
             "商人的声音与财宝的诱惑交织",
-            "讨价还价或是白捡，一念之差"
+            "讨价还价或是白捡，一念之差",
+            "像拍卖会开场，也像宝箱自己开了锁",
+            "门缝里飘出铜币气息和新货开箱味",
+            "柜台与宝堆的影子重叠在一起"
         ],
         frozenset({DoorEnum.EVENT, DoorEnum.MONSTER}): [
             "奇怪的声音中夹杂着野兽的咆哮",
             "也许是奇遇，也许是猛兽——未知与危险并存",
             "命运的岔路口，可能遇人也可能遇兽",
             "混乱的气息中藏着变故或利爪",
-            "际遇与猎杀，一步之差"
+            "际遇与猎杀，一步之差",
+            "像有人在低声叙事，又像捕食者在磨牙",
+            "剧情可能突然翻页，也可能突然扑脸",
+            "门后既像舞台开幕，也像狩猎开场"
         ],
         frozenset({DoorEnum.EVENT, DoorEnum.TRAP}): [
             "未知的气息中带着一丝危险",
             "也许是奇遇，也许是机关——命运与杀机难辨",
             "命运的岔路口暗藏杀机",
             "奇怪的氛围中似乎有陷阱或转机",
-            "际遇与暗算，真假难辨"
+            "际遇与暗算，真假难辨",
+            "像线索在招手，也像机关在上弦",
+            "脚下的每一步都像会触发剧情或陷坑",
+            "转机可能就在前方，绊索也可能在脚边"
         ],
         frozenset({DoorEnum.EVENT, DoorEnum.REWARD}): [
             "神秘的气息中透着宝物的光芒",
             "也许是奇遇，也许是财宝——未知与馈赠并存",
             "命运的馈赠还是玩笑？",
             "奇怪的事情似乎伴随着奖励或代价",
-            "际遇与财富，福祸难料"
+            "际遇与财富，福祸难料",
+            "像会捡到线索，也像会捡到战利品",
+            "门后有故事在发酵，也有金光在晃眼",
+            "这是命运彩蛋，还是意外横财？"
         ],
         frozenset({DoorEnum.EVENT, DoorEnum.SHOP}): [
             "神秘人似乎在和商人交易",
             "也许是事件，也许是店铺——际遇与买卖难辨",
             "未知的事件与买卖并存",
             "商人的吆喝声中夹杂着窃窃私语",
-            "奇遇与交易，一念之间"
+            "奇遇与交易，一念之间",
+            "像有剧情在议价，像有情报在上架",
+            "门后既像黑市会面，也像普通开张",
+            "讨价还价声里藏着一句不该听到的密语"
         ]
     },
     # 缺省提示语
@@ -475,6 +505,26 @@ FRONT_DOOR_TEXTURES = [
     "door_bone",
 ]
 
+_LAST_HINT_BY_KEY = {}
+
+
+def _pick_rotating_hint(key, hints):
+    """在同一提示池内尽量避免连续两次返回同一句。"""
+    if not hints:
+        return ""
+    if len(hints) == 1:
+        chosen = hints[0]
+        _LAST_HINT_BY_KEY[key] = chosen
+        return chosen
+    last_hint = _LAST_HINT_BY_KEY.get(key)
+    candidates = [hint for hint in hints if hint != last_hint]
+    if not candidates:
+        candidates = hints
+    chosen = random.choice(candidates)
+    _LAST_HINT_BY_KEY[key] = chosen
+    return chosen
+
+
 def get_mixed_door_hint(door_enums):
     """获取混合门提示"""
     if not door_enums:
@@ -484,7 +534,7 @@ def get_mixed_door_hint(door_enums):
         default_hints = HINT_CONFIGS["default"].get(
             single_enum, ["空气中弥漫着神秘的气息..."]
         )
-        return random.choice(default_hints)
+        return _pick_rotating_hint(("default", single_enum), default_hints)
     door_enums_list = list(door_enums)
     selected_enums = []
     selected_enums.append(door_enums_list.pop(random.randint(0, len(door_enums_list) - 1)))
@@ -492,5 +542,8 @@ def get_mixed_door_hint(door_enums):
     key = frozenset(selected_enums)
     hints = HINT_CONFIGS["combo"].get(key)
     if hints:
-        return random.choice(hints)
-    return random.choice(HINT_CONFIGS["default"].get(selected_enums[0], ["空气中弥漫着神秘的气息..."]))
+        return _pick_rotating_hint(("combo", key), hints)
+    return _pick_rotating_hint(
+        ("default", selected_enums[0]),
+        HINT_CONFIGS["default"].get(selected_enums[0], ["空气中弥漫着神秘的气息..."]),
+    )

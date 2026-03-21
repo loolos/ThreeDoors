@@ -1,5 +1,6 @@
 import unittest
-from models.door import Door, DoorEnum, get_mixed_door_hint
+import unittest.mock
+from models.door import Door, DoorEnum, HINT_CONFIGS, get_mixed_door_hint
 from test.test_base import BaseTest
 
 class TestDoorGeneration(BaseTest):
@@ -66,6 +67,20 @@ class TestDoorGeneration(BaseTest):
         hint = get_mixed_door_hint(frozenset({DoorEnum.MONSTER, DoorEnum.SHOP}))
         self.assertIsInstance(hint, str)
         self.assertNotEqual(hint, "")
+
+    def test_combo_hint_avoids_immediate_repeat(self):
+        """同一组合提示池应尽量避免连续重复同一句。"""
+        key = frozenset({DoorEnum.EVENT, DoorEnum.SHOP})
+        with unittest.mock.patch("random.randint", return_value=0), unittest.mock.patch("random.choice", side_effect=lambda seq: seq[0]):
+            first = get_mixed_door_hint(key)
+            second = get_mixed_door_hint(key)
+        self.assertNotEqual(first, second)
+
+    def test_each_combo_hint_pool_has_richer_candidates(self):
+        """每个双门组合都应提供更多候选提示，避免体感单一。"""
+        for key, hints in HINT_CONFIGS["combo"].items():
+            self.assertEqual(len(key), 2)
+            self.assertGreaterEqual(len(hints), 8, msg=f"组合 {key} 的提示过少")
 
 if __name__ == '__main__':
     unittest.main()
