@@ -562,6 +562,27 @@ class TestStorySystem(BaseTest):
 
         self.assertEqual(changed_door.reward, {"gold": 6})
 
+    def test_treasure_deposit_backpack_rewrites_reward_door(self):
+        story = self.controller.story
+        reward_door = DoorEnum.REWARD.create_instance(controller=self.controller, reward={"gold": 5})
+        story.register_consequence(
+            choice_flag="time_redeem_case",
+            consequence_id="time_redeem_deposit_backpack_once",
+            effect_key="treasure_deposit_backpack",
+            chance=1.0,
+            trigger_door_types=["REWARD"],
+            payload={"gold_min": 20, "gold_max": 20, "extra_item_count": 2},
+        )
+
+        with unittest.mock.patch("models.story_system.random.uniform", return_value=0.0):
+            changed_door = story.apply_pre_enter_checks(reward_door)
+
+        reward = getattr(changed_door, "reward", {})
+        self.assertEqual(reward.get("gold"), 20)
+        item_names = [getattr(key, "name", "") for key in reward.keys() if key != "gold"]
+        self.assertIn("寄存的背包", item_names)
+        self.assertEqual(len(item_names), 3)
+
     def test_trap_extension_can_replace_default_trap_enter(self):
         trap_door = DoorEnum.TRAP.create_instance(controller=self.controller)
         trap_door.add_door_extension(

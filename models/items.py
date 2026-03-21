@@ -240,6 +240,15 @@ class GiantScroll(BattleItemBase):
             target.apply_status(StatusName.ATK_MULTIPLIER.create_instance(duration=self.duration, target=target, value=2))
             player.controller.add_message(f"巨大卷轴激活，接下来{self.duration}回合你的攻击力翻倍！")
 
+
+class DepositedBackpack(BattleItemBase):
+    """时光当铺后续奖励：寄存的背包。"""
+
+    def effect(self, **kwargs):
+        player = kwargs.get('player')
+        if player:
+            player.controller.add_message("你翻了翻寄存的背包，里面只剩一张当票和一股陈旧的樟木味。")
+
 # 金币袋子类
 class GoldBag(ConsumableItem):
     def __init__(self, name: str, **kwargs):

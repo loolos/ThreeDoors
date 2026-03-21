@@ -7,6 +7,7 @@ from models.door import DoorEnum
 from models.items import (
     AttackUpScroll,
     Barrier,
+    DepositedBackpack,
     FlyingHammer,
     GiantScroll,
     HealingScroll,
@@ -1213,6 +1214,18 @@ class StorySystem:
         new_reward[marked_item] = amount
         return new_reward, marked_item
 
+    def _build_deposit_backpack_reward(self, payload: Dict[str, Any]) -> Dict[Any, int]:
+        gold_min = max(8, int(payload.get("gold_min", 16)))
+        gold_max = max(gold_min, int(payload.get("gold_max", 40)))
+        reward: Dict[Any, int] = {
+            "gold": random.randint(gold_min, gold_max),
+            DepositedBackpack(name="寄存的背包", cost=0): 1,
+        }
+        extra_count = max(2, int(payload.get("extra_item_count", 2)))
+        for _ in range(extra_count):
+            reward[create_random_item()] = 1
+        return reward
+
     def _apply_effect(self, consequence: PendingConsequence, door: Any) -> Tuple[bool, Any]:
         effect = consequence.effect_key
         payload = consequence.payload
@@ -1729,6 +1742,23 @@ class StorySystem:
             self._log_effect_result(
                 consequence,
                 "宝物已被掏空",
+            )
+            return True, door
+
+        if effect == "treasure_deposit_backpack":
+            if getattr(getattr(door, "enum", None), "name", "") != "REWARD":
+                return False, door
+            self._attach_door_extension(
+                door=door,
+                extension_config={
+                    "extension_type": "treasure_deposit_backpack",
+                    "resolved_reward": self._build_deposit_backpack_reward(payload),
+                },
+                apply_on_attach=True,
+            )
+            self._log_effect_result(
+                consequence,
+                f"宝物内容被改写：{self._describe_reward(door)}",
             )
             return True, door
 
@@ -2802,6 +2832,18 @@ class StorySystem:
             runtime["reward_written"] = True
             return {"applied": True}
 
+        if ext_type == "treasure_deposit_backpack":
+            if door_type != "REWARD":
+                return {}
+            if runtime.get("reward_written"):
+                return {"applied": True}
+            resolved_reward = extension.get("resolved_reward", {})
+            if not isinstance(resolved_reward, dict):
+                resolved_reward = {}
+            door.reward = dict(resolved_reward)
+            runtime["reward_written"] = True
+            return {"applied": True}
+
         if ext_type == "stage_curtain_script_vault":
             if door_type != "REWARD":
                 return {}
@@ -3152,6 +3194,7 @@ class StorySystem:
             ),
             "healing_scroll": lambda: HealingScroll(name="恢复卷轴", duration=10, cost=18),
             "immune_scroll": lambda: ImmuneScroll(name="免疫卷轴", duration=5, cost=20),
+            "deposit_backpack": lambda: DepositedBackpack(name="寄存的背包", cost=0),
         }
         factory = item_factory.get(key)
         return factory() if factory else None
