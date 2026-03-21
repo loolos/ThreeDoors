@@ -55,6 +55,17 @@ class TestStatusSystem(BaseTest):
         self.player.apply_status(status)
         self.assertLess(self.player.atk, base_atk)
 
+    def test_weak_expires_in_adventure_rounds(self):
+        """测试机关/事件施加的虚弱在冒险回合同样会过期并恢复攻击力"""
+        self.player._atk = 10
+        self.player.apply_status(StatusName.WEAK.create_instance(duration=1, target=self.player))
+        self.assertEqual(self.player.atk, 8)
+
+        self.player.adventure_status_duration_pass()
+
+        self.assertFalse(self.player.has_status(StatusName.WEAK))
+        self.assertEqual(self.player.atk, 10)
+
     def test_immunity_effect(self):
         """测试免疫效果"""
         immune = StatusName.IMMUNE.create_instance(duration=5, target=self.player)
