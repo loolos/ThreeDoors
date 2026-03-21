@@ -201,20 +201,38 @@ class BarrierStatus(Status):
     def __init__(self, **kwargs):
         super().__init__(
             name=StatusName.BARRIER,
-            description="免疫怪物伤害",
-            duration=kwargs.get("duration", 3),
+            description="按层递减减伤：首次90%，之后每次减少10%，最低0%",
+            duration=kwargs.get("duration", 1),
             is_battle_only=True,
             target=kwargs.get("target")
         )
+        # 结界已触发次数（仅计怪物攻击伤害减免）
+        self.trigger_count = kwargs.get("trigger_count", 0)
+
+    def duration_pass(self) -> bool:
+        """
+        结界效果按“被攻击次数”递减，不按回合衰减；
+        战斗结束时由 clear_battle_status 统一清理。
+        """
+        return False
+
+    def get_reduction_ratio(self) -> float:
+        """获取本次减伤比例（0.0~0.9），并推进触发次数。"""
+        next_count = self.trigger_count + 1
+        reduction = max(0.0, 1.0 - 0.1 * next_count)
+        self.trigger_count = next_count
+        return reduction
 
     def combine(self, other: 'Status') -> None:
-        """结界状态叠加：只叠加持续时间"""
+        """结界状态叠加：刷新结界层数（重置触发次数）"""
         if not isinstance(other, BarrierStatus):
             return
-        old_duration = self.duration
+        old_count = self.trigger_count
         self.duration = max(self.duration, other.duration)
+        self.trigger_count = 0
         if hasattr(self, 'target') and self.target and hasattr(self.target, 'controller'):
-            self.target.controller.add_message(f"结界状态持续时间从 {old_duration} 回合延长至 {self.duration} 回合!")
+            if old_count > 0:
+                self.target.controller.add_message("结界被重新校准，减伤层数已重置！")
 
 class AtkUpStatus(Status):
     """攻击力提升状态"""

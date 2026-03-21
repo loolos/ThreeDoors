@@ -69,11 +69,18 @@ class TestItemSystem(BaseTest):
         # 验证效果
         self.assertTrue(self.player.has_status(StatusName.BARRIER))
         
-        # 测试防御效果
-        monster = self.create_test_monster(atk=100)
+        # 测试递减减伤效果：90% -> 80% -> 70%
+        monster = self.create_test_monster(atk=10)
         initial_hp = self.player.hp
-        monster.attack(self.player)
-        self.assertEqual(self.player.hp, initial_hp)
+        with patch("models.monster.random.randint", return_value=0):
+            monster.attack(self.player)
+            self.assertEqual(self.player.hp, initial_hp - 1)
+
+            monster.attack(self.player)
+            self.assertEqual(self.player.hp, initial_hp - 3)
+
+            monster.attack(self.player)
+            self.assertEqual(self.player.hp, initial_hp - 6)
 
     def test_revive_scroll(self):
         """测试复活卷轴效果"""
