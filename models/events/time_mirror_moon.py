@@ -108,6 +108,18 @@ class TimePawnshopEvent(Event):
                         "message": "前情：你赎回了欠下的时间。你的节奏重新稳定，出手更果断了。",
                     },
                 },
+                {
+                    "consequence_id": "time_redeem_deposit_backpack",
+                    "effect_key": "treasure_deposit_backpack",
+                    "chance": 1.0,
+                    "trigger_door_types": ["REWARD"],
+                    "payload": {
+                        "gold_min": 18,
+                        "gold_max": 44,
+                        "extra_item_count": 2,
+                        "message": "前情：你在时间当铺结清旧债后拿到了寄存凭条。下一扇宝物门会按当票结算，固定改成金币加两件随机宝物，并取回“寄存的背包”。",
+                    },
+                },
             ],
         )
         fee = 20
@@ -302,4 +314,3 @@ class MirrorTheaterEvent(Event):
             p.take_damage(dmg)
             self.add_message(f"你撕剧本的一瞬间镜幕反噬，碎光像刀一样回卷，令你受到 {dmg} 点伤害。")
         return "Event Completed"
-
