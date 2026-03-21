@@ -153,10 +153,17 @@ class Player:
     def adventure_status_duration_pass(self) -> None:
         """处理冒险回合的状态持续时间"""
         expired = []
+        current_round = getattr(self.controller, "round_count", None)
         for st in list(self.statuses):
             if st not in self.statuses:
                 continue
             if not self.statuses[st].is_battle_only:
+                if (
+                    st == StatusName.WEAK
+                    and isinstance(current_round, int)
+                    and getattr(self, "_weak_ticked_in_battle_round", None) == current_round
+                ):
+                    continue
                 if self.statuses[st].duration_pass():
                     expired.append(st)
         
@@ -167,12 +174,19 @@ class Player:
     def battle_status_duration_pass(self) -> None:
         """处理战斗回合的状态持续时间"""
         expired = []
+        weak_processed = False
+        current_round = getattr(self.controller, "round_count", None)
         for st in list(self.statuses):
             if st not in self.statuses:
                 continue
-            if self.statuses[st].is_battle_only:
+            # 虚弱可由机关/剧情在非战斗场景施加，但在战斗回合同样需要正常衰减
+            if self.statuses[st].is_battle_only or st == StatusName.WEAK:
+                if st == StatusName.WEAK:
+                    weak_processed = True
                 if self.statuses[st].duration_pass():
                     expired.append(st)
+        if weak_processed and isinstance(current_round, int):
+            self._weak_ticked_in_battle_round = current_round
         
         for st in expired:
             if st in self.statuses:
@@ -242,6 +256,8 @@ class Player:
             ItemType.PASSIVE: []
         }
         self.statuses = {}
+        self._weak_ticked_in_battle_round = None
+        self._weak_recover_message_round = None
         self._init_default_items()
 
 

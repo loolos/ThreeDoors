@@ -96,7 +96,8 @@ class WeakStatus(Status):
             name=StatusName.WEAK,
             description="攻击力降低2点",
             duration=kwargs.get("duration", 3),
-            is_battle_only=True,
+            # 虚弱既可能来自战斗，也可能来自机关/事件门，按“回合”衰减而非仅战斗回合
+            is_battle_only=False,
             target=kwargs.get("target")
         )
         
@@ -104,7 +105,15 @@ class WeakStatus(Status):
         self.target.controller.add_message("你感到一阵虚弱，攻击力降低了！")
         
     def end_effect(self) -> None:
-        self.target.controller.add_message("虚弱效果消失了，你的攻击力恢复了。")
+        controller = getattr(self.target, "controller", None)
+        if controller is None:
+            return
+        round_count = getattr(controller, "round_count", None)
+        if isinstance(round_count, int):
+            if getattr(self.target, "_weak_recover_message_round", None) == round_count:
+                return
+            setattr(self.target, "_weak_recover_message_round", round_count)
+        controller.add_message("虚弱效果消失了，你的攻击力恢复了。")
 
     def combine(self, other: 'Status') -> None:
         """虚弱状态叠加：只叠加持续时间"""
