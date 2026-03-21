@@ -1,5 +1,35 @@
 """见 models.events 包说明。"""
 from models.status import StatusName
+from models.story_flags import (
+    CARAVAN_DONATED,
+    CARAVAN_EXTORTED,
+    CARAVAN_IGNORED,
+    choice_tag,
+    CURSED_CHEST_LEFT,
+    CURSED_CHEST_OPENED,
+    CURSED_CHEST_PURIFIED,
+    GAMBLER_DECLINED,
+    GAMBLER_HIGH_STAKES,
+    GAMBLER_LOW_STAKES,
+    KNIGHT_AIDED,
+    KNIGHT_LEFT,
+    KNIGHT_LOOTED,
+    LOST_CHILD_GAVE_GOLD,
+    LOST_CHILD_GUIDED_HOME,
+    LOST_CHILD_IGNORED,
+    SAGE_HEALTH_CHOICE,
+    SAGE_POWER_CHOICE,
+    SAGE_WEALTH_CHOICE,
+    SHRINE_DESECRATED,
+    SHRINE_INSPECTED,
+    SHRINE_PRAYED,
+    SMUGGLER_BOUGHT_GOODS,
+    SMUGGLER_LEFT,
+    SMUGGLER_REPORTED,
+    STRANGER_HELPED,
+    STRANGER_IGNORED,
+    STRANGER_ROBBED,
+)
 from models.story_gates import (
     ALL_PRE_FINAL_DOOR_TYPES,
     ELF_THIEF_NAME,
@@ -29,7 +59,7 @@ class StrangerEvent(Event):
         p = self.get_player()
         help_cost = self.help_cost
         self.register_story_choice(
-            choice_flag="stranger_helped",
+            choice_flag=STRANGER_HELPED,
             moral_delta=8,
             consequences=[
                 {
@@ -76,7 +106,7 @@ class StrangerEvent(Event):
     def rob_stranger(self):
         p = self.get_player()
         self.register_story_choice(
-            choice_flag="stranger_robbed",
+            choice_flag=STRANGER_ROBBED,
             moral_delta=-10,
             consequences=[
                 {
@@ -117,7 +147,7 @@ class StrangerEvent(Event):
 
     def ignore_stranger(self):
         self.register_story_choice(
-            choice_flag="stranger_ignored",
+            choice_flag=STRANGER_IGNORED,
             moral_delta=-3,
             consequences=[
                 {
@@ -160,7 +190,7 @@ class SmugglerEvent(Event):
     def buy_item(self):
         p = self.get_player()
         self.register_story_choice(
-            choice_flag="smuggler_bought_goods",
+            choice_flag=SMUGGLER_BOUGHT_GOODS,
             moral_delta=-5,
             consequences=[
                 {
@@ -181,7 +211,7 @@ class SmugglerEvent(Event):
                                 "effect_key": "black_market_markup",
                                 "chance": 0.26,
                                 "trigger_door_types": ["SHOP"],
-                                "required_flags": ["choice:smuggler_bought_goods"],
+                                "required_flags": [choice_tag(SMUGGLER_BOUGHT_GOODS)],
                                 "payload": {
                                     "ratio": 1.18,
                                     "message": "第二次再去时，对方笑着说：'折扣是入场券，不是终身会员。'",
@@ -217,7 +247,7 @@ class SmugglerEvent(Event):
         round_count = max(0, int(getattr(self.controller, "round_count", 0)))
         min_gold = int((round_count / 3) * rng().uniform(0.5, 1.0))
         self.register_story_choice(
-            choice_flag="smuggler_reported",
+            choice_flag=SMUGGLER_REPORTED,
             moral_delta=6,
             consequences=[
                 {
@@ -279,7 +309,7 @@ class SmugglerEvent(Event):
         return "Event Completed"
 
     def leave(self):
-        self.register_story_choice(choice_flag="smuggler_left", moral_delta=0)
+        self.register_story_choice(choice_flag=SMUGGLER_LEFT, moral_delta=0)
         self.add_message("你摇摇头，转身离开了。")
         return "Event Completed"
 
@@ -311,7 +341,7 @@ class AncientShrineEvent(Event):
     def pray(self):
         p = self.get_player()
         self.register_story_choice(
-            choice_flag="shrine_prayed",
+            choice_flag=SHRINE_PRAYED,
             moral_delta=4,
             consequences=[
                 {
@@ -351,7 +381,7 @@ class AncientShrineEvent(Event):
         round_count = max(0, int(getattr(self.controller, "round_count", 0)))
         min_gold = int((round_count / 3) * rng().uniform(0.5, 1.0))
         self.register_story_choice(
-            choice_flag="shrine_desecrated",
+            choice_flag=SHRINE_DESECRATED,
             moral_delta=-9,
             consequences=[
                 {
@@ -383,7 +413,7 @@ class AncientShrineEvent(Event):
 
     def inspect(self):
         self.register_story_choice(
-            choice_flag="shrine_inspected",
+            choice_flag=SHRINE_INSPECTED,
             moral_delta=1,
             consequences=[
                 {
@@ -431,7 +461,7 @@ class GamblerEvent(Event):
         round_count = max(0, int(getattr(self.controller, "round_count", 0)))
         min_gold = int((round_count / 3) * rng().uniform(0.5, 1.0))
         self.register_story_choice(
-            choice_flag="gambler_high_stakes",
+            choice_flag=GAMBLER_HIGH_STAKES,
             moral_delta=-2,
             consequences=[
                 {
@@ -473,7 +503,7 @@ class GamblerEvent(Event):
     def low_stakes(self):
         p = self.get_player()
         self.register_story_choice(
-            choice_flag="gambler_low_stakes",
+            choice_flag=GAMBLER_LOW_STAKES,
             moral_delta=-1,
             consequences=[
                 {
@@ -511,7 +541,7 @@ class GamblerEvent(Event):
 
     def decline(self):
         self.register_story_choice(
-            choice_flag="gambler_declined",
+            choice_flag=GAMBLER_DECLINED,
             moral_delta=2,
             consequences=[
                 {
@@ -552,7 +582,7 @@ class LostChildEvent(Event):
 
     def guide_home(self):
         self.register_story_choice(
-            choice_flag="lost_child_guided_home",
+            choice_flag=LOST_CHILD_GUIDED_HOME,
             moral_delta=10,
             consequences=[
                 {
@@ -574,7 +604,7 @@ class LostChildEvent(Event):
                                 "effect_key": "atk_training",
                                 "chance": 0.28,
                                 "trigger_door_types": ["MONSTER", "EVENT"],
-                                "required_flags": ["choice:lost_child_guided_home"],
+                                "required_flags": [choice_tag(LOST_CHILD_GUIDED_HOME)],
                                 "payload": {
                                     "delta": 1,
                                     "message": "村里的猎人后来给你演示了两招，出手更稳了。",
@@ -628,7 +658,7 @@ class LostChildEvent(Event):
         min_gold = int((round_count / 3) * rng().uniform(0.5, 1.0))
         min_heal = int((round_count / 3) * rng().uniform(0.5, 1.0))
         self.register_story_choice(
-            choice_flag="lost_child_gave_gold",
+            choice_flag=LOST_CHILD_GAVE_GOLD,
             moral_delta=6,
             consequences=[
                 {
@@ -664,7 +694,7 @@ class LostChildEvent(Event):
 
     def ignore(self):
         self.register_story_choice(
-            choice_flag="lost_child_ignored",
+            choice_flag=LOST_CHILD_IGNORED,
             moral_delta=-8,
             consequences=[
                 {
@@ -704,7 +734,7 @@ class CursedChestEvent(Event):
     def open_chest(self):
         p = self.get_player()
         self.register_story_choice(
-            choice_flag="cursed_chest_opened",
+            choice_flag=CURSED_CHEST_OPENED,
             moral_delta=-4,
             consequences=[
                 {
@@ -740,7 +770,7 @@ class CursedChestEvent(Event):
 
     def purify(self):
         self.register_story_choice(
-            choice_flag="cursed_chest_purified",
+            choice_flag=CURSED_CHEST_PURIFIED,
             moral_delta=5,
             consequences=[
                 {
@@ -772,7 +802,7 @@ class CursedChestEvent(Event):
         return "Event Completed"
 
     def leave(self):
-        self.register_story_choice(choice_flag="cursed_chest_left", moral_delta=1)
+        self.register_story_choice(choice_flag=CURSED_CHEST_LEFT, moral_delta=1)
         self.add_message("你明智地远离了诅咒之物。")
         return "Event Completed"
 
@@ -800,7 +830,7 @@ class WiseSageEvent(Event):
     def power(self):
         p = self.get_player()
         self.register_story_choice(
-            choice_flag="sage_power_choice",
+            choice_flag=SAGE_POWER_CHOICE,
             moral_delta=-1,
             consequences=[
                 {
@@ -833,7 +863,7 @@ class WiseSageEvent(Event):
         round_count = max(0, int(getattr(self.controller, "round_count", 0)))
         min_gold = int((round_count / 3) * rng().uniform(0.5, 1.0))
         self.register_story_choice(
-            choice_flag="sage_wealth_choice",
+            choice_flag=SAGE_WEALTH_CHOICE,
             moral_delta=-3,
             consequences=[
                 {
@@ -871,7 +901,7 @@ class WiseSageEvent(Event):
         min_gold = int((round_count / 3) * rng().uniform(0.5, 1.0))
         min_heal = int((round_count / 3) * rng().uniform(0.5, 1.0))
         self.register_story_choice(
-            choice_flag="sage_health_choice",
+            choice_flag=SAGE_HEALTH_CHOICE,
             moral_delta=4,
             consequences=[
                 {
@@ -920,7 +950,7 @@ class RefugeeCaravanEvent(Event):
     def donate(self):
         p = self.get_player()
         self.register_story_choice(
-            choice_flag="caravan_donated",
+            choice_flag=CARAVAN_DONATED,
             moral_delta=7,
             consequences=[
                 {
@@ -951,7 +981,7 @@ class RefugeeCaravanEvent(Event):
         current_round = max(0, int(getattr(self.controller, "round_count", 0)))
         revenge_deadline_round = current_round + 10
         self.register_story_choice(
-            choice_flag="caravan_extorted",
+            choice_flag=CARAVAN_EXTORTED,
             moral_delta=-9,
             consequences=[
                 {
@@ -978,7 +1008,7 @@ class RefugeeCaravanEvent(Event):
                                 "effect_key": "revenge_ambush",
                                 "chance": 0.24,
                                 "trigger_door_types": ["MONSTER", "EVENT"],
-                                "required_flags": ["choice:caravan_extorted"],
+                                "required_flags": [choice_tag(CARAVAN_EXTORTED)],
                                 "payload": {
                                     "hp_ratio": 1.18,
                                     "atk_ratio": 1.15,
@@ -1018,7 +1048,7 @@ class RefugeeCaravanEvent(Event):
         return "Event Completed"
 
     def walk_away(self):
-        self.register_story_choice(choice_flag="caravan_ignored", moral_delta=-2)
+        self.register_story_choice(choice_flag=CARAVAN_IGNORED, moral_delta=-2)
         self.add_message("你低头赶路，不愿卷入是非。")
         return "Event Completed"
 
@@ -1050,7 +1080,7 @@ class FallenKnightEvent(Event):
         min_gold = int((round_count / 3) * rng().uniform(0.5, 1.0))
         min_heal = int((round_count / 3) * rng().uniform(0.5, 1.0))
         self.register_story_choice(
-            choice_flag="knight_aided",
+            choice_flag=KNIGHT_AIDED,
             moral_delta=8,
             consequences=[
                 {
@@ -1089,7 +1119,7 @@ class FallenKnightEvent(Event):
     def loot_knight(self):
         p = self.get_player()
         self.register_story_choice(
-            choice_flag="knight_looted",
+            choice_flag=KNIGHT_LOOTED,
             moral_delta=-10,
             consequences=[
                 {
@@ -1116,7 +1146,7 @@ class FallenKnightEvent(Event):
                                 "effect_key": "lose_gold",
                                 "chance": 0.26,
                                 "trigger_door_types": ["EVENT", "SHOP"],
-                                "required_flags": ["choice:knight_looted"],
+                                "required_flags": [choice_tag(KNIGHT_LOOTED)],
                                 "payload": {
                                     "amount": rng().randint(15, 35),
                                     "message": "有人认出了那套装备，你花钱才堵住了对方的嘴。",
@@ -1136,7 +1166,7 @@ class FallenKnightEvent(Event):
         return "Event Completed"
 
     def leave(self):
-        self.register_story_choice(choice_flag="knight_left", moral_delta=0)
+        self.register_story_choice(choice_flag=KNIGHT_LEFT, moral_delta=0)
         self.add_message("你不确定这是陷阱，选择绕开。")
         return "Event Completed"
 

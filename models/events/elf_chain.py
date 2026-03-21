@@ -1,5 +1,22 @@
 """见 models.events 包说明。"""
 from models.status import StatusName
+from models.story_flags import (
+    ELF_GRUDGE_CAMP_MERCENARY,
+    ELF_GRUDGE_CAMP_REFUSED_HELP,
+    ELF_GRUDGE_EPILOGUE_BURNED,
+    ELF_GRUDGE_HEIST_BETRAYED,
+    ELF_GRUDGE_HEIST_SIDE_ROUTE,
+    ELF_GRUDGE_HUNTER_FLED,
+    ELF_GRUDGE_HUNTER_LOOT_GRAB,
+    ELF_GRUDGE_INTRO_FAKE_GUARD,
+    ELF_GRUDGE_MAP_SOLD_OUT,
+    ELF_GRUDGE_ROOFTOP_SNEAK,
+    ELF_GRUDGE_SHADOW_THREATEN,
+    ELF_GRUDGE_STAGE_REFUSED,
+    ELF_GRUDGE_TRAP_ORDERED,
+    ELF_HUNTER_GATE_TEAM_UP,
+    ELF_SIDE_REG,
+)
 from models.story_gates import (
     ALL_PRE_FINAL_DOOR_TYPES,
     ELF_THIEF_NAME,
@@ -213,7 +230,7 @@ class ElfThiefIntroEvent(Event):
         lost = min(p.gold, _elf_ratio(p, 0.1, "gold"))
         p.gold = max(0, p.gold - lost)
         _adjust_elf_relation(self.controller, -2)
-        _record_elf_grudge(self.controller, "elf_grudge_intro_fake_guard")
+        _record_elf_grudge(self.controller, ELF_GRUDGE_INTRO_FAKE_GUARD)
         self.add_message(f"她反手把你的钱袋顺走 {lost}G：'冒充守卫前，先把靴子擦亮。'")
         self._start_chain()
         return "Event Completed"
@@ -255,7 +272,7 @@ class ElfShadowMarkEvent(Event):
         lost = min(p.gold, _elf_ratio(p, 0.08, "gold"))
         p.gold = max(0, p.gold - lost)
         _adjust_elf_relation(self.controller, -2)
-        _record_elf_grudge(self.controller, "elf_grudge_shadow_threaten")
+        _record_elf_grudge(self.controller, ELF_GRUDGE_SHADOW_THREATEN)
         self.add_message(f"她耸耸肩顺手摸走你钱袋一角：'那就看谁账本记得久。'（-{lost}G）转身消失在火把后。")
         _schedule_next_elf_event(self.controller, "elf_shadow_mark_event")
         return "Event Completed"
@@ -295,7 +312,7 @@ class ElfRooftopDuelEvent(Event):
         dmg = _elf_ratio(self.get_player(), 0.1, "hp")
         self.get_player().take_damage(dmg)
         _adjust_elf_relation(self.controller, -3)
-        _record_elf_grudge(self.controller, "elf_grudge_rooftop_sneak")
+        _record_elf_grudge(self.controller, ELF_GRUDGE_ROOFTOP_SNEAK)
         self.add_message(f"偷袭差点得手，但她反手把你按进瓦片里（-{dmg}HP）。")
         _schedule_next_elf_event(self.controller, "elf_rooftop_duel_event")
         return "Event Completed"
@@ -334,7 +351,7 @@ class ElfFakeMapEvent(Event):
         gain = _elf_ratio(self.get_player(), 0.18, "gold")
         self.get_player().gold += gain
         _adjust_elf_relation(self.controller, -2)
-        _record_elf_grudge(self.controller, "elf_grudge_map_sold_out")
+        _record_elf_grudge(self.controller, ELF_GRUDGE_MAP_SOLD_OUT)
         self.add_message(f"你把图卖给商人，赚了 {gain}G，也让她记下你这笔账。")
         _schedule_next_elf_event(self.controller, "elf_fake_map_event")
         return "Event Completed"
@@ -373,7 +390,7 @@ class ElfMonsterStageEvent(Event):
         dmg = _elf_ratio(self.get_player(), 0.07, "hp")
         self.get_player().take_damage(dmg)
         _adjust_elf_relation(self.controller, -1)
-        _record_elf_grudge(self.controller, "elf_grudge_stage_refused")
+        _record_elf_grudge(self.controller, ELF_GRUDGE_STAGE_REFUSED)
         self.add_message(f"她把假人踢回门后，你躲闪不及被门板刮到。'行，别怪我以后不救场。'（-{dmg}HP）")
         _schedule_next_elf_event(self.controller, "elf_monster_stage_event")
         return "Event Completed"
@@ -408,7 +425,7 @@ class ElfNightCampEvent(Event):
         gain = _elf_ratio(self.get_player(), 0.15, "gold")
         self.get_player().gold += gain
         _adjust_elf_relation(self.controller, -1)
-        _record_elf_grudge(self.controller, "elf_grudge_camp_mercenary")
+        _record_elf_grudge(self.controller, ELF_GRUDGE_CAMP_MERCENARY)
         self.add_message(f"她扔来 {gain}G：'佣兵价，童叟无欺。'语气却冷了半分。")
         _schedule_next_elf_event(self.controller, "elf_night_camp_event")
         return "Event Completed"
@@ -416,7 +433,7 @@ class ElfNightCampEvent(Event):
     def prepare_solo(self):
         boon_text = _elf_grant_dynamic_boon(self.controller)
         _adjust_elf_relation(self.controller, -2)
-        _record_elf_grudge(self.controller, "elf_grudge_camp_refused_help")
+        _record_elf_grudge(self.controller, ELF_GRUDGE_CAMP_REFUSED_HELP)
         self.add_message(f"你决定单干，她没拦你，只把一份'不欠人情'的补给甩了过来。{boon_text}")
         _schedule_next_elf_event(self.controller, "elf_night_camp_event")
         return "Event Completed"
@@ -459,7 +476,7 @@ class ElfTrapRescueEvent(Event):
 
     def order_her(self):
         _adjust_elf_relation(self.controller, -2)
-        _record_elf_grudge(self.controller, "elf_grudge_trap_ordered")
+        _record_elf_grudge(self.controller, ELF_GRUDGE_TRAP_ORDERED)
         self._rescue_outcome()
         _schedule_next_elf_event(self.controller, "elf_trap_rescue_event")
         return "Event Completed"
@@ -495,7 +512,7 @@ class ElfHunterGateEvent(Event):
         # 你选择并肩作战后，会引来“来复仇的追兵”追猎者，作为后续伏击战（revenge_ambush）。
         current_round = max(0, int(getattr(self.controller, "round_count", 0)))
         self.register_story_choice(
-            choice_flag="elf_hunter_gate_team_up",
+            choice_flag=ELF_HUNTER_GATE_TEAM_UP,
             consequences=[
                 {
                     "consequence_id": "elf_hunter_gate_team_up_revenge",
@@ -522,7 +539,7 @@ class ElfHunterGateEvent(Event):
         gain = _elf_ratio(self.get_player(), 0.14, "gold")
         self.get_player().gold += gain
         _adjust_elf_relation(self.controller, -1)
-        _record_elf_grudge(self.controller, "elf_grudge_hunter_loot_grab")
+        _record_elf_grudge(self.controller, ELF_GRUDGE_HUNTER_LOOT_GRAB)
         self.add_message(f"你抢下战利品 {gain}G，她虽然没说什么，但眼神变冷。")
         _schedule_next_elf_event(self.controller, "elf_hunter_gate_event")
         return "Event Completed"
@@ -531,7 +548,7 @@ class ElfHunterGateEvent(Event):
         dmg = _elf_ratio(self.get_player(), 0.15, "hp")
         self.get_player().take_damage(dmg)
         _adjust_elf_relation(self.controller, -3)
-        _record_elf_grudge(self.controller, "elf_grudge_hunter_fled")
+        _record_elf_grudge(self.controller, ELF_GRUDGE_HUNTER_FLED)
         self.add_message(f"你撤得太急，背后中箭（-{dmg}HP）。她在远处骂你胆小鬼。")
         _schedule_next_elf_event(self.controller, "elf_hunter_gate_event")
         return "Event Completed"
@@ -567,7 +584,7 @@ class ElfFinalHeistEvent(Event):
         self.get_player().gold += gain
         self.get_player().take_damage(dmg)
         _adjust_elf_relation(self.controller, 1)
-        _record_elf_grudge(self.controller, "elf_grudge_heist_side_route")
+        _record_elf_grudge(self.controller, ELF_GRUDGE_HEIST_SIDE_ROUTE)
         self.add_message(f"你强行改走侧井快线，确实多抄到一批现银，但触发了毒针与弩机（+{gain}G，-{dmg}HP）。")
         _schedule_next_elf_event(self.controller, "elf_final_heist_event")
         return "Event Completed"
@@ -578,7 +595,7 @@ class ElfFinalHeistEvent(Event):
         self.get_player().gold += gain
         self.get_player().take_damage(backlash)
         _adjust_elf_relation(self.controller, -4)
-        _record_elf_grudge(self.controller, "elf_grudge_heist_betrayed")
+        _record_elf_grudge(self.controller, ELF_GRUDGE_HEIST_BETRAYED)
         self.add_message(f"你敲响警铃换来安保悬赏 {gain}G，但混战中也被流矢划伤（-{backlash}HP）。她被押走前只留下一句：'你最好永远别落单。'")
         _schedule_next_elf_event(self.controller, "elf_final_heist_event")
         return "Event Completed"
@@ -677,7 +694,7 @@ class ElfEpilogueEvent(Event):
             "hostile",
             extra_tags={"ending_hook:elf_hostile", "ending_hook:hunted"},
         )
-        _record_elf_grudge(self.controller, "elf_grudge_epilogue_burned")
+        _record_elf_grudge(self.controller, ELF_GRUDGE_EPILOGUE_BURNED)
         rel = getattr(story, "elf_relation", 0) if story else self.rel
         _set_elf_key_obtained(self.controller, False)
         dmg = _elf_ratio(self.get_player(), 0.12 if rel > -2 else 0.16, "hp")
@@ -703,7 +720,7 @@ def _register_elf_side_events(controller):
         return
     # 怪物门：标记为银羽与利爪（保持怪物门，进门后打怪或逃跑，根据结果不同提示）
     story.register_consequence(
-        choice_flag="elf_side_reg",
+        choice_flag=ELF_SIDE_REG,
         consequence_id="elf_side_monster_once",
         effect_key="elf_side_monster_mark",
         chance=1.0,
@@ -719,7 +736,7 @@ def _register_elf_side_events(controller):
     )
     # 商店门（未认出）：门样式与购买流程像商店，实为她伪装，仅一次
     story.register_consequence(
-        choice_flag="elf_side_reg",
+        choice_flag=ELF_SIDE_REG,
         consequence_id="elf_side_merchant_disguised_once",
         effect_key="replace_with_elf_side_event",
         chance=1.0,
@@ -736,7 +753,7 @@ def _register_elf_side_events(controller):
     )
     # 商店门（认出她）：直接揭穿，事件门对话，仅一次
     story.register_consequence(
-        choice_flag="elf_side_reg",
+        choice_flag=ELF_SIDE_REG,
         consequence_id="elf_side_merchant_once",
         effect_key="replace_with_elf_side_event",
         chance=1.0,
@@ -753,7 +770,7 @@ def _register_elf_side_events(controller):
     )
     # 宝物门：无选项，根据与她的关系决定是拿到宝物还是被她抢走
     story.register_consequence(
-        choice_flag="elf_side_reg",
+        choice_flag=ELF_SIDE_REG,
         consequence_id="elf_side_reward_once",
         effect_key="elf_side_reward_mark",
         chance=1.0,

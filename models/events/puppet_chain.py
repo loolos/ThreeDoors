@@ -1,5 +1,26 @@
 """见 models.events 包说明。"""
 from models.status import StatusName
+from models.story_flags import (
+    PUPPET_DESCENT_CUT_EMOTION,
+    PUPPET_DESCENT_DARK_FEED,
+    PUPPET_DESCENT_PATCH,
+    PUPPET_INTRO_BLACKOUT,
+    PUPPET_INTRO_DECOY,
+    PUPPET_INTRO_HIDE,
+    PUPPET_KIND_ECHO_COMFORT,
+    PUPPET_KIND_ECHO_EXPLOIT,
+    PUPPET_KIND_ECHO_TRUST,
+    PUPPET_MAINLINE_CHOICE_PREFIX,
+    PUPPET_RIFT_DARK,
+    PUPPET_RIFT_KIND,
+    PUPPET_SIGNAL_LOG,
+    PUPPET_SIGNAL_RESELL,
+    PUPPET_SIGNAL_SOFT,
+    PUPPET_SIDE_REG,
+    puppet_descent_flag,
+    puppet_intro_flag,
+    puppet_rift_flag,
+)
 from models.story_gates import (
     ALL_PRE_FINAL_DOOR_TYPES,
     ELF_THIEF_NAME,
@@ -69,21 +90,21 @@ def build_puppet_final_boss_payload(controller, phase2_burst_heal_ratio=None, **
         "kind_heal": 18,
         "no_side_event_message": "你几乎没碰到那些支线干预，它的核心参数按默认流程直接结算，战斗走势更加不可预测。",
         "kind_flags": [
-            "puppet_intro_hide",
-            "puppet_signal_soft",
-            "puppet_kind_echo_trust",
-            "puppet_kind_echo_comfort",
-            "puppet_rift_kind",
-            "puppet_descent_patch",
+            PUPPET_INTRO_HIDE,
+            PUPPET_SIGNAL_SOFT,
+            PUPPET_KIND_ECHO_TRUST,
+            PUPPET_KIND_ECHO_COMFORT,
+            PUPPET_RIFT_KIND,
+            PUPPET_DESCENT_PATCH,
         ],
         "dark_flags": [
-            "puppet_intro_blackout",
-            "puppet_intro_decoy",
-            "puppet_signal_resell",
-            "puppet_kind_echo_exploit",
-            "puppet_rift_dark",
-            "puppet_descent_cut_emotion",
-            "puppet_descent_dark_feed",
+            PUPPET_INTRO_BLACKOUT,
+            PUPPET_INTRO_DECOY,
+            PUPPET_SIGNAL_RESELL,
+            PUPPET_KIND_ECHO_EXPLOIT,
+            PUPPET_RIFT_DARK,
+            PUPPET_DESCENT_CUT_EMOTION,
+            PUPPET_DESCENT_DARK_FEED,
         ],
         "hint": "前情：核心下潜结束，最深处那扇门正在锁定。门后是木偶黑暗人格本体。",
         "message": "核心阀门一节节闭合，走廊尽头只剩一扇被红线封死的门。你知道，门后就是它的本体。",
@@ -105,7 +126,7 @@ def _schedule_puppet_mainline_event(controller, from_stage, next_event_key, hint
     current_round = max(0, int(getattr(controller, "round_count", 0)))
     cid = f"puppet_mainline_{from_stage}_to_{next_event_key}"
     story.register_consequence(
-        choice_flag=f"puppet_mainline:{from_stage}",
+        choice_flag=f"{PUPPET_MAINLINE_CHOICE_PREFIX}{from_stage}",
         consequence_id=cid,
         effect_key="force_story_event",
         chance=1.0,
@@ -149,7 +170,7 @@ def _register_puppet_side_consequences(controller):
     common_forbidden = {"consumed:puppet_mainline_final_boss_gate"}
 
     story.register_consequence(
-        choice_flag="puppet_side_reg",
+        choice_flag=PUPPET_SIDE_REG,
         consequence_id="puppet_side_minion_once",
         effect_key="puppet_side_minion",
         chance=0.32,
@@ -166,7 +187,7 @@ def _register_puppet_side_consequences(controller):
     )
 
     story.register_consequence(
-        choice_flag="puppet_side_reg",
+        choice_flag=PUPPET_SIDE_REG,
         consequence_id="puppet_side_signal_once",
         effect_key="force_story_event",
         chance=0.26,
@@ -184,7 +205,7 @@ def _register_puppet_side_consequences(controller):
     )
 
     story.register_consequence(
-        choice_flag="puppet_side_reg",
+        choice_flag=PUPPET_SIDE_REG,
         consequence_id="puppet_side_shop_once",
         effect_key="black_market_markup",
         chance=0.24,
@@ -201,7 +222,7 @@ def _register_puppet_side_consequences(controller):
     )
 
     story.register_consequence(
-        choice_flag="puppet_side_reg",
+        choice_flag=PUPPET_SIDE_REG,
         consequence_id="puppet_side_trap_once",
         effect_key="shrine_curse",
         chance=0.24,
@@ -218,7 +239,7 @@ def _register_puppet_side_consequences(controller):
     )
 
     story.register_consequence(
-        choice_flag="puppet_side_reg",
+        choice_flag=PUPPET_SIDE_REG,
         consequence_id="puppet_side_reward_once",
         effect_key="treasure_marked_item",
         chance=0.22,
@@ -236,7 +257,7 @@ def _register_puppet_side_consequences(controller):
     )
 
     story.register_consequence(
-        choice_flag="puppet_side_reg",
+        choice_flag=PUPPET_SIDE_REG,
         consequence_id="puppet_side_kind_echo_once",
         effect_key="force_story_event",
         chance=0.24,
@@ -294,9 +315,9 @@ class PuppetAbandonmentEvent(Event):
         story = _get_puppet_chain_state(self.controller)
         if story is not None:
             story.story_tags.add("puppet_arc_active")
-            story.choice_flags.add(f"puppet_intro_{route}")
+            story.choice_flags.add(puppet_intro_flag(route))
         _adjust_puppet_evil_value(self.controller, evil_delta)
-        self.register_story_choice(choice_flag=f"puppet_intro_{route}", moral_delta=moral_delta)
+        self.register_story_choice(choice_flag=puppet_intro_flag(route), moral_delta=moral_delta)
         _register_puppet_side_consequences(self.controller)
         _schedule_puppet_mainline_event(
             self.controller,
@@ -376,13 +397,13 @@ class PuppetSignalEvent(Event):
             heal_amt = rng().randint(5, 15)
             healed = p.heal(heal_amt)
             _adjust_puppet_evil_value(self.controller, rng().randint(-10, -6))
-            self.register_story_choice(choice_flag="puppet_signal_soft", moral_delta=2)
+            self.register_story_choice(choice_flag=PUPPET_SIGNAL_SOFT, moral_delta=2)
             self.add_message(f"你把旧录音接回主线，总线噪声明显下降（+{healed}HP）。")
         else:
             dmg = rng().randint(12, 24)
             p.take_damage(dmg)
             _adjust_puppet_evil_value(self.controller, rng().randint(4, 6))
-            self.register_story_choice(choice_flag="puppet_signal_soft", moral_delta=-1)
+            self.register_story_choice(choice_flag=PUPPET_SIGNAL_SOFT, moral_delta=-1)
             self.add_message(f"录音在关键段落失真，木偶误判了你的节拍，冲击电流反噬（-{dmg}HP）。")
         return "Event Completed"
     def extract_tactical_log(self):
@@ -390,7 +411,7 @@ class PuppetSignalEvent(Event):
         atk_bonus = rng().randint(5, 15)
         self.get_player().change_base_atk(atk_bonus)
         _adjust_puppet_evil_value(self.controller, rng().randint(-5, -3))
-        self.register_story_choice(choice_flag="puppet_signal_log", moral_delta=1)
+        self.register_story_choice(choice_flag=PUPPET_SIGNAL_LOG, moral_delta=1)
         self.add_message(f"你掌握到了到关键的动作并补齐了反制参数（基础攻击 +{atk_bonus}）。")
         return "Event Completed"
     def resell_corrupted_fragment(self):
@@ -401,7 +422,7 @@ class PuppetSignalEvent(Event):
         p.gold += gold_gain
         p.take_damage(dmg)
         _adjust_puppet_evil_value(self.controller, rng().randint(8, 12))
-        self.register_story_choice(choice_flag="puppet_signal_resell", moral_delta=-4)
+        self.register_story_choice(choice_flag=PUPPET_SIGNAL_RESELL, moral_delta=-4)
         self.add_message(f"你把污染片段转卖赚了 {gold_gain}G，但反冲电流灼伤手臂（-{dmg}HP）。")
         return "Event Completed"
 
@@ -434,7 +455,7 @@ class PuppetKindEchoEvent(Event):
         heal_amt = rng().randint(5, 10)
         heal = self.get_player().heal(heal_amt)
         _adjust_puppet_evil_value(self.controller, rng().randint(-16, -12))
-        self.register_story_choice(choice_flag="puppet_kind_echo_trust", moral_delta=5)
+        self.register_story_choice(choice_flag=PUPPET_KIND_ECHO_TRUST, moral_delta=5)
         self.add_message(f"你照着它给的节拍穿过回廊，顺路捡到了一些补给（+{heal}HP）。")
         return "Event Completed"
     def ask_abandoned_past(self):
@@ -444,13 +465,13 @@ class PuppetKindEchoEvent(Event):
         p.gold += gold_gain
         if rng().random() < 0.5:
             _adjust_puppet_evil_value(self.controller, rng().randint(-9, -5))
-            self.register_story_choice(choice_flag="puppet_kind_echo_comfort", moral_delta=3)
+            self.register_story_choice(choice_flag=PUPPET_KIND_ECHO_COMFORT, moral_delta=3)
             self.add_message(f"你听完它被遗弃那晚的记录，蓝光短暂稳定，并交给你旧维修密钥（+{gold_gain}G）。")
         else:
             dmg = rng().randint(3, 5)
             p.take_damage(dmg)
             _adjust_puppet_evil_value(self.controller, rng().randint(3, 5))
-            self.register_story_choice(choice_flag="puppet_kind_echo_comfort", moral_delta=-2)
+            self.register_story_choice(choice_flag=PUPPET_KIND_ECHO_COMFORT, moral_delta=-2)
             self.add_message(f"你触碰到过深记忆，情绪回路反咬你，胸口像被电弧掠过（-{dmg}HP，仍拿到 {gold_gain}G）。")
         return "Event Completed"
     def extract_weakness(self):
@@ -458,7 +479,7 @@ class PuppetKindEchoEvent(Event):
         atk_bonus = rng().randint(1, 2)
         self.get_player().change_base_atk(atk_bonus)
         _adjust_puppet_evil_value(self.controller, rng().randint(5, 7))
-        self.register_story_choice(choice_flag="puppet_kind_echo_exploit", moral_delta=-1)
+        self.register_story_choice(choice_flag=PUPPET_KIND_ECHO_EXPLOIT, moral_delta=-1)
         self.add_message(f"你强行提取情感弱点表，战术上更有把握（基础攻击 +{atk_bonus}），但它眼里的红噪更浓了。")
         return "Event Completed"
 
@@ -486,7 +507,7 @@ class PuppetPersonaRiftEvent(Event):
         ]
 
     def _after_rift(self, route_flag, moral_delta, message):
-        self.register_story_choice(choice_flag=f"puppet_rift_{route_flag}", moral_delta=moral_delta)
+        self.register_story_choice(choice_flag=puppet_rift_flag(route_flag), moral_delta=moral_delta)
         _schedule_puppet_mainline_event(
             self.controller,
             from_stage="rift",
@@ -564,7 +585,7 @@ class PuppetCoreDescentEvent(Event):
         current_round = max(0, int(getattr(self.controller, "round_count", 0)))
         payload = build_puppet_final_boss_payload(self.controller)
         self.register_story_choice(
-            choice_flag=f"puppet_descent_{route}",
+            choice_flag=puppet_descent_flag(route),
             moral_delta=moral_delta,
             consequences=[
                 {

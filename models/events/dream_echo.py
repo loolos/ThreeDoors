@@ -1,5 +1,13 @@
 """见 models.events 包说明。"""
 from models.status import StatusName
+from models.story_flags import (
+    DREAM_WELL_DRANK,
+    DREAM_WELL_SEALED,
+    DREAM_WELL_SOLD,
+    ECHO_COURT_REDEEMED,
+    ECHO_COURT_TAXED,
+    ECHO_COURT_TRADING,
+)
 from models.story_gates import (
     ALL_PRE_FINAL_DOOR_TYPES,
     ELF_THIEF_NAME,
@@ -35,7 +43,7 @@ class DreamWellEvent(Event):
 
     def drink_dream(self):
         self.register_story_choice(
-            choice_flag="dream_well_drank",
+            choice_flag=DREAM_WELL_DRANK,
             moral_delta=-2,
             consequences=self._build_dream_chain(
                 route="drink",
@@ -55,7 +63,7 @@ class DreamWellEvent(Event):
 
     def seal_well(self):
         self.register_story_choice(
-            choice_flag="dream_well_sealed",
+            choice_flag=DREAM_WELL_SEALED,
             moral_delta=7,
             consequences=self._build_dream_chain(
                 route="seal",
@@ -71,7 +79,7 @@ class DreamWellEvent(Event):
 
     def sell_dream(self):
         self.register_story_choice(
-            choice_flag="dream_well_sold",
+            choice_flag=DREAM_WELL_SOLD,
             moral_delta=-5,
             consequences=self._build_dream_chain(
                 route="sell",
@@ -225,7 +233,7 @@ class EchoCourtEvent(Event):
         min_gold = int((round_count / 3) * rng().uniform(0.5, 1.0))
         min_heal = int((round_count / 3) * rng().uniform(0.5, 1.0))
         self.register_story_choice(
-            choice_flag="echo_court_redeemed",
+            choice_flag=ECHO_COURT_REDEEMED,
             moral_delta=5,
             consequences=[
                 {
@@ -263,7 +271,7 @@ class EchoCourtEvent(Event):
 
     def pay_dream_tax(self):
         self.register_story_choice(
-            choice_flag="echo_court_taxed",
+            choice_flag=ECHO_COURT_TAXED,
             moral_delta=1,
             consequences=[
                 {
@@ -298,7 +306,7 @@ class EchoCourtEvent(Event):
 
     def keep_trading(self):
         self.register_story_choice(
-            choice_flag="echo_court_trading",
+            choice_flag=ECHO_COURT_TRADING,
             moral_delta=-4,
             consequences=[
                 {

@@ -1,5 +1,13 @@
 """见 models.events 包说明。"""
 from models.status import StatusName
+from models.story_flags import (
+    MIRROR_PLAYED_HERO,
+    MIRROR_PLAYED_VILLAIN,
+    MIRROR_TORE_SCRIPT,
+    TIME_BROKE_HOURGLASS,
+    TIME_PAWNED_FUTURE,
+    TIME_REDEEMED_DEBT,
+)
 from models.story_gates import (
     ALL_PRE_FINAL_DOOR_TYPES,
     ELF_THIEF_NAME,
@@ -38,7 +46,7 @@ class TimePawnshopEvent(Event):
         round_count = max(0, int(getattr(self.controller, "round_count", 0)))
         min_gold = int((round_count / 3) * rng().uniform(0.5, 1.0))
         self.register_story_choice(
-            choice_flag="time_pawned_future",
+            choice_flag=TIME_PAWNED_FUTURE,
             moral_delta=-3,
             consequences=[
                 {
@@ -77,7 +85,7 @@ class TimePawnshopEvent(Event):
     def redeem_debt(self):
         p = self.get_player()
         self.register_story_choice(
-            choice_flag="time_redeemed_debt",
+            choice_flag=TIME_REDEEMED_DEBT,
             moral_delta=4,
             consequences=[
                 {
@@ -118,7 +126,7 @@ class TimePawnshopEvent(Event):
     def break_hourglass(self):
         p = self.get_player()
         self.register_story_choice(
-            choice_flag="time_broke_hourglass",
+            choice_flag=TIME_BROKE_HOURGLASS,
             moral_delta=-7,
             consequences=[
                 {
@@ -185,7 +193,7 @@ class MirrorTheaterEvent(Event):
         min_gold = int((round_count / 3) * rng().uniform(0.5, 1.0))
         min_heal = int((round_count / 3) * rng().uniform(0.5, 1.0))
         self.register_story_choice(
-            choice_flag="mirror_played_hero",
+            choice_flag=MIRROR_PLAYED_HERO,
             moral_delta=6,
             consequences=[
                 {
@@ -221,7 +229,7 @@ class MirrorTheaterEvent(Event):
     def play_villain(self):
         p = self.get_player()
         self.register_story_choice(
-            choice_flag="mirror_played_villain",
+            choice_flag=MIRROR_PLAYED_VILLAIN,
             moral_delta=-6,
             consequences=[
                 {
@@ -258,7 +266,7 @@ class MirrorTheaterEvent(Event):
     def tear_script(self):
         p = self.get_player()
         self.register_story_choice(
-            choice_flag="mirror_tore_script",
+            choice_flag=MIRROR_TORE_SCRIPT,
             moral_delta=0,
             consequences=[
                 {

@@ -1,21 +1,42 @@
-"""飞贼清算战台词：与 events 中 _record_elf_grudge 写入的 choice_flags 一一对应，前者优先（更伤关系的举动先被提起）。"""
+"""飞贼清算战台词：与 ``story_flags.ELF_GRUDGE_*`` / ``events/elf_chain`` 写入的 choice_flags 顺序一致。"""
 
-from typing import Any, List, Tuple
+from typing import Any, Dict, List, Tuple
+
+from models.story_flags import (
+    ELF_GRUDGE_BARK_KEYS,
+    ELF_GRUDGE_CAMP_MERCENARY,
+    ELF_GRUDGE_CAMP_REFUSED_HELP,
+    ELF_GRUDGE_EPILOGUE_BURNED,
+    ELF_GRUDGE_HEIST_BETRAYED,
+    ELF_GRUDGE_HEIST_SIDE_ROUTE,
+    ELF_GRUDGE_HUNTER_FLED,
+    ELF_GRUDGE_HUNTER_LOOT_GRAB,
+    ELF_GRUDGE_INTRO_FAKE_GUARD,
+    ELF_GRUDGE_MAP_SOLD_OUT,
+    ELF_GRUDGE_ROOFTOP_SNEAK,
+    ELF_GRUDGE_SHADOW_THREATEN,
+    ELF_GRUDGE_STAGE_REFUSED,
+    ELF_GRUDGE_TRAP_ORDERED,
+)
+
+_ELF_GRUDGE_LINES: Dict[str, str] = {
+    ELF_GRUDGE_HEIST_BETRAYED: "钟塔档案库你敲的那下警铃——我每夜都听得见。",
+    ELF_GRUDGE_HUNTER_FLED: "猎门那儿你脚底抹油，留我一人喂弩箭，今天换你站中间。",
+    ELF_GRUDGE_EPILOGUE_BURNED: "余响门里你把话说到那份上，就别指望我还能手软。",
+    ELF_GRUDGE_ROOFTOP_SNEAK: "屋脊上你偷袭那一下，我可没忘。",
+    ELF_GRUDGE_INTRO_FAKE_GUARD: "第一次见面就敢装守卫讹我？你当我是瞎子？",
+    ELF_GRUDGE_MAP_SOLD_OUT: "把我的标注当货卖给商人——你赚得挺开心啊。",
+    ELF_GRUDGE_HUNTER_LOOT_GRAB: "猎门里只顾抢击杀抢掉落，你眼里有过搭档两个字吗？",
+    ELF_GRUDGE_SHADOW_THREATEN: "暗巷里你放冷话威胁我——账本是谁记得久，现在见分晓。",
+    ELF_GRUDGE_TRAP_ORDERED: "陷阱回廊你命令我救人？你以为你是谁。",
+    ELF_GRUDGE_CAMP_REFUSED_HELP: "夜营火旁你说单干——行啊，那就单干到底。",
+    ELF_GRUDGE_CAMP_MERCENARY: "火堆边先伸手要钱再谈帮忙，你那份佣兵价我记着。",
+    ELF_GRUDGE_STAGE_REFUSED: "怪物门前我喊你练两招，你嫌麻烦甩手就走。",
+    ELF_GRUDGE_HEIST_SIDE_ROUTE: "盗案你非要改走侧井快线，毒针弩机可都是我替你扛的消息。",
+}
 
 ELF_RIVAL_GRUDGE_BARK_ORDER: List[Tuple[str, str]] = [
-    ("elf_grudge_heist_betrayed", "钟塔档案库你敲的那下警铃——我每夜都听得见。"),
-    ("elf_grudge_hunter_fled", "猎门那儿你脚底抹油，留我一人喂弩箭，今天换你站中间。"),
-    ("elf_grudge_epilogue_burned", "余响门里你把话说到那份上，就别指望我还能手软。"),
-    ("elf_grudge_rooftop_sneak", "屋脊上你偷袭那一下，我可没忘。"),
-    ("elf_grudge_intro_fake_guard", "第一次见面就敢装守卫讹我？你当我是瞎子？"),
-    ("elf_grudge_map_sold_out", "把我的标注当货卖给商人——你赚得挺开心啊。"),
-    ("elf_grudge_hunter_loot_grab", "猎门里只顾抢击杀抢掉落，你眼里有过搭档两个字吗？"),
-    ("elf_grudge_shadow_threaten", "暗巷里你放冷话威胁我——账本是谁记得久，现在见分晓。"),
-    ("elf_grudge_trap_ordered", "陷阱回廊你命令我救人？你以为你是谁。"),
-    ("elf_grudge_camp_refused_help", "夜营火旁你说单干——行啊，那就单干到底。"),
-    ("elf_grudge_camp_mercenary", "火堆边先伸手要钱再谈帮忙，你那份佣兵价我记着。"),
-    ("elf_grudge_stage_refused", "怪物门前我喊你练两招，你嫌麻烦甩手就走。"),
-    ("elf_grudge_heist_side_route", "盗案你非要改走侧井快线，毒针弩机可都是我替你扛的消息。"),
+    (key, _ELF_GRUDGE_LINES[key]) for key in ELF_GRUDGE_BARK_KEYS
 ]
 
 

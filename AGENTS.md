@@ -4,6 +4,8 @@
 
 **Product**: ThreeDoors — a text-based roguelike adventure web game (Flask + vanilla JS). Single-service, no external databases or Docker required.
 
+**Story flags**: `models/story_flags.py` centralizes `choice_flags` / `story_tags` string constants and cross-references `docs/storyline.md` §9; use it when adding or grepping narrative state keys (distinct from `models/story_gates.py` gate/consequence config).
+
 **Dev server**: `python3 server.py` starts Flask on `http://127.0.0.1:5000` (debug mode). The `/exitGame` endpoint calls `os._exit(0)` — avoid clicking the in-game "关闭游戏" button during development or the server will terminate.
 
 **Tests**: `python3 -m unittest discover test` — runs ~80+ unit tests covering models, scenes, events package (`models/events/`), API endpoints, and fuzz testing. No pytest or additional test dependencies needed.

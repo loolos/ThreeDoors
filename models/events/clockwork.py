@@ -1,5 +1,13 @@
 """见 models.events 包说明。"""
 from models.status import StatusName
+from models.story_flags import (
+    CLOCKWORK_CALIBRATED,
+    CLOCKWORK_HACKED,
+    CLOCKWORK_SABOTAGED,
+    COG_AUDIT_FAKED,
+    COG_AUDIT_SILENCED,
+    COG_AUDIT_TAX_PAID,
+)
 from models.story_gates import (
     ALL_PRE_FINAL_DOOR_TYPES,
     ELF_THIEF_NAME,
@@ -35,7 +43,7 @@ class ClockworkBazaarEvent(Event):
 
     def calibrate(self):
         self.register_story_choice(
-            choice_flag="clockwork_calibrated",
+            choice_flag=CLOCKWORK_CALIBRATED,
             moral_delta=5,
             consequences=self._build_clockwork_chain(
                 route="calibrate",
@@ -52,7 +60,7 @@ class ClockworkBazaarEvent(Event):
 
     def hack_coupon(self):
         self.register_story_choice(
-            choice_flag="clockwork_hacked",
+            choice_flag=CLOCKWORK_HACKED,
             moral_delta=-6,
             consequences=self._build_clockwork_chain(
                 route="hack",
@@ -69,7 +77,7 @@ class ClockworkBazaarEvent(Event):
 
     def sabotage(self):
         self.register_story_choice(
-            choice_flag="clockwork_sabotaged",
+            choice_flag=CLOCKWORK_SABOTAGED,
             moral_delta=-8,
             consequences=self._build_clockwork_chain(
                 route="sabotage",
@@ -250,7 +258,7 @@ class CogAuditEvent(Event):
 
     def pay_tax(self):
         self.register_story_choice(
-            choice_flag="cog_audit_tax_paid",
+            choice_flag=COG_AUDIT_TAX_PAID,
             moral_delta=3,
             consequences=[
                 {
@@ -286,7 +294,7 @@ class CogAuditEvent(Event):
 
     def fake_ledger(self):
         self.register_story_choice(
-            choice_flag="cog_audit_faked",
+            choice_flag=COG_AUDIT_FAKED,
             moral_delta=-4,
             consequences=[
                 {
@@ -319,7 +327,7 @@ class CogAuditEvent(Event):
 
     def buy_silence(self):
         self.register_story_choice(
-            choice_flag="cog_audit_silenced",
+            choice_flag=COG_AUDIT_SILENCED,
             moral_delta=-1,
             consequences=[
                 {

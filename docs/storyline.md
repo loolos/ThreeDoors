@@ -1,6 +1,6 @@
 # ThreeDoors 主线剧情与最终结局（终站谢幕）
 
-本文档合并主线剧情设计、**故事线/最终结局**与**结局前倒数窗口**的代码对齐说明，与 `models/story_system.py`、`models/events.py` 实现一致（终局前门配置已并入 `events.py`）。
+本文档合并主线剧情设计、**故事线/最终结局**与**结局前倒数窗口**的代码对齐说明，与 `models/story_system.py`、`models/events/` 包实现一致；**选项与剧情标记的集中索引**见 `models/story_flags.py`（与 §9 交叉引用）。终局前门配置见 `models/story_gates.py`。
 
 ---
 
@@ -335,6 +335,7 @@
 
 ## 9. 相关代码位置
 
+- **故事标记索引（choice_flags / story_tags）**：`models/story_flags.py` — 各事件与 `story_system` 使用的 **字符串常量**、`choice_tag()`（`choice:<flag>` 前缀）、飞贼仇怨 `ELF_GRUDGE_*` 与台词顺序 `ELF_GRUDGE_BARK_KEYS`、常用 `TAG_*` 终局标签；模块内 `FLAG_INDEX` 为按主题摘录的速查表（完整列表以代码常量为准）。**勿与** `story_gates` 的 `consequence_id` / 门型配置混淆。
 - **门配置与阻塞顺序（单一来源）**：`models/story_gates.py` — `PRE_FINAL_GATE_STORY_CONFIG`、`PRE_FINAL_DISPATCH_ORDER`、`PRE_FINAL_BLOCKING_ORDER`、`ENDING_EVENT_GATE_KEYS` 等（`models.events` 包在 `__init__.py` 中 re-export）
 - **叙事文案（与剧情域拆分）**：`models/narrative/` — 飞贼清算仇句、复仇门配置、`story_system` 固定提示句、`stage_curtain_epilogue.py`（谢幕三路线尾声表）
 - **调度与条件**：`models/story_system.py` — `ensure_pre_final_event_schedule`、`ensure_default_normal_ending_schedule`、`_is_stage_curtain_route_ready`、`_is_power_curtain_direct_ready`、`PRE_FINAL_BLOCKING_*`、`_should_run_pre_final_recheck`

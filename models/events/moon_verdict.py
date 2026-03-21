@@ -1,5 +1,13 @@
 """见 models.events 包说明。"""
 from models.status import StatusName
+from models.story_flags import (
+    MOON_BOUNTY_ACCEPT,
+    MOON_BOUNTY_DOUBLE,
+    MOON_BOUNTY_PROTECT,
+    MOON_VERDICT_BURNED,
+    MOON_VERDICT_CLEAN,
+    MOON_VERDICT_EXTORTED,
+)
 from models.story_gates import (
     ALL_PRE_FINAL_DOOR_TYPES,
     ELF_THIEF_NAME,
@@ -34,7 +42,7 @@ class MoonBountyEvent(Event):
 
     def accept_contract(self):
         self.register_story_choice(
-            choice_flag="moon_bounty_accept",
+            choice_flag=MOON_BOUNTY_ACCEPT,
             moral_delta=-4,
             consequences=self._build_moon_chain(
                 route="accept",
@@ -76,7 +84,7 @@ class MoonBountyEvent(Event):
 
     def protect_target(self):
         self.register_story_choice(
-            choice_flag="moon_bounty_protect",
+            choice_flag=MOON_BOUNTY_PROTECT,
             moral_delta=6,
             consequences=self._build_moon_chain(
                 route="protect",
@@ -111,7 +119,7 @@ class MoonBountyEvent(Event):
 
     def double_cross(self):
         self.register_story_choice(
-            choice_flag="moon_bounty_double",
+            choice_flag=MOON_BOUNTY_DOUBLE,
             moral_delta=-1,
             consequences=self._build_moon_chain(
                 route="double",
@@ -236,7 +244,7 @@ class MoonVerdictEvent(Event):
         min_gold = int((round_count / 3) * rng().uniform(0.5, 1.0))
         min_heal = int((round_count / 3) * rng().uniform(0.5, 1.0))
         self.register_story_choice(
-            choice_flag="moon_verdict_clean",
+            choice_flag=MOON_VERDICT_CLEAN,
             moral_delta=4,
             consequences=[
                 {
@@ -280,7 +288,7 @@ class MoonVerdictEvent(Event):
     def burn_records(self):
         self._add_diary_court_remark()
         self.register_story_choice(
-            choice_flag="moon_verdict_burned",
+            choice_flag=MOON_VERDICT_BURNED,
             moral_delta=-5,
             consequences=[
                 {
@@ -318,7 +326,7 @@ class MoonVerdictEvent(Event):
     def extort_court(self):
         self._add_diary_court_remark()
         self.register_story_choice(
-            choice_flag="moon_verdict_extorted",
+            choice_flag=MOON_VERDICT_EXTORTED,
             moral_delta=-2,
             consequences=[
                 {
