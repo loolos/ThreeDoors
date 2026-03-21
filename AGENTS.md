@@ -6,7 +6,7 @@
 
 **Dev server**: `python3 server.py` starts Flask on `http://127.0.0.1:5000` (debug mode). The `/exitGame` endpoint calls `os._exit(0)` — avoid clicking the in-game "关闭游戏" button during development or the server will terminate.
 
-**Tests**: `python3 -m unittest discover test` — runs ~80 unit tests covering models, scenes, events, API endpoints, and fuzz testing. No pytest or additional test dependencies needed.
+**Tests**: `python3 -m unittest discover test` — runs ~80+ unit tests covering models, scenes, events package (`models/events/`), API endpoints, and fuzz testing. No pytest or additional test dependencies needed.
 
 **Lint**: No linter is configured in the repository. Use standard Python linting tools (e.g., `ruff`, `flake8`) if needed.
 

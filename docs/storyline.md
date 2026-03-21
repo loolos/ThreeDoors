@@ -128,7 +128,7 @@
 
 ### 4.4 结局事件（仅第 200 回合挂载）与「第一门」
 
-**结局事件**统一标记为 `ENDING_EVENT_GATE_KEYS`（models.events）与 `ENDING_EVENT_CONSEQUENCE_IDS`（story_system）：木偶回声、善良木偶对话（第 200 回合）、约定对话（`stage_curtain_kind_puppet_dialogue`）、默认第一门、接管谢幕选择门。**仅当回合 ≥ 200 且结局前阻塞事件（四种倒数事件）已全部清空时**才可挂载与触发；调度时 `min_round`/`max_round` 强制 ≥ 200，触发时检查 `_all_pre_ending_blocking_cleared()`。
+**结局事件**统一标记为 `ENDING_EVENT_GATE_KEYS`（`models.story_gates`，由 `models.events` re-export）与派生的 `ENDING_EVENT_CONSEQUENCE_IDS`：木偶回声、善良木偶对话（第 200 回合）、约定对话（`stage_curtain_kind_puppet_dialogue`）、默认第一门、接管谢幕选择门。**仅当回合 ≥ 200 且结局前阻塞事件（四种倒数事件）已全部清空时**才可挂载与触发；调度时 `min_round`/`max_round` 强制 ≥ 200，触发时检查 `_all_pre_ending_blocking_cleared()`。
 
 其中木偶回声、善良木偶对话**仅在第 200 回合**由 `_try_schedule_blocking_echo_or_kind()` 挂载，二者**二选一**按优先级：先尝试木偶回声，再尝试善良木偶对话。条件如下：
 
@@ -146,7 +146,7 @@
 
 - **结局前倒数事件**（185 起）：`ensure_pre_final_event_schedule()` → `ensure_all_pre_ending_blocking_considered()`，按 `PRE_FINAL_BLOCKING_GATE_KEYS` 依次尝试挂载四种 gate（银羽宝物、木偶补战、飞贼清算、梦境镜子前奏）。
 - **结局事件**（200 回合）：`_try_schedule_blocking_echo_or_kind()` 按顺序尝试挂载木偶回声、善良木偶对话其一。
-- **常量**（story_system.py）：`PRE_FINAL_WINDOW_START_OFFSET = 15`、`PRE_FINAL_RECHECK_INTERVAL = 5`、`DEFAULT_ENDING_FORCE_ROUND = 200`、`PRE_FINAL_BLOCKING_CONSEQUENCE_IDS`、`PRE_FINAL_BLOCKING_ORDER`、`PRE_FINAL_BLOCKING_GATE_KEYS`（仅四种）。80% 优先概率见 `GameConfig.PRE_FINAL_PENDING_PRIORITY_CHANCE`。第 200 回合强制清空逻辑见 `_trigger_pending_consequence` 中 `_get_first_pending_blocking_consequence()`。完整门配置见 `models/events.py` 中 `PRE_FINAL_GATE_STORY_CONFIG`。
+- **常量**：阻塞顺序与门键见 `models/story_gates.py`（`PRE_FINAL_BLOCKING_ORDER`、`PRE_FINAL_BLOCKING_GATE_KEYS`、`PRE_FINAL_GATE_STORY_CONFIG` 等）；`StorySystem` 类属性引用同一对象。回合窗口见 `story_system.py`：`PRE_FINAL_WINDOW_START_OFFSET = 15`、`PRE_FINAL_RECHECK_INTERVAL = 5`、`DEFAULT_ENDING_FORCE_ROUND = 200`。80% 优先概率见 `GameConfig.PRE_FINAL_PENDING_PRIORITY_CHANCE`。第 200 回合强制清空逻辑见 `_trigger_pending_consequence` 中 `_get_first_pending_blocking_consequence()`。
 
 ---
 
@@ -335,7 +335,8 @@
 
 ## 9. 相关代码位置
 
-- **门配置**：`models/events.py` — `PRE_FINAL_GATE_STORY_CONFIG`、`PRE_FINAL_DISPATCH_ORDER`
+- **门配置与阻塞顺序（单一来源）**：`models/story_gates.py` — `PRE_FINAL_GATE_STORY_CONFIG`、`PRE_FINAL_DISPATCH_ORDER`、`PRE_FINAL_BLOCKING_ORDER`、`ENDING_EVENT_GATE_KEYS` 等（`models.events` 包在 `__init__.py` 中 re-export）
+- **叙事文案（与剧情域拆分）**：`models/narrative/` — 飞贼清算仇句、复仇门配置、`story_system` 固定提示句、`stage_curtain_epilogue.py`（谢幕三路线尾声表）
 - **调度与条件**：`models/story_system.py` — `ensure_pre_final_event_schedule`、`ensure_default_normal_ending_schedule`、`_is_stage_curtain_route_ready`、`_is_power_curtain_direct_ready`、`PRE_FINAL_BLOCKING_*`、`_should_run_pre_final_recheck`
-- **事件与分数/结局解析**：`models/events.py` — `_collect_stage_curtain_scores`、`_resolve_stage_curtain_outcome`、`run_script_vault_recovery`，以及各 `Ending*Event` 类
-- **前置事件调度**：`models/events.py` — `_should_schedule_kind_puppet_dialogue`、`_schedule_kind_puppet_dialogue_event`、`schedule_next_pre_final_gate`、`_should_trigger_puppet_pre_final_gate`、`_should_trigger_elf_rival_pre_final`
+- **事件系统（包结构）**：`models/events/` — `base.py`（`Event` / `EventChoice`）、`short_random.py`、`time_mirror_moon.py`、`moon_verdict.py`、`clockwork.py`、`dream_echo.py`、`puppet_chain.py`、`elf_chain.py`、`stage_curtain.py`（分数与结局解析、各 `Ending*Event`）、`dispatch.py`（`get_random_event`、`STARTER_EVENT_POOL` 等）；对外仍 `import models.events` 与旧单文件等价
+- **前置事件调度**：`models/events/stage_curtain.py` — `_should_schedule_kind_puppet_dialogue`、`_schedule_kind_puppet_dialogue_event`；`schedule_next_pre_final_gate` 在同文件；`_should_trigger_puppet_pre_final_gate`、`_should_trigger_elf_rival_pre_final` 亦在 `stage_curtain.py`

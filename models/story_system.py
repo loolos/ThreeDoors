@@ -14,56 +14,22 @@ from models.items import (
     ReviveScroll,
     create_random_item,
 )
-from models.events import (
-    ALL_PRE_FINAL_DOOR_TYPES,
-    ENDING_EVENT_GATE_KEYS,
-    PRE_FINAL_GATE_STORY_CONFIG,
+import models.story_gates as story_gates
+from models.narrative.elf_rival_grudge import (
+    collect_elf_rival_grudge_barks,
+    elf_rival_grudge_fillers,
 )
+from models.narrative import revenge_hunters as narrative_revenge
+from models.narrative import story_system_lines as narrative_lines
 from models.status import StatusName
 
-# 飞贼清算战台词：与 events._record_elf_grudge 写入的 choice_flags 一一对应，前者优先（更伤关系的举动先被提起）
-ELF_RIVAL_GRUDGE_BARK_ORDER: List[Tuple[str, str]] = [
-    ("elf_grudge_heist_betrayed", "钟塔档案库你敲的那下警铃——我每夜都听得见。"),
-    ("elf_grudge_hunter_fled", "猎门那儿你脚底抹油，留我一人喂弩箭，今天换你站中间。"),
-    ("elf_grudge_epilogue_burned", "余响门里你把话说到那份上，就别指望我还能手软。"),
-    ("elf_grudge_rooftop_sneak", "屋脊上你偷袭那一下，我可没忘。"),
-    ("elf_grudge_intro_fake_guard", "第一次见面就敢装守卫讹我？你当我是瞎子？"),
-    ("elf_grudge_map_sold_out", "把我的标注当货卖给商人——你赚得挺开心啊。"),
-    ("elf_grudge_hunter_loot_grab", "猎门里只顾抢击杀抢掉落，你眼里有过搭档两个字吗？"),
-    ("elf_grudge_shadow_threaten", "暗巷里你放冷话威胁我——账本是谁记得久，现在见分晓。"),
-    ("elf_grudge_trap_ordered", "陷阱回廊你命令我救人？你以为你是谁。"),
-    ("elf_grudge_camp_refused_help", "夜营火旁你说单干——行啊，那就单干到底。"),
-    ("elf_grudge_camp_mercenary", "火堆边先伸手要钱再谈帮忙，你那份佣兵价我记着。"),
-    ("elf_grudge_stage_refused", "怪物门前我喊你练两招，你嫌麻烦甩手就走。"),
-    ("elf_grudge_heist_side_route", "盗案你非要改走侧井快线，毒针弩机可都是我替你扛的消息。"),
-]
+PRE_FINAL_GATE_STORY_CONFIG = story_gates.PRE_FINAL_GATE_STORY_CONFIG
+ALL_PRE_FINAL_DOOR_TYPES = story_gates.ALL_PRE_FINAL_DOOR_TYPES
+ENDING_EVENT_GATE_KEYS = story_gates.ENDING_EVENT_GATE_KEYS
 
-
-def _collect_elf_rival_grudge_barks(story: Any) -> List[str]:
-    flags = set(getattr(story, "choice_flags", set()) or [])
-    out: List[str] = []
-    for key, line in ELF_RIVAL_GRUDGE_BARK_ORDER:
-        if key in flags:
-            out.append(line)
-    return out[:6]
-
-
-def _elf_rival_grudge_fillers(profile: str) -> List[str]:
-    """无 elf_grudge_* 支线标记时仍播莱希娅清算台词，避免战斗里只剩身法/伤害句。"""
-    shared = [
-        "关系跌到这份上，还用我说我们怎么闹僵的吗？",
-        "钥匙与余地你都没留，今天只剩刀锋能对话。",
-        "你以为沉默就能把旧账一笔勾销？",
-        "终局里每个选择都有价——你也该付一付了。",
-        "我记着的不止一两扇门，是你一路怎么把我推到对立面。",
-    ]
-    if str(profile).strip().lower() == "vengeful":
-        return shared + [
-            "我不是来叙旧的；你欠我的，我用这一战讨。",
-        ]
-    return shared + [
-        "账总得算清——你先到这儿，算你有种。",
-    ]
+# 兼容旧测试与外部 import
+_collect_elf_rival_grudge_barks = collect_elf_rival_grudge_barks
+_elf_rival_grudge_fillers = elf_rival_grudge_fillers
 
 
 @dataclass
@@ -126,119 +92,31 @@ class StorySystem:
     PRE_FINAL_WINDOW_START_OFFSET = 15
     PRE_FINAL_WINDOW_END_OFFSET = 10
     PRE_FINAL_RECHECK_INTERVAL = 5
-    DEFAULT_ENDING_FORCE_CONSEQUENCE_ID = PRE_FINAL_GATE_STORY_CONFIG["round200_default_first_gate"]["consequence_id"]
-    STAGE_CURTAIN_FORCE_CONSEQUENCE_ID = PRE_FINAL_GATE_STORY_CONFIG["round200_stage_preface"]["consequence_id"]
-    PUPPET_PRE_FINAL_CONSEQUENCE_ID = PRE_FINAL_GATE_STORY_CONFIG["puppet_rematch_gate"]["consequence_id"]
-    ELF_RIVAL_PRE_FINAL_CONSEQUENCE_ID = PRE_FINAL_GATE_STORY_CONFIG["elf_rival_final_gate"]["consequence_id"]
-    DREAM_MIRROR_PRELUDE_CONSEQUENCE_ID = PRE_FINAL_GATE_STORY_CONFIG["dream_mirror_prelude_gate"]["consequence_id"]
-    PUPPET_ECHO_FINAL_CONSEQUENCE_ID = PRE_FINAL_GATE_STORY_CONFIG["puppet_echo_final_gate"]["consequence_id"]
-    KIND_PUPPET_DIALOGUE_ROUND200_CONSEQUENCE_ID = PRE_FINAL_GATE_STORY_CONFIG["kind_puppet_dialogue_round200"]["consequence_id"]
-    POWER_CURTAIN_DIALOGUE_ROUND200_CONSEQUENCE_ID = PRE_FINAL_GATE_STORY_CONFIG["power_curtain_dialogue_round200"]["consequence_id"]
-    STAGE_CURTAIN_KIND_PUPPET_DIALOGUE_CONSEQUENCE_ID = PRE_FINAL_GATE_STORY_CONFIG["stage_curtain_kind_puppet_dialogue"]["consequence_id"]
+    DEFAULT_ENDING_FORCE_CONSEQUENCE_ID = story_gates.DEFAULT_ENDING_FORCE_CONSEQUENCE_ID
+    STAGE_CURTAIN_FORCE_CONSEQUENCE_ID = story_gates.STAGE_CURTAIN_FORCE_CONSEQUENCE_ID
+    PUPPET_PRE_FINAL_CONSEQUENCE_ID = story_gates.PUPPET_PRE_FINAL_CONSEQUENCE_ID
+    ELF_RIVAL_PRE_FINAL_CONSEQUENCE_ID = story_gates.ELF_RIVAL_PRE_FINAL_CONSEQUENCE_ID
+    DREAM_MIRROR_PRELUDE_CONSEQUENCE_ID = story_gates.DREAM_MIRROR_PRELUDE_CONSEQUENCE_ID
+    PUPPET_ECHO_FINAL_CONSEQUENCE_ID = story_gates.PUPPET_ECHO_FINAL_CONSEQUENCE_ID
+    KIND_PUPPET_DIALOGUE_ROUND200_CONSEQUENCE_ID = story_gates.KIND_PUPPET_DIALOGUE_ROUND200_CONSEQUENCE_ID
+    POWER_CURTAIN_DIALOGUE_ROUND200_CONSEQUENCE_ID = story_gates.POWER_CURTAIN_DIALOGUE_ROUND200_CONSEQUENCE_ID
+    STAGE_CURTAIN_KIND_PUPPET_DIALOGUE_CONSEQUENCE_ID = story_gates.STAGE_CURTAIN_KIND_PUPPET_DIALOGUE_CONSEQUENCE_ID
 
     # 结局事件（第一门）：仅默认第一门、接管谢幕；须在所有结局阻塞清空后才挂载。
-    ROUND200_FIRST_GATE_CONSEQUENCE_IDS = (
-        DEFAULT_ENDING_FORCE_CONSEQUENCE_ID,
-        POWER_CURTAIN_DIALOGUE_ROUND200_CONSEQUENCE_ID,
-    )
-    DEFAULT_SECOND_GATE_CONSEQUENCE_ID = PRE_FINAL_GATE_STORY_CONFIG["default_second_gate_event"]["consequence_id"]
-    DEFAULT_FINAL_BOSS_CONSEQUENCE_ID = PRE_FINAL_GATE_STORY_CONFIG["default_final_boss_gate"]["consequence_id"]
+    ROUND200_FIRST_GATE_CONSEQUENCE_IDS = story_gates.ROUND200_FIRST_GATE_CONSEQUENCE_IDS
+    DEFAULT_SECOND_GATE_CONSEQUENCE_ID = story_gates.DEFAULT_SECOND_GATE_CONSEQUENCE_ID
+    DEFAULT_FINAL_BOSS_CONSEQUENCE_ID = story_gates.DEFAULT_FINAL_BOSS_CONSEQUENCE_ID
 
-    # 结局前阻塞事件：必须全部清空后才可挂载结局事件（默认第一门、接管谢幕）。顺序见下。
-    PRE_FINAL_BLOCKING_CONSEQUENCE_IDS = frozenset({
-        STAGE_CURTAIN_FORCE_CONSEQUENCE_ID,
-        PUPPET_PRE_FINAL_CONSEQUENCE_ID,
-        ELF_RIVAL_PRE_FINAL_CONSEQUENCE_ID,
-        DREAM_MIRROR_PRELUDE_CONSEQUENCE_ID,
-        PUPPET_ECHO_FINAL_CONSEQUENCE_ID,
-        KIND_PUPPET_DIALOGUE_ROUND200_CONSEQUENCE_ID,
-    })
-    # 仅四种结局前倒数事件（银羽秘藏、木偶补战、飞贼清算、梦境镜子前奏）；用于判定「结局前阻塞是否已清空」。
-    PRE_ENDING_BLOCKING_CONSEQUENCE_IDS = frozenset({
-        STAGE_CURTAIN_FORCE_CONSEQUENCE_ID,
-        PUPPET_PRE_FINAL_CONSEQUENCE_ID,
-        ELF_RIVAL_PRE_FINAL_CONSEQUENCE_ID,
-        DREAM_MIRROR_PRELUDE_CONSEQUENCE_ID,
-    })
-    # 结局事件 consequence_id 集合：木偶回声、善良木偶对话（含约定对话）、默认第一门、接管谢幕；仅当回合≥200 且结局前阻塞已清空时才可触发。
-    ENDING_EVENT_CONSEQUENCE_IDS = frozenset({
-        PUPPET_ECHO_FINAL_CONSEQUENCE_ID,
-        KIND_PUPPET_DIALOGUE_ROUND200_CONSEQUENCE_ID,
-        POWER_CURTAIN_DIALOGUE_ROUND200_CONSEQUENCE_ID,
-        DEFAULT_ENDING_FORCE_CONSEQUENCE_ID,
-        STAGE_CURTAIN_KIND_PUPPET_DIALOGUE_CONSEQUENCE_ID,
-    })
-    # 阻塞触发顺序：结局前倒数事件（银羽秘藏→木偶补战→飞贼清算→梦境镜面）先按序触发；其后为结局事件（木偶回声、善良木偶对话，仅第 200 回合挂载）。全部清空后才挂载默认终局第一门。
-    PRE_FINAL_BLOCKING_ORDER = (
-        STAGE_CURTAIN_FORCE_CONSEQUENCE_ID,
-        PUPPET_PRE_FINAL_CONSEQUENCE_ID,
-        ELF_RIVAL_PRE_FINAL_CONSEQUENCE_ID,
-        DREAM_MIRROR_PRELUDE_CONSEQUENCE_ID,
-        PUPPET_ECHO_FINAL_CONSEQUENCE_ID,
-        KIND_PUPPET_DIALOGUE_ROUND200_CONSEQUENCE_ID,
-    )
-    # 仅结局前倒数事件：从 185 回合起统一检查并加入阻塞。结局事件（木偶回声、善良木偶对话、默认第一门、接管谢幕）仅第 200 回合挂载，由 _try_schedule_blocking_echo_or_kind 与 ensure_default_normal_ending_schedule 处理；定义见 models.events.ENDING_EVENT_GATE_KEYS。
-    PRE_FINAL_BLOCKING_GATE_KEYS = (
-        "round200_stage_preface",       # 银羽宝物
-        "puppet_rematch_gate",          # 木偶补战
-        "elf_rival_final_gate",         # 飞贼清算
-        "dream_mirror_prelude_gate",     # 梦境镜子前奏
-    )
+    PRE_FINAL_BLOCKING_CONSEQUENCE_IDS = story_gates.PRE_FINAL_BLOCKING_CONSEQUENCE_IDS
+    PRE_ENDING_BLOCKING_CONSEQUENCE_IDS = story_gates.PRE_ENDING_BLOCKING_CONSEQUENCE_IDS
+    ENDING_EVENT_CONSEQUENCE_IDS = story_gates.ENDING_EVENT_CONSEQUENCE_IDS
+    PRE_FINAL_BLOCKING_ORDER = story_gates.PRE_FINAL_BLOCKING_ORDER
+    # 仅结局前倒数事件：从 185 回合起统一检查并加入阻塞。结局事件仅第 200 回合挂载；门键见 models.story_gates.PRE_FINAL_BLOCKING_GATE_KEYS / ENDING_EVENT_GATE_KEYS。
+    PRE_FINAL_BLOCKING_GATE_KEYS = story_gates.PRE_FINAL_BLOCKING_GATE_KEYS
 
     HIGH_MORAL_MONSTERS = {"树人", "天使", "创世神官", "幽灵", "精灵法师"}
     LOW_MORAL_MONSTERS = {"土匪", "狼人", "食人魔", "冥界使者", "暗影刺客"}
-    REVENGE_HUNTER_PROFILES = {
-        "stranger_help_thief_revenge": {
-            "hunter_name": "地痞打手",
-            "hunter_hint": "门后传来铜钱碰撞声和刀鞘摩擦声，你救人时得罪的那群打手堵在前面。",
-            "message": "你救人时挡了地痞财路，复仇打手追到了门后。",
-        },
-        "stranger_rob_bounty_revenge": {
-            "hunter_name": "赏金猎人",
-            "hunter_hint": "悬赏令钉在门框上，画像和你的脸只差一笔。",
-            "message": "你抢劫陌生人的恶行被挂上悬赏，赏金猎人按图索骥堵住了你。",
-        },
-        "smuggler_report_gang_revenge": {
-            "hunter_name": "走私团伙打手",
-            "hunter_hint": "潮湿巷味和黑火药味从门缝钻出，走私团伙已经在里面守株待兔。",
-            "message": "你举报走私犯后，团伙打手带着旧账追上了你。",
-        },
-        "shrine_pray_fanatic_hunt": {
-            "hunter_name": "祭坛狂信徒",
-            "hunter_hint": "门后烛火乱晃，披灰袍的人正举着祭器低声祷告。",
-            "message": "你在祭坛祈祷被狂信徒曲解，他们把你当成异端堵截。",
-        },
-        "gambler_high_debtor_revenge": {
-            "hunter_name": "讨债打手",
-            "hunter_hint": "骰子在门后滚了一圈又停住，几个讨债人正掂着棍子等你。",
-            "message": "赌局输家雇来的讨债打手终于追上了你。",
-        },
-        "lost_child_fame_backfire": {
-            "hunter_name": "赏金猎犬",
-            "hunter_hint": "门后有猎犬嗅闻的低吼声，它们循着你的名声和气味追来。",
-            "message": "你的善名暴露了行踪，赏金猎犬先一步追到了门后。",
-        },
-        "chest_purify_cult_revenge": {
-            "hunter_name": "诅咒教徒",
-            "hunter_hint": "门后挂满倒置符咒，几个教徒正围着被你净化过的残片低语。",
-            "message": "你净化诅咒宝箱后，崇拜它的教徒把你列为清算目标。",
-        },
-        "caravan_donate_bandit_envy": {
-            "hunter_name": "劫道匪徒",
-            "hunter_hint": "门后散着断裂车轮和箭羽，盯上车队的劫匪转而盯上了你。",
-            "message": "你援助车队惹怒了劫匪，来复仇的正是那批劫道人。",
-        },
-        "caravan_extort_enforcer_test": {
-            "hunter_name": "地下行会执行人",
-            "hunter_hint": "门后有人把玩着行会印戒，显然是来“验货”的清算执行人。",
-            "message": "你勒索车队后，地下行会派执行人来试你的深浅。",
-        },
-        "knight_aid_traitor_revenge": {
-            "hunter_name": "骑士团叛徒",
-            "hunter_hint": "门后盔甲擦过墙面的声音很熟悉——追杀骑士的叛徒已经到了。",
-            "message": "你救下骑士后，他的死对头叛徒把你也列进了追杀名单。",
-        },
-    }
+    REVENGE_HUNTER_PROFILES = narrative_revenge.REVENGE_HUNTER_PROFILES
 
     def __init__(self, controller: Any):
         self.controller = controller
@@ -609,9 +487,9 @@ class StorySystem:
             if key:
                 registered_keys.append(key)
         if "elf_rival_final_gate" in registered_keys:
-            self.controller.add_message("你在门廊里嗅到熟悉银羽杀意，飞贼清算战即将插入。")
+            self.controller.add_message(narrative_lines.MSG_PRE_FINAL_ELF_RIVAL_REGISTERED)
         if "puppet_rematch_gate" in registered_keys:
-            self.controller.add_message("红噪门框开始闪烁，黑暗木偶补战正在逼近。")
+            self.controller.add_message(narrative_lines.MSG_PRE_FINAL_PUPPET_REMATCH_REGISTERED)
         return bool(registered_keys), registered_keys
 
     def _has_pending_blocking_pre_final_events(self) -> bool:
@@ -1028,8 +906,8 @@ class StorySystem:
         if "ending:puppet_echo_final_done" in self.story_tags:
             return
         self.story_tags.add("ending:puppet_echo_final_done")
-        self.controller.add_message("木偶的回声在最后一击中碎裂，那些复诵过的选择也随之散入走廊的暗处。")
-        self.controller.add_message("你没有钥匙，也没有剧本；门廊尽头，你要如何收束这场终幕？")
+        self.controller.add_message(narrative_lines.MSG_PUPPET_ECHO_SHATTERED)
+        self.controller.add_message(narrative_lines.MSG_PUPPET_ECHO_NO_KEY_SCRIPT)
         setattr(self.controller, "pending_post_battle_event_key", "ending_puppet_echo_aftermath_event")
 
     def _resolve_elf_rival_final_victory(self, monster: Any) -> None:
@@ -1040,12 +918,12 @@ class StorySystem:
         self.story_tags.add("ending:elf_rival_final_gate_done")
         self.choice_flags.add("ending_elf_rival_final_victory")
         self.elf_final_outcome = "rival_defeated"
-        self.controller.add_message("她单膝撑地，笑得很勉强：'行，你这次赢了。'")
+        self.controller.add_message(narrative_lines.MSG_ELF_RIVAL_VICTORY)
         hint = str(getattr(monster, "story_elf_rival_hint", "")).strip()
         if hint:
             self.controller.add_message(hint)
         else:
-            self.controller.add_message("她低声提醒：'终局门里别被第一层答案骗了，真正的出口常藏在第二次选择之后。'")
+            self.controller.add_message(narrative_lines.MSG_ELF_RIVAL_DEFAULT_HINT)
         self._schedule_next_pre_final_gate(after_battle=True, defeated=True)
 
     def _resolve_elf_rival_final_escape(self, monster: Any) -> None:
@@ -1056,7 +934,7 @@ class StorySystem:
         self.story_tags.add("ending:elf_rival_final_gate_done")
         self.choice_flags.add("ending_elf_rival_parted")
         self.elf_final_outcome = "rival_parted"
-        self.controller.add_message("你借着烟幕撤离，她没有追上来，只在远处抛下一句：'下次不用再见了。'")
+        self.controller.add_message(narrative_lines.MSG_ELF_RIVAL_PARTED)
         self._schedule_next_pre_final_gate(after_battle=True, defeated=False)
 
     def _resolve_moon_bounty_mid_outcome(self, monster: Any) -> None:
@@ -1145,7 +1023,7 @@ class StorySystem:
             player.add_item(item)
             item_names.append(getattr(item, "name", item_key))
 
-        self.controller.add_message("怪物倒下后，走廊响起一段残缺却温柔的收束旋律。")
+        self.controller.add_message(narrative_lines.MSG_PUPPET_FINAL_MELODY)
         self.controller.add_message(ending_text)
         reward_msg = f"你获得额外 {bonus_gold}G。"
         if item_names:
@@ -1169,13 +1047,8 @@ class StorySystem:
         self.puppet_final_outcome = "escaped"
         self.puppet_patrol_state = "active"
         self.puppet_patrol_note = "木偶仍在走廊中来回游荡"
-        escape_text = (
-            "你在最后一瞬选择抽身撤离。"
-            "机偶没有倒下，它仍沿着那条昏暗走廊来回游荡，"
-            "每次转身都像在寻找一个从未兑现的指令。"
-            "你离开了战场，却把那段失真童谣永远留在了门后。"
-        )
-        self.controller.add_message("你借着火花与烟尘冲出核心井，脚步声在空廊里被无限拉长。")
+        escape_text = narrative_lines.PUPPET_FINAL_ESCAPE_BODY
+        self.controller.add_message(narrative_lines.MSG_PUPPET_FINAL_ESCAPE_FLIGHT)
         self.controller.add_message(escape_text)
 
     def _schedule_next_pre_final_gate(self, *, after_battle: bool, defeated: bool) -> None:
@@ -1196,12 +1069,12 @@ class StorySystem:
         if not after_battle:
             return
         if scheduled_key == "elf_rival_final_gate":
-            self.controller.add_message("你刚脱离战斗，走廊另一端又出现一抹银羽杀意。")
+            self.controller.add_message(narrative_lines.MSG_AFTER_BATTLE_ELF_RIVAL_GATE)
         elif scheduled_key == "puppet_rematch_gate":
             if defeated:
-                self.controller.add_message("你刚压住战场余震，红噪门框再次亮起：木偶还没彻底罢手。")
+                self.controller.add_message(narrative_lines.MSG_AFTER_BATTLE_PUPPET_REMATCH_WON)
             else:
-                self.controller.add_message("你抽身退开后，失真童谣又在前方门廊回荡。")
+                self.controller.add_message(narrative_lines.MSG_AFTER_BATTLE_PUPPET_REMATCH_FLED)
 
     def _build_final_ending_meta(self) -> Dict[str, Any]:
         """聚合可交给最终结局展示层的剧情参数。"""
@@ -1223,8 +1096,8 @@ class StorySystem:
             return
         self.story_tags.add("ending:default_normal_completed")
         self.choice_flags.add("ending_default_normal_completed")
-        self.controller.add_message("你击倒了“选择困难症候群”。")
-        self.controller.add_message("你抵达了这座迷宫的出口，从出口离开了。")
+        self.controller.add_message(narrative_lines.MSG_DEFAULT_FINAL_BOSS_DEFEATED)
+        self.controller.add_message(narrative_lines.MSG_DEFAULT_NORMAL_EXIT)
         trigger_clear = getattr(self.controller, "trigger_game_clear", None)
         if callable(trigger_clear):
             trigger_clear(
@@ -1241,10 +1114,10 @@ class StorySystem:
         if not monster or not getattr(monster, "elf_side_story", False):
             return
         if defeated:
-            self.controller.add_message("你们联手解决了敌人。她丢给你一句：'谢了，下次还你。'")
+            self.controller.add_message(narrative_lines.MSG_ELF_SIDE_ALLY_WIN)
             self.elf_relation = max(-6, min(6, int(getattr(self, "elf_relation", 0)) + 1))
         else:
-            self.controller.add_message("你转身就跑，背后传来她的骂声与怪物追来的风声。")
+            self.controller.add_message(narrative_lines.MSG_ELF_SIDE_FLEE)
             self.elf_relation = max(-6, min(6, int(getattr(self, "elf_relation", 0)) - 1))
 
     def _trigger_moral_influence(self, door: Any) -> Any:
@@ -1940,8 +1813,8 @@ class StorySystem:
                     ],
                 }
 
-            state["grudge_barks"] = _collect_elf_rival_grudge_barks(self)
-            state["grudge_bark_fillers"] = _elf_rival_grudge_fillers(state.get("profile", "trickster"))
+            state["grudge_barks"] = collect_elf_rival_grudge_barks(self)
+            state["grudge_bark_fillers"] = elf_rival_grudge_fillers(state.get("profile", "trickster"))
 
             setattr(rival, "story_elf_rival_final_boss", True)
             setattr(rival, "story_consequence_id", consequence.consequence_id)
@@ -2158,7 +2031,7 @@ class StorySystem:
             if bool(payload.get("pre_final_dispatch", False)):
                 setattr(boss, "story_pre_final_dispatch", True)
                 self.story_tags.add("ending:puppet_rematch_gate_done")
-            self.controller.add_message("警报弦音与重低鼓点同时拉响。")
+            self.controller.add_message(narrative_lines.MSG_PUPPET_REMATCH_ALARM)
             if side_hit_count <= 0:
                 self.controller.add_message(
                     self._resolve_message(
@@ -2774,9 +2647,11 @@ class StorySystem:
         )
 
         self.controller.add_message(
-            f"{old_name}核心炸裂，{monster.name}爆发登场！恢复 {burst_heal} 点生命，攻击抬升至 {monster.atk}。"
+            narrative_lines.format_puppet_phase2_entrance(
+                old_name, monster.name, burst_heal, int(monster.atk)
+            )
         )
-        self.controller.add_message("失真童谣被重低音撕开，完全体战斗主题开始。")
+        self.controller.add_message(narrative_lines.MSG_PUPPET_PHASE2_THEME)
         self._apply_puppet_entry_modifiers(monster=monster, state=state, phase=2)
         return True
 
