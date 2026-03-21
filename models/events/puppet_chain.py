@@ -251,7 +251,7 @@ def _register_puppet_side_consequences(controller):
             "item_key": "barrier",
             "gold_bonus": 14,
             "message": "因为和木偶的相遇，一段蓝光子程序提前改写了宝物内容。",
-            "log_trigger": "你选中的门被机械臂贴上“样本回收”标签。路线被木偶链路短暂劫持，你被迫先处理这一处事件。",
+            "log_trigger": "你选中的门被贴上了“样本回收”标签。说明这条路线曾经被木偶短暂劫持。",
             "evil_value_delta": -8,
         },
     )
