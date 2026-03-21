@@ -3056,7 +3056,9 @@ class StorySystem:
         )
 
     def _build_trigger_message(self, consequence: PendingConsequence) -> str:
-        custom = self._resolve_message(consequence.payload, "log_trigger", "") or self._resolve_message(consequence.payload, "message", "")
+        custom = self._resolve_message(consequence.payload, "log_trigger", "")
+        if not custom and consequence.effect_key != "lose_gold":
+            custom = self._resolve_message(consequence.payload, "message", "")
         if custom:
             return custom
 
