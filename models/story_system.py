@@ -1217,13 +1217,12 @@ class StorySystem:
     def _build_deposit_backpack_reward(self, payload: Dict[str, Any]) -> Dict[Any, int]:
         gold_min = max(8, int(payload.get("gold_min", 16)))
         gold_max = max(gold_min, int(payload.get("gold_max", 40)))
+        extra_count = max(2, int(payload.get("extra_item_count", 2)))
+        stored_items = [create_random_item() for _ in range(extra_count)]
         reward: Dict[Any, int] = {
             "gold": random.randint(gold_min, gold_max),
-            DepositedBackpack(name="寄存的背包", cost=0): 1,
+            DepositedBackpack(name="寄存的背包", cost=0, stored_items=stored_items): 1,
         }
-        extra_count = max(2, int(payload.get("extra_item_count", 2)))
-        for _ in range(extra_count):
-            reward[create_random_item()] = 1
         return reward
 
     def _apply_effect(self, consequence: PendingConsequence, door: Any) -> Tuple[bool, Any]:
