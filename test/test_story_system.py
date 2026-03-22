@@ -581,7 +581,36 @@ class TestStorySystem(BaseTest):
         self.assertEqual(reward.get("gold"), 20)
         item_names = [getattr(key, "name", "") for key in reward.keys() if key != "gold"]
         self.assertIn("寄存的背包", item_names)
-        self.assertEqual(len(item_names), 3)
+        self.assertEqual(len(item_names), 1)
+
+    def test_deposit_backpack_should_settle_rewards_immediately(self):
+        story = self.controller.story
+        reward_door = DoorEnum.REWARD.create_instance(controller=self.controller, reward={"gold": 5})
+        story.register_consequence(
+            choice_flag="time_redeem_case",
+            consequence_id="time_redeem_deposit_backpack_once",
+            effect_key="treasure_deposit_backpack",
+            chance=1.0,
+            trigger_door_types=["REWARD"],
+            payload={"gold_min": 20, "gold_max": 20, "extra_item_count": 2},
+        )
+
+        fixed_items = [
+            FlyingHammer(name="背包飞锤A", cost=0),
+            FlyingHammer(name="背包飞锤B", cost=0),
+        ]
+        with unittest.mock.patch("models.story_system.random.uniform", return_value=0.0), unittest.mock.patch(
+            "models.story_system.create_random_item", side_effect=fixed_items
+        ):
+            changed_door = story.apply_pre_enter_checks(reward_door)
+            changed_door.enter()
+
+        all_inventory_items = []
+        for item_list in self.player.inventory.values():
+            all_inventory_items.extend(getattr(item, "name", "") for item in item_list)
+        self.assertIn("背包飞锤A", all_inventory_items)
+        self.assertIn("背包飞锤B", all_inventory_items)
+        self.assertNotIn("寄存的背包", all_inventory_items)
 
     def test_trap_extension_can_replace_default_trap_enter(self):
         trap_door = DoorEnum.TRAP.create_instance(controller=self.controller)

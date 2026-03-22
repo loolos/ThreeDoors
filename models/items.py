@@ -244,10 +244,26 @@ class GiantScroll(BattleItemBase):
 class DepositedBackpack(BattleItemBase):
     """时光当铺后续奖励：寄存的背包。"""
 
+    def __init__(self, name: str, **kwargs):
+        super().__init__(name, cost=kwargs.get('cost', 0))
+        self.stored_gold = max(0, int(kwargs.get('stored_gold', 0)))
+        self.stored_items = list(kwargs.get('stored_items', []))
+
+    def acquire(self, **kwargs) -> bool:
+        # 寄存的背包是剧情结算容器，不进入背包，获得时立即结算内容。
+        self.effect(**kwargs)
+        return False
+
     def effect(self, **kwargs):
         player = kwargs.get('player')
         if player:
-            player.controller.add_message("你翻了翻寄存的背包，里面只剩一张当票和一股陈旧的樟木味。")
+            player.controller.add_message("你拆开寄存的背包，开始清点当铺寄存的东西。")
+            if self.stored_gold > 0:
+                player.add_gold(self.stored_gold)
+                player.controller.add_message(f"寄存的背包里翻出了 {self.stored_gold} 金币。")
+            for item in self.stored_items:
+                player.controller.add_message(f"寄存的背包里找到：{item.name}")
+                item.acquire(player=player)
 
 # 金币袋子类
 class GoldBag(ConsumableItem):
