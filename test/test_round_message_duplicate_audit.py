@@ -158,6 +158,8 @@ class RoundMessageDuplicateAudit:
             return True, "重复发生在怪物门战斗流程（允许）。"
         if msg.startswith(GAME_RESET_INTRO_PREFIX):
             return True, "重开后回合计数重置，开场文案在同回合键下重复归档（允许例外）。"
+        if msg.startswith("免疫效果保护了你免受 ") and scenes.issubset({SceneType.BATTLE, SceneType.DOOR}):
+            return True, "门内负面效果与战斗附带效果同回合命中时，免疫提示可重复（允许例外）。"
         if msg == "你没有可用的复活卷轴！" and scenes == {SceneType.GAME_OVER}:
             return True, "结算界面重复点击造成重复提示（允许例外）。"
         if msg == "你感到一阵虚弱，攻击力降低了！" and scenes.issubset({SceneType.BATTLE, SceneType.DOOR}):
