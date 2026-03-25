@@ -119,7 +119,7 @@
 
 | 配置键 | consequence_id | 触发门型 | 触发条件概要 |
 |--------|----------------|----------|----------------------|
-| **round200_stage_preface** | `ending_stage_curtain_preface` | REWARD | `_is_stage_curtain_route_ready()`：飞贼收束、有钥匙、击败木偶、邪恶≤45、**未**取回剧本；进门后取回剧本，可触发约定对话链 |
+| **round200_stage_preface** | `ending_stage_curtain_preface` | REWARD | `_is_stage_curtain_route_ready()`：飞贼线已收束、**关系友好（≥2）**、有钥匙、击败木偶、**未**取回剧本；进门后取回剧本，可触发约定对话链 |
 | **puppet_rematch_gate** | `ending_puppet_pre_final_rematch_gate` | MONSTER | 木偶终战**曾逃跑**或未完结；补战 Boss「裂齿·夜魇·游荡残响」 |
 | **elf_rival_final_gate** | `ending_elf_rival_final_gate` | MONSTER | 飞贼线已收束且**关系≤−4**；银羽飞贼终局前对决 |
 | **dream_mirror_prelude_gate** | `ending_dream_mirror_prelude_gate` | EVENT | **梦境井**与**镜面剧场**两长链皆完结；梦中排练录像，选择仅作剧情呼应 |
@@ -139,7 +139,7 @@
 
 **第一门（仅两种，互斥）**：在**所有阻塞清空**、未开启长线分支、未达成任一结局、回合 ≥ 200 时，`ensure_default_normal_ending_schedule()` 挂载其一：
 
-1. **接管谢幕选择门**（`power_curtain_dialogue_round200`）：已拿剧本、已击败木偶、邪恶值 **> 45**。
+1. **接管谢幕选择门**（`power_curtain_dialogue_round200`）：已拿剧本、已击败木偶、飞贼线友好收束（关系 ≥2 且有钥匙）、邪恶值 **> 45**。
 2. **默认终局第一门**（`round200_default_first_gate`）：否则。
 
 ### 4.5 调度顺序与相关常量
@@ -162,7 +162,7 @@
 2. **若回合 ≥ 200**：`_try_schedule_blocking_echo_or_kind()` 尝试挂载**结局事件**之一：**木偶回声**（优先）或 **善良木偶对话**（二者互斥，满足条件则挂载其一）。
 3. **若仍有任意阻塞未清空**（含上述结局事件）：不挂载「第一门」，直接 return。
 4. **若所有阻塞已清空** 且回合 ≥ 200、未开启长线、未达成结局：挂载**第一门**（二选一）：
-   - **接管谢幕选择门**：已拿剧本、已击败木偶、邪恶值 **> 45**；
+   - **接管谢幕选择门**：已拿剧本、已击败木偶、飞贼线友好收束（关系 ≥2 且有钥匙）、邪恶值 **> 45**；
    - **默认终局第一门**：否则。
 
 **约定对话（终局事件）**：取回剧本后挂载 `stage_curtain_kind_puppet_dialogue`（`StageCurtainKindPuppetDialogueMidEvent`）；仅第 200 回合且阻塞清空后可触发。选补全/即兴 → 挂载谢幕门（下一扇门为补全/即兴/接管三选一）；选选择困难症 → 挂载默认终局第一门。
@@ -173,7 +173,7 @@
 回合 ≥ 185：保证「第一个未清空的阻塞」对应门型出现，玩家选到即触发并消费
 │
 ├─ 结局前倒数事件（185 起检查，按序清空）
-│   ├─ 1. 银羽秘藏 (REWARD)     ← 条件：飞贼收束+钥匙+击败木偶+邪恶≤45+未取剧本
+│   ├─ 1. 银羽秘藏 (REWARD)     ← 条件：飞贼友好收束（关系≥2）+钥匙+击败木偶+未取剧本
 │   │       └─ 进门 → 取回剧本 → 可挂载「约定对话」链
 │   ├─ 2. 木偶补战 (MONSTER)    ← 条件：木偶曾逃跑/未完结
 │   ├─ 3. 飞贼清算 (MONSTER)    ← 条件：飞贼收束且关系≤−4
@@ -186,7 +186,7 @@
 │           └─ ①补全 ②即兴 ③选择困难症 → 各对应结局或下一扇门
 │
 └─ 第一门（上述 1～5 全部清空后，仅第 200 回合挂载，二选一）
-    ├─ 6a. 接管谢幕选择门 (EVENT)  ← 条件：剧本+击败木偶+邪恶>45
+    ├─ 6a. 接管谢幕选择门 (EVENT)  ← 条件：剧本+击败木偶+飞贼友好收束（关系≥2且有钥匙）+邪恶>45
     │       └─ ①以规则接管 ②以意志接管 ③选择困难症
     └─ 6b. 默认终局第一门 (EVENT)  ← 否则
             └─ 第一门事件 → 第二门事件 → Boss「选择困难症候群」→ 击败 → default_normal
@@ -217,18 +217,18 @@
 | **选择困难症候群** | `default_normal` | ① 默认终局第一门 → 两门事件 → 击败选择困难症候群 Boss；② 与善良木偶对话选「选择困难症」；③ 接管谢幕选择门选「选择困难症」；④ 木偶回声门击败回声后、事件「回声散尽之后」选「选择困难症」。 |
 | **补全演出** | `stage_curtain_order` | 仅：与善良木偶对话（已拿剧本 + 已击败木偶 + 邪恶值 ≤45）→ 选「补全谢幕」。 |
 | **即兴表演** | `stage_curtain_freedom` / `impromptu_curtain_call` | ① 与善良木偶对话 → 选「即兴谢幕」；② 木偶回声门 → 击败「木偶的回声」→ 事件「回声散尽之后」选两项即兴之一（两种展示文案）；③ **无剧本且已击败木偶**（且未走回声门）时，终局解析直接给即兴结局，文案按邪恶值 ≤45 / >45 分支。 |
-| **接管演出** | `stage_curtain_power` | 仅：接管谢幕选择门（已拿剧本 + 已击败木偶 + 邪恶值 >45）→ 选「以规则接管」或「以意志接管」（两种展示文案）。 |
+| **接管演出** | `stage_curtain_power` | 仅：接管谢幕选择门（已拿剧本 + 已击败木偶 + 飞贼线友好收束〔关系≥2且有钥匙〕 + 邪恶值 >45）→ 选「以规则接管」或「以意志接管」（两种展示文案）。 |
 
 ### 5.3 门与事件实现要点
 
 - **木偶回声怪物门**（`puppet_echo_final_gate`）：门型 MONSTER，对手「木偶的回声」**血量 ≥ 玩家攻击力×5**，**攻击力 = 玩家攻击力的一半（上限 50）**；战斗扩展每回合复诵玩家在假面剧场、命运乐谱大盗、飞贼、梦境井、发条等事件中的选择，邪恶值高时语气嘲讽、否则陈述。击败后由 `_resolve_puppet_echo_final_outcome` 设置 `pending_post_battle_event_key`，战斗场景跳转事件场景，展示 `EndingPuppetEchoAftermathEvent`（回声散尽之后）。
 - **与善良木偶对话**（`EndingStageKindPuppetDialogueEvent`）：仅在第 200 回合、窗口清空后挂载；条件 `_is_kind_puppet_dialogue_ready()`：`curtain_call_script_recovered`、`ending:puppet_final_defeated`、邪恶值 ≤ 45。
-- **接管谢幕选择门**（`EndingPowerCurtainChoiceEvent`）：仅在第 200 回合挂载；条件 `_is_power_curtain_dialogue_ready()`：已拿剧本、已击败木偶、邪恶值 > 45。与善良木偶对话通过邪恶值互斥。
+- **接管谢幕选择门**（`EndingPowerCurtainChoiceEvent`）：仅在第 200 回合挂载；条件 `_is_power_curtain_dialogue_ready()`：已拿剧本、已击败木偶、飞贼线友好收束（关系 ≥2 且有钥匙）、邪恶值 > 45。与善良木偶对话通过邪恶值互斥。
 - **默认终局第一门**：`ending_final_first_gate_event` → `ending_final_second_gate_event` → 挂载默认 Boss 门「选择困难症候群」，击败后 `_resolve_default_final_outcome` → `default_normal`。
 
 ### 5.4 银羽秘藏（取回剧本）与约定对话、第 200 回合门的关系
 
-- **银羽秘藏门**（`round200_stage_preface`）：宝物门，在结局前倒数窗口内（185 起）触发；条件 `_is_stage_curtain_route_ready()`：尚未回收剧本、已获得飞贼钥匙、飞贼线已收束、已击败木偶、邪恶值 ≤ 45。进门后写入 `curtain_call_script_recovered` 等，并若善良侧在则**挂载约定对话**（`stage_curtain_kind_puppet_dialogue`，终局事件，仅第 200 回合且阻塞清空后可触发）。
+- **银羽秘藏门**（`round200_stage_preface`）：宝物门，在结局前倒数窗口内（185 起）触发；条件 `_is_stage_curtain_route_ready()`：尚未回收剧本、飞贼线友好收束（关系 ≥2 且已获得飞贼钥匙）、已击败木偶。进门后写入 `curtain_call_script_recovered` 等，并若善良侧在则**挂载约定对话**（`stage_curtain_kind_puppet_dialogue`，终局事件，仅第 200 回合且阻塞清空后可触发）。
 - **约定对话**（`StageCurtainKindPuppetDialogueMidEvent`）：终局事件；选补全/即兴会挂载**谢幕门**（补全/即兴/接管三选一），选选择困难症会挂载默认终局第一门。
 - **第 200 回合结局事件**：**善良木偶对话**（`EndingStageKindPuppetDialogueEvent`）与**木偶回声**由 `_try_schedule_blocking_echo_or_kind()` 仅在第 200 回合挂载；**接管谢幕选择门**与**默认终局第一门**在所有阻塞清空后挂载。
 
@@ -324,7 +324,7 @@
 | 古老祭坛 | 剧场侧厅的仪式台，刻有旧演出符文 | 旧秩序残留 |
 | 流浪赌徒 | 走廊里设局的赌档，赌注是入场券或金币 | 演出间隙的灰色交易 |
 | 迷路孩童 | 迷失在舞台布景中的观众小孩 | 剧场空间错位 |
-| 镜剧场 | 假面剧场其实是演员的的预演厅 | 主舞台的试炼分支 |
+| 镜剧场 | 假面剧场其实是演员的预演厅 | 主舞台的试炼分支 |
 | 时光当铺 | 剧场的存包处 | 观众/演员寄存物品的终端，「收今天押明天」对应存包与取回 |
 | 逃难队伍 | 逃票进入剧场的一批人 | 未购票混入，请求不要声张并赞助路费以继续躲藏 |
 | 落难骑士 | 失去剧本指引的戏中角色 | 重伤倒地、不知如何行动，可选帮助/搜刮/离开 |
