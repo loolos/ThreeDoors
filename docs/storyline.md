@@ -340,6 +340,7 @@
 - **故事标记索引（choice_flags / story_tags）**：`models/story_flags.py` — 各事件与 `story_system` 使用的 **字符串常量**、`choice_tag()`（`choice:<flag>` 前缀）、飞贼仇怨 `ELF_GRUDGE_*` 与台词顺序 `ELF_GRUDGE_BARK_KEYS`、常用 `TAG_*` 终局标签；模块内 `FLAG_INDEX` 为按主题摘录的速查表（完整列表以代码常量为准）。**勿与** `story_gates` 的 `consequence_id` / 门型配置混淆。
 - **门配置与阻塞顺序（单一来源）**：`models/story_gates.py` — `PRE_FINAL_GATE_STORY_CONFIG`、`PRE_FINAL_DISPATCH_ORDER`、`PRE_FINAL_BLOCKING_ORDER`、`ENDING_EVENT_GATE_KEYS` 等（`models.events` 包在 `__init__.py` 中 re-export）
 - **叙事文案（与剧情域拆分）**：`models/narrative/` — 飞贼清算仇句、复仇门配置、`story_system` 固定提示句、`stage_curtain_epilogue.py`（谢幕三路线尾声表）
+- **后果效果实现**：`models/story_effects/` — 每个 `effect_key` 一个 `handle_<effect_key>`（按奖励/商店/追猎/剧情门/Boss 分模块），`StorySystem._apply_effect` 只负责分发
 - **调度与条件**：`models/story_system.py` — `ensure_pre_final_event_schedule`、`ensure_default_normal_ending_schedule`、`_is_stage_curtain_route_ready`、`_is_power_curtain_direct_ready`、`PRE_FINAL_BLOCKING_*`、`_should_run_pre_final_recheck`
 - **事件系统（包结构）**：`models/events/` — `base.py`（`Event` / `EventChoice`）、`short_random.py`、`time_mirror_moon.py`、`moon_verdict.py`、`clockwork.py`、`dream_echo.py`、`puppet_chain.py`、`elf_chain.py`、`stage_curtain.py`（分数与结局解析、各 `Ending*Event`）、`dispatch.py`（`get_random_event`、`STARTER_EVENT_POOL` 等）；对外仍 `import models.events` 与旧单文件等价
 - **前置事件调度**：`models/events/stage_curtain.py` — `_should_schedule_kind_puppet_dialogue`、`_schedule_kind_puppet_dialogue_event`；`schedule_next_pre_final_gate` 在同文件；`_should_trigger_puppet_pre_final_gate`、`_should_trigger_elf_rival_pre_final` 亦在 `stage_curtain.py`
