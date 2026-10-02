@@ -142,6 +142,8 @@
 1. **接管谢幕选择门**（`power_curtain_dialogue_round200`）：已拿剧本、已击败木偶、飞贼线友好收束（关系 ≥2 且有钥匙）、邪恶值 **> 45**。
 2. **默认终局第一门**（`round200_default_first_gate`）：否则。
 
+**兜底（保证每局都能结束）**：若已有结局门链在途（`story_gates.ENDING_PATH_CONSEQUENCE_IDS` 中任一仍 pending，或击败木偶回声后的事件待展示），不挂第一门。否则：第一门未用过则挂默认第一门；已用过却仍无结局（如从默认 Boss 处逃跑）则重新挂默认 Boss 门。`test/test_ending_reachability.py` 穷举飞贼/钥匙/剧本/木偶/邪恶值/梦境镜面的状态组合，断言每种组合都能达成结局。
+
 ### 4.5 调度顺序与相关常量
 
 - **结局前倒数事件**（185 起）：`ensure_pre_final_event_schedule()` → `ensure_all_pre_ending_blocking_considered()`，按 `PRE_FINAL_BLOCKING_GATE_KEYS` 依次尝试挂载四种 gate（银羽宝物、木偶补战、飞贼清算、梦境镜子前奏）。

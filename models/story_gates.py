@@ -240,3 +240,13 @@ STAGE_CURTAIN_KIND_PUPPET_DIALOGUE_CONSEQUENCE_ID = _gate_consequence_id(
 )
 DEFAULT_SECOND_GATE_CONSEQUENCE_ID = _gate_consequence_id("default_second_gate_event")
 DEFAULT_FINAL_BOSS_CONSEQUENCE_ID = _gate_consequence_id("default_final_boss_gate")
+STAGE_CURTAIN_GATE_CONSEQUENCE_ID = _gate_consequence_id("stage_curtain_gate_event")
+
+# 正在通往结局的门链：其中任一仍在 pending 时，说明玩家已走在某条结局路线上，兜底不介入。
+ENDING_PATH_CONSEQUENCE_IDS: FrozenSet[str] = ENDING_EVENT_CONSEQUENCE_IDS | frozenset(
+    (
+        STAGE_CURTAIN_GATE_CONSEQUENCE_ID,
+        DEFAULT_SECOND_GATE_CONSEQUENCE_ID,
+        DEFAULT_FINAL_BOSS_CONSEQUENCE_ID,
+    )
+)

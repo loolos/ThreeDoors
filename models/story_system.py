@@ -257,33 +257,51 @@ class StorySystem:
         )
         return True
 
-    def _has_started_long_story_branch(self) -> bool:
-        """判断是否已开启任意长线分支，用于 200 回合默认结局分流。"""
-        if bool(getattr(self, "elf_chain_started", False)):
+    def _is_ending_reached(self) -> bool:
+        """是否已经达成任一最终结局。"""
+        if getattr(self.controller, "game_clear_info", None):
             return True
-        if "puppet_arc_active" in self.story_tags:
-            return True
+        return (
+            "ending:default_normal_completed" in self.story_tags
+            or "ending:stage_curtain_completed" in self.story_tags
+        )
 
-        event_counts = getattr(self.controller, "event_trigger_counts", {}) or {}
-        if not isinstance(event_counts, dict) or not event_counts:
+    def _is_ending_path_in_flight(self) -> bool:
+        """是否已有一条结局门链在途（结局事件/谢幕门/默认第二门/默认 Boss 仍待触发，或战后结局事件待展示）。"""
+        if any(cid in self.pending_consequences for cid in story_gates.ENDING_PATH_CONSEQUENCE_IDS):
+            return True
+        return bool(getattr(self.controller, "pending_post_battle_event_key", None))
+
+    def _schedule_ending_fallback(self) -> bool:
+        """兜底：第 200 回合后若阻塞已清空、没有结局门链在途且尚未达成结局，保证默认路线可走通。
+
+        默认第一门尚未用过则挂载第一门；已用过（例如从默认 Boss 处逃跑）则重新挂载默认 Boss 门。
+        """
+        if self._is_ending_reached() or self._is_ending_path_in_flight():
             return False
-        try:
-            from models.events import LONG_EVENT_STARTER_CLASSES
-            starter_names = {event_cls.__name__ for event_cls in LONG_EVENT_STARTER_CLASSES}
-        except Exception:
-            starter_names = {
-                "TimePawnshopEvent",
-                "MirrorTheaterEvent",
-                "MoonBountyEvent",
-                "ClockworkBazaarEvent",
-                "DreamWellEvent",
-                "PuppetAbandonmentEvent",
-                "ElfThiefIntroEvent",
-            }
-        for event_name in starter_names:
-            if int(event_counts.get(event_name, 0)) > 0:
-                return True
-        return False
+        if self.DEFAULT_ENDING_FORCE_CONSEQUENCE_ID not in self.consumed_consequences:
+            gate_key = "round200_default_first_gate"
+        else:
+            gate_key = "default_final_boss_gate"
+            self.consumed_consequences.discard(self.DEFAULT_FINAL_BOSS_CONSEQUENCE_ID)
+        cfg = PRE_FINAL_GATE_STORY_CONFIG[gate_key]
+        payload = cfg.get("payload", {})
+        registered = self.register_consequence(
+            choice_flag=str(cfg["choice_flag"]),
+            consequence_id=str(cfg["consequence_id"]),
+            effect_key=str(cfg["effect_key"]),
+            chance=1.0,
+            trigger_door_types=list(ALL_PRE_FINAL_DOOR_TYPES),
+            min_round=self.DEFAULT_ENDING_FORCE_ROUND,
+            max_round=None,
+            force_on_expire=False,
+            force_door_type=str(cfg["force_door_type"]),
+            priority=int(cfg.get("priority", 1200)),
+            payload=dict(payload) if isinstance(payload, dict) else {},
+        )
+        if registered:
+            self.story_tags.add("ending:default_normal_scheduled")
+        return registered
 
     # 银羽秘藏（补全谢幕前置）仅当飞贼线收束、有钥匙、击败木偶终战且邪恶值偏低（善良人格主导）时挂载
     PUPPET_LOW_EVIL_FOR_CURTAIN = 45
@@ -622,17 +640,17 @@ class StorySystem:
             return False
         if current_round < self.DEFAULT_ENDING_FORCE_ROUND:
             return False
-        # 结局事件（仅两种）：接管谢幕（有剧本+邪恶值高）或 默认第一门
+        if self._is_ending_path_in_flight():
+            return False
+        # 结局事件（仅两种）：接管谢幕（有剧本+邪恶值高）或 默认第一门；都用过仍无结局时走兜底
         if self._is_power_curtain_dialogue_ready():
             gate_key = "power_curtain_dialogue_round200"
         else:
-            if self._has_started_long_story_branch():
-                return False
             gate_key = "round200_default_first_gate"
         cfg = PRE_FINAL_GATE_STORY_CONFIG.get(gate_key, {})
         consequence_id = str(cfg.get("consequence_id", "ending_default_force_gate_round_200"))
         if consequence_id in self.pending_consequences or consequence_id in self.consumed_consequences:
-            return False
+            return self._schedule_ending_fallback()
         payload = cfg.get("payload", {})
         registered = self.register_consequence(
             choice_flag=str(cfg.get("choice_flag", "ending_default_normal_gate")),

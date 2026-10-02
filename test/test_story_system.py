@@ -1598,17 +1598,50 @@ class TestStorySystem(BaseTest):
         self.assertTrue(scheduled_after)
         self.assertIn("ending_default_force_gate_round_200", story.pending_consequences)
 
-    def test_default_ending_is_not_scheduled_after_any_long_branch_started(self):
+    def test_default_ending_falls_back_when_long_branch_has_no_ending_path(self):
+        """开启过长线但没有任何结局门可挂时，默认第一门兜底，避免永远无法结束。"""
         self.controller.round_count = 200
         self.controller.event_trigger_counts["MoonBountyEvent"] = 1
         story = self.controller.story
 
         scheduled = story.ensure_default_normal_ending_schedule()
+        self.assertTrue(scheduled)
+        self.assertIn("ending_default_force_gate_round_200", story.pending_consequences)
+
+    def test_default_ending_not_scheduled_while_other_ending_path_in_flight(self):
+        """已有结局门链在途（如取回剧本后的约定对话）时，不挂默认第一门。"""
+        self.controller.round_count = 200
+        story = self.controller.story
+        story.register_consequence(
+            choice_flag="ending_stage_curtain_route",
+            consequence_id="ending_stage_kind_puppet_dialogue",
+            effect_key="force_story_event",
+            chance=1.0,
+            min_round=200,
+        )
+
+        scheduled = story.ensure_default_normal_ending_schedule()
         self.assertFalse(scheduled)
         self.assertNotIn("ending_default_force_gate_round_200", story.pending_consequences)
 
+    def test_default_final_boss_rescheduled_after_escape(self):
+        """默认路线 Boss 被逃跑后（门已消费、无结局），兜底重新挂载默认 Boss 门。"""
+        self.controller.round_count = 205
+        story = self.controller.story
+        story.consumed_consequences.update(
+            {
+                "ending_default_force_gate_round_200",
+                "ending_default_second_gate",
+                "ending_default_final_boss_gate",
+            }
+        )
+
+        scheduled = story.ensure_default_normal_ending_schedule()
+        self.assertTrue(scheduled)
+        self.assertIn("ending_default_final_boss_gate", story.pending_consequences)
+
     def test_power_curtain_still_schedules_even_if_long_branch_started(self):
-        """已进入长线时应阻止默认第一门，但不应阻止接管谢幕选择门。"""
+        """已进入长线时，满足条件仍优先挂接管谢幕选择门。"""
         self.controller.round_count = 200
         self.controller.event_trigger_counts["MoonBountyEvent"] = 1
         story = self.controller.story
