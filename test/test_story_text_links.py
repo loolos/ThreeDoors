@@ -17,13 +17,12 @@ class TestUnderstudyProtagonist(unittest.TestCase):
         game = GameController()
         opening = "\n".join(game.messages)
         self.assertIn("替补", opening)
-        self.assertIn("终幕剧本", opening)
 
-    def test_default_ending_leaves_through_stage_door(self):
+    def test_default_ending_is_maze_exit(self):
         game = GameController()
         game.story._resolve_default_final_outcome()
-        self.assertEqual(game.game_clear_info["ending_title"], "结局：演员通道")
-        self.assertIn("演员通道", "\n".join(game.messages))
+        self.assertEqual(game.game_clear_info["ending_title"], "结局：迷宫出口")
+        self.assertIn("工作牌", "\n".join(game.messages))
 
 
 class TestFatherDaughterThread(unittest.TestCase):

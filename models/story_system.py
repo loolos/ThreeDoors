@@ -1156,11 +1156,10 @@ class StorySystem(StoryExtensionsMixin):
         if callable(trigger_clear):
             trigger_clear(
                 ending_key="default_normal",
-                ending_title="结局：演员通道",
+                ending_title="结局：迷宫出口",
                 ending_description=(
-                    "你在终局门廊里一路犹豫、一路选择，最后击倒了“选择困难症候群”。"
-                    "终幕没有按任何剧本上演，替补也没有站到聚光灯下——"
-                    "但走出演员通道的那一刻你知道，至少最后这一次，是你自己做的决定。"
+                    "你在终局门廊里一路犹豫、一路选择，最后击倒了“选择困难症候群”，终于找到了迷宫的出口。"
+                    "身后的弦音没有奏完，那场终幕也不知道最后由谁来演。"
                 ),
                 ending_meta=self._build_final_ending_meta(),
             )

@@ -36,7 +36,7 @@ CHOICE_NARRATIVE = {
     "moon_bounty_diary_obtained": "你带着提词人寻找女儿的日记走完了全程。",
     "curtain_call_truth_revealed": "你查明了真相：被通缉的提词人是无辜的，偷走剧本的是他的女儿莱希娅。",
     "ending:puppet_final_defeated": "你击败了木偶的最终形态。",
-    "ending_default_normal_completed": "你击倒了选择困难症候群，从演员通道离开了剧场。",
+    "ending_default_normal_completed": "你击倒了选择困难症候群，从迷宫出口离开。",
     "ending_stage_gate_order": "你选择了补全谢幕，与善良人格一同完成终演。",
     "ending_stage_gate_freedom": "你选择了即兴谢幕，以证词与自由完成终演。",
     "ending_stage_gate_default": "你选择了直面选择困难症候群。",
@@ -55,9 +55,9 @@ DOOR_NAMES = {
 # 四种结局的综述文案（最后一段）
 ENDING_SUMMARY = {
     "default_normal": (
-        "没有剧本的替补，在这座舞台迷宫里最终选择了直面「选择困难症候群」。"
-        "击倒它之后，你从演员通道离开了剧场。"
-        "走廊深处的弦音与低语渐渐远去，这场没有上演的终幕，在此画上句点。"
+        "你在这座没有出口的迷宫中，最终选择了直面「选择困难症候群」。"
+        "击倒它之后，你终于找到了离开的出口。"
+        "走廊深处的弦音与低语渐渐远去，那场终幕留在了身后。"
     ),
     "stage_curtain_order": (
         "你这个替补按证词与秩序补齐了终幕结构，让假面剧场在失控边缘重新对齐节拍。"
