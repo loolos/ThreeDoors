@@ -3,7 +3,7 @@
 """
 import unittest
 import random
-from server import GameController
+from game import GameController
 from models.player import Player
 from models.monster import Monster
 from models.items import ItemType

@@ -3,7 +3,7 @@ import unittest
 import unittest.mock
 from test.test_base import BaseTest
 import models.events as events_module
-from server import GameController
+from game import GameController
 from models.events import (
     StrangerEvent, SmugglerEvent, AncientShrineEvent, 
     GamblerEvent, LostChildEvent, CursedChestEvent, WiseSageEvent,

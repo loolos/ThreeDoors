@@ -7,7 +7,7 @@
 """
 import unittest
 
-from server import GameController
+from game import GameController
 from test.test_base import BaseTest
 from models.events import (
     LONG_EVENT_STARTER_EARLIEST_ROUND,

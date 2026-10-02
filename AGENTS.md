@@ -12,7 +12,9 @@
 
 **Lint**: No linter is configured in the repository. Use standard Python linting tools (e.g., `ruff`, `flake8`) if needed.
 
-**Session storage**: Flask-Session uses the filesystem (`flask_session/` directory, auto-created). This directory is gitignored.
+**Code layout**: `server.py` is only the Flask app + routes; the per-game controller lives in `game.py` (`GameController`, `parse_test_gate`); `game_store.py` holds games (in-memory LRU + pickled saves).
+
+**Session storage**: Flask-Session uses the filesystem (`flask_session/` directory, auto-created) and only stores the `game_id`. Game state is pickled to `instance/games/<game_id>.pkl` after every request (override with `THREEDOORS_SAVE_DIR`; memory cache size `THREEDOORS_MAX_GAMES_IN_MEMORY`, default 200), so a restart does not lose progress. Keep game objects picklable (no lambdas/closures stored on events — use `functools.partial`). Both directories are gitignored.
 
 **PATH note**: pip installs to `~/.local/bin` which may not be on PATH. Use `export PATH="$HOME/.local/bin:$PATH"` if `flask` or `gunicorn` CLI commands are not found.
 

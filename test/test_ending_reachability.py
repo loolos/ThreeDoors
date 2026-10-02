@@ -18,7 +18,7 @@ import contextlib
 import unittest
 from unittest import mock
 
-from server import GameController
+from game import GameController
 from models.player import Player
 
 START_ROUND = 184

@@ -1,5 +1,5 @@
 import unittest
-from server import GameController
+from game import GameController
 from models.status import StatusName, FieldPoisonStatus
 from scenes import DoorScene, BattleScene
 from test.test_base import BaseTest

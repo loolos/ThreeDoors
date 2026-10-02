@@ -1,4 +1,6 @@
 """见 models.events 包说明。"""
+import functools
+
 from models.status import StatusName
 from models.story_flags import (
     ELF_GRUDGE_CAMP_MERCENARY,
@@ -847,7 +849,7 @@ class ElfSideMerchantDisguisedEvent(Event):
         ]
 
     def _make_buy(self, index):
-        return lambda idx=index: self._do_buy(idx)
+        return functools.partial(self._do_buy, index)
 
     def _do_buy(self, index):
         if index < 0 or index >= len(self._items):

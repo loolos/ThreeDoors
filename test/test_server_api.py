@@ -1,4 +1,6 @@
 
+import shutil
+import tempfile
 import unittest
 import json
 from server import app, games_store
@@ -8,8 +10,14 @@ class TestServerAPI(unittest.TestCase):
     def setUp(self):
         self.app = app.test_client()
         self.app.testing = True
-        # Clear games store
+        # Clear games store（存档写到临时目录，避免污染 instance/）
         games_store.clear()
+        self._orig_persist_dir = games_store.persist_dir
+        games_store.persist_dir = tempfile.mkdtemp()
+
+    def tearDown(self):
+        shutil.rmtree(games_store.persist_dir, ignore_errors=True)
+        games_store.persist_dir = self._orig_persist_dir
         
     def test_event_scene_button_action(self):
         """Test API handling of EventScene button clicks"""
@@ -23,7 +31,7 @@ class TestServerAPI(unittest.TestCase):
                 sess['game_id'] = game_id
             
             # Create game in store directly
-            from server import GameController
+            from game import GameController
             game = GameController()
             games_store[game_id] = game
             
@@ -66,7 +74,7 @@ class TestServerAPI(unittest.TestCase):
             client.get("/")
             with client.session_transaction() as sess:
                 sess["game_id"] = "idx_test"
-            from server import GameController
+            from game import GameController
             games_store["idx_test"] = GameController()
             for bad_index in [{"index": -1}, {"index": 99}, {"index": "x"}, {}]:
                 resp = client.post("/buttonAction", json=bad_index, headers={"X-Requested-With": "XMLHttpRequest"})
@@ -80,9 +88,13 @@ class TestExitGameEndpoint(unittest.TestCase):
         self.client = app.test_client()
         games_store.clear()
         self._orig_dev_mode = app.config.get("DEV_MODE")
+        self._orig_persist_dir = games_store.persist_dir
+        games_store.persist_dir = tempfile.mkdtemp()
 
     def tearDown(self):
         app.config["DEV_MODE"] = self._orig_dev_mode
+        shutil.rmtree(games_store.persist_dir, ignore_errors=True)
+        games_store.persist_dir = self._orig_persist_dir
 
     def _post_exit(self, remote_addr):
         from unittest import mock
@@ -97,7 +109,7 @@ class TestExitGameEndpoint(unittest.TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertFalse(resp.get_json()["server_stopped"])
         thread_cls.assert_not_called()
-        self.assertEqual(games_store, {}, "退出后应清除本局")
+        self.assertEqual(len(games_store), 0, "退出后应清除本局")
 
     def test_dev_mode_remote_request_does_not_stop_server(self):
         app.config["DEV_MODE"] = True
