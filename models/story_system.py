@@ -1053,7 +1053,7 @@ class StorySystem(StoryExtensionsMixin):
         if "puppet_descent_cut_emotion" in flags and evil >= 55:
             ending_variants.append("你亲手切断情感模块的记录被标红锁定，黑暗侧用它完成了最后一次自我复制。")
         if "puppet_signal_resell" in flags and evil >= 55:
-            ending_variants.append("你倒卖过的战术信号被反向追踪，结算日志上多出一行：‘债务已由下一位替补继承。’")
+            ending_variants.append("你倒卖过的战术信号被反向追踪，结算日志上多出一行：‘债务已由下一位闯入者继承。’")
         if "puppet_descent_dark_feed" in flags and evil >= 70:
             ending_variants.append("你喂给核心的自毁协议并未彻底死去，剧场远处传来新的机械心跳。")
 

@@ -364,7 +364,7 @@ def _resolve_stage_curtain_outcome(route_key, score_payload):
             )
         common_close = (
             "灯光打在你身上。没有原定的台词，没有写好的终章——"
-            "你这个替补代替倒下的主演站上舞台中央，即兴完成最后一幕，然后向虚空中的观众深深鞠躬，谢幕。"
+            "你代替倒下的木偶站上舞台中央，即兴完成最后一幕，然后向虚空中的观众深深鞠躬，谢幕。"
         )
         return {
             "ending_key": "impromptu_curtain_call",
@@ -384,7 +384,7 @@ def _resolve_stage_curtain_outcome(route_key, score_payload):
             ]
             ending_description = _compose_with_epilogue(
                 "你按证词与秩序补齐终幕结构，然后把主演的位置还给了它。被你救回的木偶善良人格依照原剧本完成了最后一幕，"
-                "并亲自回到台前谢幕。散场后你这个替补没有立刻离开，而是把证词、票据与破碎台词一并归档，"
+                "并亲自回到台前谢幕。散场后你没有立刻离开，而是把证词、票据与破碎台词一并归档，"
                 "让这场险些失控的演出终于拥有可被复述的尾声。",
                 "order",
             )
@@ -403,7 +403,7 @@ def _resolve_stage_curtain_outcome(route_key, score_payload):
             curtain_speciale = "puppet_kind_curtain_call"
         else:
             ending_description = _compose_with_epilogue(
-                "你按证词与秩序补齐终幕结构。尽管善良人格尚未归位，你这个替补仍照着剧本把主演的台词一句句念完，完成最后一幕并谢幕。"
+                "你按证词与秩序补齐终幕结构。尽管善良人格尚未归位，你仍照着剧本把它的台词一句句念完，完成最后一幕并谢幕。"
                 "灯暗下去时，你把空出来的角色名保留在终幕表上，提醒所有人：这场补全是完成，"
                 "却不是遗忘。",
                 "order",
@@ -423,7 +423,7 @@ def _resolve_stage_curtain_outcome(route_key, score_payload):
     if route_key == "freedom":
         ending_description = _compose_with_epilogue(
             "你承认剧本无法完整复刻，带着众人的证词即兴完成终演。"
-            "一个从没拿到台词的替补，把走廊里每一次迟疑、每一次冒险和每一句没说完的话都揉进临场台词里，"
+            "你把走廊里每一次迟疑、每一次冒险和每一句没说完的话都揉进临场台词里，"
             "让终幕在失控边缘开出了自己的节拍。",
             "freedom",
         )
@@ -438,7 +438,7 @@ def _resolve_stage_curtain_outcome(route_key, score_payload):
     # 接管谢幕：结局类型固定为 stage_curtain_power，文案依分数差异
     if route_key == "power":
         ending_description = _compose_with_epilogue(
-            "你这个替补不再等任何人给你台词，以导演代理人的身份接管门廊规则，强行完成谢幕。"
+            "你以导演代理人身份接管门廊规则，强行完成谢幕。"
             "当所有灯位、闸机与通行口都被你重新编号后，剧场不再等待『正确剧情』，"
             "而是按照你的指令推进到最后一拍。",
             "power",
@@ -527,7 +527,7 @@ class EndingStageKindPuppetDialogueEvent(Event):
         self.title = "与善良人格的约定"
         self.description = (
             f"剧本就在你怀里。机偶胸腔里残存的那点蓝光——{kind_name}——主动与你联络："
-            "'你就是我的替补吧？谢谢你替我走到这里。'"
+            "'你胸前那块牌子上的编号……和我的一样。谢谢你替我走到这里。'"
             "它说终幕可以按剧本补全，也可以由你即兴收尾；如果你实在选不下去，前面还有选择困难症候群把守的终局。"
             "若选补全或即兴，它愿在分别前给你一点馈赠。"
         )
@@ -634,7 +634,7 @@ class StageCurtainKindPuppetDialogueMidEvent(Event):
         kind_name, _ = _get_puppet_persona_names(controller)
         self.title = "与善良人格的约定"
         self.description = (
-            "机偶胸腔里残存的蓝光人格一息尚存：'剧本在你这！你是我的替补，对吗？我想把我的部分演完，可以吗？'"
+            "机偶胸腔里残存的蓝光人格一息尚存：'剧本在你这！……你身上有我的编号。我想把我的部分演完，可以吗？'"
             "你可以让它按剧本演完谢幕，也可以替它来一段即兴收尾；如果你迟迟拿不定主意，就只能去面对选择困难症候群。"
             "约定后，前方门廊将为你敞开终幕之门。"
         )
@@ -962,7 +962,7 @@ class EndingPowerCurtainDirectEvent(Event):
         self.title = "接管谢幕"
         self.description = (
             "你没有拿到终幕剧本，与银羽飞贼也未曾结下信任；"
-            "但黑暗木偶已被你击败，走廊尽头只剩一扇门——你这个替补决定以自己的方式接管终幕，强行收束演出。"
+            "但黑暗木偶已被你击败，走廊尽头只剩一扇门——你决定以自己的方式接管终幕，强行收束演出。"
         )
         self.choices = [
             EventChoice("完成接管谢幕", self._complete_power_curtain),
@@ -1021,7 +1021,7 @@ class EndingPowerCurtainChoiceEvent(Event):
         self.title = "接管终幕"
         self.description = (
             "剧本在你手里，黑暗木偶也倒下了，可它胸腔里只剩红噪——没有善良人格来和你约定什么。"
-            "主演缺席，导演失联，门廊深处只剩你这个替补。你可以亲手接管这场谢幕，或者转身去面对选择困难症候群。"
+            "主演缺席，导演失联，门廊深处只剩你一个人。你可以亲手接管这场谢幕，或者转身去面对选择困难症候群。"
         )
         self.choices = [
             EventChoice("以规则接管——把终幕写进秩序", self.pick_power_order),
@@ -1149,7 +1149,7 @@ class EndingPuppetEchoAftermathEvent(Event):
         return self._trigger_impromptu(
             "你选择把一路抉择当作唯一的台词，即兴完成最后一幕。",
             "你没有拿到剧本，与银羽也未曾结下信任；但在终局门前你击败了木偶的回声——"
-            "那些回荡在走廊里的选择与代价，都成了你这个替补即兴谢幕的台词。"
+            "那些回荡在走廊里的选择与代价，都成了你即兴谢幕的台词。"
             "你向虚空中的观众鞠躬，完成了只属于你的终幕。",
         )
 
@@ -1159,7 +1159,7 @@ class EndingPuppetEchoAftermathEvent(Event):
             "你选择以即兴之姿收束终幕，向虚空鞠躬。",
             "木偶的回声碎裂之后，你没有剧本可依，也没有银羽的约定可循；"
             "你只是把门廊里复诵过的抉择一一收起，即兴完成最后一幕，向虚空鞠躬。"
-            "替补的终幕，只属于你。",
+            "终幕只属于你。",
         )
 
     def pick_default(self):

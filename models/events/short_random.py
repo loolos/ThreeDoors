@@ -812,7 +812,7 @@ class WiseSageEvent(Event):
     def __init__(self, controller):
         super().__init__(controller)
         self.title = "智者"
-        self.description = "一位白胡子老者在走廊拦住了去路：'年轻的替补，你为了什么踏上这座舞台？'"
+        self.description = "一位白胡子老者在走廊拦住了去路：'年轻人，你为了什么踏上这座舞台？'"
         heal_hint = self.scale_value(50, positive=True)
         self.choices = [
             EventChoice("为了力量 (加攻击)", self.power),
