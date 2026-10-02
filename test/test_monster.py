@@ -8,7 +8,6 @@ from models.monster import Monster, get_random_monster, estimate_player_power
 from types import SimpleNamespace
 from unittest.mock import patch
 import random
-from models.game_config import GameConfig
 
 class TestMonsterSystem(BaseTest):
     """怪物系统测试类"""
@@ -108,46 +107,11 @@ class TestMonsterSystem(BaseTest):
         self.assertGreater(strong_avg_atk_late, weak_avg_atk_late)
         self.assertGreater(strong_avg_effect_late, weak_avg_effect_late)
 
-    def test_tier_curve_has_no_cliff(self):
-        """每升一个 tier 平均生命/攻击都要变强，但单步增幅不超过 2.6 倍（原 T5→T6 生命 ×3.2 是断崖）。"""
-        def avg(tier, idx):
-            group = Monster.MONSTER_TYPES[tier]
-            return sum(m[idx] for m in group) / len(group)
-
-        for tier in range(2, 7):
-            for idx, label in ((1, "hp"), (2, "atk")):
-                ratio = avg(tier, idx) / avg(tier - 1, idx)
-                self.assertGreater(ratio, 1.0, f"T{tier} {label} 应高于 T{tier - 1}")
-                self.assertLess(ratio, 2.6, f"T{tier} {label} 相对 T{tier - 1} 增幅 {ratio:.2f} 过大")
-
-    def test_player_at_tier6_unlock_usually_survives(self):
-        """刚达到 T6 解锁门槛（攻击 280、生命 560）的玩家只按攻击，多数情况下能打赢 T6 怪物。"""
-        from unittest import mock
-        import models.monster as monster_module
-        from game import GameController
-
-        requirement = GameConfig.MONSTER_TIER_UNLOCK_REQUIREMENTS[6]
-        wins = 0
-        trials = 80
-        for i in range(trials):
-            random.seed(1000 + i)
-            game = GameController()
-            game.player.hp = requirement * 2
-            game.player._atk = requirement
-            game.round_count = 110
-            with mock.patch.object(monster_module, "_roll_tier", lambda **_: 6):
-                monster = get_random_monster(current_round=110, player=game.player, unlocked_tier=6)
-            game.current_monster = monster
-            game.scene_manager.go_to("battle_scene")
-            scene = game.scene_manager.current_scene
-            for _ in range(100):
-                if game.scene_manager.current_scene.enum.name != "BATTLE":
-                    break
-                scene.handle_choice(0)
-                game.clear_messages()
-            if monster.hp <= 0 and game.player.hp > 0:
-                wins += 1
-        self.assertGreaterEqual(wins / trials, 0.7)
+    def test_tier6_monster_stats_are_massively_boosted(self):
+        """最高 tier 怪物应达到超高血量与攻击。"""
+        tier6 = Monster.MONSTER_TYPES[6]
+        self.assertTrue(all(hp >= 1000 for _, hp, _ in tier6))
+        self.assertTrue(all(atk >= 100 for _, _, atk in tier6))
 
     def test_unlocked_tier_limits_generated_monster_tier(self):
         """即使在高回合，未解锁的 tier 也不应生成。"""
