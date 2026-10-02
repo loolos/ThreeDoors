@@ -399,7 +399,7 @@ class StoryExtensionsMixin:
         modifiers = state.get(key, [])
         if not isinstance(modifiers, list):
             return
-        player = getattr(self.controller, "player", None)
+        player = self.controller.player
         for mod in modifiers:
             if not isinstance(mod, dict):
                 continue
@@ -758,7 +758,7 @@ class StoryExtensionsMixin:
 
     # 兼容旧接口：若调用方仍直接走 StorySystem，则透传到当前战斗扩展。
     def apply_puppet_combat_modifiers(self, trigger: str, attacker: Any, defender: Any, damage: int) -> int:
-        extensions = getattr(self.controller, "current_battle_extensions", []) or []
+        extensions = self.controller.current_battle_extensions or []
         adjusted = damage
         for ext in extensions:
             adjusted = self.apply_battle_extension(
@@ -771,7 +771,7 @@ class StoryExtensionsMixin:
         return adjusted
 
     def try_trigger_puppet_phase_two(self, monster: Any) -> bool:
-        extensions = getattr(self.controller, "current_battle_extensions", []) or []
+        extensions = self.controller.current_battle_extensions or []
         switched = False
         for ext in extensions:
             switched = self._try_trigger_puppet_phase_two(extension=ext, target=monster) or switched
@@ -857,7 +857,7 @@ class StoryExtensionsMixin:
             return
         duration = max(1, int(turn_cfg[idx]))
         mode = str(state.get("debuff_mode", "weak")).strip().lower()
-        player = getattr(self.controller, "player", None)
+        player = self.controller.player
         if player is None:
             return
         effect = StatusName.POISON if mode == "poison" else StatusName.WEAK

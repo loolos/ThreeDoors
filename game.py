@@ -42,6 +42,8 @@ class GameController:
         self.current_monster = None
         self.current_battle_extensions = []
         self.current_event = None
+        # 战斗胜利后要立即展示的剧情事件 key（如击败木偶回声后的「回声散尽之后」）
+        self.pending_post_battle_event_key = None
         self.game_clear_info = None
         self.round_count = 0
         self.messages = []
@@ -55,8 +57,8 @@ class GameController:
         self.current_shop = Shop(self.player)
         self.scene_manager = SceneManager()
         self.scene_manager.game_controller = self  # 直接设置 game_controller
-        self.scene_manager.initialize_scenes()  # 这会设置当前场景为 DoorScene
         self.unlocked_monster_tier = GameConfig.START_UNLOCKED_MONSTER_TIER
+        self.scene_manager.initialize_scenes()  # 这会设置当前场景为 DoorScene（并生成第一组门）
         self.player_peak_hp = self.player.hp
         self.player_peak_atk = self.player.atk
 

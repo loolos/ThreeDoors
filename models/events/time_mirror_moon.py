@@ -1,5 +1,4 @@
 """见 models.events 包说明。"""
-from models.status import StatusName
 from models.story_flags import (
     MIRROR_PLAYED_HERO,
     MIRROR_PLAYED_VILLAIN,
@@ -8,15 +7,8 @@ from models.story_flags import (
     TIME_PAWNED_FUTURE,
     TIME_REDEEMED_DEBT,
 )
-from models.story_gates import (
-    ALL_PRE_FINAL_DOOR_TYPES,
-    ELF_THIEF_NAME,
-    ENDING_EVENT_GATE_KEYS,
-    PRE_FINAL_DISPATCH_ORDER,
-    PRE_FINAL_GATE_STORY_CONFIG,
-)
 from models.events.base import Event, EventChoice
-from models.events._pkg import rng, mk_random_item, mk_reward_item
+from models.events._pkg import rng, mk_random_item
 
 class TimePawnshopEvent(Event):
     """新事件：时间当铺"""
@@ -28,7 +20,7 @@ class TimePawnshopEvent(Event):
 
     @classmethod
     def get_trigger_probability(cls, controller):
-        round_count = max(0, getattr(controller, "round_count", 0))
+        round_count = max(0, controller.round_count)
         return min(0.16, cls.TRIGGER_BASE_PROBABILITY + min(0.09, round_count * 0.004))
 
     def __init__(self, controller):
@@ -43,7 +35,7 @@ class TimePawnshopEvent(Event):
 
     def pawn_tomorrow(self):
         p = self.get_player()
-        round_count = max(0, int(getattr(self.controller, "round_count", 0)))
+        round_count = max(0, int(self.controller.round_count))
         min_gold = int((round_count / 3) * rng().uniform(0.5, 1.0))
         self.register_story_choice(
             choice_flag=TIME_PAWNED_FUTURE,
@@ -75,7 +67,7 @@ class TimePawnshopEvent(Event):
             ],
         )
         gain = 28
-        round_count = max(0, int(getattr(self.controller, "round_count", 0)))
+        round_count = max(0, int(self.controller.round_count))
         min_gold = int((round_count / 3) * rng().uniform(0.5, 1.0))
         gain = max(gain, min_gold)
         p.gold += gain
@@ -126,7 +118,7 @@ class TimePawnshopEvent(Event):
         if p.gold >= fee:
             p.gold -= fee
             heal_amt = 10
-            round_count = max(0, int(getattr(self.controller, "round_count", 0)))
+            round_count = max(0, int(self.controller.round_count))
             min_heal = int((round_count / 3) * rng().uniform(0.5, 1.0))
             heal_amt = max(heal_amt, min_heal)
             healed = p.heal(heal_amt)
@@ -168,7 +160,7 @@ class TimePawnshopEvent(Event):
             ],
         )
         loot = rng().randint(18, 35)
-        round_count = max(0, int(getattr(self.controller, "round_count", 0)))
+        round_count = max(0, int(self.controller.round_count))
         min_gold = int((round_count / 3) * rng().uniform(0.5, 1.0))
         loot = max(loot, min_gold)
         p.gold += loot
@@ -186,7 +178,7 @@ class MirrorTheaterEvent(Event):
 
     @classmethod
     def get_trigger_probability(cls, controller):
-        moral = abs(getattr(getattr(controller, "story", None), "moral_score", 0))
+        moral = abs(getattr(controller.story, "moral_score", 0))
         return min(0.17, cls.TRIGGER_BASE_PROBABILITY + min(0.1, moral / 600))
 
     def __init__(self, controller):
@@ -201,7 +193,7 @@ class MirrorTheaterEvent(Event):
 
     def play_hero(self):
         p = self.get_player()
-        round_count = max(0, int(getattr(self.controller, "round_count", 0)))
+        round_count = max(0, int(self.controller.round_count))
         min_gold = int((round_count / 3) * rng().uniform(0.5, 1.0))
         min_heal = int((round_count / 3) * rng().uniform(0.5, 1.0))
         self.register_story_choice(
@@ -231,7 +223,7 @@ class MirrorTheaterEvent(Event):
             ],
         )
         heal_amt = 12
-        round_count = max(0, int(getattr(self.controller, "round_count", 0)))
+        round_count = max(0, int(self.controller.round_count))
         min_heal = int((round_count / 3) * rng().uniform(0.5, 1.0))
         heal_amt = max(heal_amt, min_heal)
         healed = p.heal(heal_amt)
@@ -268,7 +260,7 @@ class MirrorTheaterEvent(Event):
             ],
         )
         gain = rng().randint(22, 42)
-        round_count = max(0, int(getattr(self.controller, "round_count", 0)))
+        round_count = max(0, int(self.controller.round_count))
         min_gold = int((round_count / 3) * rng().uniform(0.5, 1.0))
         gain = max(gain, min_gold)
         p.gold += gain

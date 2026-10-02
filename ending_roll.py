@@ -151,9 +151,9 @@ def build_ending_roll_lines(controller) -> list:
     顺序：玩家状态摘要 → 长事件选择摘要 → 结局综述 → 感谢游玩。
     """
     lines = []
-    p = getattr(controller, "player", None)
-    story = getattr(controller, "story", None)
-    clear_info = getattr(controller, "game_clear_info", None) or {}
+    p = controller.player
+    story = controller.story
+    clear_info = controller.game_clear_info or {}
     door_counts = getattr(controller, "door_visit_counts", None) or {}
     monsters_defeated = getattr(controller, "monsters_defeated", 0)
 
@@ -164,9 +164,9 @@ def build_ending_roll_lines(controller) -> list:
         lines.append(f"生命值：{p.hp}")
         lines.append(f"攻击力：{p.atk}")
         lines.append(f"金币：{p.gold}")
-        moral = getattr(story, "moral_score", 0) if story else 0
+        moral = story.moral_score if story else 0
         lines.append(f"道德值：{moral}")
-    round_count = getattr(controller, "round_count", 0)
+    round_count = controller.round_count
     lines.append(f"总回合数：{round_count}")
     lines.append(f"击败怪物数：{monsters_defeated}")
     lines.append("")
@@ -182,8 +182,7 @@ def build_ending_roll_lines(controller) -> list:
     # ---------- 2. 长事件选择摘要 ----------
     choice_flags = set()
     if story is not None:
-        choice_flags = getattr(story, "choice_flags", set()) or set()
-        choice_flags |= getattr(story, "story_tags", set()) or set()
+        choice_flags = set(story.choice_flags) | set(story.story_tags)
     for flag, narrative in CHOICE_NARRATIVE.items():
         if flag in choice_flags:
             lines.append(narrative)

@@ -1,6 +1,5 @@
 import random
 from enum import Enum
-from typing import Any, Optional
 
 from models.game_config import GameConfig
 
@@ -59,11 +58,9 @@ class Status:
         
     def start_effect(self) -> None:
         """状态效果开始时调用"""
-        pass
         
     def end_effect(self) -> None:
         """状态效果结束时调用"""
-        pass
         
     def duration_pass(self) -> bool:
         """每回合结束时调用"""

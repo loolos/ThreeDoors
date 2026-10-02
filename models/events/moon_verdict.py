@@ -1,5 +1,4 @@
 """见 models.events 包说明。"""
-from models.status import StatusName
 from models.story_flags import (
     MOON_BOUNTY_ACCEPT,
     MOON_BOUNTY_DOUBLE,
@@ -8,15 +7,8 @@ from models.story_flags import (
     MOON_VERDICT_CLEAN,
     MOON_VERDICT_EXTORTED,
 )
-from models.story_gates import (
-    ALL_PRE_FINAL_DOOR_TYPES,
-    ELF_THIEF_NAME,
-    ENDING_EVENT_GATE_KEYS,
-    PRE_FINAL_DISPATCH_ORDER,
-    PRE_FINAL_GATE_STORY_CONFIG,
-)
 from models.events.base import Event, EventChoice
-from models.events._pkg import rng, mk_random_item, mk_reward_item
+from models.events._pkg import rng
 
 class MoonBountyEvent(Event):
     """长链1：月蚀通缉令"""
@@ -143,7 +135,7 @@ class MoonBountyEvent(Event):
         )
         p = self.get_player()
         gain = 48
-        round_count = max(0, int(getattr(self.controller, "round_count", 0)))
+        round_count = max(0, int(self.controller.round_count))
         min_gold = int((round_count / 3) * rng().uniform(0.5, 1.0))
         gain = max(gain, min_gold)
         p.gold += gain
@@ -214,10 +206,10 @@ class MoonVerdictEvent(Event):
         ]
 
     def _compose_diary_prelude(self):
-        story = getattr(self.controller, "story", None)
-        if not story or "moon_bounty_diary_obtained" not in getattr(story, "story_tags", set()):
+        story = self.controller.story
+        if not story or "moon_bounty_diary_obtained" not in story.story_tags:
             return ""
-        source = getattr(story, "moon_bounty_diary_source", "")
+        source = story.moon_bounty_diary_source
         if source == "thief_body":
             return "你把战后搜出的旧日记本放在证物盘里：里面只记着一个父亲寻找走失女儿的日期与路线。"
         if source == "thief_testimony":
@@ -225,10 +217,10 @@ class MoonVerdictEvent(Event):
         return "你把一册磨损的旧日记本放在证物盘里，准备在审判中作为补充证词。"
 
     def _add_diary_court_remark(self):
-        story = getattr(self.controller, "story", None)
-        if not story or "moon_bounty_diary_obtained" not in getattr(story, "story_tags", set()):
+        story = self.controller.story
+        if not story or "moon_bounty_diary_obtained" not in story.story_tags:
             return
-        source = getattr(story, "moon_bounty_diary_source", "")
+        source = story.moon_bounty_diary_source
         if source == "thief_body":
             self.add_message("你递上日记本。主审官快速翻阅后皱眉：'这只是一位父亲寻找女儿的私人记录。'")
         elif source == "thief_testimony":
@@ -240,7 +232,7 @@ class MoonVerdictEvent(Event):
 
     def file_clean(self):
         self._add_diary_court_remark()
-        round_count = max(0, int(getattr(self.controller, "round_count", 0)))
+        round_count = max(0, int(self.controller.round_count))
         min_gold = int((round_count / 3) * rng().uniform(0.5, 1.0))
         min_heal = int((round_count / 3) * rng().uniform(0.5, 1.0))
         self.register_story_choice(

@@ -30,15 +30,8 @@ from models.story_flags import (
     STRANGER_IGNORED,
     STRANGER_ROBBED,
 )
-from models.story_gates import (
-    ALL_PRE_FINAL_DOOR_TYPES,
-    ELF_THIEF_NAME,
-    ENDING_EVENT_GATE_KEYS,
-    PRE_FINAL_DISPATCH_ORDER,
-    PRE_FINAL_GATE_STORY_CONFIG,
-)
 from models.events.base import Event, EventChoice
-from models.events._pkg import rng, mk_random_item, mk_reward_item
+from models.events._pkg import rng, mk_random_item
 
 # 1. Injured Stranger
 class StrangerEvent(Event):
@@ -134,7 +127,7 @@ class StrangerEvent(Event):
         # 60% Success, 40% Fail
         if rng().random() < 0.6:
             gold = self.scale_value(rng().randint(5, 20), positive=True)
-            round_count = max(0, int(getattr(self.controller, "round_count", 0)))
+            round_count = max(0, int(self.controller.round_count))
             min_gold = int((round_count / 3) * rng().uniform(0.5, 1.0))
             gold = max(gold, min_gold)
             p.gold += gold
@@ -170,7 +163,7 @@ class SmugglerEvent(Event):
 
     @classmethod
     def get_trigger_probability(cls, controller):
-        round_bonus = min(0.1, max(0, getattr(controller, "round_count", 0)) * 0.004)
+        round_bonus = min(0.1, max(0, controller.round_count) * 0.004)
         rich_bonus = 0.03 if getattr(controller.player, "gold", 0) >= 60 else 0.0
         return min(0.26, cls.TRIGGER_BASE_PROBABILITY + round_bonus + rich_bonus)
 
@@ -244,7 +237,7 @@ class SmugglerEvent(Event):
         return "Event Completed"
 
     def report_smuggler(self):
-        round_count = max(0, int(getattr(self.controller, "round_count", 0)))
+        round_count = max(0, int(self.controller.round_count))
         min_gold = int((round_count / 3) * rng().uniform(0.5, 1.0))
         self.register_story_choice(
             choice_flag=SMUGGLER_REPORTED,
@@ -297,7 +290,7 @@ class SmugglerEvent(Event):
         )
         if rng().random() < 0.5:
             reward = rng().randint(30, 60)
-            round_count = max(0, int(getattr(self.controller, "round_count", 0)))
+            round_count = max(0, int(self.controller.round_count))
             min_gold = int((round_count / 3) * rng().uniform(0.5, 1.0))
             reward = max(reward, min_gold)
             self.get_player().gold += reward
@@ -320,7 +313,7 @@ class AncientShrineEvent(Event):
 
     @classmethod
     def get_trigger_probability(cls, controller):
-        p = getattr(controller, "player", None)
+        p = controller.player
         if not p:
             return cls.TRIGGER_BASE_PROBABILITY
         hp_cap = max(1, getattr(p, "hp", 1))
@@ -365,7 +358,7 @@ class AncientShrineEvent(Event):
         # 70% Heal, 30% Curse
         if rng().random() < 0.7:
             heal_amt = self.scale_value(50, positive=True, aggressive=True)
-            round_count = max(0, int(getattr(self.controller, "round_count", 0)))
+            round_count = max(0, int(self.controller.round_count))
             min_heal = int((round_count / 3) * rng().uniform(0.5, 1.0))
             heal_amt = max(heal_amt, min_heal)
             healed = p.heal(heal_amt)
@@ -378,7 +371,7 @@ class AncientShrineEvent(Event):
 
     def desecrate(self):
         p = self.get_player()
-        round_count = max(0, int(getattr(self.controller, "round_count", 0)))
+        round_count = max(0, int(self.controller.round_count))
         min_gold = int((round_count / 3) * rng().uniform(0.5, 1.0))
         self.register_story_choice(
             choice_flag=SHRINE_DESECRATED,
@@ -458,7 +451,7 @@ class GamblerEvent(Event):
 
     def high_stakes(self):
         p = self.get_player()
-        round_count = max(0, int(getattr(self.controller, "round_count", 0)))
+        round_count = max(0, int(self.controller.round_count))
         min_gold = int((round_count / 3) * rng().uniform(0.5, 1.0))
         self.register_story_choice(
             choice_flag=GAMBLER_HIGH_STAKES,
@@ -491,7 +484,7 @@ class GamblerEvent(Event):
         p.gold -= bet
         if rng().random() < 0.4: # 40% win rate
             win = self.scale_value(bet * 3, positive=True, aggressive=True)
-            round_count = max(0, int(getattr(self.controller, "round_count", 0)))
+            round_count = max(0, int(self.controller.round_count))
             min_gold = int((round_count / 3) * rng().uniform(0.5, 1.0))
             win = max(win, min_gold)
             p.gold += win
@@ -530,7 +523,7 @@ class GamblerEvent(Event):
         p.gold -= bet
         if rng().random() < 0.5: # 50% win rate
             win = self.scale_value(bet * 2, positive=True)
-            round_count = max(0, int(getattr(self.controller, "round_count", 0)))
+            round_count = max(0, int(self.controller.round_count))
             min_gold = int((round_count / 3) * rng().uniform(0.5, 1.0))
             win = max(win, min_gold)
             p.gold += win
@@ -638,14 +631,14 @@ class LostChildEvent(Event):
             self.add_message(f"送回家的路上遭遇了野兽袭击，你为了保护孩子受了伤 ({dmg}点伤害)，但最终把她安全送达。")
             # Reward
             reward = self.scale_value(100, positive=True, aggressive=True)
-            round_count = max(0, int(getattr(self.controller, "round_count", 0)))
+            round_count = max(0, int(self.controller.round_count))
             min_gold = int((round_count / 3) * rng().uniform(0.5, 1.0))
             reward = max(reward, min_gold)
             self.get_player().gold += reward
             self.add_message(f"孩子的父母感激涕零，给了你 {reward} 金币作为谢礼！")
         else:
             reward = self.scale_value(50, positive=True)
-            round_count = max(0, int(getattr(self.controller, "round_count", 0)))
+            round_count = max(0, int(self.controller.round_count))
             min_gold = int((round_count / 3) * rng().uniform(0.5, 1.0))
             reward = max(reward, min_gold)
             self.get_player().gold += reward
@@ -654,7 +647,7 @@ class LostChildEvent(Event):
 
     def give_gold(self):
         p = self.get_player()
-        round_count = max(0, int(getattr(self.controller, "round_count", 0)))
+        round_count = max(0, int(self.controller.round_count))
         min_gold = int((round_count / 3) * rng().uniform(0.5, 1.0))
         min_heal = int((round_count / 3) * rng().uniform(0.5, 1.0))
         self.register_story_choice(
@@ -683,7 +676,7 @@ class LostChildEvent(Event):
             self.add_message(f"你给了小女孩{donation}金币让她自己打车回家（虽然森林里没有出租车）。")
             # Karma reward (small heal)
             heal_amt = self.scale_value(10, positive=True)
-            round_count = max(0, int(getattr(self.controller, "round_count", 0)))
+            round_count = max(0, int(self.controller.round_count))
             min_heal = int((round_count / 3) * rng().uniform(0.5, 1.0))
             heal_amt = max(heal_amt, min_heal)
             healed = p.heal(heal_amt)
@@ -761,7 +754,7 @@ class CursedChestEvent(Event):
             item = mk_random_item()
             item.acquire(player=p)
             gold = self.scale_value(100, positive=True, aggressive=True)
-            round_count = max(0, int(getattr(self.controller, "round_count", 0)))
+            round_count = max(0, int(self.controller.round_count))
             min_gold = int((round_count / 3) * rng().uniform(0.5, 1.0))
             gold = max(gold, min_gold)
             p.gold += gold
@@ -792,7 +785,7 @@ class CursedChestEvent(Event):
         # Assume successful purify for now, or random
         if rng().random() < 0.5:
             gold = 50
-            round_count = max(0, int(getattr(self.controller, "round_count", 0)))
+            round_count = max(0, int(self.controller.round_count))
             min_gold = int((round_count / 3) * rng().uniform(0.5, 1.0))
             gold = max(gold, min_gold)
             self.get_player().gold += gold
@@ -813,7 +806,7 @@ class WiseSageEvent(Event):
 
     @classmethod
     def get_trigger_probability(cls, controller):
-        round_count = max(0, getattr(controller, "round_count", 0))
+        round_count = max(0, controller.round_count)
         return min(0.2, cls.TRIGGER_BASE_PROBABILITY + min(0.11, round_count * 0.005))
 
     def __init__(self, controller):
@@ -860,7 +853,7 @@ class WiseSageEvent(Event):
 
     def wealth(self):
         p = self.get_player()
-        round_count = max(0, int(getattr(self.controller, "round_count", 0)))
+        round_count = max(0, int(self.controller.round_count))
         min_gold = int((round_count / 3) * rng().uniform(0.5, 1.0))
         self.register_story_choice(
             choice_flag=SAGE_WEALTH_CHOICE,
@@ -884,7 +877,7 @@ class WiseSageEvent(Event):
         )
         if rng().random() < 0.7:
             gold = self.scale_value(200, positive=True, aggressive=True)
-            round_count = max(0, int(getattr(self.controller, "round_count", 0)))
+            round_count = max(0, int(self.controller.round_count))
             min_gold = int((round_count / 3) * rng().uniform(0.5, 1.0))
             gold = max(gold, min_gold)
             p.gold += gold
@@ -897,7 +890,7 @@ class WiseSageEvent(Event):
 
     def health(self):
         p = self.get_player()
-        round_count = max(0, int(getattr(self.controller, "round_count", 0)))
+        round_count = max(0, int(self.controller.round_count))
         min_gold = int((round_count / 3) * rng().uniform(0.5, 1.0))
         min_heal = int((round_count / 3) * rng().uniform(0.5, 1.0))
         self.register_story_choice(
@@ -922,7 +915,7 @@ class WiseSageEvent(Event):
         )
         if rng().random() < 0.7:
             heal_amt = self.scale_value(50, positive=True, aggressive=True)
-            round_count = max(0, int(getattr(self.controller, "round_count", 0)))
+            round_count = max(0, int(self.controller.round_count))
             min_heal = int((round_count / 3) * rng().uniform(0.5, 1.0))
             heal_amt = max(heal_amt, min_heal)
             healed = p.heal(heal_amt)
@@ -978,7 +971,7 @@ class RefugeeCaravanEvent(Event):
 
     def extort(self):
         p = self.get_player()
-        current_round = max(0, int(getattr(self.controller, "round_count", 0)))
+        current_round = max(0, int(self.controller.round_count))
         revenge_deadline_round = current_round + 10
         self.register_story_choice(
             choice_flag=CARAVAN_EXTORTED,
@@ -1040,7 +1033,7 @@ class RefugeeCaravanEvent(Event):
             ],
         )
         gain = rng().randint(20, 45)
-        round_count = max(0, int(getattr(self.controller, "round_count", 0)))
+        round_count = max(0, int(self.controller.round_count))
         min_gold = int((round_count / 3) * rng().uniform(0.5, 1.0))
         gain = max(gain, min_gold)
         p.gold += gain
@@ -1062,7 +1055,7 @@ class FallenKnightEvent(Event):
 
     @classmethod
     def get_trigger_probability(cls, controller):
-        round_count = getattr(controller, "round_count", 0)
+        round_count = controller.round_count
         return min(0.18, cls.TRIGGER_BASE_PROBABILITY + (0.05 if round_count >= 12 else 0.0))
 
     def __init__(self, controller):
@@ -1076,7 +1069,7 @@ class FallenKnightEvent(Event):
         ]
 
     def aid_knight(self):
-        round_count = max(0, int(getattr(self.controller, "round_count", 0)))
+        round_count = max(0, int(self.controller.round_count))
         min_gold = int((round_count / 3) * rng().uniform(0.5, 1.0))
         min_heal = int((round_count / 3) * rng().uniform(0.5, 1.0))
         self.register_story_choice(
@@ -1109,7 +1102,7 @@ class FallenKnightEvent(Event):
             ],
         )
         heal_amt = 15
-        round_count = max(0, int(getattr(self.controller, "round_count", 0)))
+        round_count = max(0, int(self.controller.round_count))
         min_heal = int((round_count / 3) * rng().uniform(0.5, 1.0))
         heal_amt = max(heal_amt, min_heal)
         healed = self.get_player().heal(heal_amt)
@@ -1158,7 +1151,7 @@ class FallenKnightEvent(Event):
             ],
         )
         gain = rng().randint(25, 55)
-        round_count = max(0, int(getattr(self.controller, "round_count", 0)))
+        round_count = max(0, int(self.controller.round_count))
         min_gold = int((round_count / 3) * rng().uniform(0.5, 1.0))
         gain = max(gain, min_gold)
         p.gold += gain

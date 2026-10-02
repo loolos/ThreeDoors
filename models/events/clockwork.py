@@ -1,5 +1,4 @@
 """见 models.events 包说明。"""
-from models.status import StatusName
 from models.story_flags import (
     CLOCKWORK_CALIBRATED,
     CLOCKWORK_HACKED,
@@ -8,15 +7,8 @@ from models.story_flags import (
     COG_AUDIT_SILENCED,
     COG_AUDIT_TAX_PAID,
 )
-from models.story_gates import (
-    ALL_PRE_FINAL_DOOR_TYPES,
-    ELF_THIEF_NAME,
-    ENDING_EVENT_GATE_KEYS,
-    PRE_FINAL_DISPATCH_ORDER,
-    PRE_FINAL_GATE_STORY_CONFIG,
-)
 from models.events.base import Event, EventChoice
-from models.events._pkg import rng, mk_random_item, mk_reward_item
+from models.events._pkg import rng
 
 class ClockworkBazaarEvent(Event):
     """长链2：齿轮黑市"""
@@ -28,7 +20,7 @@ class ClockworkBazaarEvent(Event):
 
     @classmethod
     def get_trigger_probability(cls, controller):
-        round_count = max(0, getattr(controller, "round_count", 0))
+        round_count = max(0, controller.round_count)
         return min(0.17, cls.TRIGGER_BASE_PROBABILITY + min(0.11, round_count * 0.004))
 
     def __init__(self, controller):
@@ -89,7 +81,7 @@ class ClockworkBazaarEvent(Event):
         )
         p = self.get_player()
         gain = 20
-        round_count = max(0, int(getattr(self.controller, "round_count", 0)))
+        round_count = max(0, int(self.controller.round_count))
         min_gold = int((round_count / 3) * rng().uniform(0.5, 1.0))
         gain = max(gain, min_gold)
         p.gold += gain

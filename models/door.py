@@ -1,12 +1,9 @@
 """门类型与门实例：陷阱/奖励/怪物/商店/事件门及提示配置。"""
 import random
 from .monster import get_random_monster
-from typing import Optional, Dict, Any, List
+from typing import Dict, Any, List
 from models.base_class import BaseClass
-from models.monster import Monster
-from models.shop import Shop
 from enum import Enum
-from models.items import create_random_item
 from models.events import get_random_event, get_story_event_by_key, ELF_THIEF_NAME
 
 
@@ -77,8 +74,8 @@ class Door(BaseClass):
         if fake_door_enum == DoorEnum.MONSTER:
             fake_monster = get_random_monster(
                 current_round=self.controller.round_count,
-                player=getattr(self.controller, "player", None),
-                unlocked_tier=getattr(self.controller, "unlocked_monster_tier", 1),
+                player=self.controller.player,
+                unlocked_tier=self.controller.unlocked_monster_tier,
             )
             tier_hint, type_hint = fake_monster.get_hints()
             self.hint = f"{self.hint}, {tier_hint}, {type_hint}"
@@ -100,7 +97,7 @@ class Door(BaseClass):
         """执行门扩展并返回每个扩展的结果字典。"""
         if not self.door_extensions:
             return []
-        story = getattr(self.controller, "story", None)
+        story = self.controller.story
         if story is None or not hasattr(story, "apply_door_extension"):
             return []
         outputs: List[Dict[str, Any]] = []
@@ -209,7 +206,7 @@ class RewardDoor(Door):
     def enter(self) -> bool:
         self.run_door_extensions(hook="before_enter")
         if getattr(self, "elf_side_reward", False):
-            story = getattr(self.controller, "story", None)
+            story = self.controller.story
             rel = int(getattr(story, "elf_relation", 0)) if story else 0
             if rel >= 0:
                 self.controller.add_message(
@@ -265,8 +262,8 @@ class MonsterDoor(Door):
         else:
             self.monster = get_random_monster(
                 current_round=self.controller.round_count,
-                player=getattr(self.controller, "player", None),
-                unlocked_tier=getattr(self.controller, "unlocked_monster_tier", 1),
+                player=self.controller.player,
+                unlocked_tier=self.controller.unlocked_monster_tier,
             )
         self.generate_hint()
     
@@ -344,7 +341,7 @@ class EventDoor(Door):
             event = get_random_event(self.controller)
         self.controller.current_event = event
         # 记录本次事件类型，供后续非后续事件门去重
-        if event and hasattr(self.controller, "recent_event_classes"):
+        if event:
             recents = self.controller.recent_event_classes
             recents.append(event.__class__.__name__)
             from models.events import RECENT_EVENT_WINDOW

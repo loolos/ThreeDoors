@@ -1,5 +1,4 @@
 """见 models.events 包说明。"""
-from models.status import StatusName
 from models.story_flags import (
     DREAM_WELL_DRANK,
     DREAM_WELL_SEALED,
@@ -8,15 +7,8 @@ from models.story_flags import (
     ECHO_COURT_TAXED,
     ECHO_COURT_TRADING,
 )
-from models.story_gates import (
-    ALL_PRE_FINAL_DOOR_TYPES,
-    ELF_THIEF_NAME,
-    ENDING_EVENT_GATE_KEYS,
-    PRE_FINAL_DISPATCH_ORDER,
-    PRE_FINAL_GATE_STORY_CONFIG,
-)
 from models.events.base import Event, EventChoice
-from models.events._pkg import rng, mk_random_item, mk_reward_item
+from models.events._pkg import rng
 
 class DreamWellEvent(Event):
     """长链3：梦井回声"""
@@ -28,7 +20,7 @@ class DreamWellEvent(Event):
 
     @classmethod
     def get_trigger_probability(cls, controller):
-        moral = abs(getattr(getattr(controller, "story", None), "moral_score", 0))
+        moral = abs(getattr(controller.story, "moral_score", 0))
         return min(0.18, cls.TRIGGER_BASE_PROBABILITY + min(0.12, moral / 500))
 
     def __init__(self, controller):
@@ -54,7 +46,7 @@ class DreamWellEvent(Event):
             ),
         )
 
-        round_count = max(0, int(getattr(self.controller, "round_count", 0)))
+        round_count = max(0, int(self.controller.round_count))
         min_heal = int((round_count / 3) * rng().uniform(0.5, 1.0))
         healed = rng().randint(min_heal, min_heal + 12)
         self.get_player().heal(healed)
@@ -91,7 +83,7 @@ class DreamWellEvent(Event):
         )
         p = self.get_player()
         gain = 26
-        round_count = max(0, int(getattr(self.controller, "round_count", 0)))
+        round_count = max(0, int(self.controller.round_count))
         min_gold = int((round_count / 3) * rng().uniform(0.5, 1.0))
         gain = max(gain, min_gold)
         p.gold += gain
@@ -229,7 +221,7 @@ class EchoCourtEvent(Event):
         ]
 
     def redeem_dream(self):
-        round_count = max(0, int(getattr(self.controller, "round_count", 0)))
+        round_count = max(0, int(self.controller.round_count))
         min_gold = int((round_count / 3) * rng().uniform(0.5, 1.0))
         min_heal = int((round_count / 3) * rng().uniform(0.5, 1.0))
         self.register_story_choice(
@@ -339,7 +331,7 @@ class EchoCourtEvent(Event):
         )
         p = self.get_player()
         gain = 20
-        round_count = max(0, int(getattr(self.controller, "round_count", 0)))
+        round_count = max(0, int(self.controller.round_count))
         min_gold = int((round_count / 3) * rng().uniform(0.5, 1.0))
         gain = max(gain, min_gold)
         p.gold += gain

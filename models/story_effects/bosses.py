@@ -14,7 +14,7 @@ def handle_elf_rival_final_gate(story, consequence, door):
     door_type = getattr(getattr(door, "enum", None), "name", "")
     door_is_monster = door_type == "MONSTER"
     player = getattr(story.controller, "player", None)
-    relation = int(payload.get("relation", getattr(story, "elf_relation", -4)))
+    relation = int(payload.get("relation", story.elf_relation))
     style = str(payload.get("style", "trickster")).strip().lower()
     extensions = payload.get("extensions", [])
     if not isinstance(extensions, list):
@@ -144,7 +144,7 @@ def handle_puppet_echo_final_gate(story, consequence, door):
         tier=max(3, int(payload.get("tier", 4))),
         effect_probability=0.0,
     )
-    evil = max(0, min(100, int(getattr(story, "puppet_evil_value", 55))))
+    evil = story.get_puppet_evil_value()
     high_evil = evil > story.PUPPET_HIGH_EVIL_FOR_POWER_DIRECT
     echo_lines = story._build_puppet_echo_lines(high_evil=high_evil)
     if not echo_lines:
@@ -257,15 +257,11 @@ def handle_puppet_dark_boss(story, consequence, door):
     dark_flags = set(raw_dark_flags or default_dark_flags)
     kind_score = sum(1 for f in kind_flags if f in story_flags)
     dark_score = sum(1 for f in dark_flags if f in story_flags)
-    stored_evil = getattr(story, "puppet_evil_value", None)
-    try:
-        stored_evil = int(stored_evil) if stored_evil is not None else None
-    except (TypeError, ValueError):
-        stored_evil = None
-    if stored_evil is None:
-        evil_value = 55 + dark_score * 8 - kind_score * 8
+    if story.puppet_evil_value is None:
+        # 木偶线从未写入邪恶值：按玩家在各节点的善/暗选项推算
+        evil_value = story.DEFAULT_PUPPET_EVIL_VALUE + dark_score * 8 - kind_score * 8
     else:
-        evil_value = stored_evil
+        evil_value = story.get_puppet_evil_value()
     if "evil_value" in payload:
         try:
             evil_value = int(payload.get("evil_value"))

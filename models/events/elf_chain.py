@@ -1,7 +1,6 @@
 """见 models.events 包说明。"""
 import functools
 
-from models.status import StatusName
 from models.story_flags import (
     ELF_GRUDGE_CAMP_MERCENARY,
     ELF_GRUDGE_CAMP_REFUSED_HELP,
@@ -20,11 +19,7 @@ from models.story_flags import (
     ELF_SIDE_REG,
 )
 from models.story_gates import (
-    ALL_PRE_FINAL_DOOR_TYPES,
     ELF_THIEF_NAME,
-    ENDING_EVENT_GATE_KEYS,
-    PRE_FINAL_DISPATCH_ORDER,
-    PRE_FINAL_GATE_STORY_CONFIG,
 )
 from models.events.base import Event, EventChoice
 from models.events._pkg import rng, mk_random_item, mk_reward_item
@@ -43,26 +38,16 @@ ELF_CHAIN_EVENT_ORDER = [
 
 
 def _get_elf_chain_state(controller):
-    story = getattr(controller, "story", None)
+    story = controller.story
     if story is None:
         return None
-    if not hasattr(story, "elf_relation"):
-        story.elf_relation = 0
-    if not hasattr(story, "elf_chain_started"):
-        story.elf_chain_started = False
-    if not hasattr(story, "elf_middle_queue"):
-        story.elf_middle_queue = []
-    if not hasattr(story, "elf_chain_ended"):
-        story.elf_chain_ended = False
-    if not hasattr(story, "elf_key_obtained"):
-        story.elf_key_obtained = False
     return story
 
 
 def _record_elf_grudge(controller, flag: str) -> None:
     """记录玩家在飞贼支线上的具体选择，供终局清算战台词引用。"""
     story = _get_elf_chain_state(controller)
-    if story is not None and hasattr(story, "choice_flags"):
+    if story is not None:
         story.choice_flags.add(flag)
 
 
@@ -99,7 +84,7 @@ def _elf_ratio(player, ratio, source="hp", minimum=1):
 
 def _elf_grant_dynamic_boon(controller):
     """飞贼正向奖励池：不再总是加攻击，改为加血/加攻/给道具三选一。"""
-    p = getattr(controller, "player", None)
+    p = controller.player
     if p is None:
         return "她本想给你点东西，却只剩一句'下次。'"
 
@@ -149,7 +134,7 @@ def _schedule_next_elf_event(controller, completed_key):
         except (ValueError, IndexError):
             return
 
-    current_round = max(0, int(getattr(controller, "round_count", 0)))
+    current_round = max(0, int(controller.round_count))
     min_round = current_round + 5
     # 不设 max_round，避免因未在窗口内选到事件门而永久失效（事件门每轮不保证出现）
     consequence_id = f"elf_chain_force_{next_key}_{current_round}_{rng().randint(1, 9999)}"
@@ -178,9 +163,9 @@ class ElfThiefIntroEvent(Event):
     def is_trigger_condition_met(cls, controller):
         story = _get_elf_chain_state(controller)
         if story is not None:
-            if bool(getattr(story, "elf_chain_started", False)):
+            if bool(story.elf_chain_started):
                 return False
-            if bool(getattr(story, "elf_chain_ended", False)):
+            if bool(story.elf_chain_ended):
                 return False
         return super().is_trigger_condition_met(controller)
 
@@ -204,7 +189,7 @@ class ElfThiefIntroEvent(Event):
         if story is None or story.elf_chain_started:
             return
         story.elf_chain_started = True
-        if not getattr(story, "elf_chain_ended", False):
+        if not story.elf_chain_ended:
             story.story_tags.add("elf_met")
             _register_elf_side_events(self.controller)
         _schedule_next_elf_event(self.controller, "elf_intro")
@@ -512,7 +497,7 @@ class ElfHunterGateEvent(Event):
         _adjust_elf_relation(self.controller, 2)
         self.add_message(f"你们背靠背清掉前排追兵，她在喘息间把战利品丢给你，道：'你的那份。'{boon_text}")
         # 你选择并肩作战后，会引来“来复仇的追兵”追猎者，作为后续伏击战（revenge_ambush）。
-        current_round = max(0, int(getattr(self.controller, "round_count", 0)))
+        current_round = max(0, int(self.controller.round_count))
         self.register_story_choice(
             choice_flag=ELF_HUNTER_GATE_TEAM_UP,
             consequences=[
@@ -659,7 +644,7 @@ class ElfEpilogueEvent(Event):
             "alliance",
             extra_tags={"ending_hook:elf_alliance", "ending_hook:ally_network"},
         )
-        rel = getattr(story, "elf_relation", 0) if story else self.rel
+        rel = story.elf_relation if story else self.rel
         _set_elf_key_obtained(self.controller, rel >= 2)
         boon_text = _elf_grant_dynamic_boon(self.controller)
         extra_heal = _elf_ratio(self.get_player(), 0.08 if rel >= 2 else 0.05, "hp")
@@ -678,7 +663,7 @@ class ElfEpilogueEvent(Event):
             "neutral",
             extra_tags={"ending_hook:elf_neutral", "ending_hook:lone_path"},
         )
-        rel = getattr(story, "elf_relation", 0) if story else self.rel
+        rel = story.elf_relation if story else self.rel
         _set_elf_key_obtained(self.controller, rel >= 2)
         gain = _elf_ratio(self.get_player(), 0.12 if rel >= 0 else 0.08, "gold")
         self.get_player().gold += gain
@@ -697,7 +682,7 @@ class ElfEpilogueEvent(Event):
             extra_tags={"ending_hook:elf_hostile", "ending_hook:hunted"},
         )
         _record_elf_grudge(self.controller, ELF_GRUDGE_EPILOGUE_BURNED)
-        rel = getattr(story, "elf_relation", 0) if story else self.rel
+        rel = story.elf_relation if story else self.rel
         _set_elf_key_obtained(self.controller, False)
         dmg = _elf_ratio(self.get_player(), 0.12 if rel > -2 else 0.16, "hp")
         self.get_player().take_damage(dmg)

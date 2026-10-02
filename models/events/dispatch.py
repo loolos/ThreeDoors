@@ -1,13 +1,4 @@
 """见 models.events 包说明。"""
-from models.status import StatusName
-from models.story_gates import (
-    ALL_PRE_FINAL_DOOR_TYPES,
-    ELF_THIEF_NAME,
-    ENDING_EVENT_GATE_KEYS,
-    PRE_FINAL_DISPATCH_ORDER,
-    PRE_FINAL_GATE_STORY_CONFIG,
-)
-from models.events.base import Event, EventChoice
 from models.events._pkg import rng
 from .short_random import (
     AncientShrineEvent,
@@ -56,7 +47,6 @@ from .stage_curtain import (
     EndingStageCurtainGateEvent,
     EndingStageKindPuppetDialogueEvent,
     StageCurtainKindPuppetDialogueMidEvent,
-    schedule_next_pre_final_gate,
 )
 
 
@@ -165,7 +155,7 @@ RECENT_EVENT_WINDOW = 4  # 最近 N 次事件门内尽量不重复
 
 
 def _get_event_trigger_counts(controller):
-    counts = getattr(controller, "event_trigger_counts", None)
+    counts = controller.event_trigger_counts
     if counts is None:
         counts = {}
         setattr(controller, "event_trigger_counts", counts)
@@ -212,7 +202,7 @@ def get_random_event(controller):
     import models.events as ev
 
     starter_pool = ev.STARTER_EVENT_POOL
-    rc = max(0, int(getattr(controller, "round_count", 0)))
+    rc = max(0, int(controller.round_count))
     block_long_starters = rc < LONG_EVENT_STARTER_EARLIEST_ROUND
 
     def _long_starter_ok(event_cls):
@@ -243,7 +233,7 @@ def get_random_event(controller):
     rng().shuffle(candidates)
 
     # 非后续事件门：优先排除最近出现过的类型
-    recent = set(getattr(controller, "recent_event_classes", []))
+    recent = set(controller.recent_event_classes)
     fresh = [c for c in candidates if c.__name__ not in recent]
     if fresh:
         candidates = fresh

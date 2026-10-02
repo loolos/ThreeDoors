@@ -129,10 +129,44 @@ class StorySystem(StoryExtensionsMixin):
         self.consumed_consequences: Set[str] = set()
         self.effect_handlers: Dict[str, Callable[[PendingConsequence, Any], Tuple[bool, Any]]] = {}
 
+        # —— 长线剧情状态：在这里集中声明，各事件/结局直接读写，不再各自用 getattr 默认值 ——
+        # 银羽飞贼线
+        self.elf_relation: int = 0  # -6 ~ 6，≥2 友好，≤-4 触发终局前清算战
+        self.elf_chain_started: bool = False
+        self.elf_chain_ended: bool = False
+        self.elf_key_obtained: bool = False
+        self.elf_middle_queue: List[str] = []
+        self.elf_final_outcome: str = ""
+        # 黑暗木偶线
+        # 0 ~ 100，≤45 善良人格主导，>45 暗侧主导；None 表示木偶线尚未写入（读取时按 55 处理，
+        # 木偶终战则改按玩家选项推算），统一用 get_puppet_evil_value() 读取
+        self.puppet_evil_value: Optional[int] = None
+        self.puppet_kind_persona_name: str = story_gates.PUPPET_KIND_PERSONA_NAME
+        self.puppet_dark_persona_name: str = story_gates.PUPPET_DARK_PERSONA_NAME
+        self.puppet_side_registered: bool = False
+        self.puppet_final_outcome: str = ""  # "" / "defeated" / "escaped"
+        self.puppet_patrol_state: str = ""
+        self.puppet_patrol_note: str = ""
+        # 月蚀通缉线
+        self.moon_bounty_diary_source: str = ""
+        # 谢幕
+        self.curtain_pre_choice: Optional[str] = None
+        self.curtain_prelude_choice: Optional[str] = None
+        # 终局前倒数窗口
+        self.pre_final_last_check_round: Optional[int] = None
+
+    DEFAULT_PUPPET_EVIL_VALUE = 55
+
+    def get_puppet_evil_value(self) -> int:
+        """木偶邪恶值（0~100）；木偶线尚未写入时为默认 55。"""
+        if self.puppet_evil_value is None:
+            return self.DEFAULT_PUPPET_EVIL_VALUE
+        return max(0, min(100, int(self.puppet_evil_value)))
+
     def _get_progress_stage(self) -> int:
         """按回合与玩家基础攻击估算后续影响强度阶段。"""
-        round_count = max(0, int(getattr(self.controller, "round_count", 0)))
-        player = getattr(self.controller, "player", None)
+        round_count = max(0, int(self.controller.round_count))
+        player = self.controller.player
         base_atk = 5
         if player is not None:
             base_atk = max(1, int(getattr(player, "_atk", getattr(player, "atk", 5))))
@@ -208,7 +242,7 @@ class StorySystem(StoryExtensionsMixin):
         if consequence_id in self.pending_consequences or consequence_id in self.consumed_consequences:
             return False
 
-        current_round = max(0, int(getattr(self.controller, "round_count", 0)))
+        current_round = max(0, int(self.controller.round_count))
         # 复仇追猎统一至少延后 3 回合触发，避免“刚结仇立刻遭遇”。
         if effect_key == "revenge_ambush":
             revenge_min_round = current_round + 3
@@ -260,7 +294,7 @@ class StorySystem(StoryExtensionsMixin):
 
     def _is_ending_reached(self) -> bool:
         """是否已经达成任一最终结局。"""
-        if getattr(self.controller, "game_clear_info", None):
+        if self.controller.game_clear_info:
             return True
         return (
             "ending:default_normal_completed" in self.story_tags
@@ -316,24 +350,24 @@ class StorySystem(StoryExtensionsMixin):
         if "ending:puppet_final_defeated" not in self.story_tags:
             return False
         try:
-            evil = max(0, min(100, int(getattr(self, "puppet_evil_value", 55))))
+            evil = self.get_puppet_evil_value()
         except (TypeError, ValueError):
             evil = 55
         if evil <= self.PUPPET_HIGH_EVIL_FOR_POWER_DIRECT:
             return False
-        if not bool(getattr(self, "elf_chain_ended", False)):
+        if not bool(self.elf_chain_ended):
             return True
-        rel = int(getattr(self, "elf_relation", 0))
+        rel = int(self.elf_relation)
         return rel < self.ELF_RELATION_FRIENDLY_THRESHOLD
 
     def _is_puppet_echo_gate_ready(self) -> bool:
         """已击败木偶、未拿飞贼钥匙、与飞贼关系普通或不好时，第 200 回合挂载木偶回声怪物门；击败后即兴谢幕。"""
         if "ending:puppet_final_defeated" not in self.story_tags:
             return False
-        key_obtained = bool(getattr(self, "elf_key_obtained", False)) or ("elf_key_obtained" in self.story_tags)
+        key_obtained = bool(self.elf_key_obtained) or ("elf_key_obtained" in self.story_tags)
         if key_obtained:
             return False
-        rel = int(getattr(self, "elf_relation", 0))
+        rel = int(self.elf_relation)
         return rel < self.ELF_RELATION_FRIENDLY_THRESHOLD
 
     def _is_kind_puppet_dialogue_ready(self) -> bool:
@@ -342,7 +376,7 @@ class StorySystem(StoryExtensionsMixin):
             return False
         if "ending:puppet_final_defeated" not in self.story_tags:
             return False
-        evil = max(0, min(100, int(getattr(self, "puppet_evil_value", 55))))
+        evil = self.get_puppet_evil_value()
         return evil <= self.PUPPET_LOW_EVIL_FOR_CURTAIN
 
     def _is_pre_ending_gate_condition_met(self, gate_key: str) -> bool:
@@ -383,7 +417,7 @@ class StorySystem(StoryExtensionsMixin):
             return False
         if "ending:puppet_final_defeated" not in self.story_tags:
             return False
-        evil = max(0, min(100, int(getattr(self, "puppet_evil_value", 55))))
+        evil = self.get_puppet_evil_value()
         return evil > self.PUPPET_HIGH_EVIL_FOR_POWER_DIRECT
 
     def _build_puppet_echo_lines(self, high_evil: bool = False) -> list:
@@ -440,10 +474,10 @@ class StorySystem(StoryExtensionsMixin):
         """
         if "curtain_call_script_recovered" in self.story_tags:
             return False
-        key_obtained = bool(getattr(self, "elf_key_obtained", False)) or ("elf_key_obtained" in self.story_tags)
+        key_obtained = bool(self.elf_key_obtained) or ("elf_key_obtained" in self.story_tags)
         if not key_obtained:
             return False
-        if not bool(getattr(self, "elf_chain_ended", False)):
+        if not bool(self.elf_chain_ended):
             return False
         if "ending:puppet_final_defeated" not in self.story_tags:
             return False
@@ -464,7 +498,7 @@ class StorySystem(StoryExtensionsMixin):
             return None
         if not self._is_pre_ending_gate_condition_met(gate_key):
             return None
-        current_round = max(0, int(getattr(self.controller, "round_count", 0)))
+        current_round = max(0, int(self.controller.round_count))
         ending_round = int(self.DEFAULT_ENDING_FORCE_ROUND)
         if gate_key == "round200_stage_preface":
             trigger_door_types = ["REWARD"]
@@ -494,7 +528,7 @@ class StorySystem(StoryExtensionsMixin):
         """从 185 回合起统一检查结局前倒数事件（银羽宝物、木偶补战、飞贼清算、梦境镜子前奏）；条件满足则加入阻塞。
         木偶回声、善良木偶对话属结局事件，仅在第 200 回合由 _try_schedule_blocking_echo_or_kind 挂载，不在此检查。
         返回 (是否挂载了至少一个, 本次新挂载的 gate_key 列表)。"""
-        current_round = max(0, int(getattr(self.controller, "round_count", 0)))
+        current_round = max(0, int(self.controller.round_count))
         ending_round = int(self.DEFAULT_ENDING_FORCE_ROUND)
         window_start = max(0, ending_round - int(self.PRE_FINAL_WINDOW_START_OFFSET))
         if current_round < window_start:
@@ -563,7 +597,7 @@ class StorySystem(StoryExtensionsMixin):
             return True
         if current_round == window_start:
             return True
-        last_round = getattr(self, "pre_final_last_check_round", None)
+        last_round = self.pre_final_last_check_round
         if not isinstance(last_round, int):
             return True
         return (current_round - last_round) >= int(self.PRE_FINAL_RECHECK_INTERVAL)
@@ -576,7 +610,7 @@ class StorySystem(StoryExtensionsMixin):
         if "ending:stage_curtain_completed" in self.story_tags:
             return False
 
-        current_round = max(0, int(getattr(self.controller, "round_count", 0)))
+        current_round = max(0, int(self.controller.round_count))
         ending_round = int(self.DEFAULT_ENDING_FORCE_ROUND)
         window_start = max(0, ending_round - int(self.PRE_FINAL_WINDOW_START_OFFSET))
         if current_round < window_start:
@@ -596,7 +630,7 @@ class StorySystem(StoryExtensionsMixin):
         """回合 >=200 挂载结局事件：木偶回声或善良木偶对话（二选一按优先级）。
 
         结局门一旦满足条件就应持续可触发，避免因超过某一回合而失效。"""
-        current_round = max(0, int(getattr(self.controller, "round_count", 0)))
+        current_round = max(0, int(self.controller.round_count))
         if current_round < self.DEFAULT_ENDING_FORCE_ROUND:
             return False
         for gate_key in ("puppet_echo_final_gate", "kind_puppet_dialogue_round200"):
@@ -630,7 +664,7 @@ class StorySystem(StoryExtensionsMixin):
     def ensure_default_normal_ending_schedule(self) -> bool:
         """结局阻塞全部清空后，在第 200 回合挂载结局事件：默认第一门（选择困难症候群）或接管谢幕。木偶回声、善良木偶对话属结局前阻塞，须先清空。"""
         pre_scheduled = self.ensure_pre_final_event_schedule()
-        current_round = max(0, int(getattr(self.controller, "round_count", 0)))
+        current_round = max(0, int(self.controller.round_count))
         if current_round >= self.DEFAULT_ENDING_FORCE_ROUND and self._try_schedule_blocking_echo_or_kind():
             return True
         if not self._all_pre_final_blocking_cleared():
@@ -678,7 +712,7 @@ class StorySystem(StoryExtensionsMixin):
         return door
 
     def _trigger_pending_consequence(self, door: Any, choice_round: Optional[int] = None) -> Any:
-        round_count = getattr(self.controller, "round_count", 0)
+        round_count = self.controller.round_count
         # 选门时 round 已在 handle_choice 开头 +1，强制/匹配用「选门时的回合」判定，避免 190 点的门被当成 191 触发超窗强制
         choice_round = choice_round if choice_round is not None else round_count
         choice_round = max(0, choice_round)
@@ -869,7 +903,7 @@ class StorySystem(StoryExtensionsMixin):
             return
         if delta == 0:
             return
-        current = int(getattr(self, "puppet_evil_value", 55))
+        current = self.get_puppet_evil_value()
         next_val = max(0, min(100, current + delta))
         self.puppet_evil_value = next_val
         self.story_tags.add(f"puppet_evil_bucket:{(next_val // 10) * 10}")
@@ -979,15 +1013,15 @@ class StorySystem(StoryExtensionsMixin):
             self.story_tags.add(f"moon_bounty_route:{route.strip()}")
 
     def _resolve_puppet_final_outcome(self) -> None:
-        evil = max(0, min(100, int(getattr(self, "puppet_evil_value", 55))))
-        player = getattr(self.controller, "player", None)
+        evil = self.get_puppet_evil_value()
+        player = self.controller.player
         if player is None:
             return
         self.puppet_final_outcome = "defeated"
         self.story_tags.add("ending:puppet_final_defeated")
         low_flags = {"puppet_intro_hide", "puppet_signal_soft", "puppet_kind_echo_trust", "puppet_rift_kind", "puppet_descent_patch"}
         high_flags = {"puppet_intro_blackout", "puppet_intro_decoy", "puppet_signal_resell", "puppet_kind_echo_exploit", "puppet_rift_dark", "puppet_descent_dark_feed", "puppet_descent_cut_emotion"}
-        flags = set(getattr(self, "choice_flags", set()))
+        flags = set(self.choice_flags)
         low_hits = len(low_flags.intersection(flags))
         high_hits = len(high_flags.intersection(flags))
 
@@ -1077,7 +1111,7 @@ class StorySystem(StoryExtensionsMixin):
             from models.events import schedule_next_pre_final_gate
         except Exception:
             return
-        current_round = max(0, int(getattr(self.controller, "round_count", 0)))
+        current_round = max(0, int(self.controller.round_count))
         scheduled_key = schedule_next_pre_final_gate(
             self.controller,
             include_default_final_boss=False,
@@ -1099,9 +1133,9 @@ class StorySystem(StoryExtensionsMixin):
     def _build_final_ending_meta(self) -> Dict[str, Any]:
         """聚合可交给最终结局展示层的剧情参数。"""
         final_meta: Dict[str, Any] = {}
-        outcome = str(getattr(self, "puppet_final_outcome", "")).strip()
-        patrol_state = str(getattr(self, "puppet_patrol_state", "")).strip()
-        patrol_note = str(getattr(self, "puppet_patrol_note", "")).strip()
+        outcome = str(self.puppet_final_outcome).strip()
+        patrol_state = str(self.puppet_patrol_state).strip()
+        patrol_note = str(self.puppet_patrol_note).strip()
         if outcome:
             final_meta["puppet_final_outcome"] = outcome
         if patrol_state:
@@ -1135,10 +1169,10 @@ class StorySystem(StoryExtensionsMixin):
             return
         if defeated:
             self.controller.add_message(narrative_lines.MSG_ELF_SIDE_ALLY_WIN)
-            self.elf_relation = max(-6, min(6, int(getattr(self, "elf_relation", 0)) + 1))
+            self.elf_relation = max(-6, min(6, int(self.elf_relation) + 1))
         else:
             self.controller.add_message(narrative_lines.MSG_ELF_SIDE_FLEE)
-            self.elf_relation = max(-6, min(6, int(getattr(self, "elf_relation", 0)) - 1))
+            self.elf_relation = max(-6, min(6, int(self.elf_relation) - 1))
 
     def _trigger_moral_influence(self, door: Any) -> Any:
         monster = getattr(door, "monster", None)
@@ -1216,14 +1250,12 @@ class StorySystem(StoryExtensionsMixin):
         仅强制清空木偶补战、飞贼清算、梦境镜子前奏三种阻塞（不消费银羽秘藏），185 回合由 ensure_all_pre_ending_blocking_considered 将银羽秘藏加入 pending，选宝物门即触发；取剧本后可走约定对话，到 200 回合挂载善良木偶对话。"""
         c = self.controller
         c.round_count = 184
-        p = getattr(c, "player", None)
+        p = c.player
         if p is not None:
             p.hp = 800
             p._atk = 200
-            if hasattr(c, "player_peak_hp"):
-                c.player_peak_hp = 800
-            if hasattr(c, "player_peak_atk"):
-                c.player_peak_atk = 200
+            c.player_peak_hp = 800
+            c.player_peak_atk = 200
         self.elf_chain_started = True
         self.elf_chain_ended = True
         self.elf_relation = 4
@@ -1250,14 +1282,12 @@ class StorySystem(StoryExtensionsMixin):
         调用方需在第 200 回合调用 ensure_default_normal_ending_schedule() 以挂载回声门等终局门。"""
         c = self.controller
         c.round_count = 190
-        p = getattr(c, "player", None)
+        p = c.player
         if p is not None:
             p.hp = 800
             p._atk = 200
-            if hasattr(c, "player_peak_hp"):
-                c.player_peak_hp = 800
-            if hasattr(c, "player_peak_atk"):
-                c.player_peak_atk = 200
+            c.player_peak_hp = 800
+            c.player_peak_atk = 200
         self.elf_chain_ended = True
         self.elf_relation = -5
         self.elf_key_obtained = False
@@ -1280,14 +1310,12 @@ class StorySystem(StoryExtensionsMixin):
         有机会挂载「接管谢幕选择门」（要求：已取回剧本 + 已击败木偶 + 邪恶值 > 45）。"""
         c = self.controller
         c.round_count = 190
-        p = getattr(c, "player", None)
+        p = c.player
         if p is not None:
             p.hp = 800
             p._atk = 200
-            if hasattr(c, "player_peak_hp"):
-                c.player_peak_hp = 800
-            if hasattr(c, "player_peak_atk"):
-                c.player_peak_atk = 200
+            c.player_peak_hp = 800
+            c.player_peak_atk = 200
 
         self.elf_chain_ended = True
         self.elf_relation = 4
@@ -1475,7 +1503,7 @@ class StorySystem(StoryExtensionsMixin):
         """木偶支线专用：锈蚀追猎偶，独立于一般追猎复仇的数值。"""
         from models.monster import Monster
 
-        round_count = getattr(self.controller, "round_count", 0)
+        round_count = self.controller.round_count
         stage = self._get_progress_stage()
         name = "锈蚀追猎偶"
         if round_count <= 10:
@@ -1492,7 +1520,7 @@ class StorySystem(StoryExtensionsMixin):
     def _create_hunter_monster(self, preferred_name: Optional[str] = None):
         from models.monster import Monster
 
-        round_count = getattr(self.controller, "round_count", 0)
+        round_count = self.controller.round_count
         stage = self._get_progress_stage()
         if preferred_name:
             if round_count <= 10:

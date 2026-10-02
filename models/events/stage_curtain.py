@@ -1,8 +1,6 @@
 """见 models.events 包说明。"""
-from models.status import StatusName
 from models.story_gates import (
     ALL_PRE_FINAL_DOOR_TYPES,
-    ELF_THIEF_NAME,
     ENDING_EVENT_GATE_KEYS,
     PRE_FINAL_DISPATCH_ORDER,
     PRE_FINAL_GATE_STORY_CONFIG,
@@ -28,7 +26,7 @@ def _schedule_pre_final_gate(
     trigger_door_types=None,
     extra_payload=None,
 ):
-    story = getattr(controller, "story", None)
+    story = controller.story
     if story is None:
         return False
     cfg = _get_pre_final_gate_config(gate_key)
@@ -38,7 +36,7 @@ def _schedule_pre_final_gate(
     payload = dict(base_payload) if isinstance(base_payload, dict) else {}
     if isinstance(extra_payload, dict):
         payload.update(extra_payload)
-    current_round = max(0, int(getattr(controller, "round_count", 0)))
+    current_round = max(0, int(controller.round_count))
     if min_round is None:
         min_round = current_round + max(0, int(min_round_offset))
     else:
@@ -101,8 +99,8 @@ def _schedule_default_ending_final_boss(controller):
 
 def _schedule_default_first_gate_for_curtain_choice(controller):
     """谢幕相关事件中选「选择困难症」时挂载普通结局主线；结局事件仅到第 200 回合才可触发，故由 _schedule_pre_final_gate 内 ENDING_EVENT_GATE_KEYS 约束为 200 回合。"""
-    current_round = max(0, int(getattr(controller, "round_count", 0)))
-    story = getattr(controller, "story", None)
+    current_round = max(0, int(controller.round_count))
+    story = controller.story
     ending_round = int(getattr(story, "DEFAULT_ENDING_FORCE_ROUND", 200)) if story else 200
     min_round = max(current_round + 1, ending_round)
     return _schedule_pre_final_gate(
@@ -116,7 +114,7 @@ def _schedule_default_first_gate_for_curtain_choice(controller):
 def _schedule_stage_curtain_gate_event(controller):
     # 与善良人格约定后，下一回合紧接着进入「舞台谢幕·终幕门廊」，
     # 不再等待结局回合或特定门型窗口。
-    current_round = max(0, int(getattr(controller, "round_count", 0)))
+    current_round = max(0, int(controller.round_count))
     schedule_round = current_round + 1
     return _schedule_pre_final_gate(
         controller=controller,
@@ -128,19 +126,19 @@ def _schedule_stage_curtain_gate_event(controller):
 
 def _should_schedule_kind_puppet_dialogue(controller):
     """是否在取回剧本后插入“与善良木偶对话”事件：已拿剧本、已击败木偶终战且邪恶值偏低。"""
-    story = getattr(controller, "story", None)
+    story = controller.story
     if story is None:
         return False
-    tags = set(getattr(story, "story_tags", set()))
-    flags = set(getattr(story, "choice_flags", set()))
+    tags = set(story.story_tags)
+    flags = set(story.choice_flags)
     script_recovered = "curtain_call_script_recovered" in tags or "curtain_call_script_recovered" in flags
     if not script_recovered:
         return False
-    puppet_defeated = "ending:puppet_final_defeated" in tags or getattr(story, "puppet_final_outcome", "") == "defeated"
+    puppet_defeated = "ending:puppet_final_defeated" in tags or story.puppet_final_outcome == "defeated"
     if not puppet_defeated:
         return False
     try:
-        evil = max(0, min(100, int(getattr(story, "puppet_evil_value", 55))))
+        evil = story.get_puppet_evil_value()
     except (TypeError, ValueError):
         evil = 55
     return evil <= 45
@@ -148,10 +146,10 @@ def _should_schedule_kind_puppet_dialogue(controller):
 
 def _schedule_kind_puppet_dialogue_event(controller):
     """秘藏取回剧本后，若木偶善良侧归位则挂载与善良人格对话门；下一扇门起即可触发，不强制到第 200 回合。"""
-    story = getattr(controller, "story", None)
+    story = controller.story
     if story is None:
         return False
-    current_round = max(0, int(getattr(controller, "round_count", 0)))
+    current_round = max(0, int(controller.round_count))
     ending_round = int(getattr(story, "DEFAULT_ENDING_FORCE_ROUND", 200))
     min_round = current_round + 1
     max_round = ending_round
@@ -164,8 +162,8 @@ def _schedule_kind_puppet_dialogue_event(controller):
 
 
 def _collect_stage_curtain_scores(story):
-    flags = set(getattr(story, "choice_flags", set()))
-    tags = set(getattr(story, "story_tags", set()))
+    flags = set(story.choice_flags)
+    tags = set(story.story_tags)
     order = 0
     freedom = 0
     power = 0
@@ -198,7 +196,7 @@ def _collect_stage_curtain_scores(story):
     elif "ending_elf_rival_parted" in flags:
         elf_rival_outcome = "parted"
 
-    diary_source = str(getattr(story, "moon_bounty_diary_source", "")).strip()
+    diary_source = str(story.moon_bounty_diary_source).strip()
     if diary_source == "thief_testimony":
         freedom += 2
         notes.append("大盗证词与旧日记互相印证，冤案被翻出。")
@@ -283,12 +281,12 @@ def _collect_stage_curtain_scores(story):
         risk += 1
         notes.append("木偶暗侧参数被你长期放大，终幕更偏强控。")
 
-    key_obtained = bool(getattr(story, "elf_key_obtained", False)) or ("elf_key_obtained" in tags)
+    key_obtained = bool(story.elf_key_obtained) or ("elf_key_obtained" in tags)
     script_recovered = "curtain_call_script_recovered" in tags or "curtain_call_script_recovered" in flags
-    puppet_outcome = str(getattr(story, "puppet_final_outcome", "")).strip()
+    puppet_outcome = str(story.puppet_final_outcome).strip()
     puppet_final_defeated = "ending:puppet_final_defeated" in tags or puppet_outcome == "defeated"
     try:
-        puppet_evil_value = max(0, min(100, int(getattr(story, "puppet_evil_value", 55))))
+        puppet_evil_value = story.get_puppet_evil_value()
     except (TypeError, ValueError):
         puppet_evil_value = 55
     puppet_chain_concluded = puppet_final_defeated
@@ -470,11 +468,11 @@ def _resolve_stage_curtain_outcome(route_key, score_payload):
 
 def run_script_vault_recovery(controller):
     """宝物门进门时执行：仅剧情（得到剧本 + 飞贼遗留宝物金币），无事件选项。用于倒数窗口内银羽秘藏宝物门。"""
-    story = getattr(controller, "story", None)
+    story = controller.story
     if story is None:
         return
-    tags = set(getattr(story, "story_tags", set()))
-    diary_source = str(getattr(story, "moon_bounty_diary_source", "")).strip()
+    tags = set(story.story_tags)
+    diary_source = str(story.moon_bounty_diary_source).strip()
     description = (
         "你推开了那扇刻着银羽暗号的宝物门。"
         "旧钥匙刚进入锁孔，整面墙就像布景般滑开。"
@@ -498,7 +496,7 @@ def run_script_vault_recovery(controller):
             )
     controller.add_message(description)
     # 飞贼在秘藏室还留了一些宝物，玩家获得金币
-    player = getattr(controller, "player", None)
+    player = controller.player
     if player is not None:
         bonus_gold = rng().randint(40, 70)
         player.gold += bonus_gold
@@ -575,7 +573,7 @@ class EndingStageKindPuppetDialogueEvent(Event):
     def _trigger_stage_ending(self, route_key, choice_flag, line):
         self.register_story_choice(choice_flag=choice_flag, moral_delta=0)
         self.add_message(line)
-        story = getattr(self.controller, "story", None)
+        story = self.controller.story
         if story is None:
             return "Event Completed"
 
@@ -654,7 +652,7 @@ class StageCurtainKindPuppetDialogueMidEvent(Event):
         self.add_message("你选择按剧本补全谢幕。善良人格轻声回应：我会把原定的终章演完。")
         self.add_message(f"它把一丝余温渡给你，伤势稍缓，恢复了 {actual} 点生命。")
         self.add_message("约定已定，前方门廊将出现终幕之门——推开门即可完成谢幕。")
-        story = getattr(self.controller, "story", None)
+        story = self.controller.story
         if story is not None:
             setattr(story, "curtain_pre_choice", "order_puppet_curtain")
         _schedule_stage_curtain_gate_event(self.controller)
@@ -669,7 +667,7 @@ class StageCurtainKindPuppetDialogueMidEvent(Event):
         self.add_message("你选择即兴收尾。木偶轻声回应：那就把舞台交给你。")
         self.add_message("它把一缕决意留在你掌心，你感到出手更有力。")
         self.add_message("约定已定，前方门廊将出现终幕之门——推开门即可完成谢幕。")
-        story = getattr(self.controller, "story", None)
+        story = self.controller.story
         if story is not None:
             setattr(story, "curtain_pre_choice", "freedom")
         _schedule_stage_curtain_gate_event(self.controller)
@@ -697,7 +695,7 @@ def _get_curtain_prelude_echo_line(choice_key):
 
 def _build_dream_mirror_rehearsal_flashback(story):
     """梦中看到的「镜面剧场排练录像」：根据玩家在镜面剧场的选择，拼出梦中回放的内容。"""
-    flags = set(getattr(story, "choice_flags", set()))
+    flags = set(story.choice_flags)
     parts = []
     if "mirror_played_hero" in flags:
         parts.append("你看见镜中的自己又一次接过英雄面具，戴好。")
@@ -710,7 +708,7 @@ def _build_dream_mirror_rehearsal_flashback(story):
 
 def _build_dream_mirror_well_echo(story):
     """这段梦从何而来：梦境井的选择让「排练录像」得以在梦中浮现。"""
-    flags = set(getattr(story, "choice_flags", set()))
+    flags = set(story.choice_flags)
     if "dream_well_drank" in flags:
         if "echo_court_redeemed" in flags:
             return "井水的回响从未真正散去；你赎回了回放，它们便在此刻的梦里重播。"
@@ -728,7 +726,7 @@ def _build_dream_mirror_well_echo(story):
 
 def _get_prelude_choice_variants(story):
     """根据梦境井+镜面剧场组合返回三选一文案的变体（秩序/即兴/接管）。"""
-    flags = set(getattr(story, "choice_flags", set()))
+    flags = set(story.choice_flags)
     order_leaning = "dream_well_sealed" in flags or "echo_court_redeemed" in flags or "mirror_played_hero" in flags
     power_leaning = "dream_well_sold" in flags or "echo_court_trading" in flags or "mirror_played_villain" in flags
     if order_leaning and not power_leaning:
@@ -760,7 +758,7 @@ class DreamMirrorPreludeEvent(Event):
 
     def __init__(self, controller):
         super().__init__(controller)
-        story = getattr(controller, "story", None)
+        story = controller.story
         self.title = "梦中排练录像"
         rehearsal = _build_dream_mirror_rehearsal_flashback(story) if story else ""
         well_echo = _build_dream_mirror_well_echo(story) if story else ""
@@ -787,7 +785,7 @@ class DreamMirrorPreludeEvent(Event):
     def _pick_order(self):
         """按剧本收尾：记录选择并加血。"""
         self.register_story_choice(choice_flag="curtain_prelude_order", moral_delta=0)
-        story = getattr(self.controller, "story", None)
+        story = self.controller.story
         if story is not None:
             setattr(story, "curtain_prelude_choice", "order")
         self.add_message("梦中你默想：终幕应当按既定的剧本收尾。")
@@ -800,7 +798,7 @@ class DreamMirrorPreludeEvent(Event):
     def _pick_freedom(self):
         """由当下选择写就：记录选择并加攻。"""
         self.register_story_choice(choice_flag="curtain_prelude_freedom", moral_delta=0)
-        story = getattr(self.controller, "story", None)
+        story = self.controller.story
         if story is not None:
             setattr(story, "curtain_prelude_choice", "freedom")
         self.add_message("梦中你默想：终幕应当由当下的选择写就。")
@@ -813,7 +811,7 @@ class DreamMirrorPreludeEvent(Event):
     def _pick_power(self):
         """由掌控者收束：仅记录选择，无馈赠。"""
         self.register_story_choice(choice_flag="curtain_prelude_power", moral_delta=0)
-        story = getattr(self.controller, "story", None)
+        story = self.controller.story
         if story is not None:
             setattr(story, "curtain_prelude_choice", "power")
         self.add_message("梦中你默想：终幕应当由能掌控舞台的人收束。镜面暗了下去，梦中未得馈赠。")
@@ -830,8 +828,8 @@ class EndingStageCurtainGateEvent(Event):
 
     def __init__(self, controller):
         super().__init__(controller)
-        story = getattr(controller, "story", None)
-        pre_choice = getattr(story, "curtain_pre_choice", None) if story else None
+        story = controller.story
+        pre_choice = story.curtain_pre_choice if story else None
         if pre_choice in ("freedom", "order_puppet_curtain"):
             self.title = "舞台谢幕·终幕门廊"
             self.description = (
@@ -856,8 +854,8 @@ class EndingStageCurtainGateEvent(Event):
 
     def _trigger_pre_chosen_route(self):
         """执行与善良木偶约定好的谢幕路线：order_puppet_curtain→补全且木偶谢幕，freedom→即兴。"""
-        story = getattr(self.controller, "story", None)
-        pre_choice = getattr(story, "curtain_pre_choice", None) if story else None
+        story = self.controller.story
+        pre_choice = story.curtain_pre_choice if story else None
         if story is not None:
             story.curtain_pre_choice = None
         if pre_choice == "order_puppet_curtain":
@@ -875,7 +873,7 @@ class EndingStageCurtainGateEvent(Event):
     def _trigger_stage_ending(self, route_key, choice_flag, line):
         self.register_story_choice(choice_flag=choice_flag, moral_delta=0)
         self.add_message(line)
-        story = getattr(self.controller, "story", None)
+        story = self.controller.story
         if story is None:
             return "Event Completed"
 
@@ -889,7 +887,7 @@ class EndingStageCurtainGateEvent(Event):
         notes = ending_payload.get("notes", [])
         if notes:
             self.add_message(" ".join(notes[:2]))
-        prelude_choice = getattr(story, "curtain_prelude_choice", None)
+        prelude_choice = story.curtain_prelude_choice
         if prelude_choice:
             prelude_line = _get_curtain_prelude_echo_line(prelude_choice)
             if prelude_line:
@@ -972,7 +970,7 @@ class EndingPowerCurtainDirectEvent(Event):
     def _complete_power_curtain(self):
         self.register_story_choice(choice_flag="ending_power_curtain_direct", moral_delta=0)
         self.add_message("你以导演代理人身份推开终幕之门，强行接管门廊规则，完成谢幕。")
-        story = getattr(self.controller, "story", None)
+        story = self.controller.story
         # 直通路径使用满足 power>=4、risk<=4 的 payload，确保解析为接管谢幕结局
         score_payload = {
             "power": 4,
@@ -1034,7 +1032,7 @@ class EndingPowerCurtainChoiceEvent(Event):
         """触发接管谢幕结局，variant 用于区分剧情文案。"""
         self.register_story_choice(choice_flag="ending_power_curtain_choice", moral_delta=0)
         self.add_message(line)
-        story = getattr(self.controller, "story", None)
+        story = self.controller.story
         score_payload = _collect_stage_curtain_scores(story) if story else {}
         ending_payload = _resolve_stage_curtain_outcome("power", score_payload)
         resolved_description = str(ending_payload.get("ending_description", "")).strip()
@@ -1118,7 +1116,7 @@ class EndingPuppetEchoAftermathEvent(Event):
     def _trigger_impromptu(self, line: str, description: str) -> str:
         """触发即兴谢幕结局，文案由调用方传入。"""
         self.add_message(line)
-        story = getattr(self.controller, "story", None)
+        story = self.controller.story
         final_description = description
         if story is not None:
             score_payload = _collect_stage_curtain_scores(story)
@@ -1174,7 +1172,7 @@ class EndingPuppetEchoAftermathEvent(Event):
 
 def _dream_well_chain_done(story):
     """梦境井长链是否已完结：封井/卖梦直接完结；喝下则需回声法庭任一选项。"""
-    flags = set(getattr(story, "choice_flags", set()))
+    flags = set(story.choice_flags)
     if "dream_well_sealed" in flags or "dream_well_sold" in flags:
         return True
     if "dream_well_drank" in flags and (
@@ -1186,7 +1184,7 @@ def _dream_well_chain_done(story):
 
 def _mirror_theater_chain_done(story):
     """镜面剧场长链是否已完结：英雄/恶徒/撕本任一选项。"""
-    flags = set(getattr(story, "choice_flags", set()))
+    flags = set(story.choice_flags)
     return (
         "mirror_played_hero" in flags
         or "mirror_played_villain" in flags
@@ -1196,7 +1194,7 @@ def _mirror_theater_chain_done(story):
 
 def _should_trigger_dream_mirror_prelude(controller):
     """是否挂载梦境镜面回响门：两长链皆已完结且在倒数窗口内。"""
-    story = getattr(controller, "story", None)
+    story = controller.story
     if story is None:
         return False
     if not _dream_well_chain_done(story):
@@ -1205,7 +1203,7 @@ def _should_trigger_dream_mirror_prelude(controller):
         return False
     cfg = _get_pre_final_gate_config("dream_mirror_prelude_gate")
     cid = str(cfg.get("consequence_id", "ending_dream_mirror_prelude_gate"))
-    if cid in getattr(story, "pending_consequences", {}) or cid in getattr(story, "consumed_consequences", set()):
+    if cid in story.pending_consequences or cid in story.consumed_consequences:
         return False
     return True
 
@@ -1224,18 +1222,18 @@ def _schedule_dream_mirror_prelude_gate(controller, *, min_round=None, max_round
 
 def _should_trigger_elf_rival_pre_final(controller):
     """终局前插入飞贼对决：精灵线收束且关系极差时触发。"""
-    story = getattr(controller, "story", None)
+    story = controller.story
     if story is None:
         return False
-    if not bool(getattr(story, "elf_chain_ended", False)):
+    if not bool(story.elf_chain_ended):
         return False
-    rel = int(getattr(story, "elf_relation", 0))
+    rel = int(story.elf_relation)
     return rel <= -4
 
 
 def _schedule_elf_rival_final_gate(controller, *, min_round=None, max_round=None):
     """在默认终局 Boss 前插入一次银羽飞贼追猎战。"""
-    story = getattr(controller, "story", None)
+    story = controller.story
     if story is None:
         return False
     if not _should_trigger_elf_rival_pre_final(controller):
@@ -1247,9 +1245,9 @@ def _schedule_elf_rival_final_gate(controller, *, min_round=None, max_round=None
         return False
     cfg = _get_pre_final_gate_config("elf_rival_final_gate")
     consequence_id = str(cfg.get("consequence_id", "ending_elf_rival_final_gate"))
-    if consequence_id in story.pending_consequences or consequence_id in getattr(story, "consumed_consequences", set()):
+    if consequence_id in story.pending_consequences or consequence_id in story.consumed_consequences:
         return False
-    rel = int(getattr(story, "elf_relation", 0))
+    rel = int(story.elf_relation)
     style = "vengeful" if rel <= -5 else "trickster"
     profile_extensions = []
     if "ending_hook:elf_hostile" in story.story_tags:
@@ -1274,10 +1272,10 @@ def _schedule_elf_rival_final_gate(controller, *, min_round=None, max_round=None
 
 def _should_trigger_puppet_pre_final_gate(controller):
     """木偶终战曾逃跑时，在默认终局前插入一次黑暗木偶补战。"""
-    story = getattr(controller, "story", None)
+    story = controller.story
     if story is None:
         return False
-    tags = set(getattr(story, "story_tags", set()))
+    tags = set(story.story_tags)
     if "ending:default_normal_completed" in tags or "ending:stage_curtain_completed" in tags:
         return False
     if "ending:puppet_rematch_gate_done" in tags:
@@ -1286,25 +1284,25 @@ def _should_trigger_puppet_pre_final_gate(controller):
         return False
     cfg = _get_pre_final_gate_config("puppet_rematch_gate")
     consequence_id = str(cfg.get("consequence_id", "ending_puppet_pre_final_rematch_gate"))
-    if consequence_id in getattr(story, "pending_consequences", {}):
+    if consequence_id in story.pending_consequences:
         return False
-    if consequence_id in getattr(story, "consumed_consequences", set()):
+    if consequence_id in story.consumed_consequences:
         return False
-    outcome = str(getattr(story, "puppet_final_outcome", "")).strip()
+    outcome = str(story.puppet_final_outcome).strip()
     escaped = outcome == "escaped" or "ending:puppet_final_escape_recorded" in tags
     return escaped
 
 
 def _schedule_puppet_pre_final_gate(controller, *, min_round=None, max_round=None):
-    story = getattr(controller, "story", None)
+    story = controller.story
     if story is None:
         return False
     if not _should_trigger_puppet_pre_final_gate(controller):
         return False
-    tags = set(getattr(story, "story_tags", set()))
+    tags = set(story.story_tags)
     escaped_before = (
         "ending:puppet_final_escape_recorded" in tags
-        or str(getattr(story, "puppet_final_outcome", "")).strip() == "escaped"
+        or str(story.puppet_final_outcome).strip() == "escaped"
     )
     if escaped_before:
         payload = {

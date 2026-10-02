@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Optional
 from models.game_config import GameConfig
 from models.status import Status, StatusName
 if TYPE_CHECKING:
-    from models.player import Player
+    pass
 
 import random
 
@@ -439,7 +439,7 @@ class Monster:
         if self.has_status(StatusName.ATK_MULTIPLIER):
             dmg *= self.statuses[StatusName.ATK_MULTIPLIER].value
         target_controller = getattr(target, "controller", None)
-        if target_controller and hasattr(target_controller, "apply_battle_extensions"):
+        if target_controller:
             dmg = target_controller.apply_battle_extensions(
                 trigger="monster_attack",
                 attacker=self,

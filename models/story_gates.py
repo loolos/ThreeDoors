@@ -12,6 +12,8 @@ from typing import Dict, FrozenSet, Tuple
 
 ALL_PRE_FINAL_DOOR_TYPES: Tuple[str, ...] = ("TRAP", "REWARD", "MONSTER", "SHOP", "EVENT")
 ELF_THIEF_NAME = "莱希娅"
+PUPPET_KIND_PERSONA_NAME = "绒心"
+PUPPET_DARK_PERSONA_NAME = "裂齿"
 
 PRE_FINAL_GATE_STORY_CONFIG: Dict[str, Dict] = {
     "round200_stage_preface": {

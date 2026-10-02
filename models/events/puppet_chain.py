@@ -1,5 +1,4 @@
 """见 models.events 包说明。"""
-from models.status import StatusName
 from models.story_flags import (
     PUPPET_DESCENT_CUT_EMOTION,
     PUPPET_DESCENT_DARK_FEED,
@@ -21,32 +20,16 @@ from models.story_flags import (
     puppet_intro_flag,
     puppet_rift_flag,
 )
-from models.story_gates import (
-    ALL_PRE_FINAL_DOOR_TYPES,
-    ELF_THIEF_NAME,
-    ENDING_EVENT_GATE_KEYS,
-    PRE_FINAL_DISPATCH_ORDER,
-    PRE_FINAL_GATE_STORY_CONFIG,
-)
 from models.events.base import Event, EventChoice
-from models.events._pkg import rng, mk_random_item, mk_reward_item
+from models.events._pkg import rng
 
-PUPPET_KIND_PERSONA_NAME = "绒心"
-PUPPET_DARK_PERSONA_NAME = "裂齿"
+from models.story_gates import PUPPET_KIND_PERSONA_NAME, PUPPET_DARK_PERSONA_NAME
 
 
 def _get_puppet_chain_state(controller):
-    story = getattr(controller, "story", None)
+    story = controller.story
     if story is None:
         return None
-    if not hasattr(story, "puppet_evil_value"):
-        story.puppet_evil_value = 55
-    if not hasattr(story, "puppet_kind_persona_name"):
-        story.puppet_kind_persona_name = PUPPET_KIND_PERSONA_NAME
-    if not hasattr(story, "puppet_dark_persona_name"):
-        story.puppet_dark_persona_name = PUPPET_DARK_PERSONA_NAME
-    if not hasattr(story, "puppet_side_registered"):
-        story.puppet_side_registered = False
     return story
 
 
@@ -54,7 +37,7 @@ def _adjust_puppet_evil_value(controller, delta):
     story = _get_puppet_chain_state(controller)
     if story is None:
         return 55
-    current = int(getattr(story, "puppet_evil_value", 55))
+    current = story.get_puppet_evil_value()
     next_val = max(0, min(100, current + int(delta)))
     story.puppet_evil_value = next_val
     story.story_tags.add(f"puppet_evil_bucket:{(next_val // 10) * 10}")
@@ -66,8 +49,8 @@ def _get_puppet_persona_names(controller):
     if story is None:
         return PUPPET_KIND_PERSONA_NAME, PUPPET_DARK_PERSONA_NAME
     return (
-        getattr(story, "puppet_kind_persona_name", PUPPET_KIND_PERSONA_NAME),
-        getattr(story, "puppet_dark_persona_name", PUPPET_DARK_PERSONA_NAME),
+        story.puppet_kind_persona_name,
+        story.puppet_dark_persona_name,
     )
 
 
@@ -76,7 +59,7 @@ def build_puppet_final_boss_payload(controller, phase2_burst_heal_ratio=None, **
     phase2_burst_heal_ratio 若传入则覆盖默认 0.42；overrides 中键值会合并进 payload。"""
     story = _get_puppet_chain_state(controller)
     kind_name, dark_name = _get_puppet_persona_names(controller)
-    evil_value = int(getattr(story, "puppet_evil_value", 55)) if story is not None else 55
+    evil_value = story.get_puppet_evil_value() if story is not None else 55
     payload = {
         "boss_name": f"{dark_name}·堕暗机偶",
         "base_hp": 980,
@@ -123,7 +106,7 @@ def _schedule_puppet_mainline_event(controller, from_stage, next_event_key, hint
     story = _get_puppet_chain_state(controller)
     if story is None:
         return
-    current_round = max(0, int(getattr(controller, "round_count", 0)))
+    current_round = max(0, int(controller.round_count))
     cid = f"puppet_mainline_{from_stage}_to_{next_event_key}"
     story.register_consequence(
         choice_flag=f"{PUPPET_MAINLINE_CHOICE_PREFIX}{from_stage}",
@@ -162,7 +145,7 @@ def _register_puppet_side_consequences(controller):
     story = _get_puppet_chain_state(controller)
     if story is None:
         return
-    if bool(getattr(story, "puppet_side_registered", False)):
+    if bool(story.puppet_side_registered):
         return
     story.puppet_side_registered = True
 
@@ -281,19 +264,19 @@ class PuppetAbandonmentEvent(Event):
 
     @classmethod
     def is_trigger_condition_met(cls, controller):
-        story = getattr(controller, "story", None)
+        story = controller.story
         if story is not None:
-            outcome = str(getattr(story, "puppet_final_outcome", "")).strip()
+            outcome = str(story.puppet_final_outcome).strip()
             if outcome in ("defeated", "escaped"):
                 return False
-            tags = getattr(story, "story_tags", set())
+            tags = story.story_tags
             if "ending:puppet_final_defeated" in tags or "ending:puppet_final_escape_recorded" in tags:
                 return False
         return cls.is_unlocked(controller, min_round=10, min_stage=1)
 
     @classmethod
     def get_trigger_probability(cls, controller):
-        round_count = max(0, int(getattr(controller, "round_count", 0)))
+        round_count = max(0, int(controller.round_count))
         return min(0.2, cls.TRIGGER_BASE_PROBABILITY + min(0.1, round_count * 0.004))
 
     def __init__(self, controller):
@@ -582,7 +565,7 @@ class PuppetCoreDescentEvent(Event):
         ]
 
     def _queue_final_boss(self, route, moral_delta):
-        current_round = max(0, int(getattr(self.controller, "round_count", 0)))
+        current_round = max(0, int(self.controller.round_count))
         payload = build_puppet_final_boss_payload(self.controller)
         self.register_story_choice(
             choice_flag=puppet_descent_flag(route),
