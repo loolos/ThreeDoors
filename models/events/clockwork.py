@@ -1,5 +1,4 @@
 """见 models.events 包说明。"""
-from models.status import StatusName
 from models.story_flags import (
     CLOCKWORK_CALIBRATED,
     CLOCKWORK_HACKED,
@@ -8,15 +7,8 @@ from models.story_flags import (
     COG_AUDIT_SILENCED,
     COG_AUDIT_TAX_PAID,
 )
-from models.story_gates import (
-    ALL_PRE_FINAL_DOOR_TYPES,
-    ELF_THIEF_NAME,
-    ENDING_EVENT_GATE_KEYS,
-    PRE_FINAL_DISPATCH_ORDER,
-    PRE_FINAL_GATE_STORY_CONFIG,
-)
 from models.events.base import Event, EventChoice
-from models.events._pkg import rng, mk_random_item, mk_reward_item
+from models.events._pkg import rng
 
 class ClockworkBazaarEvent(Event):
     """长链2：齿轮黑市"""
@@ -28,13 +20,13 @@ class ClockworkBazaarEvent(Event):
 
     @classmethod
     def get_trigger_probability(cls, controller):
-        round_count = max(0, getattr(controller, "round_count", 0))
+        round_count = max(0, controller.round_count)
         return min(0.17, cls.TRIGGER_BASE_PROBABILITY + min(0.11, round_count * 0.004))
 
     def __init__(self, controller):
         super().__init__(controller)
         self.title = "齿轮售票亭"
-        self.description = "一列会自行换轨的列车停在岔路口，这是自动售票摊位，但系统已经故障：修好它可换取正规入场券，偷看优惠码能白嫖漏票，砸掉它则立刻树敌，但可能抢到材料。你需要马上选一种做法。"
+        self.description = "岔路口立着一座齿轮驱动的自动售票亭，计价齿轮卡死在半圈上，系统已经故障：修好它能换到正规入场券，偷看优惠码能白嫖漏票，砸掉它会立刻树敌，但也许能抢到材料。你需要马上选一种做法。"
         self.choices = [
             EventChoice("校准售票机关，换取正规入场券", self.calibrate),
             EventChoice("偷看优惠码，白嫖入场票", self.hack_coupon),
@@ -89,12 +81,12 @@ class ClockworkBazaarEvent(Event):
         )
         p = self.get_player()
         gain = 20
-        round_count = max(0, int(getattr(self.controller, "round_count", 0)))
+        round_count = max(0, int(self.controller.round_count))
         min_gold = int((round_count / 3) * rng().uniform(0.5, 1.0))
         gain = max(gain, min_gold)
         p.gold += gain
         p.take_damage(8)
-        self.add_message(f"你踢翻竞品摊位后抢走 {gain}G 材料费，但飞溅齿片反弹划开护甲，让你受到 8 点伤害。")
+        self.add_message(f"你踢翻售票亭，抢走 {gain}G 材料费，但飞溅齿片反弹划开护甲，让你受到 8 点伤害。")
         return "Event Completed"
 
     def _build_clockwork_chain(self, route, shop_effect, ratio, hunter_name, shop_message):
@@ -211,7 +203,7 @@ class ClockworkBazaarEvent(Event):
                     "force_hunter": True,
                     "consume_on_defeat": True,
                     "hunter_name": hunter_name,
-                    "message": "前情：你刚公开破坏竞品摊位。碎片还在地上打转，市场清算队已沿着追踪标记赶来。",
+                    "message": "前情：你刚当众砸了售票亭。碎片还在地上打转，市场清算队已沿着追踪标记赶来。",
                     "chain_followups": [
                         {
                             "consequence_id": "clock_chain_sabotage_trap_backfire",
@@ -322,7 +314,7 @@ class CogAuditEvent(Event):
         )
         gain = 24
         self.get_player().gold += gain
-        self.add_message(f"你在通行证里里塞进了假数据。你因此获利了 {gain}G。")
+        self.add_message(f"你在通行证里塞进了假数据。你因此获利了 {gain}G。")
         return "Event Completed"
 
     def buy_silence(self):

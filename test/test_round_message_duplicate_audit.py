@@ -5,7 +5,7 @@ from collections import Counter, defaultdict
 from dataclasses import dataclass
 
 from scenes import SceneType, GameOverScene
-from server import GameController
+from game import GameController
 from test.test_base import BaseTest
 
 

@@ -33,6 +33,8 @@ CHOICE_NARRATIVE = {
     "ending_elf_rival_final_victory": "在终局前你击败了飞贼，她认输离去。",
     "ending_elf_rival_parted": "在终局前你与飞贼错身而过，各自走向终点。",
     "curtain_call_script_recovered": "你从飞贼手中取回了终幕剧本。",
+    "moon_bounty_diary_obtained": "你带着提词人寻找女儿的日记走完了全程。",
+    "curtain_call_truth_revealed": "你查明了真相：被通缉的提词人是无辜的，偷走剧本的是他的女儿莱希娅。",
     "ending:puppet_final_defeated": "你击败了木偶的最终形态。",
     "ending_default_normal_completed": "你击倒了选择困难症候群，从迷宫出口离开。",
     "ending_stage_gate_order": "你选择了补全谢幕，与善良人格一同完成终演。",
@@ -55,7 +57,7 @@ ENDING_SUMMARY = {
     "default_normal": (
         "你在这座没有出口的迷宫中，最终选择了直面「选择困难症候群」。"
         "击倒它之后，你终于找到了离开的出口。"
-        "走廊深处的弦音与低语渐渐远去，这场冒险在此画上句点。"
+        "走廊深处的弦音与低语渐渐远去，那场终幕留在了身后。"
     ),
     "stage_curtain_order": (
         "你按证词与秩序补齐了终幕结构，让假面剧场在失控边缘重新对齐节拍。"
@@ -151,9 +153,9 @@ def build_ending_roll_lines(controller) -> list:
     顺序：玩家状态摘要 → 长事件选择摘要 → 结局综述 → 感谢游玩。
     """
     lines = []
-    p = getattr(controller, "player", None)
-    story = getattr(controller, "story", None)
-    clear_info = getattr(controller, "game_clear_info", None) or {}
+    p = controller.player
+    story = controller.story
+    clear_info = controller.game_clear_info or {}
     door_counts = getattr(controller, "door_visit_counts", None) or {}
     monsters_defeated = getattr(controller, "monsters_defeated", 0)
 
@@ -164,9 +166,9 @@ def build_ending_roll_lines(controller) -> list:
         lines.append(f"生命值：{p.hp}")
         lines.append(f"攻击力：{p.atk}")
         lines.append(f"金币：{p.gold}")
-        moral = getattr(story, "moral_score", 0) if story else 0
+        moral = story.moral_score if story else 0
         lines.append(f"道德值：{moral}")
-    round_count = getattr(controller, "round_count", 0)
+    round_count = controller.round_count
     lines.append(f"总回合数：{round_count}")
     lines.append(f"击败怪物数：{monsters_defeated}")
     lines.append("")
@@ -182,8 +184,7 @@ def build_ending_roll_lines(controller) -> list:
     # ---------- 2. 长事件选择摘要 ----------
     choice_flags = set()
     if story is not None:
-        choice_flags = getattr(story, "choice_flags", set()) or set()
-        choice_flags |= getattr(story, "story_tags", set()) or set()
+        choice_flags = set(story.choice_flags) | set(story.story_tags)
     for flag, narrative in CHOICE_NARRATIVE.items():
         if flag in choice_flags:
             lines.append(narrative)

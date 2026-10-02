@@ -1,266 +1,96 @@
 # server.py
-"""ThreeDoors 服务端：Flask 应用、游戏控制器与 API 路由。"""
-from flask import Flask, render_template, session, request, jsonify, redirect, url_for
+"""ThreeDoors 服务端：Flask 应用与 API 路由（对局逻辑见 game.py，对局存储见 game_store.py）。"""
+from flask import Flask, render_template, session, request, jsonify, g as request_ctx
 from flask_session import Session
-import random, string, os, time, threading
+import os, time, threading, secrets
 import sys
-from models.door import Door
-from models.monster import Monster, get_random_monster
-from models.player import Player
-from models.status import Status
-from models.shop import Shop
-from models.story_system import StorySystem
-from scenes import Scene, DoorScene, BattleScene, ShopScene, UseItemScene, EndingRollScene, GameOverScene, SceneManager
 from ending_roll import build_ending_roll_lines
-from models.game_config import GameConfig
-from models.items import ReviveScroll, FlyingHammer, GiantScroll, Barrier
+from game import GameController, parse_test_gate
+from game_store import GameStore, is_valid_game_id
 
 # -------------------------------
 # 1) Flask 应用初始化
 # -------------------------------
 
 app = Flask(__name__)
-app.secret_key = "SOME_SECRET"  # 用于加密 session
+
+
+def _load_secret_key() -> str:
+    """优先读环境变量 SECRET_KEY；否则使用（必要时生成）instance 目录下的本地密钥文件。"""
+    env_key = os.environ.get("SECRET_KEY", "").strip()
+    if env_key:
+        return env_key
+    key_path = os.path.join(app.instance_path, "secret_key")
+    try:
+        with open(key_path, "r", encoding="utf-8") as fh:
+            stored = fh.read().strip()
+        if stored:
+            return stored
+    except OSError:
+        pass
+    new_key = secrets.token_hex(32)
+    try:
+        os.makedirs(app.instance_path, exist_ok=True)
+        with open(key_path, "w", encoding="utf-8") as fh:
+            fh.write(new_key)
+    except OSError:
+        pass
+    return new_key
+
+
+app.secret_key = _load_secret_key()  # 用于加密 session
 app.config["SESSION_TYPE"] = "filesystem"  # 存储 session 到文件系统
+# 本地开发模式：仅 `python3 server.py` 直接启动（或设置 THREEDOORS_DEV=1）时开启；gunicorn 部署时关闭。
+app.config["DEV_MODE"] = os.environ.get("THREEDOORS_DEV", "").strip() == "1"
 Session(app)
 
+LOCAL_ADDRS = {"127.0.0.1", "::1"}
+
+
+def is_local_dev_request() -> bool:
+    """是否为本地开发模式下来自本机的请求（只有此时允许关闭服务器进程）。"""
+    return bool(app.config.get("DEV_MODE")) and request.remote_addr in LOCAL_ADDRS
+
 # 测试用 gate：启动时通过 --test-gate=<name> 指定，进入/重置游戏后直接进入对应事件门（如木偶最终 Boss 战）
-TEST_GATE = None
-for arg in sys.argv[1:]:
-    if arg.startswith("--test-gate="):
-        TEST_GATE = arg.split("=", 1)[1].strip().lower() or None
-        break
-    if arg in ("--test-puppet-final-boss",):
-        TEST_GATE = "puppet_final_boss"
-        break
-    if arg in ("--test-puppet-echo",):
-        TEST_GATE = "puppet_echo"
-        break
-    if arg in ("--test-stage-curtain-power",):
-        TEST_GATE = "stage_curtain_power"
-        break
+TEST_GATE = parse_test_gate(sys.argv[1:])
 
 # -------------------------------
-# 2) 控制器及辅助类
+# 2) 对局存储与 Flask 路由
 # -------------------------------
 
+# 对局存储：内存 LRU + instance/games 下的磁盘存档（服务重启后可继续游戏）
+games_store = GameStore(
+    persist_dir=os.environ.get("THREEDOORS_SAVE_DIR") or os.path.join(app.instance_path, "games"),
+    max_in_memory=int(os.environ.get("THREEDOORS_MAX_GAMES_IN_MEMORY", "200")),
+)
 
-class GameController:
-    """游戏主控制器：管理玩家、剧情、场景与回合状态。"""
-
-    def __init__(self):
-        self.game_config = GameConfig()
-        
-        # Initialize game state
-        self.reset_game()
-
-    def reset_game(self):
-        """重置游戏状态"""
-        self.current_monster = None
-        self.current_battle_extensions = []
-        self.current_event = None
-        self.game_clear_info = None
-        self.round_count = 0
-        self.messages = []
-        self.recent_event_classes = []  # 最近触发的事件类名，用于非后续事件门去重
-        self.event_trigger_counts = {}  # 事件触发计数，用于权重衰减与单次事件控制
-        self.door_visit_counts = {"trap": 0, "reward": 0, "monster": 0, "shop": 0, "event": 0}
-        self.monsters_defeated = 0
-        self.player = Player(self)
-        self.player.reset()  # 重置玩家状态
-        self.story = StorySystem(self)
-        self.current_shop = Shop(self.player)
-        self.scene_manager = SceneManager()
-        self.scene_manager.game_controller = self  # 直接设置 game_controller
-        self.scene_manager.initialize_scenes()  # 这会设置当前场景为 DoorScene
-        self.unlocked_monster_tier = GameConfig.START_UNLOCKED_MONSTER_TIER
-        self.player_peak_hp = self.player.hp
-        self.player_peak_atk = self.player.atk
-
-        # 测试 gate：若启动时带了 --test-gate=...，直接进入对应事件门
-        if TEST_GATE == "puppet_final_boss":
-            self.round_count = 100
-            self.player.hp = 500
-            self.player._atk = 200
-            self.player_peak_hp = 500
-            self.player_peak_atk = 200
-            door = self.story.setup_test_gate_puppet_final_boss()
-            if door:
-                door.enter()
-                self.scene_manager.go_to("battle_scene")
-                self.add_message("【测试模式】已直接进入木偶最终 Boss 战（回合 100，玩家 500 HP / 200 攻击）。")
-        elif TEST_GATE == "stage_curtain_order":
-            self.story.setup_test_gate_stage_curtain_order()
-            self.story.ensure_pre_final_event_schedule()
-            self.scene_manager.go_to("door_scene")
-            self.add_message("【测试模式】补全谢幕路线：回合 190，HP 800 / ATK 200，飞贼线收束+钥匙+木偶已击败+低邪恶值；下一扇宝物门将触发银羽秘藏。")
-        elif TEST_GATE == "stage_curtain_power":
-            self.story.setup_test_gate_stage_curtain_power()
-            self.story.ensure_pre_final_event_schedule()
-            self.scene_manager.go_to("door_scene")
-            self.add_message("【测试模式】接管谢幕路线：回合 190，HP 800 / ATK 200，飞贼线敌对收束、关系极差（可触发清算战）、无钥匙+木偶已击败+高邪恶值；第 200 回合将挂载木偶回声门并进入接管谢幕分支。")
-        elif TEST_GATE == "puppet_echo":
-            self.story.setup_test_gate_puppet_echo()
-            self.story.ensure_pre_final_event_schedule()
-            self.scene_manager.go_to("door_scene")
-            self.add_message("【测试模式】木偶回声门路线：回合 190，HP 800 / ATK 200，飞贼敌对无钥匙且关系 -5（可触发清算战），木偶已击败+高邪恶值；第 200 回合将挂载木偶回声门。")
-
-    def add_message(self, msg):
-        """添加消息到消息列表（同一条连续日志仅保留一份）。"""
-        if isinstance(msg, str):
-            if not self.messages or self.messages[-1] != msg:
-                self.messages.append(msg)
-        elif isinstance(msg, list):
-            for item in msg:
-                if isinstance(item, str) and (not self.messages or self.messages[-1] != item):
-                    self.messages.append(item)
-
-    def clear_messages(self):
-        """清空消息列表"""
-        self.messages.clear()
-
-    def clear_battle_extensions(self):
-        """清空当前战斗扩展。"""
-        self.current_battle_extensions = []
-
-    def apply_battle_extensions(self, trigger, attacker, defender, damage):
-        """仅对当前怪物门声明的扩展执行战斗修正。"""
-        extensions = getattr(self, "current_battle_extensions", []) or []
-        if not extensions:
-            return damage
-        story = getattr(self, "story", None)
-        if story is None or not hasattr(story, "apply_battle_extension"):
-            return damage
-        adjusted = damage
-        for ext in extensions:
-            adjusted = story.apply_battle_extension(
-                extension=ext,
-                trigger=trigger,
-                attacker=attacker,
-                defender=defender,
-                damage=adjusted,
-            )
-        return adjusted
-
-    def on_player_attack_resolved(self, target):
-        """玩家攻击后执行扩展后处理（例如阶段切换）。"""
-        extensions = getattr(self, "current_battle_extensions", []) or []
-        if not extensions:
-            return
-        story = getattr(self, "story", None)
-        if story is None or not hasattr(story, "handle_battle_extension_post_player_attack"):
-            return
-        for ext in extensions:
-            story.handle_battle_extension_post_player_attack(extension=ext, target=target)
-
-    def record_door_visit(self, door_enum_value: str) -> None:
-        """记录一次门类型访问，用于结局统计。"""
-        counts = getattr(self, "door_visit_counts", None)
-        if counts is not None and door_enum_value in counts:
-            counts[door_enum_value] = counts[door_enum_value] + 1
-
-    def record_monster_defeated(self) -> None:
-        """记录击败一只怪物，用于结局统计。"""
-        if hasattr(self, "monsters_defeated"):
-            self.monsters_defeated = self.monsters_defeated + 1
-
-    def trigger_game_clear(self, ending_key: str, ending_title: str, ending_description: str, ending_meta=None) -> None:
-        """触发通关结局并跳转到结局滚动画面，再进入结算场景。"""
-        extra_meta = ending_meta if isinstance(ending_meta, dict) else {}
-        self.game_clear_info = {
-            "ending_key": str(ending_key or "unknown"),
-            "ending_title": str(ending_title or "结局"),
-            "ending_description": str(ending_description or ""),
-            "ending_meta": extra_meta,
-        }
-        self.scene_manager.go_to("ending_summary_scene")
-
-    def update_player_power_peaks(self):
-        """记录玩家历史最高生命与攻击，用于 tier 解锁判定。"""
-        self.player_peak_hp = max(self.player_peak_hp, self.player.hp)
-        self.player_peak_atk = max(self.player_peak_atk, self.player.atk)
-
-    def check_and_unlock_monster_tier(self):
-        """每隔固定回合检查怪物 tier 解锁进度，并输出日志。"""
-        if self.round_count <= 0:
-            return
-        if self.round_count % GameConfig.MONSTER_TIER_CHECK_INTERVAL != 0:
-            return
-
-        self.update_player_power_peaks()
-        # 有效战力 = min(攻击, 生命/2)，用于 tier 解锁判定
-        effective_power = min(self.player_peak_atk, self.player_peak_hp // 2)
-        old_tier = self.unlocked_monster_tier
-        max_tier = GameConfig.MONSTER_MAX_TIER
-        new_tier = old_tier
-
-        for tier in range(old_tier + 1, max_tier + 1):
-            requirement = GameConfig.MONSTER_TIER_UNLOCK_REQUIREMENTS.get(tier)
-            if requirement is None:
-                continue
-            if effective_power >= requirement:
-                new_tier = tier
-            else:
-                break
-
-        tier_unlock_messages = {
-            2: "【威胁升级】阴影里多了细碎脚步声——潜伏者开始在门后徘徊。",
-            3: "【威胁升级】你听见铁甲彼此摩擦的回响，重装猎手也加入了追逐。",
-            4: "【威胁升级】空气里浮起血与硫磺的味道，凶暴巨兽已被惊醒。",
-            5: "【威胁升级】远处传来低沉吟唱，古老而狡诈的强敌正在靠近。",
-            6: "【威胁升级】整座迷宫都在震颤，传说中的掠食者已锁定你的气息。",
-        }
-
-        tier_warning_messages = {
-            2: "【威胁侦测】墙上的抓痕越来越新，像是有猎手在试探你的脚步。",
-            3: "【威胁侦测】风里夹着金属味，前方似乎有披甲敌人在巡猎。",
-            4: "【威胁侦测】地面偶尔传来闷响，更沉重的脚步正在向你逼近。",
-            5: "【威胁侦测】你听见断续低语，某些危险存在已经开始注意你。",
-            6: "【威胁侦测】连火把都在发颤，最顶层的威胁正从黑暗深处苏醒。",
-        }
-
-        if new_tier > old_tier:
-            self.unlocked_monster_tier = new_tier
-            for tier in range(old_tier + 1, new_tier + 1):
-                self.add_message(
-                    tier_unlock_messages.get(
-                        tier,
-                        f"【威胁升级】更凶险的敌人现身了（已解锁 Tier {tier}）。",
-                    )
-                )
-            return
-
-        if old_tier >= max_tier:
-            self.add_message("【威胁侦测】你已触及最高威胁层级，前方皆是传说级敌手。")
-            return
-
-        next_tier = old_tier + 1
-        self.add_message(
-            tier_warning_messages.get(
-                next_tier,
-                "【威胁侦测】黑暗中的敌意仍在增长，你能感觉到下一波威胁快到了。",
-            )
-        )
-
-# -------------------------------
-# 3) Flask 路由及 Session 存储
-# -------------------------------
 
 def get_game():
-    """根据 session 获取或创建当前对局对应的 GameController。"""
-    if "game_id" not in session:
-        session["game_id"] = "".join(random.choices(string.ascii_lowercase + string.digits, k=8))
-    gid = session["game_id"]
-    if gid not in games_store:
-        games_store[gid] = GameController()  # 这里会调用一次 reset_game
-    return games_store[gid]
+    """根据 session 获取或创建当前对局对应的 GameController；请求结束后自动存档。"""
+    gid = session.get("game_id")
+    if not is_valid_game_id(gid):
+        gid = secrets.token_urlsafe(12)
+        session["game_id"] = gid
+    game = games_store.get(gid)
+    if game is None:
+        game = GameController(test_gate=TEST_GATE)  # 这里会调用一次 reset_game
+        games_store[gid] = game
+    request_ctx.active_game_id = gid
+    return game
 
-games_store = {}
+
+@app.after_request
+def _save_active_game(response):
+    gid = getattr(request_ctx, "active_game_id", None)
+    if gid:
+        games_store.save(gid)
+    return response
+
 
 @app.route("/")
 def index():
     """渲染游戏主页面。"""
-    return render_template("index.html", test_gate=TEST_GATE)
+    return render_template("index.html", test_gate=TEST_GATE, dev_mode=bool(app.config.get("DEV_MODE")))
 
 
 @app.route("/startOver", methods=["POST"])
@@ -345,12 +175,21 @@ def get_state():
 
 @app.route("/buttonAction", methods=["POST"])
 def button_action():
-    """处理前端按钮点击：解析 index，交给当前场景处理并返回结果与日志。"""
+    """处理前端按钮点击：解析 index，交给当前场景处理并返回结果与日志。
+
+    前端每次点击带一个 action_id，超时重试时复用；同一 action_id 再次到达时直接返回上次结果，不重复执行。
+    """
     g = get_game()
     scn = g.scene_manager.current_scene
     if not scn:
         return jsonify({"status": "error", "outcome": None, "log": "当前无场景"}), 400
-    data = request.json or {}
+    data = request.get_json(silent=True) or {}
+    action_id = data.get("action_id")
+    if action_id is not None and not isinstance(action_id, str):
+        action_id = str(action_id)
+    if action_id and action_id == g.last_action_id and g.last_action_response is not None:
+        return jsonify(g.last_action_response)
+
     raw_index = data.get("index", 0)
     try:
         index = int(raw_index) if raw_index is not None else 0
@@ -358,47 +197,48 @@ def button_action():
         index = 0
     index = max(0, min(2, index))
 
-    scn_name = scn.__class__.__name__
-    outcome = None
-    if scn_name in ["DoorScene", "BattleScene", "ShopScene", "UseItemScene", "EndingSummaryScene", "EndingRollScene", "GameOverScene", "EventScene"]:
-        outcome = scn.handle_choice(index)
-    
+    outcome = scn.handle_choice(index)
+
     # 获取当前消息并清空
     current_messages = g.messages.copy()
     g.clear_messages()
-    
-    return jsonify({
+
+    response = {
         "status": "success",
         "outcome": outcome,
-        "log": "\n".join(current_messages) if current_messages else ""
-    })
+        "log": "\n".join(current_messages) if current_messages else "",
+    }
+    if action_id:
+        g.last_action_id = action_id[:64]
+        g.last_action_response = response
+    return jsonify(response)
+
 
 @app.route("/exitGame", methods=["POST"])
 def exit_game():
-    """清除当前会话并关闭服务器进程（开发时慎用）。"""
-    g = get_game()
-    # 清除游戏会话
+    """退出当前对局。仅本地开发模式下来自本机的请求会额外关闭服务器进程；线上部署只结束自己的对局。"""
     if "game_id" in session:
-        game_id = session["game_id"]
-        if game_id in games_store:
-            del games_store[game_id]
-        session.clear()
-    
-    # 使用定时器在返回响应后关闭服务器
+        games_store.pop(session["game_id"], None)
+    session.clear()
+
+    if not is_local_dev_request():
+        return jsonify({"log": "你已退出本局，感谢游玩！", "server_stopped": False})
+
     def shutdown_server():
         time.sleep(2)  # 等待2秒确保响应已发送
         os._exit(0)  # 强制退出进程
-    
-    # 在新线程中运行关闭操作
-    threading.Thread(target=shutdown_server).start()
-    
-    return jsonify({"log": "游戏已关闭，感谢游玩！"})
+
+    threading.Thread(target=shutdown_server, daemon=True).start()
+    return jsonify({"log": "游戏已关闭，感谢游玩！", "server_stopped": True})
 
 # -------------------------------
 # 4) 启动 Flask 应用
 # -------------------------------
 
 if __name__ == "__main__":
+    app.config["DEV_MODE"] = True
     port = int(os.environ.get("PORT", 5000))
-    host = os.environ.get("HOST", "0.0.0.0")
-    app.run(debug=True, host=host, port=port)
+    # 默认只监听本机：debug 模式的 Werkzeug 调试器可执行任意代码，不应暴露到局域网
+    host = os.environ.get("HOST", "127.0.0.1")
+    debug = os.environ.get("FLASK_DEBUG", "1").strip() != "0"
+    app.run(debug=debug, host=host, port=port)

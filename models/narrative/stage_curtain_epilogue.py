@@ -3,6 +3,19 @@
 from typing import Any, Dict, List
 
 
+def _father_daughter_line(route_key: str, elf_outcome: str, diary_source: str) -> str:
+    """月蚀线 × 飞贼线：带着提词人的日记走到终幕时，按谢幕路线与飞贼关系给出父女线收尾。"""
+    if not diary_source or not elf_outcome:
+        return ""
+    if elf_outcome == "hostile":
+        return "莱希娅没有出现在散场的人群里。那本日记仍在你包里，最后一页的银羽，终究没能寄出去。"
+    if route_key == "order":
+        return "散场的灯光下，抱着旧日记的提词人终于在后台找到了女儿；莱希娅把一根银羽别回他的帽檐，谁都没先开口。"
+    if route_key == "freedom":
+        return "观众席最后一排，一个抱着旧日记的男人和银羽飞贼并肩坐着看完了你的即兴——这一次，没人再给她写「退场」。"
+    return "你接管剧场后签发的第一道指令，是撤销那张抓错人的月蚀通缉令；后台从此多了一对话不多、却不再分开的父女。"
+
+
 def build_stage_epilogue_lines(route_key: str, score_payload: Dict[str, Any]) -> List[str]:
     """根据长线选择补充结局尾声文案，仅用于文本展示。"""
     lines: List[str] = []
@@ -113,6 +126,10 @@ def build_stage_epilogue_lines(route_key: str, score_payload: Dict[str, Any]) ->
             lines.append("木偶暗侧留下的控制参数被你当成模板，整座剧场从此学会了先服从、再讨论。")
         elif puppet_kind_rescued:
             lines.append("即便你选择接管，木偶善侧仍替你保留了最后一条软规则：允许迟到的演员补一句真话。")
+
+    father_line = _father_daughter_line(route_key, elf_outcome, diary_source)
+    if father_line:
+        lines.append(father_line)
 
     return lines
 

@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Optional
 from models.game_config import GameConfig
 from models.status import Status, StatusName
 if TYPE_CHECKING:
-    from models.player import Player
+    pass
 
 import random
 
@@ -53,68 +53,7 @@ def estimate_player_power(player=None, current_round=0):
 
 class Monster:
     """怪物实体：名称、血量、攻击、tier、掉落与战斗行为。"""
-    MONSTER_TYPES = {
-        1: [  # 初级怪物
-            ("小哥布林", 15, 3),      # 弱小但数量多的生物
-            ("史莱姆", 18, 2),        # 最基础的怪物
-            ("蝙蝠", 12, 4),          # 速度快但脆弱
-            ("野狼", 16, 3),         # 普通的野兽
-            ("食人花", 20, 2),       # 植物怪物
-            ("小蜥蜴人", 14, 4),      # 爬行类人生物
-            ("土匪", 15, 3),         # 人类敌人
-            ("小鸟妖", 14, 4)         # 飞行生物
-        ],
-        2: [  # 精英怪物
-            ("半人马", 36, 7),       # 神话生物
-            ("牛头人", 42, 6),       # 力量型怪物
-            ("树人", 50, 5),        # 自然生物
-            ("狼人", 40, 7),        # 诅咒生物
-            ("食人魔", 46, 6),      # 巨型生物
-            ("美杜莎", 34, 8),      # 神话生物
-            ("巨型蝎子", 39, 7),    # 节肢生物
-            ("幽灵", 32, 8)         # 灵体生物
-        ],
-        3: [  # 首领级怪物
-            ("巨魔酋长", 88, 13),    # 部落首领
-            ("九头蛇", 96, 12),      # 传说生物
-            ("石像鬼", 78, 15),      # 魔法造物
-            ("吸血鬼", 84, 14),      # 不死生物
-            ("独眼巨人", 108, 12),   # 神话巨人
-            ("精灵法师", 72, 16),    # 魔法使用者
-            ("地狱犬", 94, 13),      # 地狱生物
-            ("巨型蜘蛛", 90, 14)     # 巨型节肢生物
-        ],
-        4: [  # 传说级怪物
-            ("青铜龙", 180, 24),      # 金属龙
-            ("死亡骑士", 165, 28),   # 不死战士
-            ("冰霜巨人", 210, 22),    # 元素巨人
-            ("暗影刺客", 150, 30),   # 暗影生物
-            ("雷鸟", 175, 25),        # 天空生物
-            ("海妖", 160, 27),       # 水生生物
-            ("地穴领主", 195, 24),    # 地下生物
-            ("炎魔", 220, 23)         # 火焰生物
-        ],
-        5: [  # 史诗级怪物
-            ("白银龙", 360, 42),     # 高级金属龙
-            ("利维坦", 430, 38),      # 远古巨兽
-            ("凤凰", 340, 50),       # 神话鸟类
-            ("泰坦", 410, 40),       # 上古巨人
-            ("冥界使者", 350, 47),   # 冥界生物
-            ("天使", 380, 44),       # 天界生物
-            ("混沌巫师", 330, 55),   # 混沌法师
-            ("远古守卫", 460, 39)    # 远古生物
-        ],
-        6: [  # 神话级怪物
-            ("黄金龙", 1100, 112),     # 最强金属龙
-            ("克拉肯", 1260, 106),     # 深海巨兽
-            ("天启骑士", 1180, 128),   # 末日使者
-            ("世界之蛇", 1320, 116),   # 世界级巨兽
-            ("深渊领主", 1200, 124),   # 深渊生物
-            ("创世神官", 1150, 118),   # 神级生物
-            ("混沌之主", 1080, 136),   # 混沌生物
-            ("永恒守护者", 1450, 110)  # 永恒生物
-        ]
-    }
+    MONSTER_TYPES = GameConfig.MONSTER_TYPES  # 数值见 data/balance.json
 
     # 怪物等级提示（3~5字，供门提示约25~30字总长）
     MONSTER_TIER_HINTS = {
@@ -439,7 +378,7 @@ class Monster:
         if self.has_status(StatusName.ATK_MULTIPLIER):
             dmg *= self.statuses[StatusName.ATK_MULTIPLIER].value
         target_controller = getattr(target, "controller", None)
-        if target_controller and hasattr(target_controller, "apply_battle_extensions"):
+        if target_controller:
             dmg = target_controller.apply_battle_extensions(
                 trigger="monster_attack",
                 attacker=self,

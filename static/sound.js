@@ -334,6 +334,21 @@ const SoundSystem = {
   },
 };
 
+// 音效只是锦上添花：Tone.js 没加载上（CDN 被墙/被拦截）或播放出错时静默跳过，绝不能打断游戏流程
+Object.keys(SoundSystem).forEach((key) => {
+  const fn = SoundSystem[key];
+  if (typeof fn !== "function" || !/^(play|stop|scanLogAndPlay)/.test(key)) return;
+  SoundSystem[key] = function (...args) {
+    if (typeof Tone === "undefined") return undefined;
+    try {
+      return fn.apply(this, args);
+    } catch (e) {
+      console.warn("Sound error:", e);
+      return undefined;
+    }
+  };
+});
+
 function updateSoundToggleBtn() {
   const soundBtn = document.getElementById("soundToggleBtn");
   if (!soundBtn) return;

@@ -38,7 +38,7 @@ class Event:
         return self.controller.player
 
     def register_story_choice(self, choice_flag, moral_delta=0, consequences=None):
-        story = getattr(self.controller, "story", None)
+        story = self.controller.story
         if not story:
             return
         story.register_choice(
@@ -59,7 +59,7 @@ class Event:
         max_round = getattr(cls, "MAX_TRIGGER_ROUND", None)
         if max_round is None:
             return True
-        round_count = max(0, int(getattr(controller, "round_count", 0)))
+        round_count = max(0, int(controller.round_count))
         return round_count <= max_round
 
     @classmethod
@@ -69,8 +69,8 @@ class Event:
     @classmethod
     def get_progress_stage(cls, controller):
         """按回合和基础攻击力估算当前事件强度阶段。"""
-        round_count = max(0, int(getattr(controller, "round_count", 0)))
-        player = getattr(controller, "player", None)
+        round_count = max(0, int(controller.round_count))
+        player = controller.player
         base_atk = 5
         if player is not None:
             base_atk = max(1, int(getattr(player, "_atk", getattr(player, "atk", 5))))
@@ -85,7 +85,7 @@ class Event:
 
     @classmethod
     def is_unlocked(cls, controller, min_round=0, min_stage=0):
-        round_count = max(0, int(getattr(controller, "round_count", 0)))
+        round_count = max(0, int(controller.round_count))
         return round_count >= min_round and cls.get_progress_stage(controller) >= min_stage
 
     def scale_value(self, base_value, positive=True, aggressive=False, minimum=1):

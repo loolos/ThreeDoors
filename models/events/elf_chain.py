@@ -1,5 +1,6 @@
 """见 models.events 包说明。"""
-from models.status import StatusName
+import functools
+
 from models.story_flags import (
     ELF_GRUDGE_CAMP_MERCENARY,
     ELF_GRUDGE_CAMP_REFUSED_HELP,
@@ -18,11 +19,7 @@ from models.story_flags import (
     ELF_SIDE_REG,
 )
 from models.story_gates import (
-    ALL_PRE_FINAL_DOOR_TYPES,
     ELF_THIEF_NAME,
-    ENDING_EVENT_GATE_KEYS,
-    PRE_FINAL_DISPATCH_ORDER,
-    PRE_FINAL_GATE_STORY_CONFIG,
 )
 from models.events.base import Event, EventChoice
 from models.events._pkg import rng, mk_random_item, mk_reward_item
@@ -41,26 +38,16 @@ ELF_CHAIN_EVENT_ORDER = [
 
 
 def _get_elf_chain_state(controller):
-    story = getattr(controller, "story", None)
+    story = controller.story
     if story is None:
         return None
-    if not hasattr(story, "elf_relation"):
-        story.elf_relation = 0
-    if not hasattr(story, "elf_chain_started"):
-        story.elf_chain_started = False
-    if not hasattr(story, "elf_middle_queue"):
-        story.elf_middle_queue = []
-    if not hasattr(story, "elf_chain_ended"):
-        story.elf_chain_ended = False
-    if not hasattr(story, "elf_key_obtained"):
-        story.elf_key_obtained = False
     return story
 
 
 def _record_elf_grudge(controller, flag: str) -> None:
     """记录玩家在飞贼支线上的具体选择，供终局清算战台词引用。"""
     story = _get_elf_chain_state(controller)
-    if story is not None and hasattr(story, "choice_flags"):
+    if story is not None:
         story.choice_flags.add(flag)
 
 
@@ -97,7 +84,7 @@ def _elf_ratio(player, ratio, source="hp", minimum=1):
 
 def _elf_grant_dynamic_boon(controller):
     """飞贼正向奖励池：不再总是加攻击，改为加血/加攻/给道具三选一。"""
-    p = getattr(controller, "player", None)
+    p = controller.player
     if p is None:
         return "她本想给你点东西，却只剩一句'下次。'"
 
@@ -147,7 +134,7 @@ def _schedule_next_elf_event(controller, completed_key):
         except (ValueError, IndexError):
             return
 
-    current_round = max(0, int(getattr(controller, "round_count", 0)))
+    current_round = max(0, int(controller.round_count))
     min_round = current_round + 5
     # 不设 max_round，避免因未在窗口内选到事件门而永久失效（事件门每轮不保证出现）
     consequence_id = f"elf_chain_force_{next_key}_{current_round}_{rng().randint(1, 9999)}"
@@ -163,9 +150,32 @@ def _schedule_next_elf_event(controller, completed_key):
         payload={
             "event_key": next_key,
             "hint": "门框上有新刻的银羽记号，正是她约好的那一扇。",
-            "message": "眼前这扇门的门框上，有那道银羽刻痕，你意识到莱希亚在这里",
+            "message": f"眼前这扇门的门框上刻着那道银羽记号——{ELF_THIEF_NAME}在门后等你。",
         },
     )
+
+
+def _father_diary_epilogue_line(story, outcome_key):
+    """月蚀线与飞贼线交汇：玩家带着「命运乐谱大盗」的日记来到银羽余响时，她认出那是父亲的笔迹。"""
+    if story is None or "moon_bounty_diary_obtained" not in story.story_tags:
+        return ""
+    source = story.moon_bounty_diary_source
+    if outcome_key == "hostile":
+        return (
+            "你本想提起那本磨破的日记，可她已经背过身去。"
+            "日记最后一页夹着的那根银羽，你终究没有机会交给她。"
+        )
+    if source == "thief_testimony":
+        return (
+            "你把那位父亲托付的日记交给她。她翻到夹着银羽的最后一页，很久都没有出声。"
+            "'……他还在找我。'她把日记贴在胸口，'被通缉的人本该是我。'"
+        )
+    if source == "thief_body":
+        return (
+            "你说起那个被你打倒在门后的男人，和他怀里那本日记。她握刀的手指一点点收紧，"
+            "最后只问了一句：'他还活着吗？'你点头。她别过脸去：'那就好……那就好。'"
+        )
+    return "你把那本旧日记递给她。她认出了扉页上的笔迹，眼眶一下子红了。"
 
 
 class ElfThiefIntroEvent(Event):
@@ -176,9 +186,9 @@ class ElfThiefIntroEvent(Event):
     def is_trigger_condition_met(cls, controller):
         story = _get_elf_chain_state(controller)
         if story is not None:
-            if bool(getattr(story, "elf_chain_started", False)):
+            if bool(story.elf_chain_started):
                 return False
-            if bool(getattr(story, "elf_chain_ended", False)):
+            if bool(story.elf_chain_ended):
                 return False
         return super().is_trigger_condition_met(controller)
 
@@ -188,8 +198,8 @@ class ElfThiefIntroEvent(Event):
         self.description = (
             f"你推开门，门后是一条烛火摇曳的暗巷。"
             f"一名精灵背靠砖墙，指尖转着匕首，抬眼打量你。"
-            f"她笑了笑：'我叫{ELF_THIEF_NAME}，这个地方到处都是财宝，但也到处都是机关和怪物。'"
-            f"'但我以后可以教你两手，想学的话就拿点学费来？'"
+            f"她的目光在你胸前的工作牌上停了一下，笑了：'今晚的终幕可没剧本给你背。"
+            f"我叫{ELF_THIEF_NAME}。这地方到处是财宝，也到处是机关和怪物——想活着演到最后，我可以教你两手，先交点学费？'"
         )
         self.choices = [
             EventChoice("递上口粮，表示愿意合作", self.offer_food),
@@ -202,7 +212,7 @@ class ElfThiefIntroEvent(Event):
         if story is None or story.elf_chain_started:
             return
         story.elf_chain_started = True
-        if not getattr(story, "elf_chain_ended", False):
+        if not story.elf_chain_ended:
             story.story_tags.add("elf_met")
             _register_elf_side_events(self.controller)
         _schedule_next_elf_event(self.controller, "elf_intro")
@@ -243,7 +253,7 @@ class ElfShadowMarkEvent(Event):
         self.description = (
             "你正要选一扇事件门时，发现门框背面有熟悉的银羽刻痕——那是她的记号，下面有一行小字：「今天不偷你，聊聊」。"
             "你推开门，等了一会，她从门后的阴影里走出来，没动你身上的东西，只冲你抬了抬下巴。"
-            f"{ELF_THIEF_NAME}:'在这个迷宫里也看到不少有趣的东西吧？讲讲？'"
+            f"{ELF_THIEF_NAME}：'在这个迷宫里也看到不少有趣的东西吧？讲讲？'"
         )
         self.choices = [
             EventChoice("和她深入交换目前所知情报", self.share_info),
@@ -401,11 +411,12 @@ class ElfNightCampEvent(Event):
         super().__init__(controller)
         self.title = "夜营火谈"
         self.description = (
-            "门后是一处坍塌神像的背风面，她生了堆小火，正在烤一只火鸡。"
-            "她示意你坐下，沉默了很久才开口：追她的不是普通赏金客，而是同一个组织里被她反咬过的人。"
-            "她当年偷走了他们的暗账，里面记着谁给怪物送祭品，以及整个世界的各种秘密。"
-            "现在那群人放话：要么拿回账册，要么把见过账册的人全埋进地底。"
-            "火光映着她的侧脸，她把一半烤肉推给你：'所以你今晚要选，跟我一起扛下这些秘密对付这些坏事的家伙，我会付你钱的，以后你可以当没见过我。'"
+            "门后是一处废弃布景的背风面，她生了堆小火，正在烤一只火鸡。"
+            "她示意你坐下，沉默了很久才开口：追她的不是普通赏金客，而是剧场的安保回收系统。"
+            "'通缉令上那个「命运乐章」，就是终幕剧本——是我偷的。"
+            "我翻到过最后一幕：剧本给我写的结局是「退场」，永远退场。我不想照着它消失。'"
+            "她拨了拨火，声音低下去：'我父亲是这座剧场的提词人。我走的那晚没跟他告别……他大概还以为我只是迷路了。'"
+            "火光映着她的侧脸，她把一半烤肉推给你：'安保要的是剧本，不是真相。你今晚得选：跟我一起扛，我会付你钱；不然就当没见过我。'"
         )
         self.choices = [
             EventChoice("站她这边：一起对付追捕她的人", self.promise_help),
@@ -510,7 +521,7 @@ class ElfHunterGateEvent(Event):
         _adjust_elf_relation(self.controller, 2)
         self.add_message(f"你们背靠背清掉前排追兵，她在喘息间把战利品丢给你，道：'你的那份。'{boon_text}")
         # 你选择并肩作战后，会引来“来复仇的追兵”追猎者，作为后续伏击战（revenge_ambush）。
-        current_round = max(0, int(getattr(self.controller, "round_count", 0)))
+        current_round = max(0, int(self.controller.round_count))
         self.register_story_choice(
             choice_flag=ELF_HUNTER_GATE_TEAM_UP,
             consequences=[
@@ -559,10 +570,11 @@ class ElfFinalHeistEvent(Event):
         super().__init__(controller)
         self.title = "双人盗案"
         self.description = (
-            f"她留下的最后一次暗号把你引到钟塔下的旧档案库，这大概就是追她的人的大本营了。"
+            f"她留下的最后一次暗号把你引到钟塔下的旧档案库——安保把终幕剧本被撕下的残页锁在这里。"
             f"你刚到，就看见{ELF_THIEF_NAME}把几张纸摊在地上：外圈巡逻表、内层机关图、以及守卫换岗钟点。"
-            f"她快速说明：正门有重甲兵和弩手；侧井能绕进宝藏室但会触发毒针机关；但你在想，如果你此刻出卖她，安保或许也会给你悬赏。"
-            f"她盯着你：'你来定，按我的线稳进稳出，赌一把高风险快线？'"
+            f"她快速说明：正门有重甲兵和弩手；侧井能绕进残页存放室，但会触发毒针机关。"
+            f"你心里也清楚，此刻若出卖她，安保多半会给你一笔悬赏。"
+            f"她盯着你：'你来定——按我的线稳进稳出，还是赌一把高风险的快线？'"
         )
         self.choices = [
             EventChoice("按她的路线走：低风险潜入并平分赃款", self.follow_plan),
@@ -574,7 +586,7 @@ class ElfFinalHeistEvent(Event):
         gain = _elf_ratio(self.get_player(), 0.18, "gold")
         self.get_player().gold += gain
         _adjust_elf_relation(self.controller, 2)
-        self.add_message(f"你们按巡逻空窗潜入，避开正门火力，平稳带出不少金子和宝物；你分到 {gain}G。她笑说：'这次你真像搭档。'")
+        self.add_message(f"你们按巡逻空窗潜入，避开正门火力，带出了剧本残页和顺手的财物；你分到 {gain}G。她笑说：'这次你真像搭档。'")
         _schedule_next_elf_event(self.controller, "elf_final_heist_event")
         return "Event Completed"
 
@@ -609,7 +621,7 @@ class ElfEpilogueEvent(Event):
         if self.rel >= 2:
             self.description = (
                 "门后她倚在一扇暗门旁，把一把旧钥匙稳稳递到你手里："
-                "'这是我之前偷来的宝物藏匿点。等你看到一扇带着我徽记的门，就用它打开。'"
+                "'这是我藏东西的地方——包括让我不得不一直逃的那样东西。等你看到一扇带着我徽记的门，就用它打开。'"
             )
             self.choices = [
                 EventChoice("接过钥匙并记下位置", self.accept_bond),
@@ -620,7 +632,7 @@ class ElfEpilogueEvent(Event):
             self.description = (
                 "门后只有她冷冷的笑声从阴影里传来："
                 "'好好看看你自己吧。你的一举一动，到底是你在选，还是一直被谁牵着走？'"
-                "'又或者，你只是照着某个早就写好的剧本在演。'"
+                "'还是说，你只是在念一份别人替你写好的台词？'"
             )
             self.choices = [
                 EventChoice("压下火气，追问她话里的线索", self.accept_bond),
@@ -657,7 +669,7 @@ class ElfEpilogueEvent(Event):
             "alliance",
             extra_tags={"ending_hook:elf_alliance", "ending_hook:ally_network"},
         )
-        rel = getattr(story, "elf_relation", 0) if story else self.rel
+        rel = story.elf_relation if story else self.rel
         _set_elf_key_obtained(self.controller, rel >= 2)
         boon_text = _elf_grant_dynamic_boon(self.controller)
         extra_heal = _elf_ratio(self.get_player(), 0.08 if rel >= 2 else 0.05, "hp")
@@ -669,6 +681,9 @@ class ElfEpilogueEvent(Event):
         else:
             msg = "你向她颔首致意，把那句'重复'牢牢记下。她回了你一个克制却真诚的眼神。"
         self.add_message(f"{msg} 临别前她还是给你留了点照应（+{extra_heal}HP）。{boon_text}")
+        father_line = _father_diary_epilogue_line(story, "alliance")
+        if father_line:
+            self.add_message(father_line)
         return "Event Completed"
 
     def close_clean(self):
@@ -676,7 +691,7 @@ class ElfEpilogueEvent(Event):
             "neutral",
             extra_tags={"ending_hook:elf_neutral", "ending_hook:lone_path"},
         )
-        rel = getattr(story, "elf_relation", 0) if story else self.rel
+        rel = story.elf_relation if story else self.rel
         _set_elf_key_obtained(self.controller, rel >= 2)
         gain = _elf_ratio(self.get_player(), 0.12 if rel >= 0 else 0.08, "gold")
         self.get_player().gold += gain
@@ -687,6 +702,9 @@ class ElfEpilogueEvent(Event):
         else:
             msg = "你们礼貌告别，谁都没有再多说一句。"
         self.add_message(f"{msg} 你收下路费与补给（+{gain}G）。")
+        father_line = _father_diary_epilogue_line(story, "neutral")
+        if father_line:
+            self.add_message(father_line)
         return "Event Completed"
 
     def burn_bridge(self):
@@ -695,7 +713,7 @@ class ElfEpilogueEvent(Event):
             extra_tags={"ending_hook:elf_hostile", "ending_hook:hunted"},
         )
         _record_elf_grudge(self.controller, ELF_GRUDGE_EPILOGUE_BURNED)
-        rel = getattr(story, "elf_relation", 0) if story else self.rel
+        rel = story.elf_relation if story else self.rel
         _set_elf_key_obtained(self.controller, False)
         dmg = _elf_ratio(self.get_player(), 0.12 if rel > -2 else 0.16, "hp")
         self.get_player().take_damage(dmg)
@@ -706,6 +724,9 @@ class ElfEpilogueEvent(Event):
         else:
             msg = "你不信她关于'重复'的提醒，转身就走。"
         self.add_message(f"{msg} 这份敌意很快化作追击，你在撤离时被暗箭擦伤（-{dmg}HP）。")
+        father_line = _father_diary_epilogue_line(story, "hostile")
+        if father_line:
+            self.add_message(father_line)
         return "Event Completed"
 
     def finish(self):
@@ -747,7 +768,7 @@ def _register_elf_side_events(controller):
         payload={
             "event_key": "elf_side_merchant_disguised_event",
             "chance": 0.18,
-            "message": "你进入了杂货铺，老板热情的招呼你",
+            "message": "你进入了杂货铺，老板热情地招呼你。",
             "hint": "商人的吆喝声传来……",
         },
     )
@@ -764,7 +785,7 @@ def _register_elf_side_events(controller):
         payload={
             "event_key": "elf_side_merchant_event",
             "chance": 0.18,
-            "message": f"柜台后的商人懒洋洋的看着你——那眼神你认得，这是{ELF_THIEF_NAME}。",
+            "message": f"柜台后的商人懒洋洋地看着你——那眼神你认得，这是{ELF_THIEF_NAME}。",
             "hint": "某个事件在等你上钩。",
         },
     )
@@ -847,7 +868,7 @@ class ElfSideMerchantDisguisedEvent(Event):
         ]
 
     def _make_buy(self, index):
-        return lambda idx=index: self._do_buy(idx)
+        return functools.partial(self._do_buy, index)
 
     def _do_buy(self, index):
         if index < 0 or index >= len(self._items):
@@ -856,8 +877,8 @@ class ElfSideMerchantDisguisedEvent(Event):
         p = self.get_player()
         if p.gold >= cost:
             p.gold -= cost
-            self.add_message(f"你付了 {cost} 金币，对方把货塞进你手里，懒洋洋的看着你。")
-            self.add_message(f"走出几步才发现是假货-——你被骗了，刚刚那个商人是{ELF_THIEF_NAME}假扮的。")
+            self.add_message(f"你付了 {cost} 金币，对方把货塞进你手里，懒洋洋地看着你。")
+            self.add_message(f"走出几步才发现是假货——你被骗了——刚才那个商人是{ELF_THIEF_NAME}假扮的。")
         else:
             self.add_message("你的金币不足, 无法购买!")
         return "Event Completed"
@@ -869,7 +890,7 @@ class ElfSideMerchantEvent(Event):
     def __init__(self, controller):
         super().__init__(controller)
         self.title = "柜台后的银羽"
-        self.description = f"「伪装的商人」{ELF_THIEF_NAME}，继续热情的说到：'看看我的商品吧！你要点啥？'"
+        self.description = f"伪装成商人的{ELF_THIEF_NAME}还在热情地吆喝：'看看我的商品吧！你要点啥？'"
         self.choices = [
             EventChoice("识破并揭穿她", self.expose),
             EventChoice("假装上当，付钱转身就走", self.pretend_pay),

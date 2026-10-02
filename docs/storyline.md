@@ -6,7 +6,13 @@
 
 ## 0. 开场与背景
 
-整场游戏发生在一座名为「假面剧场」的巨大舞台空间中。走廊、门扉、怪物与商人，都是演出系统的一部分。每位闯入者都会被卷入一场早已编排却又失控的终幕：**精灵飞贼盗走了终幕剧本（剧中亦称「命运乐章」）**，系统失去既定轨道，所有人被迫在没有完整剧本的情况下继续演下去。
+整场游戏发生在一座名为「假面剧场」的巨大舞台空间中。走廊、门扉、怪物与商人，都是演出系统的一部分。终幕开演前，**精灵飞贼盗走了终幕剧本（剧中亦称「命运乐章」）**，原定主演（后来的弃线木偶）也随之失控，系统失去既定轨道，所有人被迫在没有完整剧本的情况下继续演下去。
+
+**主角：替补演员。** 玩家是被临时推上台的替补，替的正是失控主演的角色，却从没拿到过终幕台词。开场只给暗示：在长椅上醒来，胸前工作牌正面印着「替补」、背面有一串编号，远处在报开场倒计时，却没人告诉你该演什么；主演失踪、剧本被盗等真相留给后续事件揭开。这一身份贯穿全篇：
+
+- 全篇不直说替补身份，只留暗示：弃线木偶胸口的演员编号与玩家工作牌上的数字相同；莱希娅初遇时瞥了一眼工作牌；木偶善侧认出玩家身上「有我的编号」；暗侧嘲讽「顶替我的替身」。
+- 补全谢幕时玩家退回侧台，把主演的位置还给被救回的木偶。
+- 选择困难症候群（默认结局，标题「迷宫出口」）：击倒 Boss 后摘下工作牌、走出迷宫；终幕由谁来演留白，不点破替补身份。
 
 ---
 
@@ -22,9 +28,9 @@
 
 | 事件/元素 | 在主世界观中的真实身份 | 对主线的意义 |
 |---|---|---|
-| 精灵飞贼（银羽飞贼） | 剧本盗取者 | 制造“无剧本演出”的起点 |
-| 黑暗木偶（弃线木偶） | 失去剧本控制的原主角演员 | 展示失控样本与悲剧后果 |
-| 月蚀通缉令 | 剧场安保回收系统 | 想追回剧本，但长期抓错人 |
+| 精灵飞贼（银羽飞贼·莱希娅） | 剧本盗取者；提词人的女儿 | 制造“无剧本演出”的起点 |
+| 黑暗木偶（弃线木偶） | 失去剧本控制的原主角演员（玩家替补的角色） | 展示失控样本与悲剧后果 |
+| 月蚀通缉令 | 剧场安保回收系统 | 想追回剧本，却把寻找女儿的提词人当成了大盗 |
 | 移动摊贩 | 门厅自动售票系统的故障分流终端 | 提供漏洞票并引出查票清算 |
 | 梦境井 | 历代演出的回放池 | 展示不同历史结局与代价 |
 | 假面剧场 | 主舞台与终幕场地 | 所有线索最终汇流并完成谢幕 |
@@ -57,11 +63,20 @@
 ### 3.3 月蚀通缉令（错误追缉）
 
 - **与主世界观关联**：剧场安保回收系统，通缉「命运乐谱大盗」、追回「命运乐章」，但其实追错了人，命运乐谱就是剧本，真正偷走的人是精灵飞贼；批注“目标身份待复核”。
+- **被通缉者的身份**：「命运乐谱大盗」其实是剧场的**提词人**（能接触剧本，所以被安保怀疑），也是**莱希娅的父亲**。莱希娅偷剧本是因为终幕给她写的结局是「永远退场」；她出逃那晚没向父亲告别，父亲一直在剧场里找她，日记页边画满了她小时候爱别的银羽。
 - **起始事件**：月蚀通缉令。
 - **玩家可选方向**：接单追猎拿下命运乐谱大盗 / 撕毁通缉令并暗中护送目标 / 两边伪造线索等他们互咬后收网。
 - **中段**：强制触发一战（接单→与大盗战；护送→与命运乐章守护者战；双吃→随机一方上门），战后可获旧日记本，审判庭要求携证出庭。
 - **收束事件**：月蚀审判（按规矩结案 / 销毁证物 / 反向勒索审判庭）；结案后可获得复活卷轴等宝物门奖励，或触发追责。
 - **对最终走向的影响**：合法结案则展示时安保背书、阻力小；销毁/勒索则展示时风险、追责等提示。
+- **父女线（月蚀 × 飞贼，只改文案）**：
+  - 中段战：接单路线中大盗被**打昏**（非死亡），日记页边画满银羽；护送路线中他托付日记：「如果你见到一个总把银羽别在头发上的姑娘……替我把它交给她。」
+  - 月蚀审判：若已遇见飞贼（`elf_met`），证物描述多一句「日记最后一页夹着一根银色羽毛」。
+  - 夜营火谈：莱希娅说出偷剧本的原因与「父亲是提词人」。
+  - 银羽余响：持有日记（`moon_bounty_diary_obtained`）时按 `moon_bounty_diary_source` 与收尾关系追加父女对话（`elf_chain._father_diary_epilogue_line`）。
+  - 银羽秘藏：取回剧本时点明「他找的女儿正是偷走剧本的人」。
+  - 飞贼清算战：持有日记时追加台词 `ELF_GRUDGE_FATHER_DIARY_LINE`。
+  - 三种舞台谢幕：持有日记且飞贼线已收束时，尾声按路线追加父女结局句（`stage_curtain_epilogue._father_daughter_line`）；敌对收束则是「银羽终究没能寄出去」。
 
 ### 3.4 齿轮售票亭与查票清算（门厅系统）
 
@@ -141,6 +156,8 @@
 
 1. **接管谢幕选择门**（`power_curtain_dialogue_round200`）：已拿剧本、已击败木偶、飞贼线友好收束（关系 ≥2 且有钥匙）、邪恶值 **> 45**。
 2. **默认终局第一门**（`round200_default_first_gate`）：否则。
+
+**兜底（保证每局都能结束）**：若已有结局门链在途（`story_gates.ENDING_PATH_CONSEQUENCE_IDS` 中任一仍 pending，或击败木偶回声后的事件待展示），不挂第一门。否则：第一门未用过则挂默认第一门；已用过却仍无结局（如从默认 Boss 处逃跑）则重新挂默认 Boss 门。`test/test_ending_reachability.py` 穷举飞贼/钥匙/剧本/木偶/邪恶值/梦境镜面的状态组合，断言每种组合都能达成结局。
 
 ### 4.5 调度顺序与相关常量
 
@@ -338,6 +355,7 @@
 - **故事标记索引（choice_flags / story_tags）**：`models/story_flags.py` — 各事件与 `story_system` 使用的 **字符串常量**、`choice_tag()`（`choice:<flag>` 前缀）、飞贼仇怨 `ELF_GRUDGE_*` 与台词顺序 `ELF_GRUDGE_BARK_KEYS`、常用 `TAG_*` 终局标签；模块内 `FLAG_INDEX` 为按主题摘录的速查表（完整列表以代码常量为准）。**勿与** `story_gates` 的 `consequence_id` / 门型配置混淆。
 - **门配置与阻塞顺序（单一来源）**：`models/story_gates.py` — `PRE_FINAL_GATE_STORY_CONFIG`、`PRE_FINAL_DISPATCH_ORDER`、`PRE_FINAL_BLOCKING_ORDER`、`ENDING_EVENT_GATE_KEYS` 等（`models.events` 包在 `__init__.py` 中 re-export）
 - **叙事文案（与剧情域拆分）**：`models/narrative/` — 飞贼清算仇句、复仇门配置、`story_system` 固定提示句、`stage_curtain_epilogue.py`（谢幕三路线尾声表）
+- **后果效果实现**：`models/story_effects/` — 每个 `effect_key` 一个 `handle_<effect_key>`（按奖励/商店/追猎/剧情门/Boss 分模块），`StorySystem._apply_effect` 只负责分发
 - **调度与条件**：`models/story_system.py` — `ensure_pre_final_event_schedule`、`ensure_default_normal_ending_schedule`、`_is_stage_curtain_route_ready`、`_is_power_curtain_direct_ready`、`PRE_FINAL_BLOCKING_*`、`_should_run_pre_final_recheck`
 - **事件系统（包结构）**：`models/events/` — `base.py`（`Event` / `EventChoice`）、`short_random.py`、`time_mirror_moon.py`、`moon_verdict.py`、`clockwork.py`、`dream_echo.py`、`puppet_chain.py`、`elf_chain.py`、`stage_curtain.py`（分数与结局解析、各 `Ending*Event`）、`dispatch.py`（`get_random_event`、`STARTER_EVENT_POOL` 等）；对外仍 `import models.events` 与旧单文件等价
 - **前置事件调度**：`models/events/stage_curtain.py` — `_should_schedule_kind_puppet_dialogue`、`_schedule_kind_puppet_dialogue_event`；`schedule_next_pre_final_gate` 在同文件；`_should_trigger_puppet_pre_final_gate`、`_should_trigger_elf_rival_pre_final` 亦在 `stage_curtain.py`

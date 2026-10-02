@@ -16,13 +16,14 @@ from models.items import (
     create_random_item,
 )
 import models.story_gates as story_gates
+from models import story_effects
+from models.story_extensions import StoryExtensionsMixin
 from models.narrative.elf_rival_grudge import (
     collect_elf_rival_grudge_barks,
     elf_rival_grudge_fillers,
 )
 from models.narrative import revenge_hunters as narrative_revenge
 from models.narrative import story_system_lines as narrative_lines
-from models.status import StatusName
 
 PRE_FINAL_GATE_STORY_CONFIG = story_gates.PRE_FINAL_GATE_STORY_CONFIG
 ALL_PRE_FINAL_DOOR_TYPES = story_gates.ALL_PRE_FINAL_DOOR_TYPES
@@ -84,7 +85,7 @@ class PendingConsequence:
         return self._flags_match(story_flags)
 
 
-class StorySystem:
+class StorySystem(StoryExtensionsMixin):
     """记录历史选择、道德值与后续影响。"""
 
     HIGH_MORAL = 30
@@ -128,10 +129,44 @@ class StorySystem:
         self.consumed_consequences: Set[str] = set()
         self.effect_handlers: Dict[str, Callable[[PendingConsequence, Any], Tuple[bool, Any]]] = {}
 
+        # —— 长线剧情状态：在这里集中声明，各事件/结局直接读写，不再各自用 getattr 默认值 ——
+        # 银羽飞贼线
+        self.elf_relation: int = 0  # -6 ~ 6，≥2 友好，≤-4 触发终局前清算战
+        self.elf_chain_started: bool = False
+        self.elf_chain_ended: bool = False
+        self.elf_key_obtained: bool = False
+        self.elf_middle_queue: List[str] = []
+        self.elf_final_outcome: str = ""
+        # 黑暗木偶线
+        # 0 ~ 100，≤45 善良人格主导，>45 暗侧主导；None 表示木偶线尚未写入（读取时按 55 处理，
+        # 木偶终战则改按玩家选项推算），统一用 get_puppet_evil_value() 读取
+        self.puppet_evil_value: Optional[int] = None
+        self.puppet_kind_persona_name: str = story_gates.PUPPET_KIND_PERSONA_NAME
+        self.puppet_dark_persona_name: str = story_gates.PUPPET_DARK_PERSONA_NAME
+        self.puppet_side_registered: bool = False
+        self.puppet_final_outcome: str = ""  # "" / "defeated" / "escaped"
+        self.puppet_patrol_state: str = ""
+        self.puppet_patrol_note: str = ""
+        # 月蚀通缉线
+        self.moon_bounty_diary_source: str = ""
+        # 谢幕
+        self.curtain_pre_choice: Optional[str] = None
+        self.curtain_prelude_choice: Optional[str] = None
+        # 终局前倒数窗口
+        self.pre_final_last_check_round: Optional[int] = None
+
+    DEFAULT_PUPPET_EVIL_VALUE = 55
+
+    def get_puppet_evil_value(self) -> int:
+        """木偶邪恶值（0~100）；木偶线尚未写入时为默认 55。"""
+        if self.puppet_evil_value is None:
+            return self.DEFAULT_PUPPET_EVIL_VALUE
+        return max(0, min(100, int(self.puppet_evil_value)))
+
     def _get_progress_stage(self) -> int:
         """按回合与玩家基础攻击估算后续影响强度阶段。"""
-        round_count = max(0, int(getattr(self.controller, "round_count", 0)))
-        player = getattr(self.controller, "player", None)
+        round_count = max(0, int(self.controller.round_count))
+        player = self.controller.player
         base_atk = 5
         if player is not None:
             base_atk = max(1, int(getattr(player, "_atk", getattr(player, "atk", 5))))
@@ -207,7 +242,7 @@ class StorySystem:
         if consequence_id in self.pending_consequences or consequence_id in self.consumed_consequences:
             return False
 
-        current_round = max(0, int(getattr(self.controller, "round_count", 0)))
+        current_round = max(0, int(self.controller.round_count))
         # 复仇追猎统一至少延后 3 回合触发，避免“刚结仇立刻遭遇”。
         if effect_key == "revenge_ambush":
             revenge_min_round = current_round + 3
@@ -257,33 +292,51 @@ class StorySystem:
         )
         return True
 
-    def _has_started_long_story_branch(self) -> bool:
-        """判断是否已开启任意长线分支，用于 200 回合默认结局分流。"""
-        if bool(getattr(self, "elf_chain_started", False)):
+    def _is_ending_reached(self) -> bool:
+        """是否已经达成任一最终结局。"""
+        if self.controller.game_clear_info:
             return True
-        if "puppet_arc_active" in self.story_tags:
-            return True
+        return (
+            "ending:default_normal_completed" in self.story_tags
+            or "ending:stage_curtain_completed" in self.story_tags
+        )
 
-        event_counts = getattr(self.controller, "event_trigger_counts", {}) or {}
-        if not isinstance(event_counts, dict) or not event_counts:
+    def _is_ending_path_in_flight(self) -> bool:
+        """是否已有一条结局门链在途（结局事件/谢幕门/默认第二门/默认 Boss 仍待触发，或战后结局事件待展示）。"""
+        if any(cid in self.pending_consequences for cid in story_gates.ENDING_PATH_CONSEQUENCE_IDS):
+            return True
+        return bool(getattr(self.controller, "pending_post_battle_event_key", None))
+
+    def _schedule_ending_fallback(self) -> bool:
+        """兜底：第 200 回合后若阻塞已清空、没有结局门链在途且尚未达成结局，保证默认路线可走通。
+
+        默认第一门尚未用过则挂载第一门；已用过（例如从默认 Boss 处逃跑）则重新挂载默认 Boss 门。
+        """
+        if self._is_ending_reached() or self._is_ending_path_in_flight():
             return False
-        try:
-            from models.events import LONG_EVENT_STARTER_CLASSES
-            starter_names = {event_cls.__name__ for event_cls in LONG_EVENT_STARTER_CLASSES}
-        except Exception:
-            starter_names = {
-                "TimePawnshopEvent",
-                "MirrorTheaterEvent",
-                "MoonBountyEvent",
-                "ClockworkBazaarEvent",
-                "DreamWellEvent",
-                "PuppetAbandonmentEvent",
-                "ElfThiefIntroEvent",
-            }
-        for event_name in starter_names:
-            if int(event_counts.get(event_name, 0)) > 0:
-                return True
-        return False
+        if self.DEFAULT_ENDING_FORCE_CONSEQUENCE_ID not in self.consumed_consequences:
+            gate_key = "round200_default_first_gate"
+        else:
+            gate_key = "default_final_boss_gate"
+            self.consumed_consequences.discard(self.DEFAULT_FINAL_BOSS_CONSEQUENCE_ID)
+        cfg = PRE_FINAL_GATE_STORY_CONFIG[gate_key]
+        payload = cfg.get("payload", {})
+        registered = self.register_consequence(
+            choice_flag=str(cfg["choice_flag"]),
+            consequence_id=str(cfg["consequence_id"]),
+            effect_key=str(cfg["effect_key"]),
+            chance=1.0,
+            trigger_door_types=list(ALL_PRE_FINAL_DOOR_TYPES),
+            min_round=self.DEFAULT_ENDING_FORCE_ROUND,
+            max_round=None,
+            force_on_expire=False,
+            force_door_type=str(cfg["force_door_type"]),
+            priority=int(cfg.get("priority", 1200)),
+            payload=dict(payload) if isinstance(payload, dict) else {},
+        )
+        if registered:
+            self.story_tags.add("ending:default_normal_scheduled")
+        return registered
 
     # 银羽秘藏（补全谢幕前置）仅当飞贼线收束、有钥匙、击败木偶终战且邪恶值偏低（善良人格主导）时挂载
     PUPPET_LOW_EVIL_FOR_CURTAIN = 45
@@ -297,24 +350,24 @@ class StorySystem:
         if "ending:puppet_final_defeated" not in self.story_tags:
             return False
         try:
-            evil = max(0, min(100, int(getattr(self, "puppet_evil_value", 55))))
+            evil = self.get_puppet_evil_value()
         except (TypeError, ValueError):
             evil = 55
         if evil <= self.PUPPET_HIGH_EVIL_FOR_POWER_DIRECT:
             return False
-        if not bool(getattr(self, "elf_chain_ended", False)):
+        if not bool(self.elf_chain_ended):
             return True
-        rel = int(getattr(self, "elf_relation", 0))
+        rel = int(self.elf_relation)
         return rel < self.ELF_RELATION_FRIENDLY_THRESHOLD
 
     def _is_puppet_echo_gate_ready(self) -> bool:
         """已击败木偶、未拿飞贼钥匙、与飞贼关系普通或不好时，第 200 回合挂载木偶回声怪物门；击败后即兴谢幕。"""
         if "ending:puppet_final_defeated" not in self.story_tags:
             return False
-        key_obtained = bool(getattr(self, "elf_key_obtained", False)) or ("elf_key_obtained" in self.story_tags)
+        key_obtained = bool(self.elf_key_obtained) or ("elf_key_obtained" in self.story_tags)
         if key_obtained:
             return False
-        rel = int(getattr(self, "elf_relation", 0))
+        rel = int(self.elf_relation)
         return rel < self.ELF_RELATION_FRIENDLY_THRESHOLD
 
     def _is_kind_puppet_dialogue_ready(self) -> bool:
@@ -323,7 +376,7 @@ class StorySystem:
             return False
         if "ending:puppet_final_defeated" not in self.story_tags:
             return False
-        evil = max(0, min(100, int(getattr(self, "puppet_evil_value", 55))))
+        evil = self.get_puppet_evil_value()
         return evil <= self.PUPPET_LOW_EVIL_FOR_CURTAIN
 
     def _is_pre_ending_gate_condition_met(self, gate_key: str) -> bool:
@@ -364,7 +417,7 @@ class StorySystem:
             return False
         if "ending:puppet_final_defeated" not in self.story_tags:
             return False
-        evil = max(0, min(100, int(getattr(self, "puppet_evil_value", 55))))
+        evil = self.get_puppet_evil_value()
         return evil > self.PUPPET_HIGH_EVIL_FOR_POWER_DIRECT
 
     def _build_puppet_echo_lines(self, high_evil: bool = False) -> list:
@@ -421,10 +474,10 @@ class StorySystem:
         """
         if "curtain_call_script_recovered" in self.story_tags:
             return False
-        key_obtained = bool(getattr(self, "elf_key_obtained", False)) or ("elf_key_obtained" in self.story_tags)
+        key_obtained = bool(self.elf_key_obtained) or ("elf_key_obtained" in self.story_tags)
         if not key_obtained:
             return False
-        if not bool(getattr(self, "elf_chain_ended", False)):
+        if not bool(self.elf_chain_ended):
             return False
         if "ending:puppet_final_defeated" not in self.story_tags:
             return False
@@ -445,7 +498,7 @@ class StorySystem:
             return None
         if not self._is_pre_ending_gate_condition_met(gate_key):
             return None
-        current_round = max(0, int(getattr(self.controller, "round_count", 0)))
+        current_round = max(0, int(self.controller.round_count))
         ending_round = int(self.DEFAULT_ENDING_FORCE_ROUND)
         if gate_key == "round200_stage_preface":
             trigger_door_types = ["REWARD"]
@@ -475,7 +528,7 @@ class StorySystem:
         """从 185 回合起统一检查结局前倒数事件（银羽宝物、木偶补战、飞贼清算、梦境镜子前奏）；条件满足则加入阻塞。
         木偶回声、善良木偶对话属结局事件，仅在第 200 回合由 _try_schedule_blocking_echo_or_kind 挂载，不在此检查。
         返回 (是否挂载了至少一个, 本次新挂载的 gate_key 列表)。"""
-        current_round = max(0, int(getattr(self.controller, "round_count", 0)))
+        current_round = max(0, int(self.controller.round_count))
         ending_round = int(self.DEFAULT_ENDING_FORCE_ROUND)
         window_start = max(0, ending_round - int(self.PRE_FINAL_WINDOW_START_OFFSET))
         if current_round < window_start:
@@ -544,7 +597,7 @@ class StorySystem:
             return True
         if current_round == window_start:
             return True
-        last_round = getattr(self, "pre_final_last_check_round", None)
+        last_round = self.pre_final_last_check_round
         if not isinstance(last_round, int):
             return True
         return (current_round - last_round) >= int(self.PRE_FINAL_RECHECK_INTERVAL)
@@ -557,7 +610,7 @@ class StorySystem:
         if "ending:stage_curtain_completed" in self.story_tags:
             return False
 
-        current_round = max(0, int(getattr(self.controller, "round_count", 0)))
+        current_round = max(0, int(self.controller.round_count))
         ending_round = int(self.DEFAULT_ENDING_FORCE_ROUND)
         window_start = max(0, ending_round - int(self.PRE_FINAL_WINDOW_START_OFFSET))
         if current_round < window_start:
@@ -577,7 +630,7 @@ class StorySystem:
         """回合 >=200 挂载结局事件：木偶回声或善良木偶对话（二选一按优先级）。
 
         结局门一旦满足条件就应持续可触发，避免因超过某一回合而失效。"""
-        current_round = max(0, int(getattr(self.controller, "round_count", 0)))
+        current_round = max(0, int(self.controller.round_count))
         if current_round < self.DEFAULT_ENDING_FORCE_ROUND:
             return False
         for gate_key in ("puppet_echo_final_gate", "kind_puppet_dialogue_round200"):
@@ -611,7 +664,7 @@ class StorySystem:
     def ensure_default_normal_ending_schedule(self) -> bool:
         """结局阻塞全部清空后，在第 200 回合挂载结局事件：默认第一门（选择困难症候群）或接管谢幕。木偶回声、善良木偶对话属结局前阻塞，须先清空。"""
         pre_scheduled = self.ensure_pre_final_event_schedule()
-        current_round = max(0, int(getattr(self.controller, "round_count", 0)))
+        current_round = max(0, int(self.controller.round_count))
         if current_round >= self.DEFAULT_ENDING_FORCE_ROUND and self._try_schedule_blocking_echo_or_kind():
             return True
         if not self._all_pre_final_blocking_cleared():
@@ -622,17 +675,17 @@ class StorySystem:
             return False
         if current_round < self.DEFAULT_ENDING_FORCE_ROUND:
             return False
-        # 结局事件（仅两种）：接管谢幕（有剧本+邪恶值高）或 默认第一门
+        if self._is_ending_path_in_flight():
+            return False
+        # 结局事件（仅两种）：接管谢幕（有剧本+邪恶值高）或 默认第一门；都用过仍无结局时走兜底
         if self._is_power_curtain_dialogue_ready():
             gate_key = "power_curtain_dialogue_round200"
         else:
-            if self._has_started_long_story_branch():
-                return False
             gate_key = "round200_default_first_gate"
         cfg = PRE_FINAL_GATE_STORY_CONFIG.get(gate_key, {})
         consequence_id = str(cfg.get("consequence_id", "ending_default_force_gate_round_200"))
         if consequence_id in self.pending_consequences or consequence_id in self.consumed_consequences:
-            return False
+            return self._schedule_ending_fallback()
         payload = cfg.get("payload", {})
         registered = self.register_consequence(
             choice_flag=str(cfg.get("choice_flag", "ending_default_normal_gate")),
@@ -659,7 +712,7 @@ class StorySystem:
         return door
 
     def _trigger_pending_consequence(self, door: Any, choice_round: Optional[int] = None) -> Any:
-        round_count = getattr(self.controller, "round_count", 0)
+        round_count = self.controller.round_count
         # 选门时 round 已在 handle_choice 开头 +1，强制/匹配用「选门时的回合」判定，避免 190 点的门被当成 191 触发超窗强制
         choice_round = choice_round if choice_round is not None else round_count
         choice_round = max(0, choice_round)
@@ -850,7 +903,7 @@ class StorySystem:
             return
         if delta == 0:
             return
-        current = int(getattr(self, "puppet_evil_value", 55))
+        current = self.get_puppet_evil_value()
         next_val = max(0, min(100, current + delta))
         self.puppet_evil_value = next_val
         self.story_tags.add(f"puppet_evil_bucket:{(next_val // 10) * 10}")
@@ -960,15 +1013,15 @@ class StorySystem:
             self.story_tags.add(f"moon_bounty_route:{route.strip()}")
 
     def _resolve_puppet_final_outcome(self) -> None:
-        evil = max(0, min(100, int(getattr(self, "puppet_evil_value", 55))))
-        player = getattr(self.controller, "player", None)
+        evil = self.get_puppet_evil_value()
+        player = self.controller.player
         if player is None:
             return
         self.puppet_final_outcome = "defeated"
         self.story_tags.add("ending:puppet_final_defeated")
         low_flags = {"puppet_intro_hide", "puppet_signal_soft", "puppet_kind_echo_trust", "puppet_rift_kind", "puppet_descent_patch"}
         high_flags = {"puppet_intro_blackout", "puppet_intro_decoy", "puppet_signal_resell", "puppet_kind_echo_exploit", "puppet_rift_dark", "puppet_descent_dark_feed", "puppet_descent_cut_emotion"}
-        flags = set(getattr(self, "choice_flags", set()))
+        flags = set(self.choice_flags)
         low_hits = len(low_flags.intersection(flags))
         high_hits = len(high_flags.intersection(flags))
 
@@ -988,7 +1041,7 @@ class StorySystem:
             ending_text = "两个人格在同一段噪声里互相撕扯，最终同时沉默，只剩下可回收的战利品与断续电流声。"
         else:
             bonus_gold = 18
-            ending_text = "你虽然赢了，但黑暗协议早把自身切成碎片散入地城深处。走廊尽头只回荡着失真的童谣。"
+            ending_text = "你虽然赢了，但黑暗协议早把自身切成碎片散入剧场深处。走廊尽头只回荡着失真的童谣。"
 
         ending_variants = []
         if "puppet_descent_patch" in flags and evil <= 45:
@@ -1002,7 +1055,7 @@ class StorySystem:
         if "puppet_signal_resell" in flags and evil >= 55:
             ending_variants.append("你倒卖过的战术信号被反向追踪，结算日志上多出一行：‘债务已由下一位闯入者继承。’")
         if "puppet_descent_dark_feed" in flags and evil >= 70:
-            ending_variants.append("你喂给核心的自毁协议并未彻底死去，地城远处传来新的机械心跳。")
+            ending_variants.append("你喂给核心的自毁协议并未彻底死去，剧场远处传来新的机械心跳。")
 
         # 让此前选择也影响文本
         if low_hits >= 3 and evil <= 45:
@@ -1058,7 +1111,7 @@ class StorySystem:
             from models.events import schedule_next_pre_final_gate
         except Exception:
             return
-        current_round = max(0, int(getattr(self.controller, "round_count", 0)))
+        current_round = max(0, int(self.controller.round_count))
         scheduled_key = schedule_next_pre_final_gate(
             self.controller,
             include_default_final_boss=False,
@@ -1080,9 +1133,9 @@ class StorySystem:
     def _build_final_ending_meta(self) -> Dict[str, Any]:
         """聚合可交给最终结局展示层的剧情参数。"""
         final_meta: Dict[str, Any] = {}
-        outcome = str(getattr(self, "puppet_final_outcome", "")).strip()
-        patrol_state = str(getattr(self, "puppet_patrol_state", "")).strip()
-        patrol_note = str(getattr(self, "puppet_patrol_note", "")).strip()
+        outcome = str(self.puppet_final_outcome).strip()
+        patrol_state = str(self.puppet_patrol_state).strip()
+        patrol_note = str(self.puppet_patrol_note).strip()
         if outcome:
             final_meta["puppet_final_outcome"] = outcome
         if patrol_state:
@@ -1103,8 +1156,11 @@ class StorySystem:
         if callable(trigger_clear):
             trigger_clear(
                 ending_key="default_normal",
-                ending_title="结局:迷宫出口",
-                ending_description="你在回合二百的终局门廊做出选择，击倒“选择困难症候群”后终于离开了迷宫。",
+                ending_title="结局：迷宫出口",
+                ending_description=(
+                    "你在终局门廊里一路犹豫、一路选择，最后击倒了“选择困难症候群”，终于找到了迷宫的出口。"
+                    "身后的弦音没有奏完，那场终幕也不知道最后由谁来演。"
+                ),
                 ending_meta=self._build_final_ending_meta(),
             )
         else:
@@ -1116,10 +1172,10 @@ class StorySystem:
             return
         if defeated:
             self.controller.add_message(narrative_lines.MSG_ELF_SIDE_ALLY_WIN)
-            self.elf_relation = max(-6, min(6, int(getattr(self, "elf_relation", 0)) + 1))
+            self.elf_relation = max(-6, min(6, int(self.elf_relation) + 1))
         else:
             self.controller.add_message(narrative_lines.MSG_ELF_SIDE_FLEE)
-            self.elf_relation = max(-6, min(6, int(getattr(self, "elf_relation", 0)) - 1))
+            self.elf_relation = max(-6, min(6, int(self.elf_relation) - 1))
 
     def _trigger_moral_influence(self, door: Any) -> Any:
         monster = getattr(door, "monster", None)
@@ -1157,995 +1213,18 @@ class StorySystem:
                 self.controller.add_message(f"{name} 厌恶你的作风，愤怒地强化了自己。")
         return door
 
-    def _attach_door_extension(
-        self,
-        door: Any,
-        extension_config: Dict[str, Any],
-        *,
-        apply_on_attach: bool = True,
-    ) -> bool:
-        """将事件改写封装到门扩展，并可在挂载时做一次兼容应用。"""
-        if door is None or not isinstance(extension_config, dict):
-            return False
-        add_method = getattr(door, "add_door_extension", None)
-        if not callable(add_method):
-            add_method = getattr(door, "add_extension", None)
-        if callable(add_method):
-            add_method(extension_config)
-        else:
-            ext_list = getattr(door, "door_extensions", None)
-            if not isinstance(ext_list, list):
-                ext_list = []
-                door.door_extensions = ext_list
-            ext_list.append(extension_config)
-        if apply_on_attach:
-            self.apply_door_extension(door=door, extension=extension_config, hook="on_attach")
-        return True
-
-    @staticmethod
-    def _get_extension_runtime(extension: Dict[str, Any]) -> Dict[str, Any]:
-        runtime = extension.get("_runtime")
-        if not isinstance(runtime, dict):
-            runtime = {}
-            extension["_runtime"] = runtime
-        return runtime
-
-    def _build_marked_reward(
-        self,
-        current_reward: Dict[Any, int],
-        payload: Dict[str, Any],
-    ) -> Tuple[Dict[Any, int], Any]:
-        keep_gold = bool(payload.get("keep_gold", True))
-        reward_gold = current_reward.get("gold", 0) if keep_gold else 0
-        if bool(payload.get("replace_existing_items", True)):
-            new_reward: Dict[Any, int] = {}
-        else:
-            new_reward = {k: v for k, v in current_reward.items() if k != "gold"}
-        if reward_gold > 0:
-            new_reward["gold"] = reward_gold
-        bonus_gold = int(payload.get("gold_bonus", 0))
-        if bonus_gold > 0:
-            new_reward["gold"] = new_reward.get("gold", 0) + bonus_gold
-        amount = max(1, int(payload.get("amount", 1)))
-        item_key = payload.get("item_key")
-        marked_item = self._create_story_item(item_key)
-        if not marked_item:
-            marked_item = create_random_item()
-        new_reward[marked_item] = amount
-        return new_reward, marked_item
-
-    def _build_deposit_backpack_reward(self, payload: Dict[str, Any]) -> Dict[Any, int]:
-        gold_min = max(8, int(payload.get("gold_min", 16)))
-        gold_max = max(gold_min, int(payload.get("gold_max", 40)))
-        extra_count = max(2, int(payload.get("extra_item_count", 2)))
-        stored_items = [create_random_item() for _ in range(extra_count)]
-        reward: Dict[Any, int] = {
-            "gold": random.randint(gold_min, gold_max),
-            DepositedBackpack(name="寄存的背包", cost=0, stored_items=stored_items): 1,
-        }
-        return reward
-
     def _apply_effect(self, consequence: PendingConsequence, door: Any) -> Tuple[bool, Any]:
-        effect = consequence.effect_key
-        payload = consequence.payload
+        """把一条后果应用到门上：先查运行时注册的 handler，再查 models.story_effects 中的内置 handler。
 
+        返回 (是否生效, 生效后的门)。"""
+        effect = consequence.effect_key
         custom_handler = self.effect_handlers.get(effect)
         if custom_handler:
             return custom_handler(consequence, door)
-
-        if effect == "villagers_gift":
-            reward_door = self._make_reward_door(
-                gold=payload.get("gold", random.randint(50, 100)),
-                include_item=payload.get("include_item", True),
-                hint=payload.get("hint", "旧事回响"),
-            )
-            reward_desc = self._describe_reward(reward_door)
-            self.controller.add_message(
-                self._append_effect_values(
-                    self._resolve_message(
-                        payload,
-                        "message",
-                        "你过往的行为被人记住了，对方直接把宝物交给了你。",
-                    ),
-                    f"获得 {reward_desc}",
-                )
-            )
-            self._log_effect_result(consequence, f"谢礼是 {reward_desc}")
-            return True, reward_door
-
-        if effect == "puppet_side_minion":
-            self.controller.add_message(
-                self._resolve_message(
-                    payload,
-                    "message",
-                    "金属摩擦声忽远忽近，门后有一只锈蚀的木偶在等你。",
-                )
-            )
-            minion = self._create_puppet_minion_monster()
-            minion.story_consequence_id = consequence.consequence_id
-            minion.story_consume_on_defeat = True
-            hint = (payload.get("hunter_hint") or payload.get("hint") or "").strip() or "金属摩擦声忽远忽近，像有一台小型追猎体在你周围绕圈校准。"
-            minion_door = DoorEnum.MONSTER.create_instance(
-                controller=self.controller,
-                monster=minion,
-                hint=hint,
-            )
-            self._log_effect_result(consequence, minion.name)
-            return True, minion_door
-
-        if effect == "moon_bounty_mid_battle":
-            mode = str(payload.get("battle_mode", "thief")).strip().lower()
-            route = str(payload.get("route", "")).strip().lower()
-            battle_profiles = {
-                "thief": {
-                    "name": "命运乐谱大盗",
-                    "entry_messages": [
-                        "你撞见了被通缉的「命运乐谱大盗」。他先护住胸前那本旧册子，再举刀逼你后退。",
-                        "他嗓音发哑，却死死盯着你：「别往前了。我不是来跟你们拼命的——我只想把我女儿找回来。」",
-                        "「通缉令上写的那什么『命运乐章』，我连摸都没摸过。这册子里只有她的笔迹和一堆扑空的日期。」",
-                        "他把刀尖压低半寸，像在下最后通牒：「让条路。你们若非要把我当成贼……那就别怪不客气了。」",
-                    ],
-                    "hint": "门后站着的男人满手旧伤，他怀里紧压着一本磨损日记本。",
-                    "diary_source": "thief_body",
-                    "diary_note": "你击败命运乐谱大盗后，在他身上只搜到一本普通日记本：每一页都在记录他失踪女儿的线索，和一次次扑空的日期。",
-                    "truth_hint": "案卷并没有因此更清楚，你只知道自己带走了一本父亲的日记，准备在月蚀审判上陈述。",
-                },
-                "guardian": {
-                    "name": "命运乐章守护者",
-                    "entry_messages": [
-                        "你刚把被通缉者推到身后，命运乐章守护者便持盾封住门口，宣称要当场清算。",
-                    ],
-                    "hint": "守护者的盔甲上刻着「证物优先」，它把你也列入了阻拦名单。",
-                    "diary_source": "thief_testimony",
-                    "diary_note": "守护者倒下后，大盗喘着气告诉你：命运乐章不是他偷的。他把随身日记本交给你，请你在月蚀审判时替他说话。",
-                    "truth_hint": "你翻开日记，只看到寻女记录与混乱的行程备注；真正的失窃线索仍像被人刻意擦去。",
-                },
-            }
-            if mode == "random":
-                selected_key = random.choice(["thief", "guardian"])
-            elif mode in battle_profiles:
-                selected_key = mode
-            else:
-                selected_key = "thief"
-            profile = battle_profiles[selected_key]
-            hunter = self._create_hunter_monster(preferred_name=profile["name"])
-            hunter.story_consequence_id = consequence.consequence_id
-            hunter.story_consume_on_defeat = bool(payload.get("consume_on_defeat", True))
-            hunter.story_moon_bounty_mid = True
-            hunter.story_moon_bounty_route = route
-            hunter.story_moon_bounty_diary_source = profile["diary_source"]
-            hunter.story_moon_bounty_diary_note = profile["diary_note"]
-            hunter.story_moon_bounty_truth_hint = profile["truth_hint"]
-            hint = payload.get("hunter_hint") or profile["hint"]
-            mid_battle_door = DoorEnum.MONSTER.create_instance(
-                controller=self.controller,
-                monster=hunter,
-                hint=hint,
-            )
-            # 注意：payload["message"] 已在 _apply_chosen_consequence() 里作为触发提示输出；
-            # 这里仅输出战斗入场文案，避免同一段“前情”重复两遍。
-            for line in profile["entry_messages"]:
-                if isinstance(line, str) and line.strip():
-                    self.controller.add_message(line.strip())
-            self._log_effect_result(consequence, hunter.name)
-            return True, mid_battle_door
-
-        if effect == "revenge_ambush":
-            stage = self._get_progress_stage()
-            revenge_profile = self.REVENGE_HUNTER_PROFILES.get(consequence.consequence_id, {})
-            force_hunter_config = payload.get("force_hunter", None)
-            convert_to_hunter = payload.get("convert_to_hunter", True)
-            hunter_name = payload.get("hunter_name") or revenge_profile.get("hunter_name")
-            source_door_type = getattr(getattr(door, "enum", None), "name", "")
-            monster = getattr(door, "monster", None)
-            if force_hunter_config is None:
-                # 复仇事件默认强制改写怪物门，避免出现“前情与来敌对不上”的割裂感。
-                if source_door_type == "MONSTER" and monster is not None:
-                    force_hunter = bool(payload.get("force_replace_monster_door", True))
-                else:
-                    force_hunter = bool(convert_to_hunter)
-            else:
-                force_hunter = bool(force_hunter_config)
-            if force_hunter or (monster is None and convert_to_hunter):
-                hunter = self._create_hunter_monster(preferred_name=hunter_name)
-                hp_ratio = payload.get("hp_ratio", 1.25)
-                atk_ratio = payload.get("atk_ratio", 1.2)
-                if stage > 0:
-                    hp_ratio = min(2.4, hp_ratio * (1.0 + stage * 0.08))
-                    atk_ratio = min(2.2, atk_ratio * (1.0 + stage * 0.07))
-                if monster:
-                    hunter.hp = max(hunter.hp, int(monster.hp * hp_ratio))
-                    hunter.atk = max(hunter.atk, int(monster.atk * atk_ratio))
-                self.controller.add_message(
-                    self._resolve_message(
-                        payload,
-                        "message",
-                        revenge_profile.get("message", "门后等待你的不是原住怪物，而是一路追杀而来的猎手。"),
-                    )
-                )
-                hunter_hint = payload.get("hunter_hint") or revenge_profile.get("hunter_hint") or "脚步声不是偶然，那是追猎者在校准你的呼吸。"
-                hunter.story_consequence_id = consequence.consequence_id
-                # 由非怪物门引出的追猎战，只有击倒才算真正了结。
-                hunter.story_consume_on_defeat = bool(
-                    payload.get("consume_on_defeat", source_door_type != "MONSTER")
-                )
-                hunter_door = DoorEnum.MONSTER.create_instance(
-                    controller=self.controller,
-                    monster=hunter,
-                    hint=hunter_hint,
-                )
-                self._log_effect_result(consequence, hunter.name)
-                return True, hunter_door
-            if monster:
-                hp_ratio = payload.get("hp_ratio", 1.25)
-                atk_ratio = payload.get("atk_ratio", 1.2)
-                if stage > 0:
-                    hp_ratio = min(2.4, hp_ratio * (1.0 + stage * 0.08))
-                    atk_ratio = min(2.2, atk_ratio * (1.0 + stage * 0.07))
-                old_hp, old_atk = monster.hp, monster.atk
-                monster.hp = max(1, int(monster.hp * hp_ratio))
-                monster.atk = max(1, int(monster.atk * atk_ratio))
-                self.controller.add_message(
-                    self._append_effect_values(
-                        self._resolve_message(payload, "message", "旧怨者设下伏击，怪物获得强化。"),
-                        f"{monster.name} 生命 {old_hp}->{monster.hp}",
-                        f"攻击 {old_atk}->{monster.atk}",
-                    )
-                )
-                self._log_effect_result(
-                    consequence,
-                    f"{monster.name} 的气势暴涨，生命 {old_hp}->{monster.hp}，攻击 {old_atk}->{monster.atk}",
-                )
-                return True, door
-            dmg = payload.get("damage", random.randint(5, 12))
-            dmg = self._scale_amount(dmg, positive=False, aggressive=True)
-            old_hp = self.controller.player.hp
-            self.controller.player.take_damage(dmg)
-            actual_loss = max(0, old_hp - self.controller.player.hp)
-            self.controller.add_message(
-                self._append_effect_values(
-                    self._resolve_message(payload, "message", f"你遭到报复，受到 {dmg} 点伤害。"),
-                    f"生命 {old_hp}->{self.controller.player.hp}",
-                    f"实际损失 {actual_loss}",
-                )
-            )
-            self._log_effect_result(
-                consequence,
-                f"你在伏击里失去 {dmg} 点生命（{old_hp}->{self.controller.player.hp}）",
-            )
-            return True, door
-
-        if effect == "guard_reward":
-            gold = payload.get("gold", random.randint(20, 60))
-            heal = payload.get("heal", 0)
-            gold = self._scale_amount(gold, positive=True, aggressive=True)
-            if heal > 0:
-                heal = self._scale_amount(heal, positive=True)
-            old_gold, old_hp = self.controller.player.gold, self.controller.player.hp
-            self.controller.player.gold += gold
-            healed = 0
-            if heal > 0:
-                healed = self.controller.player.heal(heal)
-            message = self._resolve_message(payload, "message", f"守卫感谢你的协助，奖励了你 {gold} 金币。")
-            if isinstance(message, str):
-                try:
-                    message = message.format(gold=gold, heal=heal, healed=healed)
-                except (KeyError, IndexError, ValueError):
-                    pass
-            self.controller.add_message(
-                self._append_effect_values(
-                    message,
-                    f"金币 {old_gold}->{self.controller.player.gold}",
-                    f"生命 {old_hp}->{self.controller.player.hp}",
-                )
-            )
-            self._log_effect_result(
-                consequence,
-                f"你的状态发生变化：金币 {old_gold}->{self.controller.player.gold}，生命 {old_hp}->{self.controller.player.hp}",
-            )
-            return True, door
-
-        if effect == "black_market_discount":
-            if getattr(getattr(door, "enum", None), "name", "") != "SHOP":
-                return False, door
-            try:
-                ratio = float(payload.get("ratio", 0.7))
-            except (TypeError, ValueError):
-                ratio = 0.7
-            shop_targets = self._get_shop_targets(door)
-            if not shop_targets:
-                return False, door
-            self._queue_shop_ratio(shop_targets, ratio)
-            self._apply_shop_ratio(shop_targets, ratio)
-            ratio_text = f"当前商品按约 {max(1, int(ratio * 100))}% 结算"
-            self.controller.add_message(
-                self._append_effect_values(
-                    self._resolve_message(
-                        payload,
-                        "message",
-                        f"商人认出你是熟客同路人，{ratio_text}。",
-                    ),
-                    ratio_text,
-                )
-            )
-            self._log_effect_result(consequence, ratio_text)
-            return True, door
-
-        if effect == "black_market_markup":
-            if getattr(getattr(door, "enum", None), "name", "") != "SHOP":
-                return False, door
-            try:
-                ratio = float(payload.get("ratio", 1.4))
-            except (TypeError, ValueError):
-                ratio = 1.4
-            shop_targets = self._get_shop_targets(door)
-            if not shop_targets:
-                return False, door
-            self._queue_shop_ratio(shop_targets, ratio)
-            self._apply_shop_ratio(shop_targets, ratio)
-            ratio_text = f"当前商品按约 {max(1, int(ratio * 100))}% 上浮"
-            self.controller.add_message(
-                self._append_effect_values(
-                    self._resolve_message(
-                        payload,
-                        "message",
-                        f"商人认出你惹过他们的人，{ratio_text}。",
-                    ),
-                    ratio_text,
-                )
-            )
-            self._log_effect_result(consequence, ratio_text)
-            return True, door
-
-        if effect == "shrine_blessing":
-            if getattr(getattr(door, "enum", None), "name", "") == "TRAP":
-                reward_door = self._make_reward_door(gold=random.randint(25, 65), include_item=False, hint="神佑余辉")
-                self.controller.add_message(
-                    self._append_effect_values(
-                        self._resolve_message(payload, "message", "圣坛余辉保护了你，陷阱化作馈赠。"),
-                        f"获得 {self._describe_reward(reward_door)}",
-                    )
-                )
-                self._attach_door_extension(
-                    door=door,
-                    extension_config={
-                        "extension_type": "trap_rewrite_to_reward",
-                        "reward": dict(getattr(reward_door, "reward", {})),
-                        "hint": getattr(reward_door, "hint", "神佑余辉"),
-                    },
-                    apply_on_attach=False,
-                )
-                self._log_effect_result(
-                    consequence,
-                    f"险境被改写成馈赠：{self._describe_reward(reward_door)}",
-                )
-                return True, door
-            monster = getattr(door, "monster", None)
-            if monster:
-                old_atk = monster.atk
-                monster.atk = max(1, int(monster.atk * 0.82))
-                self.controller.add_message(
-                    self._append_effect_values(
-                        self._resolve_message(payload, "message", "你受到神佑，敌人的攻势被压制。"),
-                        f"{monster.name} 攻击 {old_atk}->{monster.atk}",
-                    )
-                )
-                self._log_effect_result(
-                    consequence,
-                    f"{monster.name} 的攻击被压制（{old_atk}->{monster.atk}）",
-                )
-                return True, door
+        handler = story_effects.EFFECT_HANDLERS.get(effect)
+        if handler is None:
             return False, door
-
-        if effect == "shrine_curse":
-            duration = payload.get("duration", 2)
-            if self._get_progress_stage() >= 2:
-                duration += 1
-            self.controller.player.apply_status(
-                StatusName.WEAK.create_instance(duration=duration, target=self.controller.player)
-            )
-            self.controller.add_message(
-                self._append_effect_values(
-                    self._resolve_message(payload, "message", f"诅咒追上了你，陷入虚弱 {duration} 回合。"),
-                    f"虚弱持续 {duration} 回合",
-                )
-            )
-            self._log_effect_result(consequence, f"你陷入虚弱，持续 {duration} 回合")
-            return True, door
-
-        if effect == "atk_training":
-            delta = payload.get("delta", 2)
-            if self._get_progress_stage() >= 2:
-                delta += 1
-            old_atk = self.controller.player._atk
-            self.controller.player.change_base_atk(delta)
-            self.controller.add_message(
-                self._append_effect_values(
-                    self._resolve_message(payload, "message", "这段经历让你学会了更狠的出手方式。"),
-                    f"基础攻击 {old_atk}->{self.controller.player._atk}",
-                    f"本次提升 {delta}",
-                )
-            )
-            self._log_effect_result(
-                consequence,
-                f"你的基础攻击提升了（{old_atk}->{self.controller.player._atk}）",
-            )
-            return True, door
-
-        if effect == "lose_gold":
-            old_gold = self.controller.player.gold
-            lost = min(self.controller.player.gold, payload.get("amount", random.randint(15, 45)))
-            lost = min(self.controller.player.gold, self._scale_amount(lost, positive=False))
-            self.controller.player.gold -= lost
-            self.controller.add_message(
-                self._append_effect_values(
-                    self._resolve_message(payload, "message", f"旧账找上门来，你被迫赔了 {lost} 金币。"),
-                    f"金币 {old_gold}->{self.controller.player.gold}",
-                    f"本次损失 {lost}",
-                )
-            )
-            self._log_effect_result(
-                consequence,
-                f"你付出了代价，金币 {old_gold}->{self.controller.player.gold}",
-            )
-            return True, door
-
-        if effect == "force_story_event":
-            event_door = door
-            if getattr(getattr(event_door, "enum", None), "name", "") != "EVENT":
-                event_door = DoorEnum.EVENT.create_instance(controller=self.controller)
-            event_key = payload.get("event_key")
-            if not isinstance(event_key, str) or not event_key.strip():
-                return False, door
-            hint = payload.get("hint") or payload.get("message")
-            self._attach_door_extension(
-                door=event_door,
-                extension_config={
-                    "extension_type": "force_story_event",
-                    "event_key": event_key.strip(),
-                    "hint": hint,
-                },
-                apply_on_attach=True,
-            )
-            # 文案已在门出现时通过 _build_trigger_message 展示，此处不再重复
-            self._log_effect_result(consequence, "")
-            return True, event_door
-
-        if effect == "stage_curtain_script_vault":
-            door_type = getattr(getattr(door, "enum", None), "name", "")
-            if door_type != "REWARD":
-                return False, door
-            hint = payload.get("hint") or payload.get("message")
-            self._attach_door_extension(
-                door=door,
-                extension_config={
-                    "extension_type": "stage_curtain_script_vault",
-                    "hint": hint,
-                },
-                apply_on_attach=True,
-            )
-            # 文案已在门出现时通过 _build_trigger_message 展示，此处不再重复
-            self._log_effect_result(consequence, "")
-            return True, door
-
-        if effect == "elf_side_reward_mark":
-            door_type = getattr(getattr(door, "enum", None), "name", "")
-            if door_type != "REWARD":
-                return False, door
-            chance = payload.get("chance", 0.2)
-            chance = max(0.0, min(1.0, float(chance)))
-            if random.random() >= chance:
-                return False, door
-            self._attach_door_extension(
-                door=door,
-                extension_config={
-                    "extension_type": "elf_side_reward_mark",
-                    "hint": payload.get("hint") or payload.get("message"),
-                },
-                apply_on_attach=True,
-            )
-            # 文案已在门出现时通过 _build_trigger_message 展示，此处不再重复
-            self._log_effect_result(consequence, "")
-            return True, door
-
-        if effect == "elf_side_monster_mark":
-            door_type = getattr(getattr(door, "enum", None), "name", "")
-            if door_type != "MONSTER":
-                return False, door
-            chance = payload.get("chance", 0.2)
-            chance = max(0.0, min(1.0, float(chance)))
-            if random.random() >= chance:
-                return False, door
-            # 精灵飞贼需要帮助才说得通：按当前 tier 选一只较强的怪物替换门内怪
-            from models.monster import Monster, _get_round_limited_max_tier
-            current_round = getattr(self.controller, "round_count", 0) or 0
-            unlocked = getattr(self.controller, "unlocked_monster_tier", 1) or 1
-            round_cap = _get_round_limited_max_tier(current_round)
-            strong_tier = max(2, min(round_cap, unlocked, GameConfig.MONSTER_MAX_TIER))
-            strong_monster = Monster(tier=strong_tier)
-            door.monster = strong_monster
-            monster = strong_monster
-            hint = payload.get("hint") or payload.get("message")
-            hint_text = hint.strip() if isinstance(hint, str) and hint.strip() else ""
-            self._attach_door_extension(
-                door=door,
-                extension_config={
-                    "extension_type": "elf_side_monster_mark",
-                    "hint": hint_text,
-                },
-                apply_on_attach=True,
-            )
-            # 文案已在门出现时通过 _build_trigger_message 展示，此处不再重复
-            self._log_effect_result(consequence, "")
-            return True, door
-
-        if effect == "replace_with_elf_side_event":
-            door_type = getattr(getattr(door, "enum", None), "name", "")
-            if door_type != "SHOP":
-                return False, door
-            chance = payload.get("chance", 0.2)
-            chance = max(0.0, min(1.0, float(chance)))
-            if random.random() >= chance:
-                return False, door
-            event_key = payload.get("event_key")
-            if not isinstance(event_key, str) or not event_key.strip():
-                return False, door
-            self._attach_door_extension(
-                door=door,
-                extension_config={
-                    "extension_type": "force_story_event",
-                    "event_key": event_key.strip(),
-                    "hint": payload.get("hint", "墙上的银色箭羽指向下一次相遇。"),
-                },
-                apply_on_attach=True,
-            )
-            # 文案已在门出现时通过 _build_trigger_message 展示，此处不再重复
-            self._log_effect_result(consequence, "")
-            return True, door
-
-        if effect == "treasure_marked_item":
-            if getattr(getattr(door, "enum", None), "name", "") != "REWARD":
-                return False, door
-            current_reward = getattr(door, "reward", {})
-            if not isinstance(current_reward, dict):
-                current_reward = {}
-            new_reward, marked_item = self._build_marked_reward(current_reward=current_reward, payload=payload)
-            self._attach_door_extension(
-                door=door,
-                extension_config={
-                    "extension_type": "treasure_marked_item",
-                    "resolved_reward": new_reward,
-                },
-                apply_on_attach=True,
-            )
-            # 文案已在门出现时通过 _build_trigger_message 展示，此处不再重复
-            self._log_effect_result(
-                consequence,
-                f"宝物内容被改写：{self._describe_reward(door)}",
-            )
-            return True, door
-
-        if effect == "treasure_vanish":
-            if getattr(getattr(door, "enum", None), "name", "") != "REWARD":
-                return False, door
-            fake_gold = max(0, int(payload.get("fake_gold", 0)))
-            self._attach_door_extension(
-                door=door,
-                extension_config={
-                    "extension_type": "treasure_vanish",
-                    "resolved_reward": {"gold": fake_gold} if fake_gold > 0 else {},
-                },
-                apply_on_attach=True,
-            )
-            # 文案已在门出现时通过 _build_trigger_message 展示，此处不再重复
-            self._log_effect_result(
-                consequence,
-                "宝物已被掏空",
-            )
-            return True, door
-
-        if effect == "treasure_deposit_backpack":
-            if getattr(getattr(door, "enum", None), "name", "") != "REWARD":
-                return False, door
-            self._attach_door_extension(
-                door=door,
-                extension_config={
-                    "extension_type": "treasure_deposit_backpack",
-                    "resolved_reward": self._build_deposit_backpack_reward(payload),
-                },
-                apply_on_attach=True,
-            )
-            self._log_effect_result(
-                consequence,
-                f"宝物内容被改写：{self._describe_reward(door)}",
-            )
-            return True, door
-
-        if effect == "elf_rival_final_gate":
-            from models.monster import Monster, estimate_player_power, _apply_player_match_scaling
-
-            door_type = getattr(getattr(door, "enum", None), "name", "")
-            door_is_monster = door_type == "MONSTER"
-            player = getattr(self.controller, "player", None)
-            relation = int(payload.get("relation", getattr(self, "elf_relation", -4)))
-            style = str(payload.get("style", "trickster")).strip().lower()
-            extensions = payload.get("extensions", [])
-            if not isinstance(extensions, list):
-                extensions = []
-
-            # 清算战基础血量 600；再乘关系/深怨系数，40 回合后另叠玩家强度缩放（见 _apply_player_match_scaling）
-            base_hp = 600
-            base_atk = 44
-            hp_scale = 1.18
-            atk_scale = 1.14
-            if relation <= -5:
-                hp_scale += 0.08
-                atk_scale += 0.08
-            if "deep_grudge" in extensions:
-                hp_scale += 0.05
-                atk_scale += 0.05
-
-            rival = Monster(
-                name="银羽飞贼·莱希娅",
-                hp=max(1, int(base_hp * hp_scale)),
-                atk=max(1, int(base_atk * atk_scale)),
-                tier=max(3, int(payload.get("tier", 4))),
-                effect_probability=0.42,
-            )
-            round_count = max(0, int(getattr(self.controller, "round_count", 0)))
-            power_score = estimate_player_power(player=player, current_round=round_count)
-            _apply_player_match_scaling(
-                monster=rival,
-                player=player,
-                current_round=round_count,
-                power_score=power_score,
-            )
-
-            if style == "vengeful":
-                dialogue = "莱希娅甩开斗篷，语气像刀锋：'我不是来谈条件的。'"
-                hint = "她喘着血气压低声音：'终局第二门后的笑声在引你犯错，别把第一反应当答案。'"
-                state = {
-                    "profile": "vengeful",
-                    "extensions": extensions,
-                    "shadowstep_boost": [0.30, 0.22],
-                    "debuff_turns": [2],
-                    "debuff_mode": "weak",
-                    "lines": {
-                        "shadowstep": "她踩墙折返，连斩逼得你后撤。",
-                        "debuff": "她借假动作压低你的重心，你的出手明显发软。",
-                    },
-                    "attack_banter": [
-                        "她刃口一沉，没有废话，只有距离在缩短。",
-                        "斗篷扬起残影，下一击已经贴到你鼻息前。",
-                        "她把旧账折进这一刀里，出手干脆利落。",
-                        "你格挡的瞬间，她已换步到你侧后。",
-                    ],
-                }
-            else:
-                dialogue = "你听到黑暗中有声音传来：'你总算走到这里了，先把我们之间的账清掉。'"
-                hint = "她抬手拭血，冷笑道：'终局门里真正致命的不是怪物，是你以为自己已经选对。说罢倒在了黑暗中。'"
-                state = {
-                    "profile": "trickster",
-                    "extensions": extensions,
-                    "shadowstep_boost": [0.24],
-                    "debuff_turns": [2],
-                    "debuff_mode": "poison" if "ending_hook_hunted" in extensions else "weak",
-                    "lines": {
-                        "shadowstep": "她借你的攻击空档贴身反刺。",
-                        "debuff": "她扬起一把细碎粉末，呼吸与挥刀都被干扰。",
-                    },
-                    "attack_banter": [
-                        "她像在说笑，手可一点没慢。",
-                        "残影掠过门槛，她的刃口又指向你咽喉。",
-                        "你刚稳住重心，她已经绕到你视线的死角。",
-                        "这一下不带解说——账都在刀锋上。",
-                    ],
-                }
-
-            state["grudge_barks"] = collect_elf_rival_grudge_barks(self)
-            state["grudge_bark_fillers"] = elf_rival_grudge_fillers(state.get("profile", "trickster"))
-
-            setattr(rival, "story_elf_rival_final_boss", True)
-            setattr(rival, "story_consequence_id", consequence.consequence_id)
-            setattr(rival, "story_consume_on_defeat", True)
-            setattr(rival, "story_elf_rival_hint", hint)
-            extension_cfg = {
-                "extension_type": "elf_rival_final_boss",
-                "monster_ref": rival,
-                "state": state,
-            }
-
-            if door_is_monster:
-                if hasattr(door, "add_battle_extension"):
-                    door.add_battle_extension(extension_cfg)
-                else:
-                    door.battle_extensions = [extension_cfg]
-                door.monster = rival
-                target_door = door
-            else:
-                target_door = DoorEnum.MONSTER.create_instance(
-                    controller=self.controller,
-                    monster=rival,
-                    battle_extensions=[extension_cfg],
-                )
-
-            hint_text = payload.get("hint") or payload.get("message") or "银羽残痕在门槛上交错，像是一封迟到的决斗书。"
-            if isinstance(hint_text, str) and hint_text.strip():
-                target_door.hint = hint_text.strip()
-            # 文案已在门出现时通过 _build_trigger_message 展示，此处不再重复
-            self.controller.add_message(dialogue)
-            self._log_effect_result(consequence, f"{rival.name}拦路（关系 {relation}），生命 {rival.hp}，攻击 {rival.atk}")
-            return True, target_door
-
-        if effect == "puppet_echo_final_gate":
-            from models.monster import Monster
-
-            door_type = getattr(getattr(door, "enum", None), "name", "")
-            door_is_monster = door_type == "MONSTER"
-            player = getattr(self.controller, "player", None)
-            player_atk = max(1, int(getattr(player, "atk", 10)))
-            # 血量至少为玩家攻击力的 5 倍；攻击力为玩家攻击力的一半，最高不超过 50
-            base_hp = max(5 * player_atk, int(payload.get("base_hp", 5 * player_atk)))
-            base_atk = min(50, max(1, player_atk // 2))
-            boss_name = str(payload.get("boss_name", "木偶的回声")).strip() or "木偶的回声"
-            echo_monster = Monster(
-                name=boss_name,
-                hp=base_hp,
-                atk=base_atk,
-                tier=max(3, int(payload.get("tier", 4))),
-                effect_probability=0.0,
-            )
-            evil = max(0, min(100, int(getattr(self, "puppet_evil_value", 55))))
-            high_evil = evil > self.PUPPET_HIGH_EVIL_FOR_POWER_DIRECT
-            echo_lines = self._build_puppet_echo_lines(high_evil=high_evil)
-            if not echo_lines:
-                echo_lines = ["回声在走廊里重复着你曾走过的路。"] if not high_evil else ["「呵……你做过的事，我可都记得。」"]
-            extension_cfg = {
-                "extension_type": "puppet_echo_final",
-                "monster_ref": echo_monster,
-                "state": {"echo_lines": echo_lines, "echo_index": 0, "high_evil": high_evil},
-            }
-            setattr(echo_monster, "story_puppet_echo_final_boss", True)
-            setattr(echo_monster, "story_consequence_id", consequence.consequence_id)
-            setattr(echo_monster, "story_consume_on_defeat", True)
-            if door_is_monster:
-                if hasattr(door, "add_battle_extension"):
-                    door.add_battle_extension(extension_cfg)
-                else:
-                    door.battle_extensions = [extension_cfg]
-                door.monster = echo_monster
-                target_door = door
-            else:
-                target_door = DoorEnum.MONSTER.create_instance(
-                    controller=self.controller,
-                    monster=echo_monster,
-                    battle_extensions=[extension_cfg],
-                )
-            hint_text = payload.get("hint") or payload.get("message") or "门后传来你一路抉择的回响。"
-            if isinstance(hint_text, str) and hint_text.strip():
-                target_door.hint = hint_text.strip()
-            # 文案已在门出现时通过 _build_trigger_message 展示，此处不再重复
-            self._log_effect_result(consequence, f"{echo_monster.name}（生命 {echo_monster.hp}，攻击 {echo_monster.atk}）")
-            return True, target_door
-
-        if effect == "default_final_boss":
-            from models.monster import Monster, estimate_player_power, _apply_player_match_scaling
-
-            player = getattr(self.controller, "player", None)
-            stage = self._get_progress_stage()
-            base_hp = max(200, int(payload.get("base_hp", 870 + stage * 26)))
-            base_atk = max(30, int(payload.get("base_atk", 24 + stage * 4)))
-            boss_name = str(payload.get("boss_name", "选择困难症候群")).strip() or "选择困难症候群"
-            boss = Monster(
-                name=boss_name,
-                hp=base_hp,
-                atk=base_atk,
-                tier=max(3, int(payload.get("tier", 4))),
-            )
-            round_count = max(0, int(getattr(self.controller, "round_count", 0)))
-            power_score = estimate_player_power(player=player, current_round=round_count)
-            _apply_player_match_scaling(
-                monster=boss,
-                player=player,
-                current_round=round_count,
-                power_score=power_score,
-            )
-            setattr(boss, "story_default_final_boss", True)
-            hint = payload.get("hint") or payload.get("message") or "门后响起一阵咂舌声：'两百回合了，你还在犹豫？'"
-            raw_attack = payload.get("attack_taunts", payload.get("taunts", []))
-            attack_taunts = [
-                t.strip()
-                for t in (raw_attack if isinstance(raw_attack, list) else [])
-                if isinstance(t, str) and t.strip()
-            ]
-            if attack_taunts:
-                setattr(boss, "story_default_final_boss_attack_taunts", list(attack_taunts))
-            final_door = DoorEnum.MONSTER.create_instance(
-                controller=self.controller,
-                monster=boss,
-                hint=hint,
-            )
-            # 文案已在门出现时通过 _build_trigger_message 展示；嘲讽在 Monster.attack 中随每次出手播出
-            self._log_effect_result(consequence, boss.name)
-            return True, final_door
-
-        if effect == "puppet_dark_boss":
-            door_is_monster = getattr(getattr(door, "enum", None), "name", "") == "MONSTER"
-            from models.monster import Monster, _apply_player_match_scaling, estimate_player_power
-
-            base_hp = max(80, int(payload.get("base_hp", 220)))
-            base_atk = max(10, int(payload.get("base_atk", 34)))
-            boss_name = payload.get("boss_name", "堕暗机偶·弃线者")
-            phase2_name = payload.get("phase2_name", "堕暗机偶·黑暗完全体")
-            story_flags = self.choice_flags.union(self.story_tags)
-            kind_name = payload.get("kind_persona_name", "绒心")
-            dark_name = payload.get("dark_persona_name", "裂齿")
-
-            default_kind_flags = {
-                "puppet_intro_hide",
-                "puppet_signal_soft",
-                "puppet_kind_echo_trust",
-                "puppet_kind_echo_comfort",
-                "puppet_rift_kind",
-                "puppet_descent_patch",
-            }
-            default_dark_flags = {
-                "puppet_intro_blackout",
-                "puppet_intro_decoy",
-                "puppet_signal_resell",
-                "puppet_kind_echo_exploit",
-                "puppet_rift_dark",
-                "puppet_descent_cut_emotion",
-                "puppet_descent_dark_feed",
-            }
-            raw_kind_flags = payload.get("kind_flags", default_kind_flags)
-            raw_dark_flags = payload.get("dark_flags", default_dark_flags)
-            kind_flags = set(raw_kind_flags or default_kind_flags)
-            dark_flags = set(raw_dark_flags or default_dark_flags)
-            kind_score = sum(1 for f in kind_flags if f in story_flags)
-            dark_score = sum(1 for f in dark_flags if f in story_flags)
-            stored_evil = getattr(self, "puppet_evil_value", None)
-            try:
-                stored_evil = int(stored_evil) if stored_evil is not None else None
-            except (TypeError, ValueError):
-                stored_evil = None
-            if stored_evil is None:
-                evil_value = 55 + dark_score * 8 - kind_score * 8
-            else:
-                evil_value = stored_evil
-            if "evil_value" in payload:
-                try:
-                    evil_value = int(payload.get("evil_value"))
-                except (TypeError, ValueError):
-                    pass
-            evil_value += (dark_score - kind_score) * 2
-            evil_value = max(0, min(100, evil_value))
-            side_hit_count = len([tag for tag in self.story_tags if str(tag).startswith("consumed:puppet_side_")])
-            player = getattr(self.controller, "player", None)
-
-            hp_scale = 1.0
-            atk_scale = 1.0
-            awakened_kind = False
-            dark_overload = False
-            if evil_value <= 25:
-                hp_scale, atk_scale = 0.72, 0.72
-                awakened_kind = True
-            elif evil_value <= 45:
-                hp_scale, atk_scale = 0.86, 0.84
-                awakened_kind = True
-            elif evil_value <= 65:
-                hp_scale, atk_scale = 1.0, 1.0
-            elif evil_value <= 85:
-                hp_scale, atk_scale = 1.18, 1.14
-            else:
-                hp_scale, atk_scale = 1.35, 1.28
-                dark_overload = True
-
-            boss = Monster(
-                name=boss_name,
-                hp=max(1, int(base_hp * hp_scale)),
-                atk=max(1, int(base_atk * atk_scale)),
-                tier=max(2, int(payload.get("tier", 5))),
-            )
-            round_count = max(0, int(getattr(self.controller, "round_count", 0)))
-            power_score = estimate_player_power(player=player, current_round=round_count)
-            _apply_player_match_scaling(
-                monster=boss,
-                player=player,
-                current_round=round_count,
-                power_score=power_score,
-            )
-            mark_as_final_boss = bool(payload.get("mark_as_final_boss", True))
-            setattr(boss, "story_puppet_final_boss", mark_as_final_boss)
-            if bool(payload.get("pre_final_dispatch", False)):
-                setattr(boss, "story_pre_final_dispatch", True)
-                self.story_tags.add("ending:puppet_rematch_gate_done")
-            self.controller.add_message(narrative_lines.MSG_PUPPET_REMATCH_ALARM)
-            if side_hit_count <= 0:
-                self.controller.add_message(
-                    self._resolve_message(
-                        payload,
-                        "no_side_event_message",
-                        "你几乎没在中途触发那些支线干预，它的最终参数按核心读数直接结算，战斗走势更加不可预测。",
-                    )
-                )
-            if awakened_kind:
-                heal = min(100 - self.controller.player.hp, max(4, int(payload.get("kind_heal", 12))))
-                if heal > 0:
-                    self.controller.player.heal(heal)
-                self.controller.add_message(
-                    self._resolve_message(
-                        payload,
-                        "kind_awaken_message",
-                        f"病毒噪声里忽然响起温柔童谣，{kind_name}短暂夺回控制，悄悄替你挡下一轮杀意。",
-                    )
-                )
-            elif dark_overload:
-                self.controller.add_message(
-                    self._resolve_message(
-                        payload,
-                        "dark_overload_message",
-                        f"你先前的选择不断喂养黑暗协议，{dark_name}完全接管了机偶核心。",
-                    )
-                )
-            else:
-                self.controller.add_message(
-                    self._resolve_message(
-                        payload,
-                        "neutral_message",
-                        f"{kind_name}与{dark_name}仍在互相撕扯，黑暗协议暂时占了上风。",
-                    )
-                )
-
-            puppet_state = self._build_puppet_battle_state(
-                payload=payload,
-                story_flags=story_flags,
-                kind_name=kind_name,
-                dark_name=dark_name,
-                phase2_name=phase2_name,
-            )
-            self._apply_puppet_entry_modifiers(monster=boss, state=puppet_state, phase=1)
-            puppet_state["phase1_max_hp"] = max(1, int(boss.hp))
-            puppet_state["phase1_base_atk"] = max(1, int(boss.atk))
-            extension_cfg = {
-                "extension_type": "puppet_dark_boss",
-                "monster_ref": boss,
-                "state": puppet_state,
-            }
-            if door_is_monster:
-                if hasattr(door, "add_battle_extension"):
-                    door.add_battle_extension(extension_cfg)
-                else:
-                    door.battle_extensions = [extension_cfg]
-                door.monster = boss
-                target_door = door
-            else:
-                # 选中的是事件门等非怪物门：创建新的怪物门并挂上 Boss，保证与 log_trigger 一致
-                target_door = DoorEnum.MONSTER.create_instance(
-                    controller=self.controller,
-                    monster=boss,
-                    battle_extensions=[extension_cfg],
-                )
-            hint = payload.get("hunter_hint") or payload.get("hint") or payload.get("message")
-            if isinstance(hint, str) and hint.strip():
-                target_door.hint = hint.strip()
-            if evil_value <= 25:
-                core_hint = "核心读数偏稳，蓝光尚存"
-            elif evil_value <= 45:
-                core_hint = "核心暗噪被压至低语"
-            elif evil_value <= 65:
-                core_hint = "核心在红蓝之间剧烈摆动"
-            elif evil_value <= 85:
-                core_hint = "核心深处暗侧占优"
-            else:
-                core_hint = "核心暴走，黑暗协议主导"
-            self._log_effect_result(
-                consequence,
-                f"{boss.name} 降临（{core_hint}），生命 {boss.hp}，攻击 {boss.atk}",
-            )
-            return True, target_door
-
-        return False, door
+        return handler(self, consequence, door)
 
     def setup_test_gate_puppet_final_boss(self) -> Optional[Any]:
         """测试用：直接构建木偶最终 Boss 门（含扩展），不经过 pending_consequences 触发。
@@ -2174,14 +1253,12 @@ class StorySystem:
         仅强制清空木偶补战、飞贼清算、梦境镜子前奏三种阻塞（不消费银羽秘藏），185 回合由 ensure_all_pre_ending_blocking_considered 将银羽秘藏加入 pending，选宝物门即触发；取剧本后可走约定对话，到 200 回合挂载善良木偶对话。"""
         c = self.controller
         c.round_count = 184
-        p = getattr(c, "player", None)
+        p = c.player
         if p is not None:
             p.hp = 800
             p._atk = 200
-            if hasattr(c, "player_peak_hp"):
-                c.player_peak_hp = 800
-            if hasattr(c, "player_peak_atk"):
-                c.player_peak_atk = 200
+            c.player_peak_hp = 800
+            c.player_peak_atk = 200
         self.elf_chain_started = True
         self.elf_chain_ended = True
         self.elf_relation = 4
@@ -2208,14 +1285,12 @@ class StorySystem:
         调用方需在第 200 回合调用 ensure_default_normal_ending_schedule() 以挂载回声门等终局门。"""
         c = self.controller
         c.round_count = 190
-        p = getattr(c, "player", None)
+        p = c.player
         if p is not None:
             p.hp = 800
             p._atk = 200
-            if hasattr(c, "player_peak_hp"):
-                c.player_peak_hp = 800
-            if hasattr(c, "player_peak_atk"):
-                c.player_peak_atk = 200
+            c.player_peak_hp = 800
+            c.player_peak_atk = 200
         self.elf_chain_ended = True
         self.elf_relation = -5
         self.elf_key_obtained = False
@@ -2238,14 +1313,12 @@ class StorySystem:
         有机会挂载「接管谢幕选择门」（要求：已取回剧本 + 已击败木偶 + 邪恶值 > 45）。"""
         c = self.controller
         c.round_count = 190
-        p = getattr(c, "player", None)
+        p = c.player
         if p is not None:
             p.hp = 800
             p._atk = 200
-            if hasattr(c, "player_peak_hp"):
-                c.player_peak_hp = 800
-            if hasattr(c, "player_peak_atk"):
-                c.player_peak_atk = 200
+            c.player_peak_hp = 800
+            c.player_peak_atk = 200
 
         self.elf_chain_ended = True
         self.elf_relation = 4
@@ -2262,793 +1335,6 @@ class StorySystem:
         self.story_tags.discard("ending:puppet_final_escape_recorded")
         self.story_tags.add("ending:puppet_final_defeated")
         self.puppet_evil_value = 55
-
-    def _build_puppet_battle_state(
-        self,
-        payload: Dict[str, Any],
-        story_flags: Set[str],
-        kind_name: str,
-        dark_name: str,
-        phase2_name: str,
-    ) -> Dict[str, Any]:
-        """构建黑暗木偶双阶段战斗状态。"""
-        try:
-            threshold = float(payload.get("phase2_threshold_ratio", 0.45))
-        except (TypeError, ValueError):
-            threshold = 0.45
-        threshold = max(0.12, min(0.75, threshold))
-        try:
-            burst_heal_ratio = float(payload.get("phase2_burst_heal_ratio", 0.22))
-        except (TypeError, ValueError):
-            burst_heal_ratio = 0.22
-        burst_heal_ratio = max(0.08, min(0.5, burst_heal_ratio))
-        try:
-            burst_atk_ratio = float(payload.get("phase2_burst_atk_ratio", 1.12))
-        except (TypeError, ValueError):
-            burst_atk_ratio = 1.12
-        burst_atk_ratio = max(1.03, min(1.5, burst_atk_ratio))
-        try:
-            phase2_min_hp_ratio = float(payload.get("phase2_min_hp_ratio", 0.0))
-        except (TypeError, ValueError):
-            phase2_min_hp_ratio = 0.0
-        phase2_min_hp_ratio = max(0.0, min(1.0, phase2_min_hp_ratio))
-        phase2_enabled = not bool(payload.get("disable_phase_two", False))
-
-        state: Dict[str, Any] = {
-            "phase": 1,
-            "phase2_started": False,
-            "phase2_enabled": phase2_enabled,
-            "phase2_name": phase2_name.strip() if isinstance(phase2_name, str) and phase2_name.strip() else f"{dark_name}·黑暗完全体",
-            "phase2_threshold_ratio": threshold,
-            "phase2_burst_heal_ratio": burst_heal_ratio,
-            "phase2_burst_atk_ratio": burst_atk_ratio,
-            "phase2_min_hp_ratio": phase2_min_hp_ratio,
-            "phase1_entry_modifiers": [],
-            "phase2_entry_modifiers": [],
-            "runtime_modifiers": [],
-            "runtime_trigger_counts": {},
-            "kind_name": kind_name,
-            "dark_name": dark_name,
-        }
-
-        def _add_entry(
-            flag: str,
-            *,
-            phase: int,
-            target: str,
-            direction: str,
-            message: str,
-            min_pct: float = 0.05,
-            max_pct: float = 0.15,
-        ) -> None:
-            if flag not in story_flags:
-                return
-            key = "phase1_entry_modifiers" if phase == 1 else "phase2_entry_modifiers"
-            state[key].append(
-                {
-                    "id": flag,
-                    "target": target,
-                    "direction": direction,
-                    "message": message,
-                    "min_pct": max(0.05, float(min_pct)),
-                    "max_pct": min(0.15, float(max_pct)),
-                }
-            )
-
-        def _add_runtime(
-            flag: str,
-            *,
-            trigger: str,
-            direction: str,
-            message: str,
-            chance: float = 0.35,
-            active_phase: int = 0,
-            min_pct: float = 0.05,
-            max_pct: float = 0.15,
-        ) -> None:
-            if flag not in story_flags:
-                return
-            state["runtime_modifiers"].append(
-                {
-                    "id": flag,
-                    "trigger": trigger,
-                    "direction": direction,
-                    "message": message,
-                    "chance": max(0.01, min(1.0, float(chance))),
-                    "active_phase": max(0, int(active_phase)),
-                    "min_pct": max(0.05, float(min_pct)),
-                    "max_pct": min(0.15, float(max_pct)),
-                }
-            )
-
-        # 阶段一开场：只做百分比增减（5%~15%）。
-        _add_entry(
-            "consumed:puppet_side_minion_once",
-            phase=1,
-            target="boss_atk",
-            direction="down",
-            message="你拆过锈蚀的小木偶，开场节奏被你读穿，黑暗木偶攻击降低 {percent}%。",
-        )
-        _add_entry(
-            "puppet_signal_soft",
-            phase=1,
-            target="boss_hp",
-            direction="down",
-            message="你此前重放的温和语音样本仍在生效，核心输出收敛，黑暗木偶生命降低 {percent}%。",
-        )
-        _add_entry(
-            "puppet_signal_soft",
-            phase=1,
-            target="boss_atk",
-            direction="down",
-            message="你此前重放的温和语音样本干扰了抬手节奏，黑暗木偶攻击降低 {percent}%。",
-        )
-        _add_entry(
-            "puppet_signal_log",
-            phase=1,
-            target="boss_atk",
-            direction="down",
-            message="你此前分析过战术日志并补齐反制参数，黑暗木偶攻击降低 {percent}%。",
-        )
-        _add_entry(
-            "puppet_kind_echo_trust",
-            phase=1,
-            target="boss_atk",
-            direction="down",
-            message="你曾按善良人格给的路线前进，它仍在底层牵制，黑暗木偶攻击降低 {percent}%。",
-        )
-        _add_entry(
-            "puppet_rift_kind",
-            phase=1,
-            target="boss_hp",
-            direction="down",
-            message="裂隙中你护住了善良侧信号通道，黑暗木偶生命降低 {percent}%。",
-        )
-        _add_entry(
-            "puppet_descent_patch",
-            phase=1,
-            target="boss_hp",
-            direction="down",
-            message="你此前写入的修复补丁残留生效，黑暗木偶生命降低 {percent}%。",
-        )
-
-        # 阶段二开场：部分前情延迟到“完全体爆发”时结算。
-        _add_entry(
-            "consumed:puppet_side_shop_once",
-            phase=2,
-            target="boss_hp",
-            direction="up",
-            message="黑市替它补了装甲片，完全体生命上升 {percent}%。",
-        )
-        _add_entry(
-            "consumed:puppet_side_shop_once",
-            phase=2,
-            target="boss_atk",
-            direction="up",
-            message="装甲驱动联动完成，完全体攻击上升 {percent}%。",
-        )
-        _add_entry(
-            "puppet_signal_resell",
-            phase=2,
-            target="boss_hp",
-            direction="up",
-            message="你曾把污染片段打包转卖，完全体病毒回灌，生命上升 {percent}%。",
-        )
-        _add_entry(
-            "puppet_rift_dark",
-            phase=2,
-            target="boss_atk",
-            direction="up",
-            message="裂隙里你向黑暗侧喂过自毁协议，完全体攻击上升 {percent}%。",
-        )
-        _add_entry(
-            "puppet_descent_dark_feed",
-            phase=2,
-            target="boss_hp",
-            direction="up",
-            message="你曾随机录入指令试图控制木偶，指令集中兑现，完全体生命上升 {percent}%。",
-        )
-        _add_entry(
-            "puppet_descent_dark_feed",
-            phase=2,
-            target="boss_atk",
-            direction="up",
-            message="你此前录入的随机指令彻底放开限制，完全体攻击上升 {percent}%。",
-        )
-        _add_entry(
-            "puppet_kind_echo_comfort",
-            phase=2,
-            target="player_hp",
-            direction="up",
-            message="你曾追问它被抛弃的过去并稳定情绪，蓝光回路在爆发瞬间回补你 {percent}% 当前生命。",
-        )
-
-        # 运行时连锁：玩家攻击 / 木偶出招时可重复触发。
-        _add_runtime(
-            "consumed:puppet_side_trap_once",
-            trigger="monster_attack",
-            direction="up",
-            message="陷阱回廊里木偶病毒曾劫持过你的节拍，在出招时重放，本次木偶伤害提高 {percent}%。",
-            chance=0.33,
-            active_phase=0,
-        )
-        _add_runtime(
-            "consumed:puppet_side_reward_once",
-            trigger="player_attack",
-            direction="up",
-            message="你曾拿到的宝物应急结界发生器在挥击时校准受力，本次玩家伤害提高 {percent}%。",
-            chance=0.36,
-            active_phase=0,
-        )
-        _add_runtime(
-            "consumed:puppet_side_reward_once",
-            trigger="monster_attack",
-            direction="down",
-            message="应急结界在受击瞬间展开，本次木偶伤害降低 {percent}%。",
-            chance=0.34,
-            active_phase=0,
-        )
-        _add_runtime(
-            "puppet_signal_soft",
-            trigger="monster_attack",
-            direction="down",
-            message="你此前重放的温和语音样本拖慢了黑暗抬手，本次木偶伤害降低 {percent}%。",
-            chance=0.35,
-            active_phase=0,
-        )
-        _add_runtime(
-            "puppet_signal_log",
-            trigger="player_attack",
-            direction="up",
-            message="你此前分析战术日志补齐的反制参数提示了破绽，本次玩家伤害提高 {percent}%。",
-            chance=0.4,
-            active_phase=0,
-        )
-        _add_runtime(
-            "puppet_kind_echo_trust",
-            trigger="monster_attack",
-            direction="down",
-            message="你曾相信善良人格给的路线，它再次短暂争夺控制，本次木偶伤害降低 {percent}%。",
-            chance=0.32,
-            active_phase=0,
-        )
-        _add_runtime(
-            "puppet_kind_echo_exploit",
-            trigger="monster_attack",
-            direction="up",
-            message="你曾记录的情感弱点被反向放大，本次木偶伤害提高 {percent}%。",
-            chance=0.34,
-            active_phase=0,
-        )
-        _add_runtime(
-            "puppet_rift_balance",
-            trigger="player_attack",
-            direction="up",
-            message="你在裂隙维持的双侧平衡参数生效，本次玩家伤害提高 {percent}%。",
-            chance=0.28,
-            active_phase=0,
-        )
-        _add_runtime(
-            "consumed:puppet_side_shop_once",
-            trigger="player_attack",
-            direction="down",
-            message="黑市装甲片抵消了部分冲击，本次玩家伤害降低 {percent}%。",
-            chance=0.35,
-            active_phase=2,
-        )
-        _add_runtime(
-            "puppet_signal_resell",
-            trigger="monster_attack",
-            direction="up",
-            message="你此前转卖的污染片段在完全体中继续发酵，本次木偶伤害提高 {percent}%。",
-            chance=0.37,
-            active_phase=0,
-        )
-        _add_runtime(
-            "puppet_descent_cut_emotion",
-            trigger="monster_attack",
-            direction="up",
-            message="你此前切断了情感模块，完全体再无牵制，本次木偶伤害提高 {percent}%。",
-            chance=0.4,
-            active_phase=2,
-        )
-        _add_runtime(
-            "puppet_descent_patch",
-            trigger="monster_attack",
-            direction="down",
-            message="你此前写入的修复补丁在关键节点阻断杀意，本次木偶伤害降低 {percent}%。",
-            chance=0.3,
-            active_phase=0,
-        )
-
-        state["monster_attack_filler_lines"] = [
-            "童谣断在半拍，机偶仍顺着惯性挥向你。",
-            "钢丝拉紧，木偶的关节朝你压来。",
-            "失真笑声里混着咔哒声，又一击落下。",
-            "黑暗协议没有迟疑——这一下只是执行。",
-            f"{state['dark_name']}借机偶的手臂，把节拍砸向你胸口。",
-        ]
-
-        return state
-
-    def _apply_puppet_entry_modifiers(self, monster: Any, state: Dict[str, Any], phase: int) -> None:
-        if not isinstance(state, dict):
-            return
-        key = "phase1_entry_modifiers" if phase == 1 else "phase2_entry_modifiers"
-        modifiers = state.get(key, [])
-        if not isinstance(modifiers, list):
-            return
-        player = getattr(self.controller, "player", None)
-        for mod in modifiers:
-            if not isinstance(mod, dict):
-                continue
-            min_pct = max(0.05, float(mod.get("min_pct", 0.05)))
-            max_pct = min(0.15, float(mod.get("max_pct", 0.15)))
-            if max_pct < min_pct:
-                min_pct, max_pct = max_pct, min_pct
-            pct = random.uniform(min_pct, max_pct)
-            pct_text = int(round(pct * 100))
-            direction = mod.get("direction", "down")
-            target = mod.get("target")
-            amount = 0
-
-            if target == "boss_hp":
-                before = max(1, int(monster.hp))
-                scale = (1.0 + pct) if direction == "up" else max(0.1, 1.0 - pct)
-                monster.hp = max(1, int(round(before * scale)))
-                amount = abs(monster.hp - before)
-            elif target == "boss_atk":
-                before = max(1, int(monster.atk))
-                scale = (1.0 + pct) if direction == "up" else max(0.1, 1.0 - pct)
-                monster.atk = max(1, int(round(before * scale)))
-                amount = abs(monster.atk - before)
-            elif target == "player_hp" and player is not None:
-                base = max(1, int(getattr(player, "hp", 1)))
-                delta = max(1, int(round(base * pct)))
-                if direction == "up":
-                    amount = player.heal(delta)
-                else:
-                    safe_delta = min(delta, max(0, player.hp - 1))
-                    if safe_delta > 0:
-                        player.take_damage(safe_delta)
-                        amount = safe_delta
-            message = mod.get("message", "")
-            if isinstance(message, str) and message.strip():
-                self.controller.add_message(message.format(percent=pct_text, value=amount))
-
-    def _get_puppet_extension_runtime(self, extension: Dict[str, Any], attacker: Any, defender: Any):
-        if not isinstance(extension, dict):
-            return None, None
-        if extension.get("extension_type") != "puppet_dark_boss":
-            return None, None
-        monster = extension.get("monster_ref")
-        state = extension.get("state")
-        if monster is None or not isinstance(state, dict):
-            return None, None
-        if attacker is not monster and defender is not monster:
-            return None, None
-        return monster, state
-
-    @staticmethod
-    def _puppet_phase2_hp_atk(
-        phase1_max_hp: int,
-        hp_before_phase2: int,
-        atk_before_phase2: int,
-        state: Dict[str, Any],
-    ) -> Tuple[int, int, int]:
-        """二阶段：当前血 + 爆发治疗，且不低于 phase1_max_hp * phase2_min_hp_ratio；攻击乘 phase2_burst_atk_ratio。
-        返回 (新血量, 新攻击, 爆发治疗量)。"""
-        p1 = max(1, int(phase1_max_hp))
-        burst = max(1, int(round(p1 * float(state.get("phase2_burst_heal_ratio", 0.22)))))
-        floor_hp = max(1, int(round(p1 * max(0.0, float(state.get("phase2_min_hp_ratio", 0.0))))))
-        new_hp = max(max(1, int(hp_before_phase2)) + burst, floor_hp)
-        new_atk = max(
-            1,
-            int(round(max(1, int(atk_before_phase2)) * float(state.get("phase2_burst_atk_ratio", 1.12)))),
-        )
-        return new_hp, new_atk, burst
-
-    def _try_trigger_puppet_phase_two(self, extension: Dict[str, Any], target: Any) -> bool:
-        """在阶段一生命跌破阈值时，切入黑暗完全体。"""
-        if not isinstance(extension, dict) or extension.get("extension_type") != "puppet_dark_boss":
-            return False
-        monster = extension.get("monster_ref")
-        state = extension.get("state")
-        if monster is None or target is not monster or not isinstance(state, dict):
-            return False
-        if not bool(state.get("phase2_enabled", True)):
-            return False
-        if int(state.get("phase", 1)) >= 2:
-            return False
-        phase1_max_hp = int(state.get("phase1_max_hp", max(1, int(getattr(monster, "hp", 1)))))
-        threshold_ratio = float(state.get("phase2_threshold_ratio", 0.45))
-        threshold_hp = max(1, int(round(phase1_max_hp * threshold_ratio)))
-        if int(monster.hp) > threshold_hp and int(monster.hp) > 0:
-            return False
-
-        state["phase"] = 2
-        state["phase2_started"] = True
-        old_name = monster.name
-        monster.name = state.get("phase2_name", monster.name)
-
-        monster.hp, monster.atk, burst_heal = self._puppet_phase2_hp_atk(
-            phase1_max_hp, int(monster.hp), int(monster.atk), state
-        )
-
-        self.controller.add_message(
-            narrative_lines.format_puppet_phase2_entrance(
-                old_name, monster.name, burst_heal, int(monster.atk)
-            )
-        )
-        self.controller.add_message(narrative_lines.MSG_PUPPET_PHASE2_THEME)
-        self._apply_puppet_entry_modifiers(monster=monster, state=state, phase=2)
-        return True
-
-    def _apply_puppet_runtime_modifiers(
-        self,
-        extension: Dict[str, Any],
-        trigger: str,
-        attacker: Any,
-        defender: Any,
-        damage: int,
-    ) -> int:
-        """对木偶最终战扩展应用战斗中可重复触发的百分比修正。"""
-        try:
-            raw_damage = max(1, int(damage))
-        except (TypeError, ValueError):
-            return damage
-        if raw_damage <= 0:
-            return raw_damage
-
-        puppet_monster, state = self._get_puppet_extension_runtime(extension, attacker=attacker, defender=defender)
-        if puppet_monster is None or not isinstance(state, dict):
-            return raw_damage
-
-        current_phase = max(1, int(state.get("phase", 1)))
-        runtime_modifiers = state.get("runtime_modifiers", [])
-        if not isinstance(runtime_modifiers, list) or not runtime_modifiers:
-            return raw_damage
-
-        factor = 1.0
-        triggered = []
-        counters = state.get("runtime_trigger_counts")
-        if not isinstance(counters, dict):
-            counters = {}
-            state["runtime_trigger_counts"] = counters
-
-        for mod in runtime_modifiers:
-            if not isinstance(mod, dict):
-                continue
-            if mod.get("trigger") != trigger:
-                continue
-            active_phase = max(0, int(mod.get("active_phase", 0)))
-            if active_phase and current_phase < active_phase:
-                continue
-            chance = max(0.01, min(1.0, float(mod.get("chance", 0.35))))
-            if random.random() > chance:
-                continue
-            min_pct = max(0.05, float(mod.get("min_pct", 0.05)))
-            max_pct = min(0.15, float(mod.get("max_pct", 0.15)))
-            if max_pct < min_pct:
-                min_pct, max_pct = max_pct, min_pct
-            pct = random.uniform(min_pct, max_pct)
-            if str(mod.get("direction", "up")).lower() == "down":
-                factor *= max(0.15, 1.0 - pct)
-            else:
-                factor *= 1.0 + pct
-            pct_text = int(round(pct * 100))
-            msg = mod.get("message", "")
-            if isinstance(msg, str) and msg.strip():
-                triggered.append(msg.format(percent=pct_text))
-            key = f"{mod.get('id', 'unknown')}:{trigger}"
-            counters[key] = int(counters.get(key, 0)) + 1
-
-        adjusted = max(1, int(round(raw_damage * factor)))
-        for msg in triggered:
-            self.controller.add_message(msg)
-        if adjusted != raw_damage:
-            actor = "木偶" if trigger == "monster_attack" else "玩家"
-            self.controller.add_message(f"{actor}本次伤害 {raw_damage}→{adjusted}。")
-        elif trigger == "monster_attack" and not triggered:
-            fillers = state.get("monster_attack_filler_lines")
-            if isinstance(fillers, list):
-                pool = [x for x in fillers if isinstance(x, str) and x.strip()]
-                if pool:
-                    self.controller.add_message(random.choice(pool))
-        return adjusted
-
-    def apply_door_extension(
-        self,
-        door: Any,
-        extension: Dict[str, Any],
-        hook: str,
-        **kwargs,
-    ) -> Dict[str, Any]:
-        """统一门扩展入口：事件对门的改写逻辑集中在此。"""
-        if door is None or not isinstance(extension, dict):
-            return {}
-        ext_type = extension.get("extension_type")
-        door_type = getattr(getattr(door, "enum", None), "name", "")
-        runtime = self._get_extension_runtime(extension)
-
-        if ext_type == "force_story_event":
-            event_key = extension.get("event_key")
-            if door_type not in {"EVENT", "SHOP"}:
-                return {}
-            if not isinstance(event_key, str) or not event_key.strip():
-                return {}
-            door.story_forced_event_key = event_key.strip()
-            hint = extension.get("hint") or extension.get("message")
-            if isinstance(hint, str) and hint.strip():
-                door.hint = hint.strip()
-            runtime["applied"] = True
-            return {"applied": True}
-
-        if ext_type == "elf_side_reward_mark":
-            if door_type != "REWARD":
-                return {}
-            setattr(door, "elf_side_reward", True)
-            hint = extension.get("hint") or extension.get("message")
-            if isinstance(hint, str) and hint.strip():
-                door.hint = hint.strip()
-            runtime["applied"] = True
-            return {"applied": True}
-
-        if ext_type == "elf_side_monster_mark":
-            if door_type != "MONSTER":
-                return {}
-            monster = getattr(door, "monster", None)
-            if monster is None:
-                return {}
-            setattr(monster, "elf_side_story", True)
-            hint = extension.get("hint") or extension.get("message")
-            if isinstance(hint, str) and hint.strip():
-                door.hint = hint.strip()
-            runtime["applied"] = True
-            return {"applied": True}
-
-        if ext_type == "treasure_marked_item":
-            if door_type != "REWARD":
-                return {}
-            if runtime.get("reward_written"):
-                return {"applied": True}
-            resolved_reward = extension.get("resolved_reward", {})
-            if not isinstance(resolved_reward, dict):
-                resolved_reward = {}
-            door.reward = dict(resolved_reward)
-            runtime["reward_written"] = True
-            return {"applied": True}
-
-        if ext_type == "treasure_vanish":
-            if door_type != "REWARD":
-                return {}
-            if runtime.get("reward_written"):
-                return {"applied": True}
-            resolved_reward = extension.get("resolved_reward", {})
-            if not isinstance(resolved_reward, dict):
-                resolved_reward = {}
-            door.reward = dict(resolved_reward)
-            runtime["reward_written"] = True
-            return {"applied": True}
-
-        if ext_type == "treasure_deposit_backpack":
-            if door_type != "REWARD":
-                return {}
-            if runtime.get("reward_written"):
-                return {"applied": True}
-            resolved_reward = extension.get("resolved_reward", {})
-            if not isinstance(resolved_reward, dict):
-                resolved_reward = {}
-            door.reward = dict(resolved_reward)
-            runtime["reward_written"] = True
-            return {"applied": True}
-
-        if ext_type == "stage_curtain_script_vault":
-            if door_type != "REWARD":
-                return {}
-            if runtime.get("reward_written"):
-                return {"applied": True}
-            try:
-                from models.events import run_script_vault_recovery
-                run_script_vault_recovery(self.controller)
-            except Exception:
-                pass
-            door.reward = {}
-            runtime["reward_written"] = True
-            return {"applied": True}
-
-        if ext_type == "trap_rewrite_to_reward":
-            if door_type != "TRAP" or hook != "before_enter":
-                return {}
-            if runtime.get("converted"):
-                return {"skip_default_enter": True}
-            reward = extension.get("reward", {})
-            if not isinstance(reward, dict):
-                reward = {}
-            reward_door = DoorEnum.REWARD.create_instance(
-                controller=self.controller,
-                reward=dict(reward),
-                hint=extension.get("hint", "神佑余辉"),
-            )
-            runtime["converted"] = True
-            return {"replacement_door": reward_door}
-
-        return {}
-
-    def apply_battle_extension(
-        self,
-        extension: Dict[str, Any],
-        trigger: str,
-        attacker: Any,
-        defender: Any,
-        damage: int,
-    ) -> int:
-        """统一扩展入口：仅处理当前怪物门声明的扩展。"""
-        if not isinstance(extension, dict):
-            return damage
-        ext_type = extension.get("extension_type")
-        if ext_type == "puppet_dark_boss":
-            return self._apply_puppet_runtime_modifiers(
-                extension=extension,
-                trigger=trigger,
-                attacker=attacker,
-                defender=defender,
-                damage=damage,
-            )
-        if ext_type == "elf_rival_final_boss":
-            return self._apply_elf_rival_runtime_modifiers(
-                extension=extension,
-                trigger=trigger,
-                attacker=attacker,
-                defender=defender,
-                damage=damage,
-            )
-        if ext_type == "puppet_echo_final":
-            state = extension.get("state")
-            if isinstance(state, dict):
-                if trigger == "player_attack":
-                    echo_lines = state.get("echo_lines") or []
-                    idx = int(state.get("echo_index", 0))
-                    if echo_lines:
-                        line = echo_lines[idx % len(echo_lines)]
-                        if isinstance(line, str) and line.strip():
-                            self.controller.add_message(f"木偶的回声低语：「{line}」")
-                        state["echo_index"] = idx + 1
-                elif trigger == "monster_attack":
-                    echo_lines = state.get("echo_lines") or []
-                    valid = [ln for ln in echo_lines if isinstance(ln, str) and ln.strip()]
-                    if valid:
-                        mi = int(state.get("echo_monster_attack_idx", 0))
-                        line = valid[mi % len(valid)]
-                        state["echo_monster_attack_idx"] = mi + 1
-                        self.controller.add_message(f"木偶的回声压过来：「{line}」")
-            return damage
-        return damage
-
-    def handle_battle_extension_post_player_attack(self, extension: Dict[str, Any], target: Any) -> None:
-        """统一扩展后处理入口。"""
-        if not isinstance(extension, dict):
-            return
-        ext_type = extension.get("extension_type")
-        if ext_type == "puppet_dark_boss":
-            self._try_trigger_puppet_phase_two(extension=extension, target=target)
-        if ext_type == "elf_rival_final_boss":
-            self._try_trigger_elf_rival_counter(extension=extension, target=target)
-
-    # 兼容旧接口：若调用方仍直接走 StorySystem，则透传到当前战斗扩展。
-    def apply_puppet_combat_modifiers(self, trigger: str, attacker: Any, defender: Any, damage: int) -> int:
-        extensions = getattr(self.controller, "current_battle_extensions", []) or []
-        adjusted = damage
-        for ext in extensions:
-            adjusted = self.apply_battle_extension(
-                extension=ext,
-                trigger=trigger,
-                attacker=attacker,
-                defender=defender,
-                damage=adjusted,
-            )
-        return adjusted
-
-    def try_trigger_puppet_phase_two(self, monster: Any) -> bool:
-        extensions = getattr(self.controller, "current_battle_extensions", []) or []
-        switched = False
-        for ext in extensions:
-            switched = self._try_trigger_puppet_phase_two(extension=ext, target=monster) or switched
-        return switched
-
-    def _elf_rival_speak_next_grudge(self, state: Dict[str, Any], runtime: Dict[str, Any]) -> None:
-        """依次播放支线记录的恩怨句；记满后改用 grudge_bark_fillers 循环，避免只剩身法句。"""
-        specific = [
-            x
-            for x in (state.get("grudge_barks") if isinstance(state.get("grudge_barks"), list) else [])
-            if isinstance(x, str) and x.strip()
-        ]
-        fillers = [
-            x
-            for x in (state.get("grudge_bark_fillers") if isinstance(state.get("grudge_bark_fillers"), list) else [])
-            if isinstance(x, str) and x.strip()
-        ]
-        if not specific and not fillers:
-            return
-        i = int(runtime.setdefault("grudge_voice_idx", 0))
-        if i < len(specific):
-            line = specific[i]
-        elif fillers:
-            line = fillers[(i - len(specific)) % len(fillers)]
-        else:
-            return
-        runtime["grudge_voice_idx"] = i + 1
-        if isinstance(line, str) and line.strip():
-            self.controller.add_message(f"莱希娅：「{line.strip()}」")
-
-    def _apply_elf_rival_runtime_modifiers(
-        self,
-        extension: Dict[str, Any],
-        trigger: str,
-        attacker: Any,
-        defender: Any,
-        damage: int,
-    ) -> int:
-        """银羽终局战斗扩展：根据关系分支提供台词与招式。"""
-        state = extension.get("state")
-        if not isinstance(state, dict):
-            return damage
-        runtime = state.setdefault("runtime", {})
-        counts = runtime.setdefault("trigger_counts", {})
-
-        adjusted = max(1, int(damage))
-        if trigger == "monster_attack":
-            idx = int(counts.get("monster_attack", 0))
-            boosts = state.get("shadowstep_boost", [])
-            lines = state.get("lines", {}) if isinstance(state.get("lines", {}), dict) else {}
-            if idx < len(boosts):
-                self._elf_rival_speak_next_grudge(state, runtime)
-                boost = max(0.0, float(boosts[idx]))
-                adjusted = max(1, int(round(adjusted * (1.0 + boost))))
-                line = lines.get("shadowstep", "")
-                if isinstance(line, str) and line.strip():
-                    self.controller.add_message(line.strip())
-                self.controller.add_message(f"她抓住你的一瞬迟疑，伤害 {damage}→{adjusted}。")
-            else:
-                banter = state.get("attack_banter", [])
-                pool = [b for b in banter if isinstance(b, str) and b.strip()]
-                if pool:
-                    self.controller.add_message(random.choice(pool))
-                else:
-                    fallback = lines.get("shadowstep", "")
-                    if isinstance(fallback, str) and fallback.strip():
-                        self.controller.add_message(fallback.strip())
-            counts["monster_attack"] = idx + 1
-        return adjusted
-
-    def _try_trigger_elf_rival_counter(self, extension: Dict[str, Any], target: Any) -> None:
-        """玩家攻击后判定银羽的扰敌技。"""
-        if not target or not bool(getattr(target, "story_elf_rival_final_boss", False)):
-            return
-        state = extension.get("state")
-        if not isinstance(state, dict):
-            return
-        runtime = state.setdefault("runtime", {})
-        counts = runtime.setdefault("trigger_counts", {})
-        idx = int(counts.get("post_player_attack", 0))
-        turn_cfg = state.get("debuff_turns", [])
-        if idx >= len(turn_cfg):
-            return
-        duration = max(1, int(turn_cfg[idx]))
-        mode = str(state.get("debuff_mode", "weak")).strip().lower()
-        player = getattr(self.controller, "player", None)
-        if player is None:
-            return
-        effect = StatusName.POISON if mode == "poison" else StatusName.WEAK
-        player.apply_status(effect.create_instance(duration=duration, target=player))
-        self._elf_rival_speak_next_grudge(state, runtime)
-        lines = state.get("lines", {}) if isinstance(state.get("lines", {}), dict) else {}
-        line = lines.get("debuff", "")
-        if isinstance(line, str) and line.strip():
-            self.controller.add_message(line.strip())
-        label = "中毒" if effect == StatusName.POISON else "虚弱"
-        self.controller.add_message(f"你的节奏被打断，获得{label}（{duration}回合）。")
-        counts["post_player_attack"] = idx + 1
 
     def _queue_chain_followups(self, consequence: PendingConsequence) -> None:
         """链式扩展端口：某个后续触发后再挂新的后续影响。"""
@@ -3220,7 +1506,7 @@ class StorySystem:
         """木偶支线专用：锈蚀追猎偶，独立于一般追猎复仇的数值。"""
         from models.monster import Monster
 
-        round_count = getattr(self.controller, "round_count", 0)
+        round_count = self.controller.round_count
         stage = self._get_progress_stage()
         name = "锈蚀追猎偶"
         if round_count <= 10:
@@ -3237,7 +1523,7 @@ class StorySystem:
     def _create_hunter_monster(self, preferred_name: Optional[str] = None):
         from models.monster import Monster
 
-        round_count = getattr(self.controller, "round_count", 0)
+        round_count = self.controller.round_count
         stage = self._get_progress_stage()
         if preferred_name:
             if round_count <= 10:

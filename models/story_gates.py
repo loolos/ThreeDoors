@@ -12,6 +12,8 @@ from typing import Dict, FrozenSet, Tuple
 
 ALL_PRE_FINAL_DOOR_TYPES: Tuple[str, ...] = ("TRAP", "REWARD", "MONSTER", "SHOP", "EVENT")
 ELF_THIEF_NAME = "莱希娅"
+PUPPET_KIND_PERSONA_NAME = "绒心"
+PUPPET_DARK_PERSONA_NAME = "裂齿"
 
 PRE_FINAL_GATE_STORY_CONFIG: Dict[str, Dict] = {
     "round200_stage_preface": {
@@ -21,7 +23,7 @@ PRE_FINAL_GATE_STORY_CONFIG: Dict[str, Dict] = {
         "force_door_type": "REWARD",
         "priority": 1260,
         "payload": {
-            "message": f"你终于明白了{ELF_THIEF_NAME}的就是整件事的起因。",
+            "message": f"银羽暗号在门框上亮起——你终于明白，{ELF_THIEF_NAME}就是这一切的起点。",
         },
     },
     "puppet_echo_final_gate": {
@@ -240,3 +242,13 @@ STAGE_CURTAIN_KIND_PUPPET_DIALOGUE_CONSEQUENCE_ID = _gate_consequence_id(
 )
 DEFAULT_SECOND_GATE_CONSEQUENCE_ID = _gate_consequence_id("default_second_gate_event")
 DEFAULT_FINAL_BOSS_CONSEQUENCE_ID = _gate_consequence_id("default_final_boss_gate")
+STAGE_CURTAIN_GATE_CONSEQUENCE_ID = _gate_consequence_id("stage_curtain_gate_event")
+
+# 正在通往结局的门链：其中任一仍在 pending 时，说明玩家已走在某条结局路线上，兜底不介入。
+ENDING_PATH_CONSEQUENCE_IDS: FrozenSet[str] = ENDING_EVENT_CONSEQUENCE_IDS | frozenset(
+    (
+        STAGE_CURTAIN_GATE_CONSEQUENCE_ID,
+        DEFAULT_SECOND_GATE_CONSEQUENCE_ID,
+        DEFAULT_FINAL_BOSS_CONSEQUENCE_ID,
+    )
+)

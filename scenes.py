@@ -1,12 +1,11 @@
 """场景与场景管理：选门、战斗、商店、道具使用、游戏结束与事件场景。"""
-from models.door import Door, DoorEnum
-from models.monster import Monster, get_random_monster
-from models.status import Status, StatusName
+from models.door import DoorEnum
+from models.monster import get_random_monster
+from models.status import StatusName
 import random
-import os
 from models.items import ItemType
 from models.game_config import GameConfig
-from enum import Enum, auto
+from enum import Enum
 
 
 class Scene:
@@ -18,11 +17,9 @@ class Scene:
 
     def on_enter(self):
         """进入场景时的处理"""
-        pass
 
     def handle_choice(self, index):
         """处理按钮选择"""
-        pass
 
     def get_button_texts(self):
         """获取按钮文本"""
@@ -46,12 +43,10 @@ class DoorScene(Scene):
         # 首次进入冒险世界（新局或重置后）：展示世界观与真相暗示
         if self.controller.round_count == 0:
             self.controller.add_message(
-                "你睁开眼，发现自己站在一条幽长的走廊里。眼前是三扇紧闭的门——"
-                "据说每一扇背后都藏着截然不同的命运：战斗、奇遇、或是陷阱。\n"
-                "这里无数走廊与门扉交织成一座没有出口的迷宫；"
-                "而你，是又一位被卷入其中的闯入者。\n"
-                "走廊深处传来若有若无的弦音与低语，像是早已写好的台词在暗处回响。\n"
-                "这场冒险的终幕，或许正取决于你即将做出的每一个选择。"
+                "你在一张长椅上醒来，胸前别着一枚工作牌：正面印着「替补」两个字，背面是一串褪色的编号。\n"
+                "远处有人在报开场的倒计时，却没有人告诉你该演什么。\n"
+                "眼前是三扇紧闭的门。门后也许是战斗、奇遇，也许是陷阱。\n"
+                "走廊深处传来若有若无的弦音，像一段写好了、却没人念出口的台词。"
             )
 
         if not self.has_initialized:
@@ -67,8 +62,7 @@ class DoorScene(Scene):
             
         c.round_count += 1
         c.add_message(f"第{c.round_count}回合：")
-        if hasattr(c, "story") and c.story and hasattr(c.story, "ensure_default_normal_ending_schedule"):
-            c.story.ensure_default_normal_ending_schedule()
+        c.story.ensure_default_normal_ending_schedule()
         c.update_player_power_peaks()
         c.check_and_unlock_monster_tier()
         
@@ -76,18 +70,15 @@ class DoorScene(Scene):
         door = self.doors[index]
         if door.enum != DoorEnum.MONSTER:
             p.clear_battle_status()
-            if hasattr(c, "clear_battle_extensions"):
-                c.clear_battle_extensions()
+            c.clear_battle_extensions()
             
         p.adventure_status_duration_pass()  # Adventure turn effects
         
         # 进入门并处理事件（传入选门时的回合：上面已 +1，故用 round_count - 1，避免超窗强制误判）
-        if hasattr(c, "story") and c.story:
-            door = c.story.apply_pre_enter_checks(door, choice_round=c.round_count - 1)
-            self.doors[index] = door
+        door = c.story.apply_pre_enter_checks(door, choice_round=c.round_count - 1)
+        self.doors[index] = door
         door.enter()
-        if hasattr(c, "record_door_visit") and callable(getattr(c, "record_door_visit", None)):
-            c.record_door_visit(door.enum.value)
+        c.record_door_visit(door.enum.value)
 
         # 某些门在 enter 中会主动切场景（如被改写成剧情事件的商店门）
         cur = c.scene_manager.current_scene
@@ -139,8 +130,8 @@ class DoorScene(Scene):
             # 生成一扇怪物门
             monster = get_random_monster(
                 current_round=self.controller.round_count,
-                player=getattr(self.controller, "player", None),
-                unlocked_tier=getattr(self.controller, "unlocked_monster_tier", GameConfig.START_UNLOCKED_MONSTER_TIER),
+                player=self.controller.player,
+                unlocked_tier=self.controller.unlocked_monster_tier,
             )
             monster_door = DoorEnum.MONSTER.create_instance(monster=monster, controller=self.controller)
             # 生成其他两扇门（从非怪物类型中无放回抽样，确保类型不重复）
@@ -154,35 +145,34 @@ class DoorScene(Scene):
 
             # 结局前事件 + 第 200 回合第一门：保证至少一扇门为「下一个待触发结局门」所需门型（不依赖 max_round 强制替换）
             c = self.controller
-            if hasattr(c, "story") and c.story:
-                want_type = c.story.get_required_door_type_for_next_ending(c.round_count)
-                if want_type:
-                    has_wanted = any(
-                        getattr(d, "enum", None) and getattr(d.enum, "name", None) == want_type
-                        for d in self.doors
-                    )
-                    if not has_wanted:
-                        try:
-                            door_enum = DoorEnum[want_type]
-                        except KeyError:
-                            door_enum = None
-                        if door_enum is not None:
-                            if door_enum == DoorEnum.MONSTER:
-                                monster = get_random_monster(
-                                    current_round=c.round_count,
-                                    player=getattr(c, "player", None),
-                                    unlocked_tier=getattr(c, "unlocked_monster_tier", GameConfig.START_UNLOCKED_MONSTER_TIER),
-                                )
-                                new_door = door_enum.create_instance(monster=monster, controller=c)
-                            else:
-                                new_door = door_enum.create_instance(controller=c)
-                            # 替换一扇非目标类型的门（优先替换非怪物门以保留一扇怪物门）
-                            for i, d in enumerate(self.doors):
-                                if getattr(d, "enum", None) and getattr(d.enum, "name", None) != want_type:
-                                    self.doors[i] = new_door
-                                    break
-                            random.shuffle(self.doors)
-                    # else: 已有该类型门，无需替换
+            want_type = c.story.get_required_door_type_for_next_ending(c.round_count)
+            if want_type:
+                has_wanted = any(
+                    d.enum.name == want_type
+                    for d in self.doors
+                )
+                if not has_wanted:
+                    try:
+                        door_enum = DoorEnum[want_type]
+                    except KeyError:
+                        door_enum = None
+                    if door_enum is not None:
+                        if door_enum == DoorEnum.MONSTER:
+                            monster = get_random_monster(
+                                current_round=c.round_count,
+                                player=c.player,
+                                unlocked_tier=c.unlocked_monster_tier,
+                            )
+                            new_door = door_enum.create_instance(monster=monster, controller=c)
+                        else:
+                            new_door = door_enum.create_instance(controller=c)
+                        # 替换一扇非目标类型的门（优先替换非怪物门以保留一扇怪物门）
+                        for i, d in enumerate(self.doors):
+                            if d.enum.name != want_type:
+                                self.doors[i] = new_door
+                                break
+                        random.shuffle(self.doors)
+                # else: 已有该类型门，无需替换
         
         # 更新按钮文本（仅当至少 3 扇门时按索引访问，避免 IndexError）
         if len(self.doors) >= 3:
@@ -232,30 +222,26 @@ class BattleScene(Scene):
                 else:
                     # 处理怪物掉落
                     self.monster.process_loot(p)
-                    if hasattr(self.controller, "record_monster_defeated") and callable(getattr(self.controller, "record_monster_defeated", None)):
-                        self.controller.record_monster_defeated()
-                    if hasattr(self.controller, "story") and self.controller.story:
-                        self.controller.story.resolve_battle_consequence(self.monster, defeated=True)
-                        self.controller.story.record_elf_side_monster_outcome(self.monster, defeated=True)
+                    self.controller.record_monster_defeated()
+                    self.controller.story.resolve_battle_consequence(self.monster, defeated=True)
+                    self.controller.story.record_elf_side_monster_outcome(self.monster, defeated=True)
                     # 若战斗收尾触发了结局（如即兴谢幕、普通结局），先进入结局摘要场景
-                    if getattr(self.controller, "game_clear_info", None):
+                    if self.controller.game_clear_info:
                         self.controller.scene_manager.go_to("ending_summary_scene")
                         return
                     # 若设置了战后事件（如击败木偶回声后的三选一事件门），先进入事件场景
-                    pending_key = getattr(self.controller, "pending_post_battle_event_key", None)
+                    pending_key = self.controller.pending_post_battle_event_key
                     if pending_key:
                         from models.events import get_story_event_by_key
                         event = get_story_event_by_key(pending_key, self.controller)
-                        setattr(self.controller, "pending_post_battle_event_key", None)
+                        self.controller.pending_post_battle_event_key = None
                         if event is not None:
                             self.controller.current_event = event
-                            if hasattr(self.controller, "clear_battle_extensions"):
-                                self.controller.clear_battle_extensions()
+                            self.controller.clear_battle_extensions()
                             self.controller.scene_manager.go_to("event_scene")
                             return
                     p.clear_battle_status() # 战斗胜利，清除战斗状态
-                    if hasattr(self.controller, "clear_battle_extensions"):
-                        self.controller.clear_battle_extensions()
+                    self.controller.clear_battle_extensions()
                     self.controller.scene_manager.go_to("door_scene")
                 
                 # 无论怪物是否死亡，只要玩家行动了，就推进状态计时
@@ -267,13 +253,11 @@ class BattleScene(Scene):
             elif index == 2:
                 escaped = p.try_escape(self.monster)
                 if escaped:
-                    if hasattr(self.controller, "story") and self.controller.story:
-                        self.controller.story.resolve_battle_consequence(self.monster, defeated=False)
-                        self.controller.story.record_elf_side_monster_outcome(self.monster, defeated=False)
+                    self.controller.story.resolve_battle_consequence(self.monster, defeated=False)
+                    self.controller.story.record_elf_side_monster_outcome(self.monster, defeated=False)
                     p.clear_battle_status()
                     self.monster.clear_battle_status()
-                    if hasattr(self.controller, "clear_battle_extensions"):
-                        self.controller.clear_battle_extensions()
+                    self.controller.clear_battle_extensions()
                     self.controller.scene_manager.go_to("door_scene", generate_new_doors=False)
                 else:
                     self.monster.attack(p)
@@ -321,7 +305,7 @@ class ShopScene(Scene):
                 f"{shop.shop_items[1].name} ({shop.shop_items[1].cost}G)",
                 f"{shop.shop_items[2].name} ({shop.shop_items[2].cost}G)"
             ]
-        self.controller.add_message("你进入了杂货铺，老板热情的招呼你。")
+        self.controller.add_message("你进入了杂货铺，老板热情地招呼你。")
 
     def handle_choice(self, index):
         logic = self.controller.current_shop
@@ -424,7 +408,7 @@ class GameOverScene(Scene):
         self.button_texts = ["重启游戏", "使用复活卷轴", "退出游戏"]
         self.enum = SceneType.GAME_OVER
     def on_enter(self):
-        clear_info = getattr(self.controller, "game_clear_info", None)
+        clear_info = self.controller.game_clear_info
         if clear_info:
             self.button_texts = ["重启游戏", "结局已达成", "退出游戏"]
             title = str(clear_info.get("ending_title", "")).strip()
@@ -438,7 +422,7 @@ class GameOverScene(Scene):
         self.controller.add_message("游戏结束！")
 
     def handle_choice(self, index):
-        clear_info = getattr(self.controller, "game_clear_info", None)
+        clear_info = self.controller.game_clear_info
         if index == 0:  # 重启游戏
             self.controller.reset_game()
             self.controller.add_message("游戏已重置")

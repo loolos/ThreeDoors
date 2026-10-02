@@ -3,12 +3,11 @@
 import random
 from enum import Enum
 from models.game_config import GameConfig
-from models.status import Status, StatusName
+from models.status import StatusName
 from typing import Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from models.player import Player
-    from models.monster import Monster
 
 
 class ItemType(Enum):

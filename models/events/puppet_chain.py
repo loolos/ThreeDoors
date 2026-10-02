@@ -1,5 +1,4 @@
 """见 models.events 包说明。"""
-from models.status import StatusName
 from models.story_flags import (
     PUPPET_DESCENT_CUT_EMOTION,
     PUPPET_DESCENT_DARK_FEED,
@@ -21,32 +20,16 @@ from models.story_flags import (
     puppet_intro_flag,
     puppet_rift_flag,
 )
-from models.story_gates import (
-    ALL_PRE_FINAL_DOOR_TYPES,
-    ELF_THIEF_NAME,
-    ENDING_EVENT_GATE_KEYS,
-    PRE_FINAL_DISPATCH_ORDER,
-    PRE_FINAL_GATE_STORY_CONFIG,
-)
 from models.events.base import Event, EventChoice
-from models.events._pkg import rng, mk_random_item, mk_reward_item
+from models.events._pkg import rng
 
-PUPPET_KIND_PERSONA_NAME = "绒心"
-PUPPET_DARK_PERSONA_NAME = "裂齿"
+from models.story_gates import PUPPET_KIND_PERSONA_NAME, PUPPET_DARK_PERSONA_NAME
 
 
 def _get_puppet_chain_state(controller):
-    story = getattr(controller, "story", None)
+    story = controller.story
     if story is None:
         return None
-    if not hasattr(story, "puppet_evil_value"):
-        story.puppet_evil_value = 55
-    if not hasattr(story, "puppet_kind_persona_name"):
-        story.puppet_kind_persona_name = PUPPET_KIND_PERSONA_NAME
-    if not hasattr(story, "puppet_dark_persona_name"):
-        story.puppet_dark_persona_name = PUPPET_DARK_PERSONA_NAME
-    if not hasattr(story, "puppet_side_registered"):
-        story.puppet_side_registered = False
     return story
 
 
@@ -54,7 +37,7 @@ def _adjust_puppet_evil_value(controller, delta):
     story = _get_puppet_chain_state(controller)
     if story is None:
         return 55
-    current = int(getattr(story, "puppet_evil_value", 55))
+    current = story.get_puppet_evil_value()
     next_val = max(0, min(100, current + int(delta)))
     story.puppet_evil_value = next_val
     story.story_tags.add(f"puppet_evil_bucket:{(next_val // 10) * 10}")
@@ -66,8 +49,8 @@ def _get_puppet_persona_names(controller):
     if story is None:
         return PUPPET_KIND_PERSONA_NAME, PUPPET_DARK_PERSONA_NAME
     return (
-        getattr(story, "puppet_kind_persona_name", PUPPET_KIND_PERSONA_NAME),
-        getattr(story, "puppet_dark_persona_name", PUPPET_DARK_PERSONA_NAME),
+        story.puppet_kind_persona_name,
+        story.puppet_dark_persona_name,
     )
 
 
@@ -76,7 +59,7 @@ def build_puppet_final_boss_payload(controller, phase2_burst_heal_ratio=None, **
     phase2_burst_heal_ratio 若传入则覆盖默认 0.42；overrides 中键值会合并进 payload。"""
     story = _get_puppet_chain_state(controller)
     kind_name, dark_name = _get_puppet_persona_names(controller)
-    evil_value = int(getattr(story, "puppet_evil_value", 55)) if story is not None else 55
+    evil_value = story.get_puppet_evil_value() if story is not None else 55
     payload = {
         "boss_name": f"{dark_name}·堕暗机偶",
         "base_hp": 980,
@@ -123,7 +106,7 @@ def _schedule_puppet_mainline_event(controller, from_stage, next_event_key, hint
     story = _get_puppet_chain_state(controller)
     if story is None:
         return
-    current_round = max(0, int(getattr(controller, "round_count", 0)))
+    current_round = max(0, int(controller.round_count))
     cid = f"puppet_mainline_{from_stage}_to_{next_event_key}"
     story.register_consequence(
         choice_flag=f"{PUPPET_MAINLINE_CHOICE_PREFIX}{from_stage}",
@@ -162,7 +145,7 @@ def _register_puppet_side_consequences(controller):
     story = _get_puppet_chain_state(controller)
     if story is None:
         return
-    if bool(getattr(story, "puppet_side_registered", False)):
+    if bool(story.puppet_side_registered):
         return
     story.puppet_side_registered = True
 
@@ -281,19 +264,19 @@ class PuppetAbandonmentEvent(Event):
 
     @classmethod
     def is_trigger_condition_met(cls, controller):
-        story = getattr(controller, "story", None)
+        story = controller.story
         if story is not None:
-            outcome = str(getattr(story, "puppet_final_outcome", "")).strip()
+            outcome = str(story.puppet_final_outcome).strip()
             if outcome in ("defeated", "escaped"):
                 return False
-            tags = getattr(story, "story_tags", set())
+            tags = story.story_tags
             if "ending:puppet_final_defeated" in tags or "ending:puppet_final_escape_recorded" in tags:
                 return False
         return cls.is_unlocked(controller, min_round=10, min_stage=1)
 
     @classmethod
     def get_trigger_probability(cls, controller):
-        round_count = max(0, int(getattr(controller, "round_count", 0)))
+        round_count = max(0, int(controller.round_count))
         return min(0.2, cls.TRIGGER_BASE_PROBABILITY + min(0.1, round_count * 0.004))
 
     def __init__(self, controller):
@@ -301,9 +284,11 @@ class PuppetAbandonmentEvent(Event):
         kind_name, dark_name = _get_puppet_persona_names(controller)
         self.title = "弃线木偶"
         self.description = (
-            "你在昏暗走廊尽头看见一具被丢弃的木偶——它曾是的戏剧原定的主演，但他现在并不知道自己是谁以及该做什么，只是一味游荡。"
-            f"胸口还挂着半截编号牌，屏幕闪烁着两行人格标签：蓝光侧【{kind_name}】、红噪侧【{dark_name}】。"
-            "它在黑暗中游荡，碰到障碍物就一拳砸裂，你确认现在绝不能正面和它对抗。"
+            "你在昏暗走廊尽头看见一具被丢弃的木偶——它曾是这出戏原定的主演。"
+            "它胸口挂着半截演员编号牌，那串数字有些眼熟，你下意识按了按自己胸前的工作牌。"
+            "剧本失窃后，它不再知道自己是谁、下一句该说什么，只是在黑暗里一遍遍游荡。"
+            f"胸前的小屏幕闪烁着两行人格标签：蓝光侧【{kind_name}】、红噪侧【{dark_name}】。"
+            "它碰到障碍物就一拳砸裂，你确认现在绝不能正面和它对抗。"
         )
         self.choices = [
             EventChoice("钻进井盖，潜行躲避", self.hide_in_shaft),
@@ -412,7 +397,7 @@ class PuppetSignalEvent(Event):
         self.get_player().change_base_atk(atk_bonus)
         _adjust_puppet_evil_value(self.controller, rng().randint(-5, -3))
         self.register_story_choice(choice_flag=PUPPET_SIGNAL_LOG, moral_delta=1)
-        self.add_message(f"你掌握到了到关键的动作并补齐了反制参数（基础攻击 +{atk_bonus}）。")
+        self.add_message(f"你从日志里看懂了它的关键动作，补齐了反制参数（基础攻击 +{atk_bonus}）。")
         return "Event Completed"
     def resell_corrupted_fragment(self):
         _emit_puppet_audio_cue(self.controller, "event")
@@ -441,8 +426,8 @@ class PuppetKindEchoEvent(Event):
         self.title = "蓝眼回声"
         self.description = (
             f"一束细蓝光从坏掉的喇叭里投影成小小木偶轮廓，它自称{kind_name}。"
-            f"它压低声音说：'我中了病毒，{dark_name}快接管我了，快，走这条路，我在这边。'"
-            "你能感觉到这不是幻觉，而是它善良人格在求援。"
+            f"它压低声音说：'剧本丢了以后，我的台词全被噪声改写了，{dark_name}快接管我了……快，走这条路，我在这边。'"
+            "你能感觉到这不是幻觉，而是它的善良人格在求援。"
         )
         self.choices = [
             EventChoice(f"相信{kind_name}，按它给的隐蔽路线前进", self.follow_kind_voice),
@@ -513,7 +498,7 @@ class PuppetPersonaRiftEvent(Event):
             from_stage="rift",
             next_event_key="puppet_core_descent_event",
             hint="前情：裂隙暂时闭合，但更深处的核心井已经开始重启。",
-            message="前情提要：你在裂隙里的抉择已写入核心。。",
+            message="前情提要：你在裂隙里的抉择已写入核心。",
         )
         self.add_message(message)
         return "Event Completed"
@@ -582,7 +567,7 @@ class PuppetCoreDescentEvent(Event):
         ]
 
     def _queue_final_boss(self, route, moral_delta):
-        current_round = max(0, int(getattr(self.controller, "round_count", 0)))
+        current_round = max(0, int(self.controller.round_count))
         payload = build_puppet_final_boss_payload(self.controller)
         self.register_story_choice(
             choice_flag=puppet_descent_flag(route),
@@ -640,6 +625,6 @@ class PuppetCoreDescentEvent(Event):
         dmg = rng().randint(6, 10)
         p.gold += gold_gain
         p.take_damage(dmg)
-        self.add_message(f"你乱输入的指令让本体掉落了一部分金色身体，让你捡到了，增加 {gold_gain}G；回灌污染流反咬你（-{dmg}HP）。")
+        self.add_message(f"你胡乱录入的指令让本体抖落几片镀金外壳，你捡起来换了 {gold_gain}G；回灌的污染电流也反咬了你（-{dmg}HP）。")
         return "Event Completed"
 

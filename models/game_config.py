@@ -1,10 +1,26 @@
+"""游戏配置：规则常量在此定义；数值平衡表（怪物、商店、解锁门槛等）从 data/balance.json 读取。"""
+import json
+import os
+
+BALANCE_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "balance.json")
+
+
+def load_balance(path: str = BALANCE_PATH) -> dict:
+    """读取数值平衡表（JSON；以 "_" 开头的键是注释）。"""
+    with open(path, "r", encoding="utf-8") as fh:
+        return json.load(fh)
+
+
+_BALANCE = load_balance()
+
+
 class GameConfig:
     """游戏配置"""
     # 玩家初始属性
-    START_PLAYER_HP = 20
-    START_PLAYER_ATK = 5
-    START_PLAYER_GOLD = 0 
-    MAX_INVENTORY_SIZE = 10
+    START_PLAYER_HP = int(_BALANCE["player"]["start_hp"])
+    START_PLAYER_ATK = int(_BALANCE["player"]["start_atk"])
+    START_PLAYER_GOLD = int(_BALANCE["player"]["start_gold"])
+    MAX_INVENTORY_SIZE = int(_BALANCE["player"]["max_inventory_size"])
     
     # 怪物掉落配置
     LOOT_CHANCE = 0.5  # 怪物掉落物品的概率
@@ -16,11 +32,12 @@ class GameConfig:
     MONSTER_TIER_CHECK_INTERVAL = 5
     # 解锁规则：玩家历史峰值 min(攻击, 生命/2) 达到门槛时解锁下一 tier（数值越高门槛越高）
     MONSTER_TIER_UNLOCK_REQUIREMENTS = {
-        2: 32,   # min(攻击, 生命/2) >= 32
-        3: 64,   # min(攻击, 生命/2) >= 64
-        4: 112,  # min(攻击, 生命/2) >= 112
-        5: 180,  # min(攻击, 生命/2) >= 180
-        6: 280,  # min(攻击, 生命/2) >= 280
+        int(tier): int(value) for tier, value in _BALANCE["monster_tier_unlock"]["requirements"].items()
+    }
+    # 各 tier 怪物：{tier: [(名称, 生命, 攻击), ...]}
+    MONSTER_TYPES = {
+        int(tier): [(m["name"], int(m["hp"]), int(m["atk"])) for m in monsters]
+        for tier, monsters in _BALANCE["monsters"].items()
     }
 
     # 事件门后续影响：候选数 <5 时，此概率下不改写门、沿用原门（不应用任何 pending consequence）
@@ -34,13 +51,6 @@ class GameConfig:
     # 装备命名池（统一配置）
     # -------------------------------
     # key 采用装备的 atk_bonus 档位（商店/随机物品均按该档位选名）
-    EQUIPMENT_NAME_POOLS = {
-        # 低档：破旧但带点故事
-        2: ["豁口短刀", "裂纹木槌", "断齿短斧", "生锈的长剑", "钉锤", "旧护手匕首"],
-        # 中档：能用、偏实战
-        5: ["精钢长剑", "铁剑", "猎手弯刀", "重刃柴刀", "城卫佩剑", "匠造短枪"],
-        # 高档：更像“宝物名”
-        10: ["秘银短剑", "附魔之刃", "破风长刃", "黑曜石钩镰", "碎星战斧", "暮光细剑"],
-        30: ["霜咬巨刃", "赤纹战戟", "雷鸣重锤", "深渊之刃", "苍穹长枪", "群鸦镰刀"],
-        50: ["王庭裁决", "龙骨巨剑", "星辉圣刃", "永夜断罪", "天穹审判", "不朽誓约"],
-    }
+    EQUIPMENT_NAME_POOLS = {int(k): list(v) for k, v in _BALANCE["equipment_name_pools"].items()}
+    # 商店商品池：每项 {"class": items 中的类名, "weight": 权重, 其余为构造参数}
+    SHOP_ITEMS = list(_BALANCE["shop_items"])

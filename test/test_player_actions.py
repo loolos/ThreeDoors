@@ -1,6 +1,8 @@
 import unittest
 from unittest import mock
-from server import GameController, Player, BattleScene
+from game import GameController
+from models.player import Player
+from scenes import BattleScene
 from models.monster import Monster
 from models import items
 from models.status import StatusName
