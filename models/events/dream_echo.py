@@ -26,7 +26,7 @@ class DreamWellEvent(Event):
     def __init__(self, controller):
         super().__init__(controller)
         self.title = "梦境井"
-        self.description = "梦境井的水面映出的不是你的脸，而是历代梦境的谢幕回放。传闻井水会让你看到过去的梦：喝下它看到过去的梦，封住它，或把回放折价卖给无法进入梦境的人。你得现在决定要把哪条线继续下去。"
+        self.description = "梦境井的水面映出的不是你的脸，而是历代梦境的谢幕回放。传闻喝下井水就能看见过去的梦；你也可以封住它，或者把回放折价卖给无法入梦的人。你得现在决定要把哪条线继续下去。"
         self.choices = [
             EventChoice("喝下井水，读取梦境回放", self.drink_dream),
             EventChoice("封住井口，拒绝回放", self.seal_well),

@@ -1041,7 +1041,7 @@ class StorySystem(StoryExtensionsMixin):
             ending_text = "两个人格在同一段噪声里互相撕扯，最终同时沉默，只剩下可回收的战利品与断续电流声。"
         else:
             bonus_gold = 18
-            ending_text = "你虽然赢了，但黑暗协议早把自身切成碎片散入地城深处。走廊尽头只回荡着失真的童谣。"
+            ending_text = "你虽然赢了，但黑暗协议早把自身切成碎片散入剧场深处。走廊尽头只回荡着失真的童谣。"
 
         ending_variants = []
         if "puppet_descent_patch" in flags and evil <= 45:
@@ -1053,9 +1053,9 @@ class StorySystem(StoryExtensionsMixin):
         if "puppet_descent_cut_emotion" in flags and evil >= 55:
             ending_variants.append("你亲手切断情感模块的记录被标红锁定，黑暗侧用它完成了最后一次自我复制。")
         if "puppet_signal_resell" in flags and evil >= 55:
-            ending_variants.append("你倒卖过的战术信号被反向追踪，结算日志上多出一行：‘债务已由下一位闯入者继承。’")
+            ending_variants.append("你倒卖过的战术信号被反向追踪，结算日志上多出一行：‘债务已由下一位替补继承。’")
         if "puppet_descent_dark_feed" in flags and evil >= 70:
-            ending_variants.append("你喂给核心的自毁协议并未彻底死去，地城远处传来新的机械心跳。")
+            ending_variants.append("你喂给核心的自毁协议并未彻底死去，剧场远处传来新的机械心跳。")
 
         # 让此前选择也影响文本
         if low_hits >= 3 and evil <= 45:
@@ -1156,8 +1156,12 @@ class StorySystem(StoryExtensionsMixin):
         if callable(trigger_clear):
             trigger_clear(
                 ending_key="default_normal",
-                ending_title="结局:迷宫出口",
-                ending_description="你在回合二百的终局门廊做出选择，击倒“选择困难症候群”后终于离开了迷宫。",
+                ending_title="结局：演员通道",
+                ending_description=(
+                    "你在终局门廊里一路犹豫、一路选择，最后击倒了“选择困难症候群”。"
+                    "终幕没有按任何剧本上演，替补也没有站到聚光灯下——"
+                    "但走出演员通道的那一刻你知道，至少最后这一次，是你自己做的决定。"
+                ),
                 ending_meta=self._build_final_ending_meta(),
             )
         else:

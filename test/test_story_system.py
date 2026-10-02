@@ -1385,7 +1385,7 @@ class TestStorySystem(BaseTest):
             payload={
                 "event_key": "elf_side_merchant_disguised_event",
                 "chance": 0.0,
-                "message": "柜台后的商人懒洋洋的看着你——那眼神你认得，这是莱希娅。",
+                "message": "柜台后的商人懒洋洋地看着你——那眼神你认得，这是莱希娅。",
             },
         )
 
@@ -1394,7 +1394,7 @@ class TestStorySystem(BaseTest):
 
         self.assertEqual(changed_door.enum.name, "SHOP")
         self.assertEqual(getattr(changed_door, "story_forced_event_key", ""), "")
-        self.assertNotIn("柜台后的商人懒洋洋的看着你——那眼神你认得，这是莱希娅。", self.controller.messages)
+        self.assertNotIn("柜台后的商人懒洋洋地看着你——那眼神你认得，这是莱希娅。", self.controller.messages)
 
     def test_elf_positive_reward_can_be_heal_instead_of_atk(self):
         self.player.hp = 40

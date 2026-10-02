@@ -170,7 +170,7 @@ class SmugglerEvent(Event):
     def __init__(self, controller):
         super().__init__(controller)
         self.title = "走私犯"
-        self.description = "走廊里，一个鬼鬼祟祟的人拦住你，兜售据说能绕过安保的和货物。"
+        self.description = "走廊里，一个鬼鬼祟祟的人拦住你，兜售据说能绕过安保的后台通行证和杂货。"
         self.item = mk_random_item()
         self.cost = max(10, int(self.item.cost * 0.7)) # 30% off usually
         
@@ -440,7 +440,7 @@ class GamblerEvent(Event):
     def __init__(self, controller):
         super().__init__(controller)
         self.title = "走廊赌档"
-        self.description = "走廊间隙，一个流浪赌徒在走廊拦住你：'想不想玩把大的？赌注是金币。'"
+        self.description = "走廊拐角，一个流浪赌徒拦住你：'想不想玩把大的？赌注是金币。'"
         high_bet = self.scale_value(50, positive=False, aggressive=True)
         low_bet = self.scale_value(10, positive=False)
         self.choices = [
@@ -673,7 +673,7 @@ class LostChildEvent(Event):
         donation = self.scale_value(20, positive=False)
         if p.gold >= donation:
             p.gold -= donation
-            self.add_message(f"你给了小女孩{donation}金币让她自己打车回家（虽然森林里没有出租车）。")
+            self.add_message(f"你给了小女孩{donation}金币，让她去找引座员带她回观众席。")
             # Karma reward (small heal)
             heal_amt = self.scale_value(10, positive=True)
             round_count = max(0, int(self.controller.round_count))
@@ -706,7 +706,7 @@ class LostChildEvent(Event):
                 },
             ],
         )
-        self.add_message("这里是残酷的世界，你选择了无视。")
+        self.add_message("你告诉自己这里是残酷的舞台，选择了无视。")
         return "Event Completed"
 
 
@@ -717,7 +717,7 @@ class CursedChestEvent(Event):
     def __init__(self, controller):
         super().__init__(controller)
         self.title = "诅咒宝箱"
-        self.description = "一个散发着诡异紫光的道具箱，上面刻着警告语：'贪婪者必受惩罚'——像是过去的时代的遗留物。"
+        self.description = "一个散发着诡异紫光的道具箱，上面刻着警告语：'贪婪者必受惩罚'——像是旧时代演出遗留下来的东西。"
         self.choices = [
             EventChoice("强行打开", self.open_chest),
             EventChoice("试图净化", self.purify),
@@ -812,7 +812,7 @@ class WiseSageEvent(Event):
     def __init__(self, controller):
         super().__init__(controller)
         self.title = "智者"
-        self.description = "一位白胡子老者在走廊拦住了去路：'年轻的旅人，为了什么而踏上这舞台？'"
+        self.description = "一位白胡子老者在走廊拦住了去路：'年轻的替补，你为了什么踏上这座舞台？'"
         heal_hint = self.scale_value(50, positive=True)
         self.choices = [
             EventChoice("为了力量 (加攻击)", self.power),
@@ -933,7 +933,7 @@ class RefugeeCaravanEvent(Event):
     def __init__(self, controller):
         super().__init__(controller)
         self.title = "逃难队伍"
-        self.description = "你发现了一支混乱的人马似乎不是这里的人，他们似乎是偷跑进来的难民，他们请求你不要声张，最好还能赞助点食物与路费，好让他们继续隐藏在这里。"
+        self.description = "你撞见一支慌乱的队伍，看起来不是剧场里的人，更像是逃票混进来的难民。他们求你不要声张，最好还能赞助点食物与路费，好让他们继续藏下去。"
         self.choices = [
             EventChoice("捐助 25G", self.donate),
             EventChoice("索要保护费", self.extort),
@@ -1061,7 +1061,7 @@ class FallenKnightEvent(Event):
     def __init__(self, controller):
         super().__init__(controller)
         self.title = "落难骑士"
-        self.description = "一名重伤的骑士倒在走廊路边，他眼神空洞，六神无主，不知道接下来该如何行动。似乎已经放弃了希望。"
+        self.description = "一名重伤的骑士倒在走廊边，眼神空洞，嘴里反复念着：'下一句……下一句台词是什么？'没有剧本指引，他似乎已经放弃了希望。"
         self.choices = [
             EventChoice("帮助骑士", self.aid_knight),
             EventChoice("搜刮装备", self.loot_knight),

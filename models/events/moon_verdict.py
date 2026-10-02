@@ -211,10 +211,14 @@ class MoonVerdictEvent(Event):
             return ""
         source = story.moon_bounty_diary_source
         if source == "thief_body":
-            return "你把战后搜出的旧日记本放在证物盘里：里面只记着一个父亲寻找走失女儿的日期与路线。"
-        if source == "thief_testimony":
-            return "你把被通缉者托付的旧日记本放在证物盘里：里面是他寻找走失女儿的记录，以及他反复写下的「我没偷那份命运的乐谱」。"
-        return "你把一册磨损的旧日记本放在证物盘里，准备在审判中作为补充证词。"
+            line = "你把战后搜出的旧日记本放在证物盘里：里面只记着一个父亲寻找走失女儿的日期与路线。"
+        elif source == "thief_testimony":
+            line = "你把被通缉者托付的旧日记本放在证物盘里：里面是他寻找走失女儿的记录，以及他反复写下的「我没偷那份命运的乐谱」。"
+        else:
+            line = "你把一册磨损的旧日记本放在证物盘里，准备在审判中作为补充证词。"
+        if "elf_met" in story.story_tags:
+            line += "日记最后一页夹着一根银色羽毛——和银羽飞贼刻在门框上的记号一模一样。"
+        return line
 
     def _add_diary_court_remark(self):
         story = self.controller.story

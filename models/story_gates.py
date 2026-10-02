@@ -23,7 +23,7 @@ PRE_FINAL_GATE_STORY_CONFIG: Dict[str, Dict] = {
         "force_door_type": "REWARD",
         "priority": 1260,
         "payload": {
-            "message": f"你终于明白了{ELF_THIEF_NAME}的就是整件事的起因。",
+            "message": f"银羽暗号在门框上亮起——你终于明白，{ELF_THIEF_NAME}就是这一切的起点。",
         },
     },
     "puppet_echo_final_gate": {

@@ -32,7 +32,7 @@ MSG_AFTER_BATTLE_PUPPET_REMATCH_FLED = "你抽身退开后，失真童谣又在�
 
 # 默认终局 Boss
 MSG_DEFAULT_FINAL_BOSS_DEFEATED = "你击倒了“选择困难症候群”。"
-MSG_DEFAULT_NORMAL_EXIT = "你抵达了这座迷宫的出口，从出口离开了。"
+MSG_DEFAULT_NORMAL_EXIT = "舞台侧门在你身后吱呀打开。你把「替补」工作牌留在化妆镜前，从演员通道离开了剧场。"
 
 # 银羽支线共斗门
 MSG_ELF_SIDE_ALLY_WIN = "你们联手解决了敌人。她丢给你一句：'谢了，下次还你。'"

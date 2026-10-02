@@ -70,7 +70,7 @@ def handle_elf_rival_final_gate(story, consequence, door):
         }
     else:
         dialogue = "你听到黑暗中有声音传来：'你总算走到这里了，先把我们之间的账清掉。'"
-        hint = "她抬手拭血，冷笑道：'终局门里真正致命的不是怪物，是你以为自己已经选对。说罢倒在了黑暗中。'"
+        hint = "她抬手拭血，冷笑道：'终局门里真正致命的不是怪物，是你以为自己已经选对。'说罢便退进了黑暗中。"
         state = {
             "profile": "trickster",
             "extensions": extensions,

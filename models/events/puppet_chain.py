@@ -284,9 +284,11 @@ class PuppetAbandonmentEvent(Event):
         kind_name, dark_name = _get_puppet_persona_names(controller)
         self.title = "弃线木偶"
         self.description = (
-            "你在昏暗走廊尽头看见一具被丢弃的木偶——它曾是的戏剧原定的主演，但他现在并不知道自己是谁以及该做什么，只是一味游荡。"
-            f"胸口还挂着半截编号牌，屏幕闪烁着两行人格标签：蓝光侧【{kind_name}】、红噪侧【{dark_name}】。"
-            "它在黑暗中游荡，碰到障碍物就一拳砸裂，你确认现在绝不能正面和它对抗。"
+            "你在昏暗走廊尽头看见一具被丢弃的木偶。它胸口挂着半截演员编号牌——你认得那个编号，"
+            "那正是你今晚替补的角色：它就是这出戏原定的主演。"
+            "剧本失窃后，它不再知道自己是谁、下一句该说什么，只是在黑暗里一遍遍游荡。"
+            f"胸前的小屏幕闪烁着两行人格标签：蓝光侧【{kind_name}】、红噪侧【{dark_name}】。"
+            "它碰到障碍物就一拳砸裂，你确认现在绝不能正面和它对抗。"
         )
         self.choices = [
             EventChoice("钻进井盖，潜行躲避", self.hide_in_shaft),
@@ -395,7 +397,7 @@ class PuppetSignalEvent(Event):
         self.get_player().change_base_atk(atk_bonus)
         _adjust_puppet_evil_value(self.controller, rng().randint(-5, -3))
         self.register_story_choice(choice_flag=PUPPET_SIGNAL_LOG, moral_delta=1)
-        self.add_message(f"你掌握到了到关键的动作并补齐了反制参数（基础攻击 +{atk_bonus}）。")
+        self.add_message(f"你从日志里看懂了它的关键动作，补齐了反制参数（基础攻击 +{atk_bonus}）。")
         return "Event Completed"
     def resell_corrupted_fragment(self):
         _emit_puppet_audio_cue(self.controller, "event")
@@ -424,8 +426,8 @@ class PuppetKindEchoEvent(Event):
         self.title = "蓝眼回声"
         self.description = (
             f"一束细蓝光从坏掉的喇叭里投影成小小木偶轮廓，它自称{kind_name}。"
-            f"它压低声音说：'我中了病毒，{dark_name}快接管我了，快，走这条路，我在这边。'"
-            "你能感觉到这不是幻觉，而是它善良人格在求援。"
+            f"它压低声音说：'剧本丢了以后，我的台词全被噪声改写了，{dark_name}快接管我了……快，走这条路，我在这边。'"
+            "你能感觉到这不是幻觉，而是它的善良人格在求援。"
         )
         self.choices = [
             EventChoice(f"相信{kind_name}，按它给的隐蔽路线前进", self.follow_kind_voice),
@@ -496,7 +498,7 @@ class PuppetPersonaRiftEvent(Event):
             from_stage="rift",
             next_event_key="puppet_core_descent_event",
             hint="前情：裂隙暂时闭合，但更深处的核心井已经开始重启。",
-            message="前情提要：你在裂隙里的抉择已写入核心。。",
+            message="前情提要：你在裂隙里的抉择已写入核心。",
         )
         self.add_message(message)
         return "Event Completed"
@@ -623,6 +625,6 @@ class PuppetCoreDescentEvent(Event):
         dmg = rng().randint(6, 10)
         p.gold += gold_gain
         p.take_damage(dmg)
-        self.add_message(f"你乱输入的指令让本体掉落了一部分金色身体，让你捡到了，增加 {gold_gain}G；回灌污染流反咬你（-{dmg}HP）。")
+        self.add_message(f"你胡乱录入的指令让本体抖落几片镀金外壳，你捡起来换了 {gold_gain}G；回灌的污染电流也反咬了你（-{dmg}HP）。")
         return "Event Completed"
 

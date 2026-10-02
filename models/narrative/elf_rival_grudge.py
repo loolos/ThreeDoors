@@ -35,6 +35,8 @@ _ELF_GRUDGE_LINES: Dict[str, str] = {
     ELF_GRUDGE_HEIST_SIDE_ROUTE: "盗案你非要改走侧井快线，毒针弩机可都是我替你扛的消息。",
 }
 
+ELF_GRUDGE_FATHER_DIARY_LINE = "你包里装着我父亲的日记，却还是把我逼到了这一步？"
+
 ELF_RIVAL_GRUDGE_BARK_ORDER: List[Tuple[str, str]] = [
     (key, _ELF_GRUDGE_LINES[key]) for key in ELF_GRUDGE_BARK_KEYS
 ]
@@ -46,7 +48,11 @@ def collect_elf_rival_grudge_barks(story: Any) -> List[str]:
     for key, line in ELF_RIVAL_GRUDGE_BARK_ORDER:
         if key in flags:
             out.append(line)
-    return out[:6]
+    out = out[:6]
+    if "moon_bounty_diary_obtained" in set(getattr(story, "story_tags", set()) or []):
+        # 月蚀线：玩家手里有她父亲的日记
+        out.append(ELF_GRUDGE_FATHER_DIARY_LINE)
+    return out
 
 
 def elf_rival_grudge_fillers(profile: str) -> List[str]:

@@ -43,12 +43,13 @@ class DoorScene(Scene):
         # 首次进入冒险世界（新局或重置后）：展示世界观与真相暗示
         if self.controller.round_count == 0:
             self.controller.add_message(
-                "你睁开眼，发现自己站在一条幽长的走廊里。眼前是三扇紧闭的门——"
-                "据说每一扇背后都藏着截然不同的命运：战斗、奇遇、或是陷阱。\n"
-                "这里无数走廊与门扉交织成一座没有出口的迷宫；"
-                "而你，是又一位被卷入其中的闯入者。\n"
-                "走廊深处传来若有若无的弦音与低语，像是早已写好的台词在暗处回响。\n"
-                "这场冒险的终幕，或许正取决于你即将做出的每一个选择。"
+                "你在后台的长椅上惊醒，胸前别着一枚写着「替补」的工作牌。\n"
+                "假面剧场的终幕今晚开演，可原定的主演不知去向，终幕剧本也在开演前被人偷走了。"
+                "从来没人给过你一句台词，舞台监督却把你推向走廊：「灯已经亮了，替补，上场。」\n"
+                "眼前是三扇紧闭的门。门后也许是战斗、奇遇，也许是陷阱；"
+                "走廊与门扉交织成一座看不见出口的舞台迷宫。\n"
+                "深处传来若有若无的弦音与低语，像早已写好的台词在暗处回响。"
+                "没有剧本的你，每推开一扇门就是一句即兴台词——终幕怎样落下，取决于你的每一个选择。"
             )
 
         if not self.has_initialized:
@@ -307,7 +308,7 @@ class ShopScene(Scene):
                 f"{shop.shop_items[1].name} ({shop.shop_items[1].cost}G)",
                 f"{shop.shop_items[2].name} ({shop.shop_items[2].cost}G)"
             ]
-        self.controller.add_message("你进入了杂货铺，老板热情的招呼你。")
+        self.controller.add_message("你进入了杂货铺，老板热情地招呼你。")
 
     def handle_choice(self, index):
         logic = self.controller.current_shop
