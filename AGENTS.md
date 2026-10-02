@@ -8,6 +8,8 @@
 
 **Story state**: all long-chain state (`elf_relation`, `elf_key_obtained`, `puppet_evil_value`, `puppet_final_outcome`, …) is declared once in `StorySystem.__init__`; read/write it directly (no `getattr(story, "x", default)`). `puppet_evil_value` is `None` until the puppet chain writes it — read it via `story.get_puppet_evil_value()`.
 
+**Balance data**: monster stats per tier, tier-unlock thresholds, player start stats, equipment name pools and the shop catalogue live in `data/balance.json` (loaded by `models/game_config.py` into `GameConfig.MONSTER_TYPES` / `SHOP_ITEMS` / …). Tune numbers there; `test/test_balance_data.py` validates the file.
+
 **Story flags**: `models/story_flags.py` centralizes `choice_flags` / `story_tags` string constants and cross-references `docs/storyline.md` §9; use it when adding or grepping narrative state keys (distinct from `models/story_gates.py` gate/consequence config).
 
 **Dev server**: `python3 server.py` starts Flask on `http://127.0.0.1:5000` (debug mode, local dev mode; set `HOST=0.0.0.0` to expose on LAN, `FLASK_DEBUG=0` to disable the debugger). In local dev mode the `/exitGame` endpoint calls `os._exit(0)` for requests from 127.0.0.1 — avoid clicking the in-game "关闭游戏" button during development or the server will terminate. Under gunicorn (production) `/exitGame` only ends the caller's own game. Session secret comes from `SECRET_KEY` env, else `instance/secret_key` (auto-generated, gitignored).

@@ -33,35 +33,23 @@ class Shop:
             remaining_weights.pop(idx)
         return selected
 
+    @staticmethod
+    def _catalog_entry(entry):
+        """把平衡表里的一条商品配置转成 (类, 构造参数, 权重)。"""
+        params = {k: v for k, v in entry.items() if k not in ("class", "weight")}
+        pool_tier = params.pop("name_pool_tier", None)
+        if pool_tier is not None:
+            params["name_pool"] = GameConfig.EQUIPMENT_NAME_POOLS[int(pool_tier)]
+        return getattr(items, entry["class"]), params, entry.get("weight", 1)
+
     def generate_items(self):
         """生成商店物品"""
         self.shop_items = []
         
-        # 商店商品池：与 create_random_item() 的格式保持一致
-        # (Class, Params, Weight)
-        # 说明：
+        # 商店商品池（data/balance.json 的 shop_items）：(Class, Params, Weight)
         # - Params 里的 cost 作为“基础价”，随后会应用 SHOP_PRICE_MULTIPLIER 浮动
-        # - 用 shop_category 用于“尽量多类别”上架策略
-        item_types = [
-            (items.HealingPotion, {"name": "小治疗药水", "heal_amount": 10, "cost": 10, "shop_category": "potion"}, 20),
-            (items.HealingPotion, {"name": "中治疗药水", "heal_amount": 20, "cost": 30, "shop_category": "potion"}, 15),
-            (items.HealingPotion, {"name": "大治疗药水", "heal_amount": 30, "cost": 50, "shop_category": "potion"}, 10),
-            (items.HealingPotion, {"name": "超级治疗药水", "heal_amount": 50, "cost": 80, "shop_category": "potion"}, 10),
-            (items.HealingPotion, {"name": "顶级治疗药水", "heal_amount": 80, "cost": 200, "shop_category": "potion"}, 5),
-            (items.Equipment, {"name_pool": GameConfig.EQUIPMENT_NAME_POOLS[2], "atk_bonus": 2, "cost": 5, "shop_category": "equipment"}, 18),
-            (items.Equipment, {"name_pool": GameConfig.EQUIPMENT_NAME_POOLS[5], "atk_bonus": 5, "cost": 15, "shop_category": "equipment"}, 14),
-            (items.Equipment, {"name_pool": GameConfig.EQUIPMENT_NAME_POOLS[10], "atk_bonus": 10, "cost": 30, "shop_category": "equipment"}, 10),
-            (items.Equipment, {"name_pool": GameConfig.EQUIPMENT_NAME_POOLS[30], "atk_bonus": 30, "cost": 100, "shop_category": "equipment"}, 6),
-            (items.Equipment, {"name_pool": GameConfig.EQUIPMENT_NAME_POOLS[50], "atk_bonus": 50, "cost": 200, "shop_category": "equipment"}, 3),
-            (items.DamageReductionScroll, {"name": "减伤卷轴", "duration": 3, "cost": 40, "shop_category": "scroll"}, 12),
-            (items.AttackUpScroll, {"name": "攻击力提升卷轴", "atk_bonus": 5, "duration": 5, "cost": 25, "shop_category": "scroll"}, 10),
-            (items.ReviveScroll, {"name": "复活卷轴", "duration": 1, "cost": 40, "shop_category": "scroll"}, 6),
-            (items.HealingScroll, {"name": "恢复卷轴", "duration": 5, "cost": 25, "shop_category": "scroll"}, 10),
-            (items.ImmuneScroll, {"name": "免疫卷轴", "duration": 3, "cost": 30, "shop_category": "scroll"}, 8),
-            (items.FlyingHammer, {"name": "飞锤", "duration": 3, "cost": 25, "shop_category": "battle"}, 7),
-            (items.Barrier, {"name": "结界", "duration": 3, "cost": 30, "shop_category": "battle"}, 6),
-            (items.GiantScroll, {"name": "巨大卷轴", "duration": 3, "cost": 35, "shop_category": "battle"}, 5),
-        ]
+        # - shop_category 用于“尽量多类别”上架策略
+        item_types = [self._catalog_entry(entry) for entry in GameConfig.SHOP_ITEMS]
         # 根据玩家资金水平计算目标价位：有钱时偏向高价，没钱时偏向低价
         target_cost = max(5, min(200, int(self.player.gold * 0.5)))
         def _get_base_cost(entry) -> int:
