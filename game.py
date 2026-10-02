@@ -32,6 +32,9 @@ class GameController:
         self.game_config = GameConfig()
         # 测试 gate：非空时每次新局/重置都会直接跳到对应剧情节点（见 parse_test_gate）
         self.test_gate = test_gate
+        # /buttonAction 去重：最近一次动作的 id 与返回结果（重试请求直接复用）
+        self.last_action_id: Optional[str] = None
+        self.last_action_response: Optional[dict] = None
         self.reset_game()
 
     def reset_game(self):

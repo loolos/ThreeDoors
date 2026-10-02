@@ -35,6 +35,13 @@ function getFrontDoorStyle(textureKey) {
   return map[textureKey] || { main: "🚪", accent: "🔑" };
 }
 
+function newActionId() {
+  if (window.crypto && typeof window.crypto.randomUUID === "function") {
+    return window.crypto.randomUUID();
+  }
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+}
+
 function pickRandom(items) {
   return items[Math.floor(Math.random() * items.length)];
 }
@@ -198,7 +205,7 @@ async function handleDoorClick(index, card) {
     const actionData = await requestJsonWithRetry("/buttonAction", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ index: index })
+      body: JSON.stringify({ index: index, action_id: newActionId() })
     }, {
       timeoutMs: REQUEST_TIMEOUT_MS,
       maxAttempts: 2,
@@ -274,10 +281,12 @@ async function buttonAction(index) {
   if (buttonArea) buttonArea.style.pointerEvents = "none";
 
   try {
+    // 同一次点击的重试共用一个 action_id，服务端据此去重，避免超时重试把动作执行两次
+    const actionId = newActionId();
     const data = await requestJsonWithRetry("/buttonAction", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ index: index })
+      body: JSON.stringify({ index: index, action_id: actionId })
     }, {
       timeoutMs: REQUEST_TIMEOUT_MS,
       maxAttempts: 2,

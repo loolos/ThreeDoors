@@ -60,13 +60,29 @@ class TestServerAPI(unittest.TestCase):
             self.assertEqual(current_scene_enum, SceneType.DOOR, 
                              f"API call failed to transition from EventScene. Current: {current_scene_enum}")
 
-    def test_all_scenes_in_whitelist(self):
-        """Ensure all defined scenes are handled by server.py whitelist logic"""
-        from scenes import SceneType
-        expected = {"DoorScene", "BattleScene", "ShopScene", "UseItemScene", "EndingSummaryScene", "EndingRollScene", "GameOverScene", "EventScene"}
-        scene_names = {s.__name__ for s in SceneType.get_name_scene_dict().values()}
-        for name in scene_names:
-            self.assertIn(name, expected, f"Scene {name} must be in button_action whitelist")
+    def test_all_scenes_handle_choice(self):
+        """/buttonAction 直接调用当前场景的 handle_choice：每个场景都必须实现它。"""
+        from scenes import Scene
+        for scene_cls in SceneType.get_name_scene_dict().values():
+            self.assertTrue(issubclass(scene_cls, Scene))
+            self.assertIsNot(scene_cls.handle_choice, Scene.handle_choice, f"{scene_cls.__name__} 未实现 handle_choice")
+
+    def test_retried_action_is_not_applied_twice(self):
+        """同一 action_id 的重试请求返回同一结果，回合数只推进一次。"""
+        headers = {"X-Requested-With": "XMLHttpRequest"}
+        with self.app as client:
+            client.get("/getState", headers=headers)
+            game = next(iter(games_store._games.values()))
+            from models.door import DoorEnum
+            game.scene_manager.current_scene.generate_doors([DoorEnum.TRAP, DoorEnum.TRAP, DoorEnum.TRAP])
+            round_before = game.round_count
+            first = client.post("/buttonAction", json={"index": 1, "action_id": "click-1"}, headers=headers).get_json()
+            retry = client.post("/buttonAction", json={"index": 1, "action_id": "click-1"}, headers=headers).get_json()
+            self.assertEqual(first, retry)
+            self.assertEqual(game.round_count, round_before + 1)
+            client.post("/buttonAction", json={"index": 0, "action_id": "click-2"}, headers=headers)
+            self.assertGreaterEqual(game.round_count, round_before + 1)
+            self.assertEqual(game.last_action_id, "click-2")
 
     def test_button_action_validates_index(self):
         """Invalid or out-of-range index should be clamped, not crash"""

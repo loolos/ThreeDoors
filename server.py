@@ -175,12 +175,21 @@ def get_state():
 
 @app.route("/buttonAction", methods=["POST"])
 def button_action():
-    """处理前端按钮点击：解析 index，交给当前场景处理并返回结果与日志。"""
+    """处理前端按钮点击：解析 index，交给当前场景处理并返回结果与日志。
+
+    前端每次点击带一个 action_id，超时重试时复用；同一 action_id 再次到达时直接返回上次结果，不重复执行。
+    """
     g = get_game()
     scn = g.scene_manager.current_scene
     if not scn:
         return jsonify({"status": "error", "outcome": None, "log": "当前无场景"}), 400
-    data = request.json or {}
+    data = request.get_json(silent=True) or {}
+    action_id = data.get("action_id")
+    if action_id is not None and not isinstance(action_id, str):
+        action_id = str(action_id)
+    if action_id and action_id == g.last_action_id and g.last_action_response is not None:
+        return jsonify(g.last_action_response)
+
     raw_index = data.get("index", 0)
     try:
         index = int(raw_index) if raw_index is not None else 0
@@ -188,20 +197,22 @@ def button_action():
         index = 0
     index = max(0, min(2, index))
 
-    scn_name = scn.__class__.__name__
-    outcome = None
-    if scn_name in ["DoorScene", "BattleScene", "ShopScene", "UseItemScene", "EndingSummaryScene", "EndingRollScene", "GameOverScene", "EventScene"]:
-        outcome = scn.handle_choice(index)
-    
+    outcome = scn.handle_choice(index)
+
     # 获取当前消息并清空
     current_messages = g.messages.copy()
     g.clear_messages()
-    
-    return jsonify({
+
+    response = {
         "status": "success",
         "outcome": outcome,
-        "log": "\n".join(current_messages) if current_messages else ""
-    })
+        "log": "\n".join(current_messages) if current_messages else "",
+    }
+    if action_id:
+        g.last_action_id = action_id[:64]
+        g.last_action_response = response
+    return jsonify(response)
+
 
 @app.route("/exitGame", methods=["POST"])
 def exit_game():
