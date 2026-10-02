@@ -2,7 +2,7 @@
 """ThreeDoors 服务端：Flask 应用、游戏控制器与 API 路由。"""
 from flask import Flask, render_template, session, request, jsonify, redirect, url_for
 from flask_session import Session
-import random, string, os, time, threading
+import random, string, os, time, threading, secrets
 import sys
 from models.door import Door
 from models.monster import Monster, get_random_monster
@@ -20,9 +20,43 @@ from models.items import ReviveScroll, FlyingHammer, GiantScroll, Barrier
 # -------------------------------
 
 app = Flask(__name__)
-app.secret_key = "SOME_SECRET"  # 用于加密 session
+
+
+def _load_secret_key() -> str:
+    """优先读环境变量 SECRET_KEY；否则使用（必要时生成）instance 目录下的本地密钥文件。"""
+    env_key = os.environ.get("SECRET_KEY", "").strip()
+    if env_key:
+        return env_key
+    key_path = os.path.join(app.instance_path, "secret_key")
+    try:
+        with open(key_path, "r", encoding="utf-8") as fh:
+            stored = fh.read().strip()
+        if stored:
+            return stored
+    except OSError:
+        pass
+    new_key = secrets.token_hex(32)
+    try:
+        os.makedirs(app.instance_path, exist_ok=True)
+        with open(key_path, "w", encoding="utf-8") as fh:
+            fh.write(new_key)
+    except OSError:
+        pass
+    return new_key
+
+
+app.secret_key = _load_secret_key()  # 用于加密 session
 app.config["SESSION_TYPE"] = "filesystem"  # 存储 session 到文件系统
+# 本地开发模式：仅 `python3 server.py` 直接启动（或设置 THREEDOORS_DEV=1）时开启；gunicorn 部署时关闭。
+app.config["DEV_MODE"] = os.environ.get("THREEDOORS_DEV", "").strip() == "1"
 Session(app)
+
+LOCAL_ADDRS = {"127.0.0.1", "::1"}
+
+
+def is_local_dev_request() -> bool:
+    """是否为本地开发模式下来自本机的请求（只有此时允许关闭服务器进程）。"""
+    return bool(app.config.get("DEV_MODE")) and request.remote_addr in LOCAL_ADDRS
 
 # 测试用 gate：启动时通过 --test-gate=<name> 指定，进入/重置游戏后直接进入对应事件门（如木偶最终 Boss 战）
 TEST_GATE = None
@@ -260,7 +294,7 @@ games_store = {}
 @app.route("/")
 def index():
     """渲染游戏主页面。"""
-    return render_template("index.html", test_gate=TEST_GATE)
+    return render_template("index.html", test_gate=TEST_GATE, dev_mode=bool(app.config.get("DEV_MODE")))
 
 
 @app.route("/startOver", methods=["POST"])
@@ -375,30 +409,29 @@ def button_action():
 
 @app.route("/exitGame", methods=["POST"])
 def exit_game():
-    """清除当前会话并关闭服务器进程（开发时慎用）。"""
-    g = get_game()
-    # 清除游戏会话
+    """退出当前对局。仅本地开发模式下来自本机的请求会额外关闭服务器进程；线上部署只结束自己的对局。"""
     if "game_id" in session:
-        game_id = session["game_id"]
-        if game_id in games_store:
-            del games_store[game_id]
-        session.clear()
-    
-    # 使用定时器在返回响应后关闭服务器
+        games_store.pop(session["game_id"], None)
+    session.clear()
+
+    if not is_local_dev_request():
+        return jsonify({"log": "你已退出本局，感谢游玩！", "server_stopped": False})
+
     def shutdown_server():
         time.sleep(2)  # 等待2秒确保响应已发送
         os._exit(0)  # 强制退出进程
-    
-    # 在新线程中运行关闭操作
-    threading.Thread(target=shutdown_server).start()
-    
-    return jsonify({"log": "游戏已关闭，感谢游玩！"})
+
+    threading.Thread(target=shutdown_server, daemon=True).start()
+    return jsonify({"log": "游戏已关闭，感谢游玩！", "server_stopped": True})
 
 # -------------------------------
 # 4) 启动 Flask 应用
 # -------------------------------
 
 if __name__ == "__main__":
+    app.config["DEV_MODE"] = True
     port = int(os.environ.get("PORT", 5000))
-    host = os.environ.get("HOST", "0.0.0.0")
-    app.run(debug=True, host=host, port=port)
+    # 默认只监听本机：debug 模式的 Werkzeug 调试器可执行任意代码，不应暴露到局域网
+    host = os.environ.get("HOST", "127.0.0.1")
+    debug = os.environ.get("FLASK_DEBUG", "1").strip() != "0"
+    app.run(debug=debug, host=host, port=port)

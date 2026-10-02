@@ -71,3 +71,48 @@ class TestServerAPI(unittest.TestCase):
             for bad_index in [{"index": -1}, {"index": 99}, {"index": "x"}, {}]:
                 resp = client.post("/buttonAction", json=bad_index, headers={"X-Requested-With": "XMLHttpRequest"})
                 self.assertEqual(resp.status_code, 200, f"bad payload {bad_index} should not crash")
+
+
+class TestExitGameEndpoint(unittest.TestCase):
+    """/exitGame 只在本地开发模式下、来自本机的请求才会关闭服务器进程。"""
+
+    def setUp(self):
+        self.client = app.test_client()
+        games_store.clear()
+        self._orig_dev_mode = app.config.get("DEV_MODE")
+
+    def tearDown(self):
+        app.config["DEV_MODE"] = self._orig_dev_mode
+
+    def _post_exit(self, remote_addr):
+        from unittest import mock
+        self.client.get("/")
+        with mock.patch("server.threading.Thread") as thread_cls:
+            resp = self.client.post("/exitGame", environ_base={"REMOTE_ADDR": remote_addr})
+        return resp, thread_cls
+
+    def test_production_does_not_stop_server(self):
+        app.config["DEV_MODE"] = False
+        resp, thread_cls = self._post_exit("127.0.0.1")
+        self.assertEqual(resp.status_code, 200)
+        self.assertFalse(resp.get_json()["server_stopped"])
+        thread_cls.assert_not_called()
+        self.assertEqual(games_store, {}, "退出后应清除本局")
+
+    def test_dev_mode_remote_request_does_not_stop_server(self):
+        app.config["DEV_MODE"] = True
+        resp, thread_cls = self._post_exit("192.168.1.23")
+        self.assertFalse(resp.get_json()["server_stopped"])
+        thread_cls.assert_not_called()
+
+    def test_dev_mode_local_request_stops_server(self):
+        app.config["DEV_MODE"] = True
+        resp, thread_cls = self._post_exit("127.0.0.1")
+        self.assertTrue(resp.get_json()["server_stopped"])
+        thread_cls.assert_called_once()
+
+    def test_index_hides_shutdown_wording_in_production(self):
+        app.config["DEV_MODE"] = False
+        html = self.client.get("/").get_data(as_text=True)
+        self.assertIn("退出本局", html)
+        self.assertNotIn("关闭游戏</button>", html)

@@ -330,15 +330,23 @@ async function exitGame() {
 
     document.querySelectorAll("button").forEach(b => b.disabled = true);
 
-    // UI Feedback
+    // UI Feedback：本地开发模式会停止服务器；线上只结束本局
+    const serverStopped = Boolean(data.server_stopped);
     setTimeout(() => {
-      document.body.innerHTML = `
+      document.body.innerHTML = serverStopped
+        ? `
             <div style="display:flex;justify-content:center;align-items:center;height:100vh;flex-direction:column;font-family:sans-serif;">
                 <h1>游戏已关闭</h1>
                 <p>服务器已停止运行，您可以关闭此标签页了。</p>
             </div>
+        `
+        : `
+            <div style="display:flex;justify-content:center;align-items:center;height:100vh;flex-direction:column;font-family:sans-serif;">
+                <h1>感谢游玩</h1>
+                <p>你已退出本局。刷新页面即可开始新的冒险。</p>
+            </div>
         `;
-      window.close(); // Try to close
+      if (serverStopped) window.close(); // Try to close
     }, 1000);
 
   } catch (e) {
