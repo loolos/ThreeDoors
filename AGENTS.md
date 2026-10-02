@@ -4,7 +4,7 @@
 
 **Product**: ThreeDoors — a text-based roguelike adventure web game (Flask + vanilla JS). Single-service, no external databases or Docker required.
 
-**Story effects**: each `PendingConsequence.effect_key` is handled by `handle_<effect_key>(story, consequence, door)` in `models/story_effects/` (rewards / shop / hunters / story_doors / bosses), auto-registered in `models/story_effects/__init__.py::EFFECT_HANDLERS`; `StorySystem._apply_effect` only dispatches.
+**Story effects**: each `PendingConsequence.effect_key` is handled by `handle_<effect_key>(story, consequence, door)` in `models/story_effects/` (rewards / shop / hunters / story_doors / bosses), auto-registered in `models/story_effects/__init__.py::EFFECT_HANDLERS`; `StorySystem._apply_effect` only dispatches. Door/battle extension runtime (puppet two-phase boss, elf-rival counters, marked rewards) lives in `models/story_extensions.py` (`StoryExtensionsMixin`, mixed into `StorySystem`).
 
 **Story flags**: `models/story_flags.py` centralizes `choice_flags` / `story_tags` string constants and cross-references `docs/storyline.md` §9; use it when adding or grepping narrative state keys (distinct from `models/story_gates.py` gate/consequence config).
 

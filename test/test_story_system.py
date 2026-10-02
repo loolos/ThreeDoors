@@ -600,7 +600,7 @@ class TestStorySystem(BaseTest):
             FlyingHammer(name="背包飞锤B", cost=0),
         ]
         with unittest.mock.patch("models.story_system.random.uniform", return_value=0.0), unittest.mock.patch(
-            "models.story_system.create_random_item", side_effect=fixed_items
+            "models.story_extensions.create_random_item", side_effect=fixed_items
         ):
             changed_door = story.apply_pre_enter_checks(reward_door)
             changed_door.enter()
